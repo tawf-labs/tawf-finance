@@ -60,7 +60,7 @@ export function Footer() {
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
           >
-            <h2 className="text-2xl font-bold text-white mb-3">Tawf Finance</h2>
+            <h2 className="text-2xl font-bold text-white mb-3">Tawf Labs</h2>
             <p className="text-white/60 text-sm leading-relaxed mb-6">
               We tokenize the underserved economy. Stake and earn real yield while
               providing working capital for Southeast Asian MSMEs.
@@ -82,7 +82,7 @@ export function Footer() {
           className="pt-8 border-t border-white/10 flex items-center justify-center"
         >
           <p className="text-white/40 text-sm">
-            © {new Date().getFullYear()} Tawf Finance. All rights reserved.
+            © {new Date().getFullYear()} Tawf Labs. All rights reserved.
           </p>
         </motion.div>
       </div>
