@@ -1,0 +1,175 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Tawf Design System Tokens */
+@theme {
+  /* Primary Colors */
+  --color-tawf-green: #0F3D30;
+  --color-tawf-green-light: #1A5242;
+  --color-tawf-gold: #C5A869;
+  --color-tawf-sand: #F9F6F0;
+  --color-tawf-ink: #1A1A1A;
+  --color-tawf-muted: #6B7280;
+
+  /* Color Variants */
+  --color-tawf-green-10: rgb(15 61 48 / 0.1);
+  --color-tawf-green-20: rgb(15 61 48 / 0.2);
+  --color-tawf-gold-10: rgb(197 168 105 / 0.1);
+  --color-tawf-gold-20: rgb(197 168 105 / 0.2);
+  --color-tawf-sand-30: rgb(249 246 240 / 0.3);
+  --color-tawf-sand-50: rgb(249 246 240 / 0.5);
+
+  /* Spacing */
+  --spacing-section: 6rem;
+  --spacing-section-mobile: 4rem;
+  --spacing-card-gap: 1.5rem;
+  --spacing-card-padding: 2rem;
+  --spacing-card-padding-lg: 2.5rem;
+
+  /* Border Radius */
+  --radius-card: 1rem;
+  --radius-box: 1.5rem;
+  --radius-button: 9999px;
+
+  /* Font Families */
+  --font-serif: "Cormorant Garamond", "Times New Roman", serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* Type Scale */
+  --text-hero: 3.5rem;
+  --text-h1: 3.75rem;
+  --text-h2: 2.5rem;
+  --text-h3: 1.75rem;
+  --text-body-xl: 1.25rem;
+  --text-body-lg: 1.125rem;
+  --text-body: 1rem;
+  --text-small: 0.875rem;
+}
+
+/* Global Styles */
+@layer base {
+  * {
+    @apply border-tawf-green-10;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-tawf-sand text-tawf-ink antialiased;
+    font-family: var(--font-sans);
+  }
+
+  /* Selection */
+  ::selection {
+    @apply bg-tawf-gold-20 text-tawf-green;
+  }
+
+  /* Focus Styles */
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-tawf-gold;
+  }
+
+  /* Typography */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif font-medium;
+  }
+}
+
+@layer components {
+  /* Section Container */
+  .section-container {
+    @apply max-w-7xl mx-auto px-6;
+  }
+
+  .section-padding {
+    @apply py-section-mobile md:py-section;
+  }
+
+  /* Navigation */
+  .nav-link {
+    @apply text-tawf-ink uppercase tracking-wider text-xs font-medium hover:text-tawf-green transition-colors duration-300;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply bg-tawf-green text-tawf-sand px-8 py-4 rounded-full font-medium uppercase tracking-wide transition-all duration-300 hover:bg-tawf-green-light hover:shadow-lg;
+  }
+
+  .btn-secondary {
+    @apply bg-transparent border border-tawf-green text-tawf-green px-6 py-2.5 rounded-full font-medium uppercase tracking-wide transition-all duration-300 hover:bg-tawf-green hover:text-tawf-sand;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white border border-tawf-green-10 rounded-2xl p-card-padding transition-all duration-300;
+  }
+
+  .card-hover {
+    @apply hover:shadow-lg hover:border-tawf-green-20;
+  }
+
+  .card-sand {
+    @apply bg-tawf-sand-30;
+  }
+
+  /* Text Styles */
+  .text-gradient {
+    @apply bg-gradient-to-r from-tawf-green to-tawf-green-light bg-clip-text text-transparent;
+  }
+
+  .text-gold {
+    @apply text-tawf-gold;
+  }
+
+  .label {
+    @apply uppercase tracking-widest text-xs text-tawf-gold font-medium;
+  }
+}
+
+/* Animations */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.8s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.8s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 1s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
