@@ -36,9 +36,9 @@ export function Navigation() {
       <div className="section-container">
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
-          <a href="#" className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2">
             <img src="/tawftransparent.png" alt="tawf.finance" className="pt-2 h-24 w-auto invert" />
-          </a>
+          </Link>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8">
