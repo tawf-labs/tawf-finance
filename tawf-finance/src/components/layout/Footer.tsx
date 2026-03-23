@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 
 const stakingPools = [
-  { name: 'Kurban Farms Pool', href: '#' },
-  { name: 'Warung Pool', href: '#' },
-  { name: 'Jamu & Herbal Pool', href: '#' },
-  { name: 'Organic Food Pool', href: '#' },
-  { name: 'Artisan Goods Pool', href: '#' },
+  { name: 'Kurban Farms Pool', href: '/earn' },
+  { name: 'Warung Pool', href: '/earn' },
+  { name: 'Jamu & Herbal Pool', href: '/earn' },
+  { name: 'Organic Food Pool', href: '/earn' },
+  { name: 'Artisan Goods Pool', href: '/earn' },
 ];
 
 const platformLinks = [
@@ -28,6 +29,8 @@ const resourceLinks = [
 ];
 
 function FooterColumn({ title, links, delay }: { title: string; links: { name: string; href: string }[]; delay: number }) {
+  const isExternal = (href: string) => href.startsWith('http');
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -39,9 +42,15 @@ function FooterColumn({ title, links, delay }: { title: string; links: { name: s
       <ul className="space-y-3">
         {links.map((link) => (
           <li key={link.name}>
-            <a href={link.href} className="text-white/40 hover:text-tawf-gold transition-colors text-sm">
-              {link.name}
-            </a>
+            {isExternal(link.href) ? (
+              <a href={link.href} className="text-white/40 hover:text-tawf-gold transition-colors text-sm">
+                {link.name}
+              </a>
+            ) : (
+              <Link to={link.href} className="text-white/40 hover:text-tawf-gold transition-colors text-sm">
+                {link.name}
+              </Link>
+            )}
           </li>
         ))}
       </ul>

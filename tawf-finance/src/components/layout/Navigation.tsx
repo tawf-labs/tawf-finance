@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '../ui/Button';
 
 const navLinks = [
@@ -54,9 +55,11 @@ export function Navigation() {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-4">
-            <Button variant="primary" size="sm">
-              Connect Wallet
-            </Button>
+            <Link to="/earn">
+              <Button variant="primary" size="sm">
+                Start Investing
+              </Button>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -93,14 +96,15 @@ export function Navigation() {
                   </a>
                 ))}
                 <div className="h-px bg-tawf-green/10 my-2" />
-                <Button
-                  variant="primary"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Connect Wallet
-                </Button>
+                <Link to="/earn" onClick={() => setIsMobileMenuOpen(false)}>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="w-full"
+                  >
+                    Start Investing
+                  </Button>
+                </Link>
               </div>
             </div>
           </motion.div>

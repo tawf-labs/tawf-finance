@@ -1,5 +1,6 @@
+import { Routes, Route } from 'react-router-dom';
 import { Navigation, Footer } from './components/layout';
-import { Hero, Features, HowItWorks, Impact } from './components/sections';
+import { Home, Earn } from './components/pages';
 
 function App() {
   return (
@@ -7,10 +8,10 @@ function App() {
       <Navigation />
 
       <main>
-        <Hero />
-        <Features />
-        <HowItWorks />
-        <Impact />
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/earn" element={<Earn />} />
+        </Routes>
       </main>
 
       <Footer />
