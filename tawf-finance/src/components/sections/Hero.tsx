@@ -36,10 +36,10 @@ export function Hero() {
       >
         <motion.div
           variants={itemVariants}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/30 mb-4"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-tawf-green/5 border border-tawf-green/30 mb-4"
         >
-          <AlertCircle className="w-4 h-4 text-amber-600" />
-          <span className="label text-amber-700 dark:text-amber-400 text-sm">
+          <AlertCircle className="w-4 h-4 text-tawf-green" />
+          <span className="label text-tawf-green text-sm font-medium">
             Testnet Mode — Auditing in Progress, Seeking Partners
           </span>
         </motion.div>
