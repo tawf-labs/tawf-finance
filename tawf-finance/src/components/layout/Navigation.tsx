@@ -5,9 +5,9 @@ import { Link } from 'react-router-dom';
 import { Button } from '../ui/Button';
 
 const navLinks = [
-  { name: 'Features', href: '#features' },
-  { name: 'How It Works', href: '#how-it-works' },
-  { name: 'Impact', href: '#impact' },
+  { name: 'Features', href: '/#features' },
+  { name: 'How It Works', href: '/#how-it-works' },
+  { name: 'Impact', href: '/#impact' },
 ];
 
 export function Navigation() {
