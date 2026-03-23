@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import type { Variants } from 'framer-motion';
-import { ArrowRight, Wallet } from 'lucide-react';
+import { ArrowRight, AlertCircle, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Section } from '../ui/Section';
@@ -36,6 +36,16 @@ export function Hero() {
       >
         <motion.div
           variants={itemVariants}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/30 mb-4"
+        >
+          <AlertCircle className="w-4 h-4 text-amber-600" />
+          <span className="label text-amber-700 dark:text-amber-400 text-sm">
+            Testnet Mode — Auditing in Progress, Seeking Partners
+          </span>
+        </motion.div>
+
+        <motion.div
+          variants={itemVariants}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-tawf-green/10 border border-tawf-green/20 mb-6"
         >
           <span className="label text-tawf-gold">Southeast Asia First</span>
@@ -68,10 +78,12 @@ export function Hero() {
               <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Button>
           </Link>
-          <Button variant="secondary" size="lg">
-            <Wallet className="mr-2 w-4 h-4" />
-            Apply for Funding
-          </Button>
+          <Link to="/contact">
+            <Button variant="secondary" size="lg">
+              <Mail className="mr-2 w-4 h-4" />
+              Partner With Us
+            </Button>
+          </Link>
         </motion.div>
 
         <motion.div variants={itemVariants} className="flex items-center justify-center gap-8">

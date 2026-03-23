@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { Navigation, Footer } from './components/layout';
-import { Home, Earn } from './components/pages';
+import { Contact, Earn, Home } from './components/pages';
 
 function App() {
   return (
@@ -11,6 +11,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/earn" element={<Earn />} />
+          <Route path="/contact" element={<Contact />} />
         </Routes>
       </main>
 
