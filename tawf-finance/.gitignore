@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Internal tool directories and files
+.agents/
+.claude/
+skills-lock.json
+temp_prd/
