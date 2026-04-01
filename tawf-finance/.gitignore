@@ -24,6 +24,7 @@ dist-ssr
 *.sw?
 
 # Internal tool directories and files
+.agent/
 .agents/
 .claude/
 skills-lock.json
