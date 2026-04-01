@@ -1,3 +1,6 @@
+// IMPORTANT: Buffer polyfill must be imported FIRST, before any Solana imports
+import './buffer-polyfill'
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
