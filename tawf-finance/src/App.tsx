@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { WalletProvider } from '@/components/solana/WalletProvider';
 import { Navigation, Footer, DashboardLayout } from './components/layout';
 import {
   Home,
@@ -196,9 +197,11 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <WalletProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </WalletProvider>
   );
 }
 

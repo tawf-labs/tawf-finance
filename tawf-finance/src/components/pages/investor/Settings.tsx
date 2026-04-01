@@ -1,21 +1,36 @@
 import { useState } from 'react';
-import { User, Bell, Shield, Wallet, LogOut, Sparkles } from 'lucide-react';
+import { User, Bell, Shield, LogOut, ExternalLink, Sparkles } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Tabs } from '@/components/ui/Tabs';
 import { useAuth } from '@/hooks/useAuth';
+import { useSolanaWallet } from '@/hooks/useSolanaWallet';
+import { WalletConnectButton } from '@/components/solana/WalletMultiButton';
 
 export function Settings() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
+  const {
+    connected,
+    walletAddress,
+    shortenedAddress,
+    balance,
+    usdcBalance,
+    isLoadingBalance,
+    isLoadingUsdcBalance,
+    fetchBalance,
+    fetchUsdcBalance,
+    getExplorerUrl,
+    requestAirdrop,
+  } = useSolanaWallet();
 
   const tabs = [
     { id: 'profile', label: 'Profile', content: null, icon: <User className="w-4 h-4" /> },
     { id: 'notifications', label: 'Notifications', content: null, icon: <Bell className="w-4 h-4" /> },
     { id: 'security', label: 'Security', content: null, icon: <Shield className="w-4 h-4" /> },
-    { id: 'wallets', label: 'Wallets', content: null, icon: <Wallet className="w-4 h-4" /> },
+    { id: 'wallets', label: 'Wallets', content: null, icon: <Shield className="w-4 h-4" /> },
   ];
 
   return (
@@ -97,12 +112,19 @@ export function Settings() {
                   <label className="block text-sm font-medium text-tawf-ink mb-2">
                     Wallet Address
                   </label>
-                  <input
-                    type="text"
-                    defaultValue={user?.walletAddress || ''}
-                    placeholder="Connect a wallet"
-                    className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold font-mono text-sm"
-                  />
+                  {connected && walletAddress ? (
+                    <div className="flex items-center gap-2 p-3 border border-tawf-green-10 rounded-xl bg-green-50">
+                      <span className="font-mono text-sm text-tawf-green">{shortenedAddress}</span>
+                      <Badge variant="success" size="sm">Connected</Badge>
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value="Not connected"
+                      disabled
+                      className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl bg-gray-50 text-gray-400"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -172,34 +194,115 @@ export function Settings() {
           )}
 
           {activeTab === 'wallets' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-medium text-tawf-green">Connected Wallets</h3>
-                <Button variant="primary" size="sm">+ Connect Wallet</Button>
-              </div>
+            <div className="space-y-6">
+              {/* Solana Wallet Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium text-tawf-green">Solana Wallet</h3>
+                    <p className="text-sm text-tawf-muted">Connect your Phantom wallet for Solana Devnet</p>
+                  </div>
+                  <WalletConnectButton variant="primary" size="md" />
+                </div>
 
-              {[
-                { name: 'Coinbase Wallet', address: '0x1234...5678', connected: true, icon: <Wallet className="w-5 h-5 text-blue-600" /> },
-                { name: 'Privy', address: 'Not connected', connected: false, icon: <Shield className="w-5 h-5 text-purple-600" /> },
-                { name: 'Phantom', address: 'Not connected', connected: false, icon: <Sparkles className="w-5 h-5" /> },
-              ].map((wallet, index) => (
-                <div key={index} className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${wallet.connected ? 'bg-tawf-green-10' : 'bg-gray-100'}`}>
-                      {wallet.icon}
+                {connected && walletAddress && (
+                  <div className="p-4 bg-tawf-sand-30 rounded-xl space-y-3">
+                    {/* Wallet Address */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-tawf-muted">Wallet Address</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm">{shortenedAddress}</span>
+                        <Badge variant="success" size="sm">Connected</Badge>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium">{wallet.name}</p>
-                      <p className="text-sm text-tawf-muted font-mono">{wallet.address}</p>
+
+                    {/* SOL Balance (Gas) */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm text-tawf-muted">SOL Balance</span>
+                        <span className="text-xs text-tawf-muted ml-2">(for gas fees)</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-lg">
+                          {isLoadingBalance ? '...' : `${balance.toFixed(4)} SOL`}
+                        </span>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={fetchBalance}
+                          disabled={isLoadingBalance}
+                        >
+                          Refresh
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* USDC Balance (Investments) */}
+                    <div className="flex items-center justify-between bg-green-50 rounded-lg p-3 -mx-3">
+                      <div>
+                        <span className="text-sm font-medium text-tawf-green">USDC Balance</span>
+                        <span className="text-xs text-tawf-muted ml-2">(for investments)</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-lg text-tawf-green">
+                          {isLoadingUsdcBalance ? '...' : `$${usdcBalance.toFixed(2)} USDC`}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={fetchUsdcBalance}
+                          disabled={isLoadingUsdcBalance}
+                          className="text-tawf-green hover:text-tawf-green-80"
+                        >
+                          Refresh
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Explorer Link */}
+                    <div className="flex items-center justify-between pt-2 border-t border-tawf-green-10">
+                      <span className="text-sm text-tawf-muted">View on Explorer</span>
+                      <a
+                        href={getExplorerUrl(walletAddress, 'address')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-sm text-tawf-green hover:underline"
+                      >
+                        Solscan <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+
+                    {/* Airdrop Button (Devnet Only) */}
+                    <div className="pt-2 border-t border-tawf-green-10">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => requestAirdrop(1)}
+                        className="text-tawf-gold hover:text-tawf-gold-80"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Request 1 SOL Airdrop (Devnet)
+                      </Button>
                     </div>
                   </div>
-                  {wallet.connected ? (
-                    <Badge variant="success" size="sm">Connected</Badge>
-                  ) : (
-                    <Button variant="secondary" size="sm">Connect</Button>
-                  )}
-                </div>
-              ))}
+                )}
+              </div>
+
+              {/* Info Section */}
+              <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                <h4 className="font-medium text-blue-800 mb-2">About Solana Devnet</h4>
+                <p className="text-sm text-blue-700 mb-2">
+                  Tawf Finance uses Solana Devnet for testing. Devnet is a test network where you can:
+                </p>
+                <ul className="text-sm text-blue-700 list-disc list-inside space-y-1">
+                  <li>Request free SOL airdrops for testing</li>
+                  <li>Make transactions without spending real money</li>
+                  <li>Test NFT minting and smart contracts</li>
+                </ul>
+                <p className="text-sm text-blue-700 mt-2">
+                  Install <a href="https://phantom.app" target="_blank" rel="noopener noreferrer" className="underline font-medium">Phantom Wallet</a> to get started.
+                </p>
+              </div>
             </div>
           )}
         </div>

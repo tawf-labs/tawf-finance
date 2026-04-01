@@ -1,12 +1,14 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Search, SlidersHorizontal, TrendingUp, Wallet, Shield, Sparkles } from 'lucide-react';
+import { Search, SlidersHorizontal, TrendingUp, ExternalLink, Sparkles } from 'lucide-react';
 import { InvestmentCard } from '@/components/ui/InvestmentCard';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { WalletConnectButton } from '@/components/solana/WalletMultiButton';
 import { mockPools } from '@/data/mockData';
 import { useMockData } from '@/hooks/useMockData';
+import { useSolanaWallet } from '@/hooks/useSolanaWallet';
 import { cn } from '@/utils/cn';
 import type { Pool } from '@/data/mockData';
 
@@ -21,16 +23,25 @@ const categoryMap: Record<string, FilterCategory> = {
   'Manufacturing': 'manufacturing',
 };
 
+// Helper function to get explorer URL for a transaction
+const getExplorerUrl = (signature: string) => {
+  return `https://explorer.solana.com/tx/${signature}?cluster=devnet`;
+};
+
 export function InvestorPools() {
   const { formatCurrency, investments } = useMockData();
+  const { connected, walletAddress, address, usdcBalance, transferUsdc } = useSolanaWallet();
+
   const [selectedCategory, setSelectedCategory] = useState<FilterCategory>('all');
   const [sortBy, setSortBy] = useState<SortOption>('apy');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPool, setSelectedPool] = useState<Pool | null>(null);
   const [showInvestModal, setShowInvestModal] = useState(false);
   const [investAmount, setInvestAmount] = useState(100);
-  const [selectedWallet, setSelectedWallet] = useState<'coinbase' | 'privy' | 'phantom' | null>(null);
+  const [isInvesting, setIsInvesting] = useState(false);
+  const [txSignature, setTxSignature] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [investError, setInvestError] = useState<string | null>(null);
 
   // Filter and sort pools
   const filteredPools = useMemo(() => {
@@ -74,6 +85,9 @@ export function InvestorPools() {
       setSelectedPool(pool);
       setInvestAmount(pool.minInvestment);
       setShowInvestModal(true);
+      setTxSignature(null);
+      setInvestError(null);
+      setShowSuccess(false);
     }
   };
 
@@ -85,15 +99,40 @@ export function InvestorPools() {
     }
   };
 
-  const handleConfirmInvest = () => {
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowInvestModal(false);
-      setShowSuccess(false);
-      setSelectedPool(null);
-      setInvestAmount(100);
-      setSelectedWallet(null);
-    }, 3000);
+  const handleConfirmInvest = async () => {
+    if (!connected || !walletAddress || !address || !selectedPool) {
+      setInvestError('Please connect your wallet first');
+      return;
+    }
+
+    setIsInvesting(true);
+    setInvestError(null);
+
+    try {
+      // Use the USDC transfer function with the pool's treasury address
+      const signature = await transferUsdc(selectedPool.usdcTreasury, investAmount);
+
+      if (signature) {
+        setTxSignature(signature);
+        setShowSuccess(true);
+
+        // Auto-close after 5 seconds
+        setTimeout(() => {
+          setShowInvestModal(false);
+          setShowSuccess(false);
+          setSelectedPool(null);
+          setInvestAmount(100);
+          setTxSignature(null);
+        }, 5000);
+      } else {
+        setInvestError('Transaction failed - no signature returned');
+      }
+    } catch (error) {
+      console.error('Investment error:', error);
+      setInvestError(error instanceof Error ? error.message : 'Transaction failed');
+    } finally {
+      setIsInvesting(false);
+    }
   };
 
   // Calculate expected return
@@ -104,9 +143,12 @@ export function InvestorPools() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="font-serif text-3xl text-tawf-green mb-2">Investment Pools</h1>
-        <p className="text-tawf-muted">Choose from our curated pools of vetted MSMEs</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-serif text-3xl text-tawf-green mb-2">Investment Pools</h1>
+          <p className="text-tawf-muted">Choose from our curated pools of vetted MSMEs</p>
+        </div>
+        <WalletConnectButton variant="primary" size="md" />
       </div>
 
       {/* Filters */}
@@ -210,6 +252,8 @@ export function InvestorPools() {
           setShowInvestModal(false);
           setShowSuccess(false);
           setSelectedPool(null);
+          setTxSignature(null);
+          setInvestError(null);
         }}
         title={showSuccess ? 'Investment Successful!' : selectedPool?.name}
         size="md"
@@ -222,15 +266,27 @@ export function InvestorPools() {
               </svg>
             </div>
             <h3 className="font-serif text-2xl text-tawf-green mb-2">Investment Confirmed!</h3>
-            <p className="text-tawf-muted mb-6">
+            <p className="text-tawf-muted mb-4">
               You have successfully invested {formatCurrency(investAmount)} in {selectedPool?.name}
             </p>
-            <div className="bg-tawf-sand-30 rounded-xl p-4 mb-6">
-              <p className="text-sm text-tawf-muted mb-1">Transaction Hash</p>
-              <p className="font-mono text-sm text-tawf-green break-all">
-                0x{Math.random().toString(16).substr(2, 40)}
-              </p>
-            </div>
+            {txSignature && (
+              <div className="bg-tawf-sand-30 rounded-xl p-4 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-tawf-muted">Transaction Signature</p>
+                  <a
+                    href={getExplorerUrl(txSignature)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-tawf-green hover:underline flex items-center gap-1"
+                  >
+                    View on Explorer <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <p className="font-mono text-xs text-tawf-green break-all">
+                  {txSignature.slice(0, 16)}...{txSignature.slice(-16)}
+                </p>
+              </div>
+            )}
             <p className="text-sm text-tawf-muted">
               A digital receipt (soulbound NFT) has been generated and added to your portfolio.
             </p>
@@ -249,6 +305,22 @@ export function InvestorPools() {
                 </div>
               </div>
 
+              {/* Wallet Connection Notice */}
+              {!connected && (
+                <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                  <div className="flex items-center gap-3">
+                    <Sparkles className="w-5 h-5 text-blue-600" />
+                    <div className="flex-1">
+                      <p className="font-medium text-blue-800">Connect Your Wallet</p>
+                      <p className="text-sm text-blue-600">
+                        Connect your Phantom wallet to invest on Solana Devnet
+                      </p>
+                    </div>
+                    <WalletConnectButton variant="primary" size="sm" />
+                  </div>
+                </div>
+              )}
+
               {/* Investment Amount */}
               <div>
                 <label className="block text-sm font-medium text-tawf-ink mb-2">
@@ -260,9 +332,10 @@ export function InvestorPools() {
                     value={investAmount}
                     onChange={(e) => setInvestAmount(Math.max(selectedPool.minInvestment, Number(e.target.value)))}
                     min={selectedPool.minInvestment}
-                    className="flex-1 px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
+                    disabled={!connected}
+                    className="flex-1 px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold disabled:bg-gray-50 disabled:text-gray-400"
                   />
-                  <span className="text-sm text-tawf-muted">USD</span>
+                  <span className="text-sm font-medium text-tawf-green">USDC</span>
                 </div>
                 <input
                   type="range"
@@ -271,12 +344,18 @@ export function InvestorPools() {
                   min={selectedPool.minInvestment}
                   max={10000}
                   step={50}
-                  className="w-full accent-tawf-green"
+                  disabled={!connected}
+                  className="w-full accent-tawf-green disabled:opacity-50"
                 />
                 <div className="flex justify-between text-xs text-tawf-muted mt-1">
-                  <span>{formatCurrency(selectedPool.minInvestment)}</span>
-                  <span>{formatCurrency(10000)}</span>
+                  <span>{selectedPool.minInvestment} USDC</span>
+                  <span>10,000 USDC</span>
                 </div>
+                {connected && (
+                  <p className="text-xs text-tawf-muted mt-2">
+                    Your USDC Balance: <span className="font-medium text-tawf-green">${usdcBalance.toFixed(2)} USDC</span>
+                  </p>
+                )}
               </div>
 
               {/* Expected Returns */}
@@ -293,47 +372,39 @@ export function InvestorPools() {
                 </div>
               </div>
 
-              {/* Wallet Selection */}
-              <div>
-                <label className="block text-sm font-medium text-tawf-ink mb-3">
-                  Select Wallet
-                </label>
-                <div className="space-y-2">
-                  {[
-                    { id: 'coinbase', name: 'Coinbase Wallet', icon: <Wallet className="w-6 h-6 text-blue-600" /> },
-                    { id: 'privy', name: 'Privy', icon: <Shield className="w-6 h-6 text-purple-600" /> },
-                    { id: 'phantom', name: 'Phantom', icon: <Sparkles className="w-6 h-6" /> },
-                  ].map((wallet) => (
-                    <button
-                      key={wallet.id}
-                      onClick={() => setSelectedWallet(wallet.id as any)}
-                      className={cn(
-                        'w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all',
-                        selectedWallet === wallet.id
-                          ? 'border-tawf-green bg-tawf-green-5'
-                          : 'border-tawf-green-10 hover:border-tawf-green-20'
-                      )}
-                    >
-                      {wallet.icon}
-                      <span className="font-medium">{wallet.name}</span>
-                      {selectedWallet === wallet.id && (
-                        <svg className="w-5 h-5 text-tawf-green ml-auto" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </button>
-                  ))}
-                </div>
+              {/* Network Info */}
+              <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
+                <p className="text-sm font-medium text-purple-800 mb-1">Solana Devnet</p>
+                <p className="text-xs text-purple-600">
+                  Transactions on Solana Devnet use test SOL with no real value.
+                </p>
               </div>
+
+              {/* Error Message */}
+              {investError && (
+                <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+                  <p className="text-sm text-red-600">{investError}</p>
+                </div>
+              )}
 
               {/* Confirm Button */}
               <Button
                 size="lg"
                 className="w-full"
-                disabled={!selectedWallet || investAmount < selectedPool.minInvestment}
+                disabled={!connected || isInvesting || investAmount < selectedPool.minInvestment}
                 onClick={handleConfirmInvest}
               >
-                Confirm Investment of {formatCurrency(investAmount)}
+                {isInvesting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Confirming Transaction...
+                  </>
+                ) : (
+                  `Confirm Investment of ${investAmount} USDC`
+                )}
               </Button>
 
               <p className="text-xs text-tawf-muted text-center">

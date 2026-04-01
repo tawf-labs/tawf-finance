@@ -55,6 +55,7 @@ export interface Pool {
   shariaCompliant: boolean;
   createdAt: string;
   roiHistory: { date: string; value: number }[];
+  usdcTreasury: string; // USDC token account to receive investments
 }
 
 export interface PurchaseOrder {
@@ -187,7 +188,7 @@ export const mockUsers: User[] = [
     status: 'active',
     joinedAt: '2024-01-15T00:00:00Z',
     tier: 'gold',
-    walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
+    walletAddress: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
     kycVerified: true,
     phoneNumber: '+6281234567890',
   },
@@ -200,7 +201,7 @@ export const mockUsers: User[] = [
     status: 'active',
     joinedAt: '2024-02-20T00:00:00Z',
     tier: 'silver',
-    walletAddress: '0xabcdef1234567890abcdef1234567890abcdef12',
+    walletAddress: '9h1Y7M7pJFQnHcLiSGYKZJ3PVPLNbYbGykxJgQKPXqVz',
     kycVerified: true,
     phoneNumber: '+6282345678901',
   },
@@ -213,7 +214,7 @@ export const mockUsers: User[] = [
     status: 'active',
     joinedAt: '2024-03-10T00:00:00Z',
     tier: 'bronze',
-    walletAddress: '0x567890abcdef1234567890abcdef1234567890ab',
+    walletAddress: '3HCyVKzPRgDfgWzE1j2tKcAqNnfNW4P6qKq4VqB9bNqm',
     kycVerified: true,
     phoneNumber: '+6283456789012',
   },
@@ -389,6 +390,7 @@ export const mockPools: Pool[] = [
       { date: '2024-05', value: 17.2 },
       { date: '2024-06', value: 18.0 },
     ],
+    usdcTreasury: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
   },
   {
     id: 'warung',
@@ -413,6 +415,7 @@ export const mockPools: Pool[] = [
       { date: '2024-05', value: 14.0 },
       { date: '2024-06', value: 15.0 },
     ],
+    usdcTreasury: '9h1Y7M7pJFQnHcLiSGYKZJ3PVPLNbYbGykxJgQKPXqVz',
   },
   {
     id: 'jamu-herbal',
@@ -436,6 +439,7 @@ export const mockPools: Pool[] = [
       { date: '2024-05', value: 18.5 },
       { date: '2024-06', value: 19.5 },
     ],
+    usdcTreasury: '3HCyVKzPRgDfgWzE1j2tKcAqNnfNW4P6qKq4VqB9bNqm',
   },
   {
     id: 'organic-food',
@@ -459,6 +463,7 @@ export const mockPools: Pool[] = [
       { date: '2024-05', value: 14.8 },
       { date: '2024-06', value: 16.0 },
     ],
+    usdcTreasury: '5j7s6NiJS3JAkvgkoc18WVAsiSaci2pxB2A6ueCJP4tpr',
   },
   {
     id: 'artisan-goods',
@@ -481,6 +486,7 @@ export const mockPools: Pool[] = [
       { date: '2024-05', value: 15.0 },
       { date: '2024-06', value: 16.5 },
     ],
+    usdcTreasury: '2nL2iTqkPjHbK2tGDs1R69nJG6vNXQzsgY3hPSKiJBrVV',
   },
   {
     id: 'manufacturing-sme',
@@ -505,6 +511,7 @@ export const mockPools: Pool[] = [
       { date: '2024-05', value: 15.2 },
       { date: '2024-06', value: 16.0 },
     ],
+    usdcTreasury: '4kL3jTrPkHbK2tGDs1R69nJG6vNXQzsgY3hPSKiJBrVVE',
   },
 ];
 
@@ -525,8 +532,8 @@ export const mockInvestments: Investment[] = [
     maturesAt: '2024-05-01T00:00:00Z',
     expectedReturn: 75,
     currentReturn: 45,
-    txHash: '0xabc123...',
-    receiptHash: '0xdef456...',
+    txHash: '5j7s6NiJS3JAkvgkoc18WVAsiSaci2pxB2A6ueCJP4tprVSpra1HKbbEJPHy4EQqpoLwghV4bVw3kYHcCYLwEEMdF',
+    receiptHash: 'GjJvC1wKrFhfJJV3JGKRsVLQMpPqHjLjjTMR4LJQkXTz',
   },
   {
     id: 'inv-002',
@@ -540,8 +547,8 @@ export const mockInvestments: Investment[] = [
     maturesAt: '2024-04-30T00:00:00Z',
     expectedReturn: 36,
     currentReturn: 28,
-    txHash: '0xghi789...',
-    receiptHash: '0xjkl012...',
+    txHash: '2nL2iTqkPjHbK2tGDs1R69nJG6vNXQzsgY3hPSKiJBrVVEpXqBqKNvhRvXkUwQGfKTpF9w3R8WzLkBq2kHvFmZ4',
+    receiptHash: 'DrJvC1wKrFhfJJV3JGKRsVLQMpPqHjLjjTMR4LJQkXT2',
   },
   {
     id: 'inv-003',
@@ -555,8 +562,8 @@ export const mockInvestments: Investment[] = [
     maturesAt: '2024-03-10T00:00:00Z',
     expectedReturn: 45,
     currentReturn: 45,
-    txHash: '0xmno345...',
-    receiptHash: '0xpqr678...',
+    txHash: '4kL3jTrPkHbK2tGDs1R69nJG6vNXQzsgY3hPSKiJBrVVEpXqBqKNvhRvXkUwQGfKTpF9w3R8WzLkBq2kHvFmZ5',
+    receiptHash: 'HrJvC1wKrFhfJJV3JGKRsVLQMpPqHjLjjTMR4LJQkXT3',
   },
   {
     id: 'inv-004',
@@ -570,7 +577,7 @@ export const mockInvestments: Investment[] = [
     maturesAt: '2024-05-20T00:00:00Z',
     expectedReturn: 28,
     currentReturn: 12,
-    txHash: '0xstu901...',
+    txHash: '3mL4kUsQlHcK2tGDs1R69nJG6vNXQzsgY3hPSKiJBrVVEpXqBqKNvhRvXkUwQGfKTpF9w3R8WzLkBq2kHvFmZ6',
   },
   {
     id: 'inv-005',
@@ -702,7 +709,7 @@ export const mockTransactions: Transaction[] = [
     description: 'Investment in Kurban Farms Pool',
     relatedPoolId: 'kurban-farms',
     relatedInvestmentId: 'inv-001',
-    txHash: '0xabc123def456...',
+    txHash: '5j7s6NiJS3JAkvgkoc18WVAsiSaci2pxB2A6ueCJP4tprVSpra1HKbbEJPHy4EQqpoLwghV4bVw3kYHcCYLwEEMdF',
   },
   {
     id: 'tx-002',
@@ -714,7 +721,7 @@ export const mockTransactions: Transaction[] = [
     description: 'Investment in Warung Pool',
     relatedPoolId: 'warung',
     relatedInvestmentId: 'inv-002',
-    txHash: '0xghi789jkl012...',
+    txHash: '2nL2iTqkPjHbK2tGDs1R69nJG6vNXQzsgY3hPSKiJBrVVEpXqBqKNvhRvXkUwQGfKTpF9w3R8WzLkBq2kHvFmZ4',
   },
   {
     id: 'tx-003',
@@ -734,8 +741,8 @@ export const mockTransactions: Transaction[] = [
     amount: 1000,
     status: 'completed',
     createdAt: '2024-02-28T16:45:00Z',
-    description: 'Wallet deposit via Coinbase',
-    txHash: '0xmno345pqr678...',
+    description: 'Wallet deposit via Phantom',
+    txHash: 'EzJa6Cg5LhCLeGFs1R69nJG6vNXQzsgY3hPSKiJBrVVEpXqBqKNvhRvXkUwQGfKTpF9w3R8WzLkBq2kHvFmZ7',
   },
   {
     id: 'tx-005',
@@ -757,7 +764,7 @@ export const mockTransactions: Transaction[] = [
     createdAt: '2024-03-05T08:00:00Z',
     description: 'Funding for PO-001',
     relatedPoolId: 'warung',
-    txHash: '0xstu901vwx234...',
+    txHash: 'FzKb7Dh6MiDmfHGs1R69nJG6vNXQzsgY3hPSKiJBrVVEpXqBqKNvhRvXkUwQGfKTpF9w3R8WzLkBq2kHvFmZ8',
   },
 ];
 

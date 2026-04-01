@@ -106,7 +106,7 @@ export const InvestmentCard = forwardRef<HTMLDivElement, InvestmentCardProps>(
             <DollarSign className="w-4 h-4 text-tawf-gold shrink-0" />
             <div>
               <p className="text-xs text-tawf-muted">Min Investment</p>
-              <p className="font-medium text-tawf-green">{formatCurrency(minInvestment)}</p>
+              <p className="font-medium text-tawf-green">{minInvestment} USDC</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
