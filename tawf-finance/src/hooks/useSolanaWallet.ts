@@ -5,15 +5,12 @@ import {
   getAssociatedTokenAddress,
   createTransferInstruction,
   createAssociatedTokenAccountInstruction,
-  ACCOUNT_SIZE,
-  TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
-import { address } from '@solana/addresses';
+import { PublicKey } from '@solana/web3.js';
 
 // USDC Mint address (same on devnet and mainnet)
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const USDC_DECIMALS = 6;
-const LAMPORTS_PER_SOL = 1_000_000_000;
 
 /**
  * Hook for Solana wallet operations using framework-kit
@@ -35,13 +32,13 @@ export function useSolanaWallet() {
   const actions = useWalletActions();
 
   // Get the address from wallet session
-  const address = wallet?.account?.address;
+  const walletAddress = wallet?.account?.address;
 
   // Balance hook from framework-kit
   const {
     lamports,
     fetching: isLoadingBalance,
-  } = useBalance(address);
+  } = useBalance(walletAddress);
 
   // SOL in lamports
   const balance = lamports ? Number(lamports) / 1_000_000_000 : 0;
@@ -52,16 +49,16 @@ export function useSolanaWallet() {
 
   // Get shortened wallet address for display
   const shortenedAddress = useMemo(() => {
-    if (!address) return null;
-    const addressStr = address.toString();
+    if (!walletAddress) return null;
+    const addressStr = walletAddress.toString();
     return `${addressStr.slice(0, 4)}...${addressStr.slice(-4)}`;
-  }, [address]);
+  }, [walletAddress]);
 
   // Get full wallet address as string
-  const walletAddress = useMemo(() => {
-    if (!address) return null;
-    return address.toString();
-  }, [address]);
+  const fullWalletAddress = useMemo(() => {
+    if (!walletAddress) return null;
+    return walletAddress.toString();
+  }, [walletAddress]);
 
   /**
    * Get explorer URL for a transaction or address
@@ -78,10 +75,10 @@ export function useSolanaWallet() {
    */
   const requestAirdrop = useCallback(
     async (amountSol: number = 1): Promise<string | null> => {
-      if (!address) return null;
+      if (!walletAddress) return null;
 
       try {
-        const addressStr = address.toString();
+        const addressStr = walletAddress.toString();
         const lamports = BigInt(amountSol * 1_000_000_000);
 
         // Use the client's runtime to access RPC
@@ -98,7 +95,7 @@ export function useSolanaWallet() {
         return null;
       }
     },
-    [address, actions]
+    [walletAddress, actions]
   );
 
   /**
@@ -106,16 +103,17 @@ export function useSolanaWallet() {
    * For devnet, returns a mock balance since devnet doesn't have real USDC
    */
   const fetchUsdcBalance = useCallback(async (): Promise<number> => {
-    if (!address) return 0;
+    if (!walletAddress) return 0;
 
     setIsLoadingUsdcBalance(true);
 
     try {
-      const addressStr = address.toString();
-
       // Get the associated token account address for USDC
-      const usdcMintPubkey = address(USDC_MINT);
-      const tokenAccountAddress = await getAssociatedTokenAddress(usdcMintPubkey, address);
+      const usdcMintPubkey = new PublicKey(USDC_MINT);
+      const tokenAccountAddress = await getAssociatedTokenAddress(
+        usdcMintPubkey,
+        new PublicKey(walletAddress.toString())
+      );
 
       // Try to fetch the token account balance
       try {
@@ -142,7 +140,7 @@ export function useSolanaWallet() {
       setIsLoadingUsdcBalance(false);
       return mockBalance;
     }
-  }, [address]);
+  }, [walletAddress]);
 
   // Auto-fetch USDC balance when wallet connects
   useEffect(() => {
@@ -159,14 +157,14 @@ export function useSolanaWallet() {
    */
   const transferUsdc = useCallback(
     async (toAddress: string, amountUsdc: number): Promise<string | null> => {
-      if (!address || !wallet) {
+      if (!walletAddress || !wallet) {
         throw new Error('Wallet not connected');
       }
 
       try {
-        const usdcMintPubkey = address(USDC_MINT);
-        const fromPubkey = address;
-        const toPubkey = address(toAddress);
+        const usdcMintPubkey = new PublicKey(USDC_MINT);
+        const fromPubkey = new PublicKey(walletAddress.toString());
+        const toPubkey = new PublicKey(toAddress);
 
         // Get associated token accounts
         const fromTokenAccount = await getAssociatedTokenAddress(usdcMintPubkey, fromPubkey);
@@ -216,7 +214,7 @@ export function useSolanaWallet() {
         throw error;
       }
     },
-    [address, wallet, fetchUsdcBalance]
+    [walletAddress, wallet, fetchUsdcBalance]
   );
 
   /**
@@ -224,7 +222,7 @@ export function useSolanaWallet() {
    */
   const transferSol = useCallback(
     async (_toAddress: string, _amountSol: number): Promise<string | null> => {
-      if (!address) {
+      if (!walletAddress) {
         throw new Error('Wallet not connected');
       }
 
@@ -232,15 +230,15 @@ export function useSolanaWallet() {
       // or implement using the TransactionHelper
       throw new Error('Transfer not implemented yet');
     },
-    [address]
+    [walletAddress]
   );
 
   return {
     // Wallet state
-    address,
+    address: walletAddress,
     connected,
     connecting,
-    walletAddress,
+    walletAddress: fullWalletAddress,
     shortenedAddress,
     balance,
     isLoadingBalance,
@@ -255,8 +253,8 @@ export function useSolanaWallet() {
     connect: (connectorId?: string) => connect(connectorId || 'wallet-standard:phantom'),
     disconnect,
     fetchBalance: () => {
-      if (address) {
-        (actions as any).fetchBalance(address.toString());
+      if (walletAddress) {
+        (actions as any).fetchBalance(walletAddress.toString());
       }
     },
     getExplorerUrl,

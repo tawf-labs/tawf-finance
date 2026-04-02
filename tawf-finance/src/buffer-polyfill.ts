@@ -3,10 +3,6 @@
 import { Buffer } from 'buffer'
 
 // Polyfill Buffer for all contexts
-declare global {
-  const Buffer: typeof Buffer
-}
-
 if (typeof window === 'undefined') {
   // Node.js / SSR context
   ;(global as any).Buffer = Buffer
