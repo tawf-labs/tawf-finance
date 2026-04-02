@@ -1,5 +1,6 @@
-import { useWalletConnection } from '@solana/react-hooks';
-import { Wallet, Check, Copy } from 'lucide-react';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { WalletMultiButton as WAMultiButton } from '@solana/wallet-adapter-react-ui';
+import { Copy, Check } from 'lucide-react';
 import { type FC, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 
@@ -7,60 +8,126 @@ interface WalletButtonProps {
   variant?: 'primary' | 'secondary' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  showAddress?: boolean;
 }
 
 /**
- * Simple wallet button that triggers the wallet connection modal
- * Uses framework-kit's useWalletConnection hook
+ * Custom-styled wallet button that uses the wallet adapter's built-in modal
+ *
+ * This component provides a styled wrapper around the wallet adapter's
+ * WalletMultiButton component, which handles the wallet selection modal.
+ * When not connected, it shows a "Connect Wallet" button that opens the modal.
+ * When connected, it shows the wallet address with copy functionality.
  */
 export const WalletMultiButton: FC<WalletButtonProps> = ({
-  variant = 'primary',
+  variant: _variant,
   size = 'md',
   className = '',
+  showAddress = true,
 }) => {
-  const { connected, connect, wallet } = useWalletConnection();
+  const { connected, publicKey, disconnect } = useWallet();
+  const [copied, setCopied] = useState(false);
 
-  if (connected && wallet?.account?.address) {
-    return <WalletConnectButton variant={variant} size={size} className={className} />;
+  // Handle wallet connection through the built-in modal
+  if (connected && publicKey && showAddress) {
+    const addressStr = publicKey.toString();
+    const shortened = `${addressStr.slice(0, 4)}...${addressStr.slice(-4)}`;
+
+    const handleCopy = () => {
+      navigator.clipboard.writeText(addressStr);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+      <div className="flex items-center gap-2">
+        <Button
+          variant="secondary"
+          size={size}
+          onClick={handleCopy}
+          className="font-mono text-sm"
+        >
+          {copied ? (
+            <>
+              <Check className="w-4 h-4 mr-2" />
+              Copied!
+            </>
+          ) : (
+            <>
+              <Copy className="w-4 h-4 mr-2" />
+              {shortened}
+            </>
+          )}
+        </Button>
+        <Button
+          variant="ghost"
+          size={size}
+          onClick={() => disconnect()}
+          className="text-tawf-muted hover:text-red-600"
+        >
+          Disconnect
+        </Button>
+      </div>
+    );
   }
 
   return (
-    <Button variant={variant} size={size} onClick={() => connect('wallet-standard:phantom')} className={className}>
-      <Wallet className="w-4 h-4 mr-2" />
-      Connect Wallet
-    </Button>
+    <div className={`wallet-adapter-button-wrapper ${className}`}>
+      <WAMultiButton className="wallet-adapter-button-trigger" />
+    </div>
   );
 };
 
 /**
- * Connected wallet button showing shortened address
- * with copy and disconnect functionality
+ * Simple connect button that opens the wallet selection modal
+ * Uses the wallet adapter's built-in button with custom styling
  */
 export const WalletConnectButton: FC<WalletButtonProps> = ({
   variant = 'primary',
   size = 'md',
   className = '',
 }) => {
-  const { wallet, disconnect } = useWalletConnection();
+  return <WalletMultiButton variant={variant} size={size} className={className} showAddress={false} />;
+};
+
+/**
+ * Disconnect button for when wallet is connected
+ */
+export const WalletDisconnectButton: FC<WalletButtonProps> = ({
+  variant = 'ghost',
+  size = 'md',
+  className = '',
+}) => {
+  const { disconnect } = useWallet();
+
+  return (
+    <Button
+      variant={variant}
+      size={size}
+      onClick={() => disconnect()}
+      className={className}
+    >
+      Disconnect
+    </Button>
+  );
+};
+
+/**
+ * Display wallet address with copy functionality
+ */
+export const WalletAddressDisplay: FC<WalletButtonProps> = ({
+  variant = 'secondary',
+  size = 'md',
+  className = '',
+}) => {
+  const { publicKey } = useWallet();
   const [copied, setCopied] = useState(false);
 
-  const address = wallet?.account?.address;
-
-  if (!address) {
-    return (
-      <Button
-        variant={variant}
-        size={size}
-        onClick={() => disconnect()}
-        className={className}
-      >
-        <Wallet className="w-4 h-4 mr-2" />
-        Connect Wallet
-      </Button>
-    );
+  if (!publicKey) {
+    return null;
   }
 
-  const addressStr = address.toString();
+  const addressStr = publicKey.toString();
   const shortened = `${addressStr.slice(0, 4)}...${addressStr.slice(-4)}`;
 
   const handleCopy = () => {
@@ -70,34 +137,24 @@ export const WalletConnectButton: FC<WalletButtonProps> = ({
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <Button
-        variant="secondary"
-        size={size}
-        onClick={handleCopy}
-        className="font-mono text-sm"
-      >
-        {copied ? (
-          <>
-            <Check className="w-4 h-4 mr-2" />
-            Copied!
-          </>
-        ) : (
-          <>
-            <Copy className="w-4 h-4 mr-2" />
-            {shortened}
-          </>
-        )}
-      </Button>
-      <Button
-        variant="ghost"
-        size={size}
-        onClick={() => disconnect()}
-        className="text-tawf-muted hover:text-red-600"
-      >
-        Disconnect
-      </Button>
-    </div>
+    <Button
+      variant={variant}
+      size={size}
+      onClick={handleCopy}
+      className={`font-mono text-sm ${className}`}
+    >
+      {copied ? (
+        <>
+          <Check className="w-4 h-4 mr-2" />
+          Copied!
+        </>
+      ) : (
+        <>
+          <Copy className="w-4 h-4 mr-2" />
+          {shortened}
+        </>
+      )}
+    </Button>
   );
 };
 

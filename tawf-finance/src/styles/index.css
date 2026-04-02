@@ -173,3 +173,142 @@
     }
   }
 }
+
+/* Solana Wallet Adapter Styles - Tawf Theme */
+@layer components {
+  /* Hide the default button and use our custom styling */
+  .wallet-adapter-button-wrapper {
+    display: inline-block;
+  }
+
+  .wallet-adapter-button-trigger {
+    display: none;
+  }
+
+  /* Modal overlay */
+  .wallet-adapter-modal {
+    background-color: rgb(15 61 48 / 0.95) !important;
+    backdrop-filter: blur(8px);
+  }
+
+  .wallet-adapter-modal-container {
+    background-color: #F9F6F0 !important;
+    border-radius: 1.5rem;
+    border: 1px solid rgb(197 168 105 / 0.2);
+    box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  }
+
+  .wallet-adapter-modal-title {
+    font-family: var(--font-serif);
+    color: var(--color-tawf-green);
+  }
+
+  .wallet-adapter-modal-close-button {
+    color: var(--color-tawf-muted);
+    transition: color 0.2s;
+  }
+
+  .wallet-adapter-modal-close-button:hover {
+    color: var(--color-tawf-green);
+  }
+
+  /* Wallet list items */
+  .wallet-adapter-button {
+    background-color: white !important;
+    border: 1px solid var(--color-tawf-green-10) !important;
+    border-radius: 0.75rem !important;
+    padding: 1rem 1.25rem !important;
+    margin-bottom: 0.5rem !important;
+    transition: all 0.2s ease !important;
+    font-family: var(--font-sans) !important;
+  }
+
+  .wallet-adapter-button:hover {
+    background-color: var(--color-tawf-sand) !important;
+    border-color: var(--color-tawf-gold-20) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  }
+
+  .wallet-adapter-button:not([disabled]):active {
+    transform: translateY(0);
+  }
+
+  /* Wallet icon */
+  .wallet-adapter-button-start-icon {
+    width: 2rem !important;
+    height: 2rem !important;
+  }
+
+  /* Button text */
+  .wallet-adapter-button-text {
+    color: var(--color-tawf-ink) !important;
+    font-weight: 500 !important;
+  }
+
+  /* Selected state */
+  .wallet-adapter-button-selected {
+    background-color: var(--color-tawf-green-10) !important;
+    border-color: var(--color-tawf-gold-20) !important;
+  }
+
+  /* Tab buttons */
+  .wallet-adapter-modal-tab {
+    color: var(--color-tawf-muted) !important;
+    font-weight: 500 !important;
+    transition: color 0.2s !important;
+  }
+
+  .wallet-adapter-modal-tab:hover {
+    color: var(--color-tawf-green) !important;
+  }
+
+  .wallet-adapter-modal-tab-selected {
+    color: var(--color-tawf-green) !important;
+    border-bottom-color: var(--color-tawf-gold) !important;
+  }
+
+  /* Dropdown list */
+  .wallet-adapter-dropdown-list {
+    background-color: white !important;
+    border: 1px solid var(--color-tawf-green-10) !important;
+    border-radius: 1rem !important;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  }
+
+  .wallet-adapter-dropdown-list-item {
+    padding: 0.75rem 1rem !important;
+    transition: background-color 0.2s !important;
+  }
+
+  .wallet-adapter-dropdown-list-item:hover {
+    background-color: var(--color-tawf-sand) !important;
+  }
+
+  /* Error states */
+  .wallet-adapter-button-error {
+    background-color: #FEE2E2 !important;
+    border-color: #EF4444 !important;
+    color: #DC2626 !important;
+  }
+
+  /* Search input */
+  .wallet-adapter-modal-search-input {
+    background-color: white !important;
+    border: 1px solid var(--color-tawf-green-10) !important;
+    border-radius: 0.75rem !important;
+    padding: 0.75rem 1rem !important;
+    color: var(--color-tawf-ink) !important;
+  }
+
+  .wallet-adapter-modal-search-input:focus {
+    outline: 2px solid var(--color-tawf-gold) !important;
+    outline-offset: 2px !important;
+  }
+
+  /* No wallets message */
+  .wallet-adapter-modal-list-empty {
+    color: var(--color-tawf-muted) !important;
+    font-size: 0.875rem !important;
+  }
+}
