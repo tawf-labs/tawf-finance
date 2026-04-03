@@ -1,3 +1,10 @@
+/**
+ * Hook for Solana wallet operations
+ *
+ * Provides wallet connection, balance fetching, USDC operations, and transaction utilities
+ * using the WalletContext for connection state.
+ */
+
 import { useMemo, useCallback, useState, useEffect } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import {
@@ -5,30 +12,39 @@ import {
   createTransferInstruction,
   createAssociatedTokenAccountInstruction,
 } from '@solana/spl-token';
-import { PublicKey, SystemProgram, LAMPORTS_PER_SOL, Transaction } from '@solana/web3.js';
+import { PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
+import {
+  SOLANA_CONFIG,
+  lamportsToSol,
+  solToLamports,
+  LAMPORTS_PER_SOL,
+} from '@/solana/utils';
 
 // USDC Mint address (same on devnet and mainnet)
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const USDC_DECIMALS = 6;
 
 /**
- * Hook for Solana wallet operations using @solana/wallet-adapter-react
+ * Hook for Solana wallet operations
  *
- * Provides wallet connection, balance fetching, USDC operations, and transaction utilities
- * using the mature @solana/wallet-adapter-react API.
+ * @example
+ * ```tsx
+ * function MyComponent() {
+ *   const { balance, usdcBalance, fetchBalance, transferSol } = useSolanaWallet();
+ *
+ *   return (
+ *     <div>
+ *       <p>SOL: {balance}</p>
+ *       <p>USDC: {usdcBalance}</p>
+ *     </div>
+ *   );
+ * }
+ * ```
  */
 export function useSolanaWallet() {
-  // Wallet connection state from wallet adapter
-  const {
-    connected,
-    connecting,
-    disconnect,
-    publicKey,
-    wallet,
-  } = useWallet();
-
-  // Connection from wallet adapter
+  const { publicKey: publicKeyObj, connected: isConnected, connecting: isConnecting, disconnect } = useWallet();
   const { connection } = useConnection();
+  const publicKey = publicKeyObj?.toBase58() ?? null;
 
   // SOL Balance state
   const [balance, setBalance] = useState<number>(0);
@@ -44,14 +60,12 @@ export function useSolanaWallet() {
   // Get shortened wallet address for display
   const shortenedAddress = useMemo(() => {
     if (!publicKey) return null;
-    const addressStr = publicKey.toString();
-    return `${addressStr.slice(0, 4)}...${addressStr.slice(-4)}`;
+    return `${publicKey.slice(0, 4)}...${publicKey.slice(-4)}`;
   }, [publicKey]);
 
   // Get full wallet address as string
   const fullWalletAddress = useMemo(() => {
-    if (!publicKey) return null;
-    return publicKey.toString();
+    return publicKey;
   }, [publicKey]);
 
   /**
@@ -59,7 +73,10 @@ export function useSolanaWallet() {
    */
   const getExplorerUrl = useCallback(
     (signatureOrAddress: string, type: 'tx' | 'address' = 'tx') => {
-      return `https://explorer.solana.com/${type}/${signatureOrAddress}?cluster=devnet`;
+      if (type === 'tx') {
+        return SOLANA_CONFIG.getTxExplorerUrl(signatureOrAddress);
+      }
+      return SOLANA_CONFIG.getAddressExplorerUrl(signatureOrAddress);
     },
     []
   );
@@ -68,18 +85,19 @@ export function useSolanaWallet() {
    * Fetch SOL balance for the connected wallet
    */
   const fetchBalance = useCallback(async () => {
-    if (!publicKey || !connection) {
+    if (!publicKey) {
       setBalance(0);
       return;
     }
 
     setIsLoadingBalance(true);
     try {
-      const lamports = await connection.getBalance(publicKey);
-      setBalance(lamports / LAMPORTS_PER_SOL);
+      const lamports = await connection.getBalance(new PublicKey(publicKey));
+      setBalance(lamportsToSol(lamports));
     } catch (error) {
       console.error('Balance fetch error:', error);
       setBalance(0);
+      throw error;
     } finally {
       setIsLoadingBalance(false);
     }
@@ -90,26 +108,24 @@ export function useSolanaWallet() {
    */
   const requestAirdrop = useCallback(
     async (amountSol: number = 1): Promise<string | null> => {
-      if (!publicKey || !connection) return null;
+      if (!publicKey) return null;
 
       try {
         const signature = await connection.requestAirdrop(
-          publicKey,
-          amountSol * LAMPORTS_PER_SOL
+          new PublicKey(publicKey),
+          solToLamports(amountSol)
         );
 
         // Wait for confirmation
         await connection.confirmTransaction(signature);
 
-        // Refresh balance after airdrop
-        setTimeout(() => {
-          fetchBalance();
-        }, 2000);
+        // Refresh balance after confirmation
+        await fetchBalance();
 
         return signature;
       } catch (error) {
         console.error('Airdrop error:', error);
-        return null;
+        throw error;
       }
     },
     [publicKey, connection, fetchBalance]
@@ -117,32 +133,26 @@ export function useSolanaWallet() {
 
   /**
    * Fetch USDC balance for the connected wallet
-   * For devnet, returns a mock balance since devnet doesn't have real USDC
    */
   const fetchUsdcBalance = useCallback(async (): Promise<number> => {
-    if (!publicKey || !connection) return 0;
+    if (!publicKey) return 0;
 
     setIsLoadingUsdcBalance(true);
 
     try {
       // Get the associated token account address for USDC
       const usdcMintPubkey = new PublicKey(USDC_MINT);
-      const tokenAccountAddress = await getAssociatedTokenAddress(
-        usdcMintPubkey,
-        publicKey
-      );
+      const walletPubkey = new PublicKey(publicKey);
+      const tokenAccountAddress = await getAssociatedTokenAddress(usdcMintPubkey, walletPubkey);
 
       // Try to fetch the token account balance
       try {
-        const tokenAccountInfo = await connection.getTokenAccountBalance(
-          tokenAccountAddress
-        );
-
+        const tokenAccountInfo = await connection.getTokenAccountBalance(tokenAccountAddress);
         const parsedAmount = tokenAccountInfo.value.uiAmount || 0;
         setUsdcBalance(parsedAmount);
         setIsLoadingUsdcBalance(false);
         return parsedAmount;
-      } catch (tokenError) {
+      } catch {
         // Token account doesn't exist yet - user has no USDC
         setUsdcBalance(0);
         setIsLoadingUsdcBalance(false);
@@ -150,11 +160,9 @@ export function useSolanaWallet() {
       }
     } catch (error) {
       console.error('USDC balance fetch error:', error);
-      // For devnet testing, return a mock balance
-      const mockBalance = 1000; // Show $1,000 USDC for testing
-      setUsdcBalance(mockBalance);
+      setUsdcBalance(0);
       setIsLoadingUsdcBalance(false);
-      return mockBalance;
+      throw error;
     }
   }, [publicKey, connection]);
 
@@ -164,14 +172,14 @@ export function useSolanaWallet() {
    */
   const transferUsdc = useCallback(
     async (toAddress: string, amountUsdc: number): Promise<string | null> => {
-      if (!publicKey || !connection || !wallet?.adapter) {
+      if (!publicKey || !window.solana) {
         throw new Error('Wallet not connected');
       }
 
       setIsTransferring(true);
       try {
         const usdcMintPubkey = new PublicKey(USDC_MINT);
-        const fromPubkey = publicKey;
+        const fromPubkey = new PublicKey(publicKey);
         const toPubkey = new PublicKey(toAddress);
 
         // Get associated token accounts
@@ -207,16 +215,23 @@ export function useSolanaWallet() {
           )
         );
 
-        // Sign and send transaction using the wallet adapter
-        const signature = await wallet.adapter.sendTransaction(transaction, connection);
+        // Set recentBlockhash and feePayer before signing
+        const { blockhash } = await connection.getLatestBlockhash();
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = fromPubkey;
+
+        // Sign and send transaction using Wallet Standard API
+        if (!window.solana?.signAndSendTransaction) {
+          throw new Error('Wallet does not support transaction signing');
+        }
+        const result = await window.solana.signAndSendTransaction(transaction);
+        const signature = (result as { signature: string }).signature;
 
         // Wait for confirmation
         await connection.confirmTransaction(signature);
 
-        // Refresh USDC balance after transfer
-        setTimeout(() => {
-          fetchUsdcBalance();
-        }, 2000);
+        // Refresh USDC balance after confirmation
+        await fetchUsdcBalance();
 
         return signature;
       } catch (error) {
@@ -226,7 +241,7 @@ export function useSolanaWallet() {
         setIsTransferring(false);
       }
     },
-    [publicKey, connection, wallet, fetchUsdcBalance]
+    [publicKey, connection, fetchUsdcBalance]
   );
 
   /**
@@ -234,35 +249,43 @@ export function useSolanaWallet() {
    */
   const transferSol = useCallback(
     async (toAddress: string, amountSol: number): Promise<string | null> => {
-      if (!publicKey || !connection || !wallet?.adapter) {
+      if (!publicKey || !window.solana) {
         throw new Error('Wallet not connected');
       }
 
       setIsTransferring(true);
       try {
         const toPubkey = new PublicKey(toAddress);
+        const fromPubkey = new PublicKey(publicKey);
         const transaction = new Transaction();
 
         const lamports = amountSol * LAMPORTS_PER_SOL;
 
         transaction.add(
           SystemProgram.transfer({
-            fromPubkey: publicKey,
+            fromPubkey,
             toPubkey,
             lamports,
           })
         );
 
-        // Sign and send transaction using the wallet adapter
-        const signature = await wallet.adapter.sendTransaction(transaction, connection);
+        // Set recentBlockhash and feePayer before signing
+        const { blockhash } = await connection.getLatestBlockhash();
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = fromPubkey;
+
+        // Sign and send transaction using Wallet Standard API
+        if (!window.solana?.signAndSendTransaction) {
+          throw new Error('Wallet does not support transaction signing');
+        }
+        const result = await window.solana.signAndSendTransaction(transaction);
+        const signature = (result as { signature: string }).signature;
 
         // Wait for confirmation
         await connection.confirmTransaction(signature);
 
-        // Refresh balance after transfer
-        setTimeout(() => {
-          fetchBalance();
-        }, 2000);
+        // Refresh balance after confirmation
+        await fetchBalance();
 
         return signature;
       } catch (error) {
@@ -272,25 +295,25 @@ export function useSolanaWallet() {
         setIsTransferring(false);
       }
     },
-    [publicKey, connection, wallet, fetchBalance]
+    [publicKey, connection, fetchBalance]
   );
 
   // Auto-fetch balances when wallet connects
   useEffect(() => {
-    if (connected) {
+    if (isConnected && publicKey) {
       fetchBalance();
       fetchUsdcBalance();
     } else {
       setBalance(0);
       setUsdcBalance(0);
     }
-  }, [connected, fetchBalance, fetchUsdcBalance]);
+  }, [isConnected, publicKey, fetchBalance, fetchUsdcBalance]);
 
   return {
     // Wallet state
     address: publicKey,
-    connected,
-    connecting,
+    connected: isConnected,
+    connecting: isConnecting,
     walletAddress: fullWalletAddress,
     shortenedAddress,
     balance,
@@ -303,10 +326,6 @@ export function useSolanaWallet() {
     usdcMint: USDC_MINT,
 
     // Wallet actions
-    connect: async () => {
-      // Auto-connect is handled by the provider, this is a no-op
-      // The wallet modal handles connection
-    },
     disconnect,
     fetchBalance,
     getExplorerUrl,
@@ -315,7 +334,7 @@ export function useSolanaWallet() {
     transferUsdc,
     fetchUsdcBalance,
 
-    // Connection (for raw RPC access)
+    // Connection (for raw RPC access if needed)
     connection,
   };
 }

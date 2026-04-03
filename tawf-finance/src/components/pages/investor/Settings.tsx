@@ -7,7 +7,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Tabs } from '@/components/ui/Tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { useSolanaWallet } from '@/hooks/useSolanaWallet';
-import { WalletConnectButton } from '@/components/solana/WalletMultiButton';
+import { WalletButton } from '@/components/solana/WalletButton';
 
 export function Settings() {
   const { user, logout } = useAuth();
@@ -55,19 +55,14 @@ export function Settings() {
             <div className="space-y-6">
               {/* Profile Header */}
               <div className="flex items-center gap-6 p-6 bg-tawf-sand-30 rounded-xl">
-                <Avatar name={user?.name} size="xl" />
+                <Avatar name={user?.address?.slice(0, 4) ?? '?'} size="xl" />
                 <div className="flex-1">
-                  <h3 className="font-serif text-xl text-tawf-green">{user?.name}</h3>
-                  <p className="text-tawf-muted">{user?.email}</p>
+                  <h3 className="font-serif text-xl text-tawf-green font-mono">
+                    {user?.address ? `${user.address.slice(0, 4)}...${user.address.slice(-4)}` : 'Wallet'}
+                  </h3>
+                  <p className="text-tawf-muted font-mono text-sm">{user?.address ?? ''}</p>
                   <div className="flex items-center gap-2 mt-2">
-                    <Badge variant={user?.status === 'active' ? 'success' : 'warning'} size="sm">
-                      {user?.status}
-                    </Badge>
-                    {user?.tier && (
-                      <Badge variant="info" size="sm" className="capitalize">
-                        {user.tier} Investor
-                      </Badge>
-                    )}
+                    <Badge variant="success" size="sm">Active</Badge>
                   </div>
                 </div>
                 <Button variant="secondary" size="md">
@@ -83,7 +78,7 @@ export function Settings() {
                   </label>
                   <input
                     type="text"
-                    defaultValue={user?.name}
+                    defaultValue={user?.address ?? ''}
                     className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
                   />
                 </div>
@@ -93,7 +88,7 @@ export function Settings() {
                   </label>
                   <input
                     type="email"
-                    defaultValue={user?.email}
+                    defaultValue=""
                     className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
                   />
                 </div>
@@ -103,7 +98,7 @@ export function Settings() {
                   </label>
                   <input
                     type="tel"
-                    defaultValue={user?.phoneNumber || ''}
+                    defaultValue={''}
                     placeholder="Add phone number"
                     className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
                   />
@@ -202,7 +197,7 @@ export function Settings() {
                     <h3 className="font-medium text-tawf-green">Solana Wallet</h3>
                     <p className="text-sm text-tawf-muted">Connect your Phantom wallet for Solana Devnet</p>
                   </div>
-                  <WalletConnectButton variant="primary" size="md" />
+                  <WalletButton className="btn-primary text-sm px-4 py-2 rounded-lg" />
                 </div>
 
                 {connected && walletAddress && (

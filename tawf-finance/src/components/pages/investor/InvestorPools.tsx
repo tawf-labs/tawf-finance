@@ -5,7 +5,7 @@ import { InvestmentCard } from '@/components/ui/InvestmentCard';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { WalletConnectButton } from '@/components/solana/WalletMultiButton';
+import { WalletButton } from '@/components/solana/WalletButton';
 import { mockPools } from '@/data/mockData';
 import { useMockData } from '@/hooks/useMockData';
 import { useSolanaWallet } from '@/hooks/useSolanaWallet';
@@ -145,10 +145,10 @@ export function InvestorPools() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-serif text-3xl text-tawf-green mb-2">Investment Pools</h1>
-          <p className="text-tawf-muted">Choose from our curated pools of vetted MSMEs</p>
+          <h1 className="font-serif text-3xl text-tawf-green mb-2">Staking Pools</h1>
+          <p className="text-tawf-muted">Choose from our curated staking pools of vetted MSMEs</p>
         </div>
-        <WalletConnectButton variant="primary" size="md" />
+        <WalletButton className="btn-primary text-sm px-4 py-2 rounded-lg" />
       </div>
 
       {/* Filters */}
@@ -229,6 +229,7 @@ export function InvestorPools() {
               <InvestmentCard
                 key={pool.id}
                 {...pool}
+                comingSoon={pool.comingSoon}
                 investedAmount={userInvestment?.amount}
                 showInvestment={!!userInvestment}
                 onInvestClick={handleInvestClick}
@@ -265,9 +266,9 @@ export function InvestorPools() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-2">Investment Confirmed!</h3>
+            <h3 className="font-serif text-2xl text-tawf-green mb-2">Stake Confirmed!</h3>
             <p className="text-tawf-muted mb-4">
-              You have successfully invested {formatCurrency(investAmount)} in {selectedPool?.name}
+              You have successfully staked {formatCurrency(investAmount)} in {selectedPool?.name}
             </p>
             {txSignature && (
               <div className="bg-tawf-sand-30 rounded-xl p-4 mb-4">
@@ -316,7 +317,7 @@ export function InvestorPools() {
                         Connect your Phantom wallet to invest on Solana Devnet
                       </p>
                     </div>
-                    <WalletConnectButton variant="primary" size="sm" />
+                    <WalletButton className="btn-primary text-sm px-4 py-2 rounded-lg" />
                   </div>
                 </div>
               )}
@@ -403,7 +404,7 @@ export function InvestorPools() {
                     Confirming Transaction...
                   </>
                 ) : (
-                  `Confirm Investment of ${investAmount} USDC`
+                  `Confirm Stake of ${investAmount} USDC`
                 )}
               </Button>
 

@@ -4,7 +4,10 @@
  * Main export file for all Solana-related functionality
  */
 
-// IDL and configuration
+// Configuration
+export * from './config';
+
+// IDL and program information
 export * from './idl';
 
 // Investment program functions

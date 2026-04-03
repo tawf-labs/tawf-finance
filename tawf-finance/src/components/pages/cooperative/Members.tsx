@@ -5,10 +5,9 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Modal } from '@/components/ui/Modal';
 import { useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
 
 export function Members() {
-  const { user } = useAuth();
+  
   const [showAddModal, setShowAddModal] = useState(false);
 
   const members = [
@@ -37,7 +36,7 @@ export function Members() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">Cooperative Members</h1>
-          <p className="text-tawf-muted">Manage {user?.organization} team members</p>
+          <p className="text-tawf-muted">Manage team members</p>
         </div>
         <Button variant="primary" size="md" onClick={() => setShowAddModal(true)}>
           <UserPlus className="w-4 h-4 mr-2" />

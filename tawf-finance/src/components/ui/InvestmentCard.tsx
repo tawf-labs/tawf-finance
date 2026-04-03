@@ -22,6 +22,7 @@ export interface InvestmentCardProps extends HTMLAttributes<HTMLDivElement> {
   riskLevel?: 'low' | 'medium' | 'high';
   investedAmount?: number;
   showInvestment?: boolean;
+  comingSoon?: boolean;
   onInvestClick?: (id: string) => void;
   onDetailsClick?: (id: string) => void;
 }
@@ -48,6 +49,7 @@ export const InvestmentCard = forwardRef<HTMLDivElement, InvestmentCardProps>(
     riskLevel = 'medium',
     investedAmount,
     showInvestment = false,
+    comingSoon = false,
     onInvestClick,
     onDetailsClick,
     className,
@@ -59,7 +61,7 @@ export const InvestmentCard = forwardRef<HTMLDivElement, InvestmentCardProps>(
       <Card
         ref={ref}
         hover
-        className={cn('p-6 h-full flex flex-col', className)}
+        className={cn('p-6 h-full flex flex-col', comingSoon && 'opacity-60', className)}
         {...props}
       >
         {/* Header */}
@@ -146,24 +148,32 @@ export const InvestmentCard = forwardRef<HTMLDivElement, InvestmentCardProps>(
 
         {/* Actions */}
         <div className="mt-auto flex gap-2">
-          {onInvestClick && available && (
-            <button
-              onClick={() => onInvestClick(id)}
-              className="flex-1 bg-tawf-green text-tawf-sand py-2.5 px-4 rounded-full text-sm font-medium uppercase tracking-wide hover:bg-tawf-green-light transition-colors"
-            >
-              Invest Now
-            </button>
-          )}
-          {onDetailsClick && (
-            <button
-              onClick={() => onDetailsClick(id)}
-              className={cn(
-                'py-2.5 px-4 rounded-full text-sm font-medium uppercase tracking-wide transition-colors border',
-                onInvestClick && available ? 'border-tawf-green text-tawf-green hover:bg-tawf-green hover:text-tawf-sand' : 'flex-1 border-tawf-green text-tawf-green hover:bg-tawf-green hover:text-tawf-sand'
+          {comingSoon ? (
+            <span className="w-full text-center py-2.5 px-4 rounded-full text-sm font-medium text-tawf-muted bg-gray-100 cursor-not-allowed">
+              Coming Soon
+            </span>
+          ) : (
+            <>
+              {onInvestClick && available && (
+                <button
+                  onClick={() => onInvestClick(id)}
+                  className="flex-1 bg-tawf-green text-tawf-sand py-2.5 px-4 rounded-full text-sm font-medium uppercase tracking-wide hover:bg-tawf-green-light transition-colors"
+                >
+                  Stake Now
+                </button>
               )}
-            >
-              View Details
-            </button>
+              {onDetailsClick && (
+                <button
+                  onClick={() => onDetailsClick(id)}
+                  className={cn(
+                    'py-2.5 px-4 rounded-full text-sm font-medium uppercase tracking-wide transition-colors border',
+                    onInvestClick && available ? 'border-tawf-green text-tawf-green hover:bg-tawf-green hover:text-tawf-sand' : 'flex-1 border-tawf-green text-tawf-green hover:bg-tawf-green hover:text-tawf-sand'
+                  )}
+                >
+                  View Details
+                </button>
+              )}
+            </>
           )}
         </div>
       </Card>

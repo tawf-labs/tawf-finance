@@ -1,31 +1,18 @@
 /**
  * Solana Utility Functions
  *
- * Helper functions for Solana transactions, formatting, and conversions
+ * Helper functions for Solana transactions, formatting, and conversions.
+ * Uses framework-kit client for RPC operations.
  */
 
-import { Connection, PublicKey, Transaction, type TransactionSignature } from '@solana/web3.js';
-import type { WalletContextState } from '@solana/wallet-adapter-react';
+import { PublicKey, type Transaction, type TransactionSignature } from '@solana/web3.js';
+import { SOLANA_CONFIG, LAMPORTS_PER_SOL } from './config';
 
-// Constants
-export const LAMPORTS_PER_SOL = 1_000_000_000;
+// Re-export constants from config
+export { LAMPORTS_PER_SOL, SOLANA_CONFIG };
+
+// Devnet RPC endpoint (kept for backwards compatibility)
 export const DEVNET_RPC = 'https://api.devnet.solana.com';
-
-// Connection instance (can be reused)
-let connectionInstance: Connection | null = null;
-
-/**
- * Get or create a Solana connection
- *
- * @param endpoint - RPC endpoint URL
- * @returns Connection instance
- */
-export function getConnection(endpoint: string = DEVNET_RPC): Connection {
-  if (!connectionInstance) {
-    connectionInstance = new Connection(endpoint, 'confirmed');
-  }
-  return connectionInstance;
-}
 
 /**
  * Convert SOL to lamports
@@ -107,12 +94,14 @@ export function isValidAddress(address: string): boolean {
  * @param address - Solana address
  * @param network - Network (devnet, testnet, mainnet)
  * @returns Explorer URL
+ * @deprecated Use SOLANA_CONFIG.getAddressExplorerUrl() instead
  */
 export function getAddressExplorerUrl(
   address: string,
   network: 'devnet' | 'testnet' | 'mainnet' = 'devnet'
 ): string {
-  return `https://explorer.solana.com/address/${address}?cluster=${network}`;
+  const cluster = network === 'mainnet' ? '' : `?cluster=${network}`;
+  return `https://explorer.solana.com/address/${address}${cluster}`;
 }
 
 /**
@@ -121,56 +110,29 @@ export function getAddressExplorerUrl(
  * @param signature - Transaction signature
  * @param network - Network (devnet, testnet, mainnet)
  * @returns Explorer URL
+ * @deprecated Use SOLANA_CONFIG.getTxExplorerUrl() instead
  */
 export function getTxExplorerUrl(
   signature: string,
   network: 'devnet' | 'testnet' | 'mainnet' = 'devnet'
 ): string {
-  return `https://explorer.solana.com/tx/${signature}?cluster=${network}`;
+  const cluster = network === 'mainnet' ? '' : `?cluster=${network}`;
+  return `https://explorer.solana.com/tx/${signature}${cluster}`;
 }
 
 /**
- * Sign and send a transaction
+ * Estimate transaction fee (requires a connected client)
  *
- * @param connection - Solana connection
- * @param wallet - Wallet context
- * @param transaction - Transaction to send
- * @returns Transaction signature
- */
-export async function signAndSendTransaction(
-  connection: Connection,
-  wallet: WalletContextState,
-  transaction: Transaction
-): Promise<TransactionSignature> {
-  if (!wallet.publicKey || !wallet.signTransaction) {
-    throw new Error('Wallet not connected');
-  }
-
-  // Get recent blockhash
-  const { blockhash } = await connection.getLatestBlockhash();
-  transaction.recentBlockhash = blockhash;
-  transaction.feePayer = wallet.publicKey;
-
-  // Sign and send
-  const signature = await wallet.sendTransaction(transaction, connection);
-  await connection.confirmTransaction(signature);
-
-  return signature;
-}
-
-/**
- * Estimate transaction fee
- *
- * @param connection - Solana connection
+ * @param client - RPC client
  * @param transaction - Transaction
  * @returns Fee in lamports
  */
 export async function estimateFee(
-  connection: Connection,
+  client: { rpc: { getFeeForMessage: (message: unknown, commitment?: string) => Promise<{ value: number | null }> } },
   transaction: Transaction
 ): Promise<number> {
   try {
-    const fee = await connection.getFeeForMessage(
+    const fee = await client.rpc.getFeeForMessage(
       transaction.compileMessage(),
       'confirmed'
     );
@@ -183,44 +145,38 @@ export async function estimateFee(
 /**
  * Get SOL balance for an address
  *
- * @param connection - Solana connection
+ * @param client - RPC client
  * @param address - Wallet address
  * @returns Balance in SOL
  */
 export async function getBalance(
-  connection: Connection,
+  client: { rpc: { getBalance: (address: string) => Promise<{ value: number | null }> } },
   address: string
 ): Promise<number> {
   try {
-    const pubkey = new PublicKey(address);
-    const lamports = await connection.getBalance(pubkey);
-    return lamportsToSol(lamports ?? 0);
+    const result = await client.rpc.getBalance(address);
+    return lamportsToSol(result.value ?? 0);
   } catch (error) {
     console.error('Error getting balance:', error);
-    return 0;
+    throw error; // Re-throw instead of returning 0 (no silent fallback)
   }
 }
 
 /**
  * Request SOL airdrop (devnet/testnet only)
  *
- * @param connection - Solana connection
+ * @param client - RPC client
  * @param address - Wallet address
  * @param amount - Amount in SOL
  * @returns Transaction signature
  */
 export async function requestAirdrop(
-  connection: Connection,
+  client: { rpc: { requestAirdrop: (address: string, lamports: number) => Promise<string> } },
   address: string,
   amount: number = 1
 ): Promise<TransactionSignature> {
   try {
-    const pubkey = new PublicKey(address);
-    const signature = await connection.requestAirdrop(
-      pubkey,
-      solToLamports(amount)
-    );
-    await connection.confirmTransaction(signature);
+    const signature = await client.rpc.requestAirdrop(address, solToLamports(amount));
     return signature;
   } catch (error) {
     console.error('Error requesting airdrop:', error);
@@ -231,43 +187,46 @@ export async function requestAirdrop(
 /**
  * Check if transaction is confirmed
  *
- * @param connection - Solana connection
+ * @param client - RPC client
  * @param signature - Transaction signature
  * @returns True if confirmed
  */
 export async function isTransactionConfirmed(
-  connection: Connection,
+  client: { rpc: { getSignatureStatus: (signature: string) => Promise<{ value: { confirmationStatus: string } | null }> } },
   signature: string
 ): Promise<boolean> {
   try {
-    const status = await connection.getSignatureStatus(signature);
-    return status?.value?.confirmationStatus === 'confirmed' ||
-           status?.value?.confirmationStatus === 'finalized';
+    const status = await client.rpc.getSignatureStatus(signature);
+    return status.value?.confirmationStatus === 'confirmed' ||
+           status.value?.confirmationStatus === 'finalized';
   } catch {
     return false;
   }
 }
 
 /**
- * Wait for transaction confirmation
+ * Wait for transaction confirmation with proper polling
  *
- * @param connection - Solana connection
+ * @param client - RPC client
  * @param signature - Transaction signature
  * @param timeout - Timeout in milliseconds (default: 30000)
  * @returns True if confirmed, false if timeout
  */
 export async function waitForConfirmation(
-  connection: Connection,
+  client: { rpc: { getSignatureStatus: (signature: string) => Promise<{ value: { confirmationStatus: string } | null }> } },
   signature: string,
   timeout: number = 30000
 ): Promise<boolean> {
   const startTime = Date.now();
+  const pollInterval = 1000; // 1 second
 
   while (Date.now() - startTime < timeout) {
-    if (await isTransactionConfirmed(connection, signature)) {
+    const status = await client.rpc.getSignatureStatus(signature);
+    if (status.value?.confirmationStatus === 'confirmed' ||
+        status.value?.confirmationStatus === 'finalized') {
       return true;
     }
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
   }
 
   return false;
@@ -289,6 +248,7 @@ export function formatSol(amount: number, decimals: number = 4): string {
  *
  * @param input - User input string
  * @returns Amount in lamports
+ * @throws Error if input is invalid
  */
 export function parseInvestmentAmount(input: string): number {
   const amount = parseFloat(input);
@@ -296,4 +256,38 @@ export function parseInvestmentAmount(input: string): number {
     throw new Error('Invalid investment amount');
   }
   return solToLamports(amount);
+}
+
+/**
+ * Get USDC balance for an address using Token Program
+ *
+ * @param client - RPC client
+ * @param walletAddress - Wallet address
+ * @param usdcMint - USDC mint address
+ * @returns Balance in USDC (human-readable)
+ */
+export async function getTokenBalance(
+  client: {
+    rpc: {
+      getTokenAccountsByOwner: (owner: string, options: { mint: string }) => Promise<{
+        value: Array<{ account: { data: { parsed: { info: { tokenAmount: { amount: string } } } } } }>
+      }>;
+    };
+  },
+  walletAddress: string,
+  usdcMint: string
+): Promise<number> {
+  try {
+    const response = await client.rpc.getTokenAccountsByOwner(walletAddress, { mint: usdcMint });
+    if (response.value.length === 0) {
+      return 0;
+    }
+
+    // Get the balance from the first token account
+    const balance = response.value[0].account.data.parsed.info.tokenAmount.amount;
+    return parseFloat(balance) / 1_000_000; // USDC has 6 decimals
+  } catch (error) {
+    console.error('Error getting token balance:', error);
+    throw error; // Re-throw instead of returning mock value
+  }
 }

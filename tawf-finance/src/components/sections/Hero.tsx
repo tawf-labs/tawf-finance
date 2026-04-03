@@ -72,7 +72,7 @@ export function Hero() {
           variants={itemVariants}
           className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12"
         >
-          <Link to="/earn">
+          <Link to="/investor/dashboard">
             <Button size="lg" className="group">
               Start Investing
               <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />

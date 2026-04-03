@@ -11,7 +11,13 @@ import {
   type TransactionSignature,
   SystemProgram,
 } from '@solana/web3.js';
-import type { WalletContextState } from '@solana/wallet-adapter-react';
+
+// Simple wallet interface for NFT operations
+interface WalletAdapter {
+  publicKey: PublicKey | null;
+  signTransaction?: (tx: Transaction) => Promise<Transaction>;
+  sendTransaction?: (tx: Transaction, conn: Connection) => Promise<string>;
+}
 
 // NFT Receipt metadata interface
 export interface ReceiptMetadata {
@@ -42,10 +48,10 @@ export interface ReceiptNFT {
  */
 export async function mintReceiptNFT(
   connection: Connection,
-  wallet: WalletContextState,
+  wallet: WalletAdapter,
   metadata: ReceiptMetadata
 ): Promise<{ mintAddress: string; signature: string }> {
-  if (!wallet.publicKey || !wallet.signTransaction) {
+  if (!wallet.publicKey || !wallet.sendTransaction) {
     throw new Error('Wallet not connected');
   }
 
@@ -98,11 +104,11 @@ export async function mintReceiptNFT(
  */
 export async function updateReceiptNFT(
   connection: Connection,
-  wallet: WalletContextState,
+  wallet: WalletAdapter,
   _mintAddress: string,
   _currentReturn: number
 ): Promise<TransactionSignature> {
-  if (!wallet.publicKey || !wallet.signTransaction) {
+  if (!wallet.publicKey || !wallet.sendTransaction) {
     throw new Error('Wallet not connected');
   }
 

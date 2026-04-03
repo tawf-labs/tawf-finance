@@ -27,17 +27,17 @@ export function useMockData() {
   // Get user-specific data
   const investments = useMemo(() => {
     if (!user) return [];
-    return getInvestmentsByUserId(user.id);
+    return getInvestmentsByUserId(user.address);
   }, [user]);
 
   const transactions = useMemo(() => {
     if (!user) return [];
-    return getTransactionsByUserId(user.id);
+    return getTransactionsByUserId(user.address);
   }, [user]);
 
   const notifications = useMemo(() => {
     if (!user) return [];
-    return getNotificationsByUserId(user.id);
+    return getNotificationsByUserId(user.address);
   }, [user]);
 
   const unreadNotificationCount = useMemo(() => {
@@ -46,43 +46,43 @@ export function useMockData() {
 
   const purchaseOrders = useMemo(() => {
     if (!user) return [];
-    return getPurchaseOrdersByBusinessId(user.id);
+    return getPurchaseOrdersByBusinessId(user.address);
   }, [user]);
 
   const vendorServices = useMemo(() => {
     if (!user) return [];
-    return getVendorServicesByVendorId(user.id);
+    return getVendorServicesByVendorId(user.address);
   }, [user]);
 
   const vendorPartnerships = useMemo(() => {
     if (!user) return [];
-    return getPartnershipsByVendorId(user.id);
+    return getPartnershipsByVendorId(user.address);
   }, [user]);
 
   const cooperativePartnerships = useMemo(() => {
     if (!user) return [];
-    return getPartnershipsByCooperativeId(user.id);
+    return getPartnershipsByCooperativeId(user.address);
   }, [user]);
 
   const complianceDocuments = useMemo(() => {
     if (!user) return [];
-    return getComplianceDocumentsByUserId(user.id);
+    return getComplianceDocumentsByUserId(user.address);
   }, [user]);
 
   const businessProfile = useMemo(() => {
     if (!user) return undefined;
-    return getBusinessProfileByUserId(user.id);
+    return getBusinessProfileByUserId(user.address);
   }, [user]);
 
   // Calculate portfolio stats for investors
   const portfolioStats = useMemo(() => {
-    if (!user || user.role !== 'investor') return null;
+    if (!user) return null;
 
     const activeInvestments = investments.filter(i => i.status === 'active');
     const totalInvested = investments.reduce((sum, i) => sum + i.amount, 0);
     const totalReturns = investments.reduce((sum, i) => sum + i.currentReturn, 0);
     const expectedReturns = investments.reduce((sum, i) => sum + i.expectedReturn, 0);
-    const availableBalance = 5000 - totalInvested; // Mock available balance
+    const availableBalance = 5000 - totalInvested;
 
     return {
       totalInvested,
@@ -96,7 +96,7 @@ export function useMockData() {
 
   // Calculate vendor stats
   const vendorStats = useMemo(() => {
-    if (!user || user.role !== 'vendor') return null;
+    if (!user) return null;
 
     const activeServices = vendorServices.filter(s => s.active).length;
     const totalOrders = vendorServices.reduce((sum, s) => sum + s.ordersFulfilled, 0);
@@ -115,7 +115,7 @@ export function useMockData() {
 
   // Calculate cooperative stats
   const cooperativeStats = useMemo(() => {
-    if (!user || user.role !== 'cooperative') return null;
+    if (!user) return null;
 
     const pendingVerifications = mockPurchaseOrders.filter(po => po.status === 'verifying').length;
     const fundedDeals = mockPurchaseOrders.filter(po => po.status === 'funded' || po.status === 'in_progress').length;
@@ -127,14 +127,14 @@ export function useMockData() {
       pendingVerifications,
       activeDeals: fundedDeals,
       totalDisbursed,
-      verifiedBusinesses: mockBusinessProfiles.filter(b => b.verifiedBy.includes(user.id)).length,
-      memberCount: 145 + Math.floor(Math.random() * 50), // Mock member count
+      verifiedBusinesses: mockBusinessProfiles.filter(b => b.verifiedBy.includes(user.address)).length,
+      memberCount: 145,
     };
   }, [user]);
 
   // Calculate business stats
   const businessStats = useMemo(() => {
-    if (!user || user.role !== 'business') return null;
+    if (!user) return null;
 
     const activePOs = purchaseOrders.filter(po => po.status === 'funded' || po.status === 'in_progress').length;
     const totalFunding = purchaseOrders
@@ -157,11 +157,11 @@ export function useMockData() {
 
   // Calculate admin stats
   const adminStats = useMemo(() => {
-    if (!user || user.role !== 'admin') return null;
+    if (!user) return null;
 
-    const totalUsers = 2480 + Math.floor(Math.random() * 100);
+    const totalUsers = 2480;
     const activeDeals = mockPurchaseOrders.filter(po => po.status === 'funded' || po.status === 'in_progress').length;
-    const platformTVL = mockInvestments.reduce((sum, i) => sum + i.amount, 0) * 42; // Mock multiplier
+    const platformTVL = mockInvestments.reduce((sum, i) => sum + i.amount, 0) * 42;
     const pendingApprovals = mockComplianceDocuments.filter(d => d.status === 'pending').length;
 
     return {

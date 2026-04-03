@@ -2,30 +2,31 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
 const stakingPools = [
-  { name: 'Kurban Farms Pool', href: '/earn' },
-  { name: 'Warung Pool', href: '/earn' },
-  { name: 'Jamu & Herbal Pool', href: '/earn' },
-  { name: 'Organic Food Pool', href: '/earn' },
-  { name: 'Artisan Goods Pool', href: '/earn' },
+  { name: 'Kurban Farms Pool', href: '/#pools' },
+  { name: 'Warung Pool', href: '/#pools' },
+  { name: 'Jamu & Herbal Pool', href: '/#pools' },
+  { name: 'Organic Food Pool', href: '/#pools' },
+  { name: 'Artisan Goods Pool', href: '/#pools' },
 ];
 
 const platformLinks = [
   { name: 'Tawf ID', href: 'https://id.tawf.foundation' },
+  { name: 'Dashboard', href: '/investor/dashboard' },
 ];
 
 const foundationLinks = [
-  { name: 'Our Mission', href: '#' },
-  { name: 'Governance', href: '#' },
-  { name: 'Org Structure', href: '#' },
-  { name: 'Manifesto', href: '#' },
+  { name: 'Our Mission', href: '/about' },
+  { name: 'Governance', href: 'https://tawf.foundation' },
+  { name: 'Org Structure', href: 'https://tawf.foundation' },
+  { name: 'Manifesto', href: 'https://tawf.foundation' },
 ];
 
 const resourceLinks = [
-  { name: 'Glossary', href: '#' },
-  { name: 'Research', href: '#' },
-  { name: 'Contact', href: '#' },
-  { name: 'Privacy Policy', href: '#' },
-  { name: 'Terms of Service', href: '#' },
+  { name: 'Glossary', href: '/glossary' },
+  { name: 'How It Works', href: '/how-it-works' },
+  { name: 'Contact', href: '/contact' },
+  { name: 'Privacy Policy', href: '/contact' },
+  { name: 'Terms of Service', href: '/contact' },
 ];
 
 function FooterColumn({ title, links, delay }: { title: string; links: { name: string; href: string }[]; delay: number }) {

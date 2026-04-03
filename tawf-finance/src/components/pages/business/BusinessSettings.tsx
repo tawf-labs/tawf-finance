@@ -25,10 +25,10 @@ export function BusinessSettings() {
             <Building2 className="w-12 h-12 text-tawf-green" />
           </div>
           <div className="flex-1">
-            <h3 className="font-serif text-xl text-tawf-green">{user?.organization}</h3>
-            <p className="text-tawf-muted">{user?.email}</p>
+            <h3 className="font-serif text-xl text-tawf-green">{user?.address ? `${user.address.slice(0, 4)}...${user.address.slice(-4)}` : 'Wallet'}</h3>
+            <p className="text-tawf-muted font-mono text-sm">{user?.address ?? ''}</p>
             <div className="flex items-center gap-2 mt-2">
-              <Badge variant="success" size="sm">{user?.status}</Badge>
+              <Badge variant="success" size="sm">{'Active'}</Badge>
             </div>
           </div>
           <Button variant="secondary" size="md">Edit Profile</Button>
@@ -39,7 +39,7 @@ export function BusinessSettings() {
             <label className="block text-sm font-medium text-tawf-ink mb-2">Business Name</label>
             <input
               type="text"
-              defaultValue={user?.organization}
+              defaultValue={''}
               className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
             />
           </div>
@@ -60,7 +60,7 @@ export function BusinessSettings() {
             </label>
             <input
               type="email"
-              defaultValue={user?.email}
+              defaultValue={''}
               className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
             />
           </div>
@@ -71,7 +71,7 @@ export function BusinessSettings() {
             </label>
             <input
               type="tel"
-              defaultValue={user?.phoneNumber}
+              defaultValue={''}
               className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
             />
           </div>
@@ -101,7 +101,7 @@ export function BusinessSettings() {
 
         <div className="space-y-3">
           {[
-            { name: 'Owner', email: user?.email || 'owner@business.com', role: 'Owner' },
+            { name: 'Owner', email: user?.address ? `${user.address.slice(0, 4)}...${user.address.slice(-4)}` : 'owner', role: 'Owner' },
             { name: 'Manager', email: 'manager@business.com', role: 'Manager' },
           ].map((member, index) => (
             <div key={index} className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">

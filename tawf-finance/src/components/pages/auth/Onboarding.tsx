@@ -5,13 +5,12 @@ import { Check, ArrowRight, TrendingUp, FileText, Heart, Sprout, Store, Building
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { useAuth } from '@/hooks/useAuth';
 
 export function Onboarding() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+
   const [step, setStep] = useState(1);
-  const totalSteps = user?.role === 'investor' ? 4 : 3;
+  const totalSteps = 4;
 
   const onboardingSteps = {
     investor: [
@@ -224,34 +223,19 @@ export function Onboarding() {
     ],
   };
 
-  const steps = onboardingSteps[user?.role as keyof typeof onboardingSteps] || onboardingSteps.investor;
+  const steps = onboardingSteps.investor;
   const currentStepData = steps[step - 1];
 
   const handleNext = () => {
     if (step < totalSteps) {
       setStep(step + 1);
     } else {
-      // Redirect to appropriate dashboard
-      const redirectMap: Record<string, string> = {
-        investor: '/investor/dashboard',
-        business: '/business/dashboard',
-        cooperative: '/cooperative/dashboard',
-        vendor: '/vendor/dashboard',
-        admin: '/admin/dashboard',
-      };
-      navigate(redirectMap[user?.role || 'investor']);
+      navigate('/investor/dashboard');
     }
   };
 
   const handleSkip = () => {
-    const redirectMap: Record<string, string> = {
-      investor: '/investor/dashboard',
-      business: '/business/dashboard',
-      cooperative: '/cooperative/dashboard',
-      vendor: '/vendor/dashboard',
-      admin: '/admin/dashboard',
-    };
-    navigate(redirectMap[user?.role || 'investor']);
+    navigate('/investor/dashboard');
   };
 
   return (

@@ -88,7 +88,9 @@ export function DashboardLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const navItems = user ? navConfigs[user.role] || [] : [];
+  // Derive role from URL path since user no longer has a role property
+  const roleFromPath = Object.keys(navConfigs).find(r => location.pathname.startsWith(`/${r}`)) ?? 'investor';
+  const navItems = navConfigs[roleFromPath] ?? [];
 
   // Get page title from current path
   const getPageTitle = () => {
@@ -166,11 +168,13 @@ export function DashboardLayout() {
         {/* User Section */}
         <div className="p-4 border-t border-tawf-green-20">
           <div className={cn('flex items-center gap-3', sidebarCollapsed ? 'justify-center' : '')}>
-            <Avatar name={user.name} size="sm" />
+            <Avatar name={user?.address?.slice(0, 4) ?? '?'} size="sm" />
             {!sidebarCollapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user.name}</p>
-                <p className="text-xs text-tawf-sand-60 capitalize">{user.role}</p>
+                <p className="text-sm font-medium truncate font-mono">
+                  {user?.address ? `${user.address.slice(0, 4)}...${user.address.slice(-4)}` : 'Connected'}
+                </p>
+                <p className="text-xs text-tawf-sand-60 capitalize">{roleFromPath}</p>
               </div>
             )}
           </div>
@@ -292,10 +296,12 @@ export function DashboardLayout() {
 
               {/* User Menu */}
               <div className="hidden md:flex items-center gap-3 pl-3 border-l border-tawf-green-10">
-                <Avatar name={user.name} size="sm" />
+                <Avatar name={user?.address?.slice(0, 4) ?? '?'} size="sm" />
                 <div className="text-sm">
-                  <p className="font-medium text-tawf-ink">{user.name}</p>
-                  <p className="text-xs text-tawf-muted capitalize">{user.role}</p>
+                  <p className="font-medium text-tawf-ink font-mono">
+                    {user?.address ? `${user.address.slice(0, 4)}...${user.address.slice(-4)}` : 'Connected'}
+                  </p>
+                  <p className="text-xs text-tawf-muted capitalize">{roleFromPath}</p>
                 </div>
                 <button
                   onClick={logout}

@@ -48,6 +48,7 @@ export interface Pool {
   minInvestment: number;
   tvl: number;
   available: boolean;
+  comingSoon?: boolean;
   fundingProgress: number;
   fundingTarget: number;
   riskLevel: 'low' | 'medium' | 'high';
@@ -401,7 +402,8 @@ export const mockPools: Pool[] = [
     duration: { min: 30, max: 45 },
     minInvestment: 10,
     tvl: 89000,
-    available: true,
+    available: false,
+    comingSoon: true,
     fundingProgress: 89000,
     fundingTarget: 100000,
     riskLevel: 'low',
@@ -426,7 +428,8 @@ export const mockPools: Pool[] = [
     duration: { min: 45, max: 90 },
     minInvestment: 25,
     tvl: 67000,
-    available: true,
+    available: false,
+    comingSoon: true,
     fundingProgress: 67000,
     fundingTarget: 80000,
     riskLevel: 'medium',
@@ -450,7 +453,8 @@ export const mockPools: Pool[] = [
     duration: { min: 60, max: 90 },
     minInvestment: 15,
     tvl: 45000,
-    available: true,
+    available: false,
+    comingSoon: true,
     fundingProgress: 45000,
     fundingTarget: 60000,
     riskLevel: 'low',
@@ -474,7 +478,8 @@ export const mockPools: Pool[] = [
     duration: { min: 45, max: 75 },
     minInvestment: 20,
     tvl: 38000,
-    available: true,
+    available: false,
+    comingSoon: true,
     fundingProgress: 38000,
     fundingTarget: 50000,
     riskLevel: 'medium',
@@ -497,7 +502,8 @@ export const mockPools: Pool[] = [
     duration: { min: 60, max: 90 },
     minInvestment: 50,
     tvl: 95000,
-    available: true,
+    available: false,
+    comingSoon: true,
     fundingProgress: 95000,
     fundingTarget: 120000,
     riskLevel: 'medium',

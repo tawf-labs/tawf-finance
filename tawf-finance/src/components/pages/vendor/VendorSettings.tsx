@@ -1,4 +1,4 @@
-import { Building2, Mail, Phone, Globe, MapPin } from 'lucide-react';
+import { Building2, Mail, Globe, MapPin } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -25,11 +25,11 @@ export function VendorSettings() {
             <Building2 className="w-12 h-12 text-tawf-green" />
           </div>
           <div className="flex-1">
-            <h3 className="font-serif text-xl text-tawf-green">{user?.organization}</h3>
-            <p className="text-tawf-muted">{user?.email}</p>
+            <h3 className="font-serif text-xl text-tawf-green">{user?.address ? `${user.address.slice(0, 4)}...${user.address.slice(-4)}` : 'Wallet'}</h3>
+            <p className="text-tawf-muted font-mono text-sm">{user?.address ?? ''}</p>
             <div className="flex items-center gap-2 mt-2">
-              <Badge variant="success" size="sm">{user?.status}</Badge>
-              <Badge variant="info" size="sm" className="capitalize">{user?.tier} Partner</Badge>
+              <Badge variant="success" size="sm">{'Active'}</Badge>
+              <Badge variant="info" size="sm" className="capitalize">Partner</Badge>
             </div>
           </div>
           <Button variant="secondary" size="md">Edit Profile</Button>
@@ -40,7 +40,7 @@ export function VendorSettings() {
             <label className="block text-sm font-medium text-tawf-ink mb-2">Company Name</label>
             <input
               type="text"
-              defaultValue={user?.organization}
+              defaultValue={''}
               className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
             />
           </div>
@@ -60,18 +60,7 @@ export function VendorSettings() {
             </label>
             <input
               type="email"
-              defaultValue={user?.email}
-              className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-tawf-ink mb-2 flex items-center gap-2">
-              <Phone className="w-4 h-4" />
-              Phone Number
-            </label>
-            <input
-              type="tel"
-              defaultValue={user?.phoneNumber}
+              defaultValue=""
               className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
             />
           </div>

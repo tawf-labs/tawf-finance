@@ -4,6 +4,7 @@ import { Menu, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { useAuth } from '@/hooks/useAuth';
+import { WalletButton } from '@/components/solana/WalletButton';
 
 const publicNavLinks = [
   { name: 'Features', href: '/#features' },
@@ -12,7 +13,7 @@ const publicNavLinks = [
 ];
 
 export function Navigation() {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { isAuthenticated } = useAuth();
   const location = useLocation();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -37,11 +38,6 @@ export function Navigation() {
   if (isDashboardPage) {
     return null;
   }
-
-  const handleLogout = () => {
-    logout();
-    setIsMobileMenuOpen(false);
-  };
 
   return (
     <motion.nav
@@ -88,34 +84,12 @@ export function Navigation() {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-4">
-            {isAuthenticated && user ? (
-              <>
-                <Link to="/investor/dashboard">
-                  <Button variant="primary" size="sm">
-                    Dashboard
-                  </Button>
-                </Link>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleLogout}
-                  className="text-tawf-muted hover:text-red-600"
-                >
-                  Sign Out
-                </Button>
-              </>
-            ) : (
-              <>
-                <Link to="/login">
-                  <Button variant="secondary" size="sm">Sign In</Button>
-                </Link>
-                <Link to="/earn">
-                  <Button variant="primary" size="sm">
-                    Start Investing
-                  </Button>
-                </Link>
-              </>
+            {isAuthenticated && (
+              <Link to="/investor/dashboard">
+                <Button variant="secondary" size="sm">Dashboard</Button>
+              </Link>
             )}
+            <WalletButton className="btn-primary text-sm px-4 py-2 rounded-lg" />
           </div>
 
           {/* Mobile Menu Button */}
@@ -163,30 +137,12 @@ export function Navigation() {
                   </>
                 )}
                 <div className="h-px bg-tawf-green/10 my-2" />
-                {isAuthenticated && user ? (
-                  <>
-                    <Link to="/investor/dashboard" className="nav-link py-2" onClick={() => setIsMobileMenuOpen(false)}>
-                      Dashboard
-                    </Link>
-                    <button
-                      onClick={handleLogout}
-                      className="nav-link py-2 text-left"
-                    >
-                      Sign Out
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <Link to="/login" className="nav-link py-2" onClick={() => setIsMobileMenuOpen(false)}>
-                      Sign In
-                    </Link>
-                    <Link to="/earn" onClick={() => setIsMobileMenuOpen(false)}>
-                      <Button variant="primary" size="sm" className="w-full">
-                        Start Investing
-                      </Button>
-                    </Link>
-                  </>
+                {isAuthenticated && (
+                  <Link to="/investor/dashboard" className="nav-link py-2" onClick={() => setIsMobileMenuOpen(false)}>
+                    Dashboard
+                  </Link>
                 )}
+                <WalletButton className="btn-primary text-sm px-4 py-2 rounded-lg w-full justify-center" />
               </div>
             </div>
           </motion.div>
