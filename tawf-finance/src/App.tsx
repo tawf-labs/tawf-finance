@@ -1,7 +1,10 @@
 import { useMemo } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
-import { PhantomWalletAdapter, SolflareWalletAdapter, TrustWalletAdapter, CoinbaseWalletAdapter } from '@solana/wallet-adapter-wallets';
+import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
+import { SolflareWalletAdapter } from '@solana/wallet-adapter-solflare';
+import { TrustWalletAdapter } from '@solana/wallet-adapter-trust';
+import { CoinbaseWalletAdapter } from '@solana/wallet-adapter-coinbase';
 import { SOLANA_CONFIG } from '@/solana/config';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { WalletModalProvider, useWalletModal } from '@/contexts/WalletModalContext';

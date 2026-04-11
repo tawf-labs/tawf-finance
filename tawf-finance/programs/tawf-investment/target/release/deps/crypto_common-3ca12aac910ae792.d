@@ -1,0 +1,7 @@
+/home/zidan/Documents/Github/tawf-finance/tawf-finance/programs/tawf-investment/target/release/deps/crypto_common-3ca12aac910ae792.d: /home/zidan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-common-0.1.7/src/lib.rs
+
+/home/zidan/Documents/Github/tawf-finance/tawf-finance/programs/tawf-investment/target/release/deps/libcrypto_common-3ca12aac910ae792.rlib: /home/zidan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-common-0.1.7/src/lib.rs
+
+/home/zidan/Documents/Github/tawf-finance/tawf-finance/programs/tawf-investment/target/release/deps/libcrypto_common-3ca12aac910ae792.rmeta: /home/zidan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-common-0.1.7/src/lib.rs
+
+/home/zidan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-common-0.1.7/src/lib.rs:
