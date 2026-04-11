@@ -31,6 +31,30 @@ export const SOLANA_NETWORKS: Record<Network, SolanaNetworkConfig> = {
   },
 };
 
+// Tawf Finance Program IDs
+// Update these after deploying the programs
+export const PROGRAM_IDS = {
+  // Investment Program
+  investment: {
+    devnet: '7hA8LqmSFG8NJxKZ75vq88bXviUfMWZ56jrC1PosReRc',
+    testnet: '7hA8LqmSFG8NJxKZ75vq88bXviUfMWZ56jrC1PosReRc',
+    mainnet: '7hA8LqmSFG8NJxKZ75vq88bXviUfMWZ56jrC1PosReRc',
+  },
+  // NFT Receipt Program
+  nft: {
+    devnet: 'Fg1m6YYietkK9xJLHxYpPXPoe4NqNmQyypsPob3SSGz3',
+    testnet: 'Fg1m6YYietkK9xJLHxYpPXPoe4NqNmQyypsPob3SSGz3',
+    mainnet: 'Fg1m6YYietkK9xJLHxYpPXPoe4NqNmQyypsPob3SSGz3',
+  },
+} as const;
+
+// Pool addresses (will be populated after pool creation)
+export const POOL_ADDRESSES: Record<string, string> = {
+  // After pool initialization, add the pool addresses here:
+  // 'kurban-farms-pool': 'POOL_ADDRESS_HERE',
+  // Example: 'kurban-farms-pool': '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
+};
+
 // Token addresses
 export const TOKEN_ADDRESSES = {
   // USDC mint addresses (different per network)

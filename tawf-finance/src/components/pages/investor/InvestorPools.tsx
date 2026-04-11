@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Search, SlidersHorizontal, TrendingUp, ExternalLink, Sparkles } from 'lucide-react';
@@ -9,6 +11,10 @@ import { WalletButton } from '@/components/solana/WalletButton';
 import { mockPools } from '@/data/mockData';
 import { useMockData } from '@/hooks/useMockData';
 import { useSolanaWallet } from '@/hooks/useSolanaWallet';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { investInPool, derivePoolAddressSync } from '@/solana/investment';
+import { mintReceiptNFT } from '@/solana/nft';
+import { SOLANA_CONFIG } from '@/solana/config';
 import { cn } from '@/utils/cn';
 import type { Pool } from '@/data/mockData';
 
@@ -24,13 +30,12 @@ const categoryMap: Record<string, FilterCategory> = {
 };
 
 // Helper function to get explorer URL for a transaction
-const getExplorerUrl = (signature: string) => {
-  return `https://explorer.solana.com/tx/${signature}?cluster=devnet`;
-};
+const getExplorerUrl = (signature: string) => SOLANA_CONFIG.getTxExplorerUrl(signature);
 
 export function InvestorPools() {
   const { formatCurrency, investments } = useMockData();
-  const { connected, walletAddress, address, usdcBalance, transferUsdc } = useSolanaWallet();
+  const { connected, address, usdcBalance, connection } = useSolanaWallet();
+  const wallet = useWallet();
 
   const [selectedCategory, setSelectedCategory] = useState<FilterCategory>('all');
   const [sortBy, setSortBy] = useState<SortOption>('apy');
@@ -100,7 +105,7 @@ export function InvestorPools() {
   };
 
   const handleConfirmInvest = async () => {
-    if (!connected || !walletAddress || !address || !selectedPool) {
+    if (!connected || !address || !selectedPool) {
       setInvestError('Please connect your wallet first');
       return;
     }
@@ -109,24 +114,38 @@ export function InvestorPools() {
     setInvestError(null);
 
     try {
-      // Use the USDC transfer function with the pool's treasury address
-      const signature = await transferUsdc(selectedPool.usdcTreasury, investAmount);
+      // Derive the pool PDA from the pool's authority address
+      // For now we use the pool's usdcTreasury as the authority (admin wallet)
+      const { address: poolPda } = derivePoolAddressSync(selectedPool.usdcTreasury);
+      const poolAddress = poolPda.toBase58();
 
-      if (signature) {
-        setTxSignature(signature);
-        setShowSuccess(true);
+      // Invest in the on-chain pool (amount in lamports)
+      const amountLamports = Math.floor(investAmount * 1_000_000); // USDC has 6 decimals
+      const signature = await investInPool(connection, wallet, poolAddress, amountLamports);
 
-        // Auto-close after 5 seconds
-        setTimeout(() => {
-          setShowInvestModal(false);
-          setShowSuccess(false);
-          setSelectedPool(null);
-          setInvestAmount(100);
-          setTxSignature(null);
-        }, 5000);
-      } else {
-        setInvestError('Transaction failed - no signature returned');
-      }
+      // Mint a soulbound receipt NFT
+      const maturesAt = new Date();
+      maturesAt.setDate(maturesAt.getDate() + selectedPool.duration.min);
+      await mintReceiptNFT(connection, wallet, {
+        poolName: selectedPool.name,
+        poolId: selectedPool.id,
+        amount: amountLamports,
+        apy: Math.round((selectedPool.apy.min + selectedPool.apy.max) / 2 * 100),
+        investedAt: new Date().toISOString(),
+        maturesAt: maturesAt.toISOString(),
+        expectedReturn: Math.floor(amountLamports * (selectedPool.apy.min + selectedPool.apy.max) / 2 / 100),
+      });
+
+      setTxSignature(signature);
+      setShowSuccess(true);
+
+      setTimeout(() => {
+        setShowInvestModal(false);
+        setShowSuccess(false);
+        setSelectedPool(null);
+        setInvestAmount(100);
+        setTxSignature(null);
+      }, 5000);
     } catch (error) {
       console.error('Investment error:', error);
       setInvestError(error instanceof Error ? error.message : 'Transaction failed');

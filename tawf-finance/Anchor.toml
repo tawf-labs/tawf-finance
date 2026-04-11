@@ -1,0 +1,28 @@
+[features]
+seeds = false
+skip-lint = false
+
+[toolchain]
+anchor_version = "0.30.0"
+
+[programs.localnet]
+tawf_investment = "7hA8LqmSFG8NJxKZ75vq88bXviUfMWZ56jrC1PosReRc"
+tawf_nft = "Fg1m6YYietkK9xJLHxYpPXPoe4NqNmQyypsPob3SSGz3"
+
+[programs.devnet]
+tawf_investment = "7hA8LqmSFG8NJxKZ75vq88bXviUfMWZ56jrC1PosReRc"
+tawf_nft = "Fg1m6YYietkK9xJLHxYpPXPoe4NqNmQyypsPob3SSGz3"
+
+[programs.mainnet]
+tawf_investment = "7hA8LqmSFG8NJxKZ75vq88bXviUfMWZ56jrC1PosReRc"
+tawf_nft = "Fg1m6YYietkK9xJLHxYpPXPoe4NqNmQyypsPob3SSGz3"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "Devnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"

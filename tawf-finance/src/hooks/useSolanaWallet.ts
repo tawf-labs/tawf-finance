@@ -6,13 +6,13 @@
  */
 
 import { useMemo, useCallback, useState, useEffect } from 'react';
-import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { useWallet, useConnection, type WalletContextState } from '@solana/wallet-adapter-react';
 import {
   getAssociatedTokenAddress,
   createTransferInstruction,
   createAssociatedTokenAccountInstruction,
 } from '@solana/spl-token';
-import { PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
+import { PublicKey, SystemProgram, Transaction, type Connection } from '@solana/web3.js';
 import {
   SOLANA_CONFIG,
   lamportsToSol,
@@ -23,6 +23,38 @@ import {
 // USDC Mint address (same on devnet and mainnet)
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const USDC_DECIMALS = 6;
+
+/**
+ * Sign and send a transaction using the wallet adapter
+ * This is a reusable helper for all transaction signing operations
+ *
+ * @param transaction - The transaction to sign and send
+ * @param wallet - The wallet context state from useWallet()
+ * @param connection - The Solana connection
+ * @returns The transaction signature
+ */
+export async function signAndSendTransaction(
+  transaction: Transaction,
+  wallet: WalletContextState,
+  connection: Connection
+): Promise<string> {
+  if (!wallet.publicKey || !wallet.sendTransaction) {
+    throw new Error('Wallet not connected');
+  }
+
+  // Get recent blockhash
+  const { blockhash } = await connection.getLatestBlockhash();
+  transaction.recentBlockhash = blockhash;
+  transaction.feePayer = wallet.publicKey;
+
+  // Sign and send using wallet adapter
+  const signature = await wallet.sendTransaction(transaction, connection);
+
+  // Wait for confirmation
+  await connection.confirmTransaction(signature);
+
+  return signature;
+}
 
 /**
  * Hook for Solana wallet operations
@@ -42,7 +74,7 @@ const USDC_DECIMALS = 6;
  * ```
  */
 export function useSolanaWallet() {
-  const { publicKey: publicKeyObj, connected: isConnected, connecting: isConnecting, disconnect } = useWallet();
+  const { publicKey: publicKeyObj, connected: isConnected, connecting: isConnecting, disconnect, wallet } = useWallet();
   const { connection } = useConnection();
   const publicKey = publicKeyObj?.toBase58() ?? null;
 
@@ -172,7 +204,7 @@ export function useSolanaWallet() {
    */
   const transferUsdc = useCallback(
     async (toAddress: string, amountUsdc: number): Promise<string | null> => {
-      if (!publicKey || !window.solana) {
+      if (!publicKey || !wallet) {
         throw new Error('Wallet not connected');
       }
 
@@ -182,17 +214,13 @@ export function useSolanaWallet() {
         const fromPubkey = new PublicKey(publicKey);
         const toPubkey = new PublicKey(toAddress);
 
-        // Get associated token accounts
         const fromTokenAccount = await getAssociatedTokenAddress(usdcMintPubkey, fromPubkey);
         const toTokenAccount = await getAssociatedTokenAddress(usdcMintPubkey, toPubkey);
 
-        // Convert USDC amount to base units (6 decimals)
         const amountInBaseUnits = BigInt(Math.floor(amountUsdc * Math.pow(10, USDC_DECIMALS)));
 
-        // Build transaction instructions
         const transaction = new Transaction();
 
-        // Check if recipient's token account exists, if not create it
         const toAccountInfo = await connection.getAccountInfo(toTokenAccount);
         if (!toAccountInfo) {
           transaction.add(
@@ -205,7 +233,6 @@ export function useSolanaWallet() {
           );
         }
 
-        // Add transfer instruction
         transaction.add(
           createTransferInstruction(
             fromTokenAccount,
@@ -215,22 +242,14 @@ export function useSolanaWallet() {
           )
         );
 
-        // Set recentBlockhash and feePayer before signing
         const { blockhash } = await connection.getLatestBlockhash();
         transaction.recentBlockhash = blockhash;
         transaction.feePayer = fromPubkey;
 
-        // Sign and send transaction using Wallet Standard API
-        if (!window.solana?.signAndSendTransaction) {
-          throw new Error('Wallet does not support transaction signing');
-        }
-        const result = await window.solana.signAndSendTransaction(transaction);
-        const signature = (result as { signature: string }).signature;
+        const walletState = wallet.adapter as unknown as { sendTransaction: typeof wallet.adapter['sendTransaction'] };
+        const signature = await walletState.sendTransaction(transaction, connection);
 
-        // Wait for confirmation
         await connection.confirmTransaction(signature);
-
-        // Refresh USDC balance after confirmation
         await fetchUsdcBalance();
 
         return signature;
@@ -241,7 +260,7 @@ export function useSolanaWallet() {
         setIsTransferring(false);
       }
     },
-    [publicKey, connection, fetchUsdcBalance]
+    [publicKey, wallet, connection, fetchUsdcBalance]
   );
 
   /**
@@ -249,7 +268,7 @@ export function useSolanaWallet() {
    */
   const transferSol = useCallback(
     async (toAddress: string, amountSol: number): Promise<string | null> => {
-      if (!publicKey || !window.solana) {
+      if (!publicKey || !wallet) {
         throw new Error('Wallet not connected');
       }
 
@@ -259,32 +278,22 @@ export function useSolanaWallet() {
         const fromPubkey = new PublicKey(publicKey);
         const transaction = new Transaction();
 
-        const lamports = amountSol * LAMPORTS_PER_SOL;
-
         transaction.add(
           SystemProgram.transfer({
             fromPubkey,
             toPubkey,
-            lamports,
+            lamports: amountSol * LAMPORTS_PER_SOL,
           })
         );
 
-        // Set recentBlockhash and feePayer before signing
         const { blockhash } = await connection.getLatestBlockhash();
         transaction.recentBlockhash = blockhash;
         transaction.feePayer = fromPubkey;
 
-        // Sign and send transaction using Wallet Standard API
-        if (!window.solana?.signAndSendTransaction) {
-          throw new Error('Wallet does not support transaction signing');
-        }
-        const result = await window.solana.signAndSendTransaction(transaction);
-        const signature = (result as { signature: string }).signature;
+        const walletState = wallet.adapter as unknown as { sendTransaction: typeof wallet.adapter['sendTransaction'] };
+        const signature = await walletState.sendTransaction(transaction, connection);
 
-        // Wait for confirmation
         await connection.confirmTransaction(signature);
-
-        // Refresh balance after confirmation
         await fetchBalance();
 
         return signature;
@@ -295,7 +304,7 @@ export function useSolanaWallet() {
         setIsTransferring(false);
       }
     },
-    [publicKey, connection, fetchBalance]
+    [publicKey, wallet, connection, fetchBalance]
   );
 
   // Auto-fetch balances when wallet connects
@@ -314,6 +323,7 @@ export function useSolanaWallet() {
     address: publicKey,
     connected: isConnected,
     connecting: isConnecting,
+    wallet,
     walletAddress: fullWalletAddress,
     shortenedAddress,
     balance,

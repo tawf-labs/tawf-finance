@@ -6,12 +6,12 @@
  */
 
 // Program IDs (Update these after deployment)
-export const TAWF_INVESTMENT_PROGRAM_ID = 'TAWFinvestment11111111111111111111111111';
-export const TAWF_NFT_PROGRAM_ID = 'TAWFNFT1111111111111111111111111111111';
+export const TAWF_INVESTMENT_PROGRAM_ID = '7hA8LqmSFG8NJxKZ75vq88bXviUfMWZ56jrC1PosReRc';
+export const TAWF_NFT_PROGRAM_ID = 'Fg1m6YYietkK9xJLHxYpPXPoe4NqNmQyypsPob3SSGz3';
 
-// Devnet Program IDs (for testing - replace with actual deployed program IDs)
-export const DEVNET_INVESTMENT_PROGRAM_ID = 'GjJvC1wKrFhfJJV3JGKRsVLQMpPqHjLjjTMR4LJQkXTz';
-export const DEVNET_NFT_PROGRAM_ID = 'DrJvC1wKrFhfJJV3JGKRsVLQMpPqHjLjjTMR4LJQkXT2';
+// Devnet Program IDs (same as mainnet for now - will update after deployment)
+export const DEVNET_INVESTMENT_PROGRAM_ID = '7hA8LqmSFG8NJxKZ75vq88bXviUfMWZ56jrC1PosReRc';
+export const DEVNET_NFT_PROGRAM_ID = 'Fg1m6YYietkK9xJLHxYpPXPoe4NqNmQyypsPob3SSGz3';
 
 // Current network
 export const NETWORK = 'devnet';

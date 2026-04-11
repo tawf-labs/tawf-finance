@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, MintTo, Token, TokenAccount, Transfer};
 
-declare_id!("TAWFNFT1111111111111111111111111111111");
+declare_id!("4eG5rDRzgQ6NvJN9XwxpZSfQ7QQjQkijkJ1zoZpvNsfv");
 
 #[program]
 pub mod tawf_nft {
@@ -42,9 +42,10 @@ pub mod tawf_nft {
         receipt.bump = ctx.bumps.receipt;
 
         // Mint the NFT token to the investor
+        let minter_key = ctx.accounts.minter.key();
         let seeds = &[
             b"receipt",
-            ctx.accounts.minter.key().as_ref(),
+            minter_key.as_ref(),
             pool_name.as_bytes(),
             &[ctx.bumps.receipt],
         ];
@@ -140,6 +141,7 @@ pub enum ReceiptStatus {
 // Instruction contexts
 
 #[derive(Accounts)]
+#[instruction(pool_name: String)]
 pub struct MintReceipt<'info> {
     #[account(
         init,

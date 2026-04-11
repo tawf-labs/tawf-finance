@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("TAWFinv11111111111111111111111111111111");
+declare_id!("AMoZmLsczBZBx8XPjFPbJRDXawb54pdwjD5ZjfjJMz72");
 
 #[program]
 pub mod tawf_investment {
@@ -61,12 +61,9 @@ pub mod tawf_investment {
     /// * `ctx` - Context containing pool and investor accounts
     /// * `amount` - Investment amount in lamports
     pub fn invest(ctx: Context<Invest>, amount: u64) -> Result<()> {
-        let pool = &mut ctx.accounts.pool;
-        let clock = Clock::get()?;
-
-        // Validate investment
+        // Validate investment before borrowing
         require!(
-            amount >= pool.min_investment,
+            amount >= ctx.accounts.pool.min_investment,
             TawfError::AmountBelowMinimum
         );
 
@@ -82,6 +79,7 @@ pub mod tawf_investment {
         anchor_lang::system_program::transfer(cpi_ctx, amount)?;
 
         // Update pool state
+        let pool = &mut ctx.accounts.pool;
         pool.total_invested += amount;
         pool.investor_count += 1;
 
