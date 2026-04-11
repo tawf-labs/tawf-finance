@@ -1,1 +1,0 @@
-/home/zidan/Documents/Github/tawf-finance/tawf-finance/programs/tawf-nft/target/sbpf-solana-solana/release/libtawf_nft.rlib: /home/zidan/Documents/Github/tawf-finance/tawf-finance/programs/tawf-nft/src/lib.rs

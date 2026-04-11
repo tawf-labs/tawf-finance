@@ -23,6 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 
+# Rust/Anchor build artifacts
+tawf-finance/programs/*/target/
+tawf-finance/target/
+
 # Internal tool directories and files
 .agent/
 .agents/

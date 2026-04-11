@@ -1,8 +1,0 @@
-/home/zidan/Documents/Github/tawf-finance/tawf-finance/programs/tawf-nft/target/debug/deps/solana_rent-50b9092ec67a878e.d: /home/zidan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-rent-2.2.1/src/lib.rs /home/zidan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-rent-2.2.1/src/sysvar.rs
-
-/home/zidan/Documents/Github/tawf-finance/tawf-finance/programs/tawf-nft/target/debug/deps/libsolana_rent-50b9092ec67a878e.rlib: /home/zidan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-rent-2.2.1/src/lib.rs /home/zidan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-rent-2.2.1/src/sysvar.rs
-
-/home/zidan/Documents/Github/tawf-finance/tawf-finance/programs/tawf-nft/target/debug/deps/libsolana_rent-50b9092ec67a878e.rmeta: /home/zidan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-rent-2.2.1/src/lib.rs /home/zidan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-rent-2.2.1/src/sysvar.rs
-
-/home/zidan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-rent-2.2.1/src/lib.rs:
-/home/zidan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/solana-rent-2.2.1/src/sysvar.rs:

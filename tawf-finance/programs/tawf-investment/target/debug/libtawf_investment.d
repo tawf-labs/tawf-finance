@@ -1,1 +1,0 @@
-/home/zidan/Documents/Github/tawf-finance/tawf-finance/programs/tawf-investment/target/debug/libtawf_investment.so: /home/zidan/Documents/Github/tawf-finance/tawf-finance/programs/tawf-investment/src/lib.rs
