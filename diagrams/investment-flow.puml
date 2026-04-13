@@ -1,0 +1,72 @@
+@startuml InvestmentFlow
+' Hide the unneeded shadow box for actors
+hide footbox
+
+title tawf.finance Investment Flow
+
+actor "Business" as Business
+participant "Cooperative" as Coop
+participant "Licensed Firm" as Firm
+participant "tawf.finance" as Platform
+database "Escrow" as Escrow
+actor "Investor" as Investor
+actor "Retailer" as Retailer
+
+== Phase 1: Deal Origination & Verification ==
+
+Business -> Coop : Submits Purchase Order (PO)
+note right of Business
+  Local business (warung, farm)
+  needs capital for goods
+end note
+
+Coop -> Coop : Verifies business & deal
+note right of Coop
+  Cooperative knows businesses
+  personally, validates on ground
+end note
+
+Coop -> Firm : Requests verification
+Firm -> Firm : Issues investment instrument
+note right of Firm
+  Licensed financial firm
+  holds regulatory license
+end note
+
+== Phase 2: Investment Creation ==
+
+Firm -> Platform : Confirms deal
+Platform -> Platform : Creates digital receipt
+note right of Platform
+  On-chain record tying
+  investment to specific PO
+end note
+
+Platform -> Escrow : **Locks funds in escrow**
+
+Escrow -> Investor : **Opens investment opportunity**
+
+== Phase 3: Investment ==
+
+Investor -> Escrow : Invests ($10 minimum)
+note right of Investor
+  Halal returns from
+  real trade, 8-18% APY
+end note
+
+Escrow -> Business : Releases capital
+Business -> Business : Purchases inventory
+
+== Phase 4: Fulfillment & Repayment ==
+
+Business -> Retailer : Delivers goods
+Retailer -> Business : Pays for goods
+
+Business -> Escrow : Repays principal + profit
+note right of Business
+  30-90 day deal duration
+end note
+
+Escrow -> Investor : **Returns investment + profit**
+
+@enduml

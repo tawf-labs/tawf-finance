@@ -1,0 +1,48 @@
+@startuml TrustArchitecture
+
+title tawf.finance Trust Architecture
+
+skinparam rectangleBorderColor transparent
+skinparam rectangleBackgroundColor transparent
+
+rectangle "Trust Layers" {
+
+    rectangle "Layer 1: On-Chain Verification" <<Blockchain>> {
+        rectangle "Tamper-proof receipt" as R1
+        rectangle "Transparent deal status" as R2
+        rectangle "On-chain repayments" as R3
+    }
+
+    rectangle "Layer 2: Licensed Financial Firm" <<Regulatory>> {
+        rectangle "Issues investment instruments" as R4
+        rectangle "Holds operational licenses" as R5
+        rectangle "Regulatory oversight" as R6
+    }
+
+    rectangle "Layer 3: Cooperative" <<Social>> {
+        rectangle "Knows businesses personally" as R7
+        rectangle "Verifies each deal on ground" as R8
+        rectangle "Maintains local relationships" as R9
+    }
+
+    rectangle "Layer 4: Tawf Foundation" <<Governance>> {
+        rectangle "Non-profit public-trust entity" as R10
+        rectangle "Ensures Sharia compliance" as R11
+        rectangle "Mission alignment" as R12
+    }
+}
+
+R1 -down-> R4
+R4 -down-> R7
+R7 -down-> R10
+
+legend right
+  |<#Black> |
+  **Outer Layers = Independent Oversight**
+  **Inner Layers = Direct Deal Protection**
+
+  Each layer provides independent
+  verification of the layers below
+endlegend
+
+@enduml

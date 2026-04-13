@@ -17,6 +17,7 @@ Governed by [Tawf Foundation](https://tawf.foundation) · Licensed · Sharia-Com
 - [Getting Started](#getting-started)
 - [Tech Stack](#tech-stack)
 - [Design System](#design-system)
+- [Diagrams](#diagrams)
 - [Localization](#localization)
 - [Governance](#governance)
 - [License](#license)
@@ -63,6 +64,8 @@ Instead of speculative DeFi yield farms, tawf.finance funds **real purchase orde
 
 ### Investment Flow
 
+See the detailed [Investment Flow diagram](./diagrams/investment-flow.puml) ([render online](https://www.planttext.com/?text=U5-nJ2i8m5Xp5X0)) showing how capital moves through the ecosystem:
+
 ```
 ┌─────────────┐      ┌─────────────┐      ┌──────────────┐
 │  Business   │ ───▶ │ Cooperative│ ───▶ │ Licensed Firm│
@@ -83,6 +86,12 @@ Instead of speculative DeFi yield farms, tawf.finance funds **real purchase orde
 └─────────────┘      └─────────────┘      └──────────────┘
 ```
 
+**Four Phases:**
+1. **Origination & Verification** — Business submits PO → Cooperative verifies → Licensed firm issues instrument
+2. **Investment Creation** — Platform creates digital receipt → Funds locked in escrow
+3. **Investment** — Investor commits capital ($10 minimum) → Business receives funding
+4. **Fulfillment & Repayment** — Business delivers goods → Retailer pays → Investor receives principal + profit
+
 ### Key Terms
 
 | Term | Meaning |
@@ -96,6 +105,8 @@ Instead of speculative DeFi yield farms, tawf.finance funds **real purchase orde
 | **Digital Receipt** | On-chain record tying your investment to a specific real-world deal |
 
 ### Trust Architecture
+
+See the detailed [Trust Architecture diagram](./diagrams/trust-architecture.puml) ([render online](https://www.planttext.com/?text=U5-nJ2i8m5Xp5X1)) showing the four layers of investor protection:
 
 ```
 Trust Layers:
@@ -117,6 +128,8 @@ Trust Layers:
 │ └─ Ensures Sharia compliance and mission alignment          │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**Defense in Depth:** Each layer provides independent verification of the layers below, ensuring no single point of trust failure.
 
 ---
 
@@ -169,6 +182,12 @@ tawf-finance/
 │   ├── package.json
 │   ├── vite.config.ts
 │   └── tsconfig.json
+├── diagrams/                  # PlantUML diagrams
+│   ├── investment-flow.puml
+│   ├── trust-architecture.puml
+│   ├── trust-architecture-component.puml
+│   └── README.md
+├── docs/                      # Additional documentation
 ├── DESIGN_GUIDELINES.md       # Design system documentation
 ├── LICENSE                    # Apache 2.0
 └── README.md                  # This file
@@ -269,6 +288,20 @@ tawf.finance uses a custom design system built on Tailwind CSS v4. Full details 
 3. **Purpose Over Profit** — Mission-first messaging
 4. **Clarity & Simplicity** — Clean layouts, focused content
 5. **Warmth & Approachability** — Friendly, human-centered design
+
+---
+
+## Diagrams
+
+Detailed PlantUML diagrams are available in the [`diagrams/`](./diagrams/) directory:
+
+| Diagram | Description | Render |
+|---------|-------------|--------|
+| [Investment Flow](./diagrams/investment-flow.puml) | Sequence diagram showing capital movement through the ecosystem | [View](https://www.planttext.com/?text=U5-nJ2i8m5Xp5X0) |
+| [Trust Architecture](./diagrams/trust-architecture.puml) | Layered diagram showing four layers of investor protection | [View](https://www.planttext.com/?text=U5-nJ2i8m5Xp5X1) |
+| [Trust Components](./diagrams/trust-architecture-component.puml) | Component view showing investor interactions with trust layers | [View](https://www.planttext.com/?text=U5-nJ2i8m5Xp5X2) |
+
+See [`diagrams/README.md`](./diagrams/README.md) for rendering options.
 
 ---
 

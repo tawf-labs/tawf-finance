@@ -1,0 +1,44 @@
+@startuml TrustArchitectureComponent
+
+title tawf.finance Trust Layers (Component View)
+
+package "On-Chain Verification" {
+    [Blockchain Receipt] as Receipt
+    [Deal Transparency] as Transparency
+}
+
+package "Licensed Financial Firm" {
+    [Investment Instruments] as Instruments
+    [Regulatory License] as License
+}
+
+package "Cooperative" {
+    [Business Vetting] as Vetting
+    [Ground Verification] as Ground
+}
+
+package "Tawf Foundation" {
+    [Sharia Compliance] as Sharia
+    [Governance Oversight] as Governance
+}
+
+' Investor interacts with all layers
+actor "Investor" as Investor
+
+Investor --> Receipt : Verifies on-chain
+Investor --> Instruments : Legal protection
+Investor --> Vetting : Social trust
+Investor --> Sharia : Ethical assurance
+
+note right of Investor
+  Multiple, overlapping
+  trust mechanisms ensure
+  investor protection
+end note
+
+'Relationships between layers
+Receipt --> Instruments : Records
+Instruments --> Vetting : Based on verified deals
+Vetting --> Sharia : Ensures halal deals
+
+@enduml
