@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import type { Variants } from 'framer-motion';
-import { ArrowRight, AlertCircle, Mail } from 'lucide-react';
+import { ArrowRight, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Section } from '../ui/Section';
@@ -34,23 +34,6 @@ export function Hero() {
         animate="visible"
         className="max-w-3xl mx-auto text-center"
       >
-        <motion.div
-          variants={itemVariants}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-tawf-green/5 border border-tawf-green/30 mb-4"
-        >
-          <AlertCircle className="w-4 h-4 text-tawf-green" />
-          <span className="label text-tawf-green text-sm font-medium">
-            Testnet Mode — Auditing in Progress, Seeking Partners
-          </span>
-        </motion.div>
-
-        <motion.div
-          variants={itemVariants}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-tawf-green/10 border border-tawf-green/20 mb-6"
-        >
-          <span className="label text-tawf-gold">Southeast Asia First</span>
-        </motion.div>
-
         <motion.h1
           variants={itemVariants}
           className="font-serif text-5xl md:text-6xl lg:text-7xl text-tawf-green leading-[1.1] mb-6"
