@@ -34,3 +34,4 @@ dist-ssr
 .claude/
 skills-lock.json
 temp_prd/
+.vercel
