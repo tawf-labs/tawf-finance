@@ -150,13 +150,17 @@ function PoolCard({ pool }: { pool: Pool }) {
           </div>
         </div>
 
-        <Button
-          size="md"
-          className="w-full"
-          disabled={!pool.available}
-        >
-          {pool.available ? 'Invest Now' : 'Pool Full'}
-        </Button>
+        {pool.available ? (
+          <a href="https://app.tawf.finance/login" className="block">
+            <Button size="md" className="w-full">
+              Invest Now
+            </Button>
+          </a>
+        ) : (
+          <Button size="md" className="w-full" disabled>
+            Pool Full
+          </Button>
+        )}
       </Card>
     </motion.div>
   );

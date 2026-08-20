@@ -3,26 +3,104 @@
   "redirects": [
     {
       "source": "/",
-      "has": [{ "type": "host", "value": "tawf.finance" }],
-      "destination": "https://app.tawf.finance/",
+      "has": [{ "type": "host", "value": "www.tawf.finance" }],
+      "destination": "https://tawf.finance/",
       "permanent": true
     },
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": "tawf.finance" }],
-      "destination": "https://app.tawf.finance/:path*",
+      "has": [{ "type": "host", "value": "www.tawf.finance" }],
+      "destination": "https://tawf.finance/:path*",
       "permanent": true
     },
     {
       "source": "/",
-      "has": [{ "type": "host", "value": "www.tawf.finance" }],
-      "destination": "https://app.tawf.finance/",
+      "has": [{ "type": "host", "value": "app.tawf.finance" }],
+      "destination": "/login",
       "permanent": true
     },
     {
-      "source": "/:path*",
-      "has": [{ "type": "host", "value": "www.tawf.finance" }],
-      "destination": "https://app.tawf.finance/:path*",
+      "source": "/earn",
+      "has": [{ "type": "host", "value": "app.tawf.finance" }],
+      "destination": "https://tawf.finance/earn",
+      "permanent": true
+    },
+    {
+      "source": "/contact",
+      "has": [{ "type": "host", "value": "app.tawf.finance" }],
+      "destination": "https://tawf.finance/contact",
+      "permanent": true
+    },
+    {
+      "source": "/about",
+      "has": [{ "type": "host", "value": "app.tawf.finance" }],
+      "destination": "https://tawf.finance/about",
+      "permanent": true
+    },
+    {
+      "source": "/how-it-works",
+      "has": [{ "type": "host", "value": "app.tawf.finance" }],
+      "destination": "https://tawf.finance/how-it-works",
+      "permanent": true
+    },
+    {
+      "source": "/glossary",
+      "has": [{ "type": "host", "value": "app.tawf.finance" }],
+      "destination": "https://tawf.finance/glossary",
+      "permanent": true
+    },
+    {
+      "source": "/login",
+      "has": [{ "type": "host", "value": "tawf.finance" }],
+      "destination": "https://app.tawf.finance/login",
+      "permanent": true
+    },
+    {
+      "source": "/register",
+      "has": [{ "type": "host", "value": "tawf.finance" }],
+      "destination": "https://app.tawf.finance/register",
+      "permanent": true
+    },
+    {
+      "source": "/onboarding",
+      "has": [{ "type": "host", "value": "tawf.finance" }],
+      "destination": "https://app.tawf.finance/onboarding",
+      "permanent": true
+    },
+    {
+      "source": "/dashboard",
+      "has": [{ "type": "host", "value": "tawf.finance" }],
+      "destination": "https://app.tawf.finance/dashboard",
+      "permanent": true
+    },
+    {
+      "source": "/investor/:path*",
+      "has": [{ "type": "host", "value": "tawf.finance" }],
+      "destination": "https://app.tawf.finance/investor/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/vendor/:path*",
+      "has": [{ "type": "host", "value": "tawf.finance" }],
+      "destination": "https://app.tawf.finance/vendor/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/cooperative/:path*",
+      "has": [{ "type": "host", "value": "tawf.finance" }],
+      "destination": "https://app.tawf.finance/cooperative/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/business/:path*",
+      "has": [{ "type": "host", "value": "tawf.finance" }],
+      "destination": "https://app.tawf.finance/business/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/admin/:path*",
+      "has": [{ "type": "host", "value": "tawf.finance" }],
+      "destination": "https://app.tawf.finance/admin/:path*",
       "permanent": true
     }
   ],

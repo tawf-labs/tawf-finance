@@ -119,12 +119,12 @@ export function DashboardLayout() {
         {/* Logo */}
         <div className="p-6 border-b border-tawf-green-20">
           <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-3">
+            <a href="https://tawf.finance/" className="flex items-center gap-3">
               <img src="/tawftransparent.png" alt="Tawf" className="h-20 w-auto" />
               {/* {!sidebarCollapsed && (
                 <span className="font-serif text-xl font-semibold">Tawf Finance</span>
               )} */}
-            </Link>
+            </a>
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               className="p-1 rounded-lg hover:bg-tawf-green-20 text-tawf-sand hidden lg:block"

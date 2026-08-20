@@ -90,11 +90,11 @@ export function Navigation() {
           <div className="hidden md:flex items-center gap-4">
             {isAuthenticated && user ? (
               <>
-                <Link to="/investor/dashboard">
+                <a href="https://app.tawf.finance/investor/dashboard">
                   <Button variant="primary" size="sm">
                     Dashboard
                   </Button>
-                </Link>
+                </a>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -106,14 +106,14 @@ export function Navigation() {
               </>
             ) : (
               <>
-                <Link to="/login">
+                <a href="https://app.tawf.finance/login">
                   <Button variant="secondary" size="sm">Sign In</Button>
-                </Link>
-                <Link to="/earn">
+                </a>
+                <a href="https://app.tawf.finance/login">
                   <Button variant="primary" size="sm">
                     Start Investing
                   </Button>
-                </Link>
+                </a>
               </>
             )}
           </div>
@@ -165,9 +165,9 @@ export function Navigation() {
                 <div className="h-px bg-tawf-green/10 my-2" />
                 {isAuthenticated && user ? (
                   <>
-                    <Link to="/investor/dashboard" className="nav-link py-2" onClick={() => setIsMobileMenuOpen(false)}>
+                    <a href="https://app.tawf.finance/investor/dashboard" className="nav-link py-2" onClick={() => setIsMobileMenuOpen(false)}>
                       Dashboard
-                    </Link>
+                    </a>
                     <button
                       onClick={handleLogout}
                       className="nav-link py-2 text-left"
@@ -177,14 +177,14 @@ export function Navigation() {
                   </>
                 ) : (
                   <>
-                    <Link to="/login" className="nav-link py-2" onClick={() => setIsMobileMenuOpen(false)}>
+                    <a href="https://app.tawf.finance/login" className="nav-link py-2" onClick={() => setIsMobileMenuOpen(false)}>
                       Sign In
-                    </Link>
-                    <Link to="/earn" onClick={() => setIsMobileMenuOpen(false)}>
+                    </a>
+                    <a href="https://app.tawf.finance/login" onClick={() => setIsMobileMenuOpen(false)}>
                       <Button variant="primary" size="sm" className="w-full">
                         Start Investing
                       </Button>
-                    </Link>
+                    </a>
                   </>
                 )}
               </div>

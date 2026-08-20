@@ -65,6 +65,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const location = useLocation();
+  const isAppHost = window.location.hostname === 'app.tawf.finance';
   const isDashboardPage = location.pathname.includes('/investor') ||
                           location.pathname.includes('/vendor') ||
                           location.pathname.includes('/cooperative') ||
@@ -73,7 +74,7 @@ function AppContent() {
 
   return (
     <>
-      <Navigation />
+      {!isAppHost && <Navigation />}
 
       <main>
         <Routes>
