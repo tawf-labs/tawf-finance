@@ -2,9 +2,21 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "redirects": [
     {
+      "source": "/",
+      "has": [{ "type": "host", "value": "tawf.finance" }],
+      "destination": "https://app.tawf.finance/",
+      "permanent": true
+    },
+    {
       "source": "/:path*",
       "has": [{ "type": "host", "value": "tawf.finance" }],
       "destination": "https://app.tawf.finance/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "www.tawf.finance" }],
+      "destination": "https://app.tawf.finance/",
       "permanent": true
     },
     {
