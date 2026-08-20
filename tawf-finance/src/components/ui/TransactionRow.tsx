@@ -69,7 +69,6 @@ const statusConfig = {
 export const TransactionRow = forwardRef<HTMLDivElement, TransactionRowProps>(
   (
     {
-      id,
       type,
       amount,
       status,

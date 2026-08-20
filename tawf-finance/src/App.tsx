@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { WalletProvider } from '@/components/solana/WalletProvider';
+import { Web3Provider } from '@/components/web3/Web3Provider';
 import { Navigation, Footer, DashboardLayout } from './components/layout';
 import {
   Home,
@@ -197,11 +197,11 @@ function AppContent() {
 
 function App() {
   return (
-    <WalletProvider>
+    <Web3Provider>
       <AuthProvider>
         <AppContent />
       </AuthProvider>
-    </WalletProvider>
+    </Web3Provider>
   );
 }
 

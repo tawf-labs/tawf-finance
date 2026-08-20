@@ -741,8 +741,8 @@ export const mockTransactions: Transaction[] = [
     amount: 1000,
     status: 'completed',
     createdAt: '2024-02-28T16:45:00Z',
-    description: 'Wallet deposit via Phantom',
-    txHash: 'EzJa6Cg5LhCLeGFs1R69nJG6vNXQzsgY3hPSKiJBrVVEpXqBqKNvhRvXkUwQGfKTpF9w3R8WzLkBq2kHvFmZ7',
+    description: 'USDC deposit (Arbitrum Sepolia)',
+    txHash: '0x9f2c1e7a4b8d5f3e6a2c9b7d1e0f4a8c3b6d5e2f7a1c4b9d8e6f3a2c5b7d1e0f',
   },
   {
     id: 'tx-005',

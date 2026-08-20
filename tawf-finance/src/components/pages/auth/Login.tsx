@@ -19,7 +19,7 @@ export function Login() {
     try {
       await login(email);
       // Navigation is handled by AuthContext
-    } catch (error) {
+    } catch {
       setIsLoading(false);
     }
   };

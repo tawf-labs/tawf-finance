@@ -29,6 +29,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
+import { ConnectButton } from '@/components/web3/ConnectButton';
 import { cn } from '@/utils/cn';
 
 interface NavItem {
@@ -98,6 +99,7 @@ export function DashboardLayout() {
 
   // Close mobile menu on route change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- close mobile menu on navigation
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
@@ -289,6 +291,11 @@ export function DashboardLayout() {
                 <Bell className="w-5 h-5" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
               </button>
+
+              {/* Wallet */}
+              <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-tawf-green-10">
+                <ConnectButton variant="secondary" size="sm" />
+              </div>
 
               {/* User Menu */}
               <div className="hidden md:flex items-center gap-3 pl-3 border-l border-tawf-green-10">

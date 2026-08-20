@@ -1,299 +1,265 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { FileText, Calendar, TrendingUp } from 'lucide-react';
+import { useAccount } from 'wagmi';
+import { Briefcase, Loader2, FileText, ExternalLink } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Modal } from '@/components/ui/Modal';
-import { Tabs } from '@/components/ui/Tabs';
-import { useMockData } from '@/hooks/useMockData';
-import { formatDate, daysRemaining } from '@/data/mockData';
+import { ConnectButton } from '@/components/web3/ConnectButton';
+import { GetTestUsdc } from '@/components/web3/GetTestUsdc';
+import { useMyReceipts, usePayoutFor, useRedeem, useClaimDefault } from '@/web3/hooks';
+import { RECEIPT_STATUS_LABEL, type ReceiptStatus, type Deal } from '@/web3/types';
+import { formatUsdc, formatApy, formatTimestamp, getRevertReason } from '@/web3/format';
+import { RECEIPT_NFT_ADDRESS, isConfigured, explorerTxUrl, explorerAddressUrl } from '@/web3/constants';
 import { cn } from '@/utils/cn';
 
-export function Portfolio() {
-  const { investments, formatCurrency } = useMockData();
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed' | 'pending'>('all');
-  const [selectedInvestment, setSelectedInvestment] = useState<typeof investments[0] | null>(null);
+const RECEIPT_VARIANT: Record<ReceiptStatus, 'info' | 'success' | 'warning' | 'error' | 'default'> = {
+  0: 'info',
+  1: 'success',
+  2: 'default',
+  3: 'error',
+};
 
-  const filteredInvestments = investments.filter(inv => {
-    if (filterStatus === 'all') return true;
-    return inv.status === filterStatus;
-  });
+function projectedYield(principal: bigint, apyBps: bigint, durationDays: bigint): bigint {
+  return (principal * apyBps * durationDays) / 36500n;
+}
 
-  const stats = {
-    totalInvested: investments.reduce((sum, i) => sum + i.amount, 0),
-    totalReturns: investments.reduce((sum, i) => sum + i.currentReturn, 0),
-    activeCount: investments.filter(i => i.status === 'active').length,
-    completedCount: investments.filter(i => i.status === 'completed').length,
+function ActionModal({
+  deal,
+  mode,
+  address,
+  onDone,
+  onClose,
+}: {
+  deal: Deal;
+  mode: 'redeem' | 'claim';
+  address: `0x${string}`;
+  onDone: () => void;
+  onClose: () => void;
+}) {
+  const { payout, isLoading } = usePayoutFor(deal.id, address);
+  const { redeem, isPending: redeeming } = useRedeem();
+  const { claim, isPending: claiming } = useClaimDefault();
+  const [error, setError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
+
+  const isPending = redeeming || claiming;
+
+  const handle = async () => {
+    setError(null);
+    try {
+      const { hash } = mode === 'redeem' ? await redeem(deal.id) : await claim(deal.id);
+      setTxHash(hash);
+      onDone();
+    } catch (e) {
+      setError(getRevertReason(e));
+    }
   };
 
-  const tabs = [
-    {
-      id: 'all',
-      label: 'All Investments',
-      content: null,
-      badge: investments.length,
-    },
-    {
-      id: 'active',
-      label: 'Active',
-      content: null,
-      badge: investments.filter(i => i.status === 'active').length,
-    },
-    {
-      id: 'completed',
-      label: 'Completed',
-      content: null,
-      badge: investments.filter(i => i.status === 'completed').length,
-    },
-    {
-      id: 'pending',
-      label: 'Pending',
-      content: null,
-      badge: investments.filter(i => i.status === 'pending').length,
-    },
-  ];
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={mode === 'redeem' ? 'Redeem Principal + Yield' : 'Claim Principal'}
+      size="md"
+    >
+      {txHash ? (
+        <div className="text-center py-6">
+          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-10 h-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h3 className="font-serif text-2xl text-tawf-green mb-2">Paid Out</h3>
+          <p className="text-tawf-muted mb-4">Receipt burned. Funds sent to your wallet.</p>
+          <a
+            href={explorerTxUrl(txHash)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-xs text-tawf-green break-all hover:underline inline-flex items-center gap-1"
+          >
+            {txHash.slice(0, 18)}…{txHash.slice(-8)} <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <div className="p-4 bg-tawf-sand-30 rounded-xl">
+            <p className="text-sm text-tawf-muted mb-1">{deal.supplierName}</p>
+            <p className="font-medium text-tawf-green">
+              {isLoading ? 'Calculating…' : formatUsdc(payout)} {mode === 'redeem' ? '(principal + yield)' : '(principal)'}
+            </p>
+          </div>
+          {error && (
+            <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+          <Button size="lg" className="w-full" onClick={handle} disabled={isPending || isLoading}>
+            {isPending ? 'Confirming…' : 'Confirm'}
+          </Button>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+export function Portfolio() {
+  const { address, isConnected } = useAccount();
+  const { positions, isLoading, refetch } = useMyReceipts(address);
+  const [action, setAction] = useState<{ deal: Deal; mode: 'redeem' | 'claim' } | null>(null);
+
+  const totalInvested = positions.reduce((s, p) => s + p.meta.principal, 0n);
+  const totalProjected = positions.reduce(
+    (s, p) => s + projectedYield(p.meta.principal, p.meta.apyBps, p.meta.durationDays),
+    0n,
+  );
+  const activeCount = positions.filter((p) => p.meta.status === 0 || p.meta.status === 1).length;
+  const redeemedCount = positions.filter((p) => p.meta.status === 2).length;
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">My Portfolio</h1>
-          <p className="text-tawf-muted">Track your investments and returns</p>
+          <p className="text-tawf-muted">Your soulbound warung sukuk receipts</p>
         </div>
-        <Button variant="primary" size="md">
-          <FileText className="w-4 h-4 mr-2" />
-          Export Statement
-        </Button>
+        <GetTestUsdc />
       </div>
 
-      {/* Stats Summary */}
+      {!isConfigured && (
+        <div className="bg-amber-50 rounded-2xl border border-amber-200 p-6">
+          <p className="text-sm text-amber-700">
+            Contracts not configured. Add your Arbitrum Sepolia addresses to <code className="font-mono">.env</code>.
+          </p>
+        </div>
+      )}
+
+      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-6">
           <p className="text-xs uppercase tracking-wide text-tawf-muted mb-1">Total Invested</p>
-          <p className="font-serif text-2xl text-tawf-green">{formatCurrency(stats.totalInvested)}</p>
-          <p className="text-xs text-tawf-muted mt-2">{investments.length} investments</p>
+          <p className="font-serif text-2xl text-tawf-green">{formatUsdc(totalInvested)}</p>
+          <p className="text-xs text-tawf-muted mt-2">{positions.length} receipts</p>
         </Card>
         <Card className="p-6">
-          <p className="text-xs uppercase tracking-wide text-tawf-muted mb-1">Total Returns</p>
-          <p className="font-serif text-2xl text-tawf-gold">{formatCurrency(stats.totalReturns)}</p>
-          <p className="text-xs text-tawf-muted mt-2">All time earnings</p>
+          <p className="text-xs uppercase tracking-wide text-tawf-muted mb-1">Projected Returns</p>
+          <p className="font-serif text-2xl text-tawf-gold">{formatUsdc(totalProjected)}</p>
+          <p className="text-xs text-tawf-muted mt-2">At maturity</p>
         </Card>
         <Card className="p-6">
-          <p className="text-xs uppercase tracking-wide text-tawf-muted mb-1">Active Investments</p>
-          <p className="font-serif text-2xl text-tawf-green">{stats.activeCount}</p>
-          <p className="text-xs text-tawf-muted mt-2">Currently earning</p>
+          <p className="text-xs uppercase tracking-wide text-tawf-muted mb-1">Live Positions</p>
+          <p className="font-serif text-2xl text-tawf-green">{activeCount}</p>
+          <p className="text-xs text-tawf-muted mt-2">Earning or ready to redeem</p>
         </Card>
         <Card className="p-6">
-          <p className="text-xs uppercase tracking-wide text-tawf-muted mb-1">Completed</p>
-          <p className="font-serif text-2xl text-tawf-green">{stats.completedCount}</p>
-          <p className="text-xs text-tawf-muted mt-2">Fully matured</p>
+          <p className="text-xs uppercase tracking-wide text-tawf-muted mb-1">Redeemed</p>
+          <p className="font-serif text-2xl text-tawf-green">{redeemedCount}</p>
+          <p className="text-xs text-tawf-muted mt-2">Receipts burned</p>
         </Card>
       </div>
 
-      {/* Investment List */}
+      {/* Positions */}
       <Card className="p-6">
-        <Tabs
-          tabs={tabs}
-          defaultTab="all"
-          variant="pills"
-          onChange={(tabId) => setFilterStatus(tabId as any)}
-        />
+        <div className="flex items-center justify-between mb-4">
+          <p className="font-medium text-tawf-green flex items-center gap-2">
+            <Briefcase className="w-4 h-4" /> Positions
+          </p>
+          <button onClick={refetch} className="text-xs text-tawf-muted hover:text-tawf-green">
+            Refresh
+          </button>
+        </div>
 
-        <div className="space-y-4 mt-6">
-          {filteredInvestments.length === 0 ? (
-            <div className="text-center py-12">
-              <TrendingUp className="w-16 h-16 text-tawf-muted mx-auto mb-4" />
-              <p className="text-tawf-muted">No investments found</p>
-            </div>
-          ) : (
-            filteredInvestments.map((investment) => {
-              const daysLeft = investment.maturesAt
-                ? daysRemaining(investment.maturesAt)
-                : null;
-
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16 text-tawf-muted">
+            <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading receipts…
+          </div>
+        ) : !isConnected ? (
+          <div className="text-center py-16">
+            <FileText className="w-16 h-16 text-tawf-muted mx-auto mb-4" />
+            <p className="text-tawf-muted mb-4">Connect your wallet to see your receipts</p>
+            <ConnectButton variant="primary" size="md" />
+          </div>
+        ) : positions.length === 0 ? (
+          <div className="text-center py-16">
+            <FileText className="w-16 h-16 text-tawf-muted mx-auto mb-4" />
+            <p className="text-tawf-muted">No positions yet. Invest in a pool to mint your first receipt.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {positions.map(({ deal, meta }) => {
+              const projected = projectedYield(meta.principal, meta.apyBps, meta.durationDays);
+              const redeemable = meta.status === 1;
+              const claimable = meta.status === 3;
               return (
-                <motion.div
-                  key={investment.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="border border-tawf-green-10 rounded-xl p-5 hover:border-tawf-green-20 transition-colors cursor-pointer"
-                  onClick={() => setSelectedInvestment(investment)}
+                <div
+                  key={deal.id.toString()}
+                  className="flex flex-col md:flex-row md:items-center gap-4 p-4 rounded-xl border border-tawf-green-10 bg-white"
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-serif text-lg text-tawf-green">{investment.poolName}</h3>
-                        <Badge
-                          variant={
-                            investment.status === 'active' ? 'success' :
-                            investment.status === 'completed' ? 'info' :
-                            'warning'
-                          }
-                          size="sm"
-                        >
-                          {investment.status}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-tawf-muted">
-                        Invested {formatCurrency(investment.amount)} · {investment.apy}% APY
-                      </p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-medium text-tawf-green truncate">{deal.supplierName}</p>
+                      <Badge variant={RECEIPT_VARIANT[meta.status]} size="sm">
+                        {RECEIPT_STATUS_LABEL[meta.status]}
+                      </Badge>
                     </div>
-                    <div className="text-right">
-                      <p className="font-serif text-xl text-tawf-gold">
-                        {formatCurrency(investment.currentReturn)}
-                      </p>
-                      <p className="text-xs text-tawf-muted">
-                        of {formatCurrency(investment.expectedReturn)} returns
-                      </p>
-                    </div>
+                    <p className="text-xs text-tawf-muted">
+                      {deal.anchorBuyer} · {formatApy(meta.apyBps)} APY · minted {formatTimestamp(meta.mintedAt)}
+                    </p>
                   </div>
-
-                  {/* Progress */}
-                  <div className="mb-3">
-                    <ProgressBar
-                      value={investment.currentReturn}
-                      max={investment.expectedReturn}
-                      size="sm"
-                      color="green"
-                      showLabel={false}
-                    />
+                  <div className="flex md:flex-col items-center md:items-end gap-1 shrink-0">
+                    <p className="text-sm text-tawf-muted">Principal</p>
+                    <p className="font-semibold text-tawf-green">{formatUsdc(meta.principal)}</p>
                   </div>
-
-                  {/* Footer */}
-                  <div className="flex items-center justify-between text-xs text-tawf-muted">
-                    <div className="flex items-center gap-4">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5" />
-                        Invested {formatDate(investment.investedAt)}
-                      </span>
-                      {daysLeft !== null && (
-                        <span className={cn(
-                          daysLeft > 0 ? 'text-tawf-green' : 'text-red-600'
-                        )}>
-                          {daysLeft > 0 ? `${daysLeft} days left` : 'Matured'}
-                        </span>
-                      )}
-                    </div>
-                    {investment.txHash && (
-                      <span className="font-mono text-tawf-muted-60">
-                        Tx: {investment.txHash.slice(0, 10)}...
-                      </span>
+                  <div className="flex md:flex-col items-center md:items-end gap-1 shrink-0">
+                    <p className="text-sm text-tawf-muted">Projected yield</p>
+                    <p className={cn('font-semibold', meta.status === 2 ? 'text-tawf-muted' : 'text-tawf-gold')}>
+                      {formatUsdc(projected)}
+                    </p>
+                  </div>
+                  <div className="shrink-0">
+                    {redeemable && (
+                      <Button size="sm" onClick={() => setAction({ deal, mode: 'redeem' })}>
+                        Redeem
+                      </Button>
+                    )}
+                    {claimable && (
+                      <Button variant="secondary" size="sm" onClick={() => setAction({ deal, mode: 'claim' })}>
+                        Claim Principal
+                      </Button>
+                    )}
+                    {meta.status === 2 && (
+                      <a
+                        href={explorerAddressUrl(RECEIPT_NFT_ADDRESS ?? '0x0')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-tawf-muted hover:text-tawf-green inline-flex items-center gap-1"
+                      >
+                        Burned <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                    {meta.status === 0 && (
+                      <span className="text-xs text-tawf-muted">In progress</span>
                     )}
                   </div>
-                </motion.div>
-              );
-            })
-          )}
-        </div>
-      </Card>
-
-      {/* Investment Detail Modal */}
-      <Modal
-        isOpen={!!selectedInvestment}
-        onClose={() => setSelectedInvestment(null)}
-        title="Investment Details"
-        size="lg"
-      >
-        {selectedInvestment && (
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="font-serif text-xl text-tawf-green mb-1">
-                  {selectedInvestment.poolName}
-                </h3>
-                <p className="text-sm text-tawf-muted">
-                  ID: {selectedInvestment.id}
-                </p>
-              </div>
-              <Badge
-                variant={
-                  selectedInvestment.status === 'active' ? 'success' :
-                  selectedInvestment.status === 'completed' ? 'info' :
-                  'warning'
-                }
-              >
-                {selectedInvestment.status}
-              </Badge>
-            </div>
-
-            {/* Key Details */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-tawf-sand-30 rounded-xl">
-                <p className="text-xs text-tawf-muted mb-1">Invested Amount</p>
-                <p className="font-serif text-lg text-tawf-green">
-                  {formatCurrency(selectedInvestment.amount)}
-                </p>
-              </div>
-              <div className="p-4 bg-tawf-sand-30 rounded-xl">
-                <p className="text-xs text-tawf-muted mb-1">APY</p>
-                <p className="font-serif text-lg text-tawf-green">{selectedInvestment.apy}%</p>
-              </div>
-              <div className="p-4 bg-tawf-sand-30 rounded-xl">
-                <p className="text-xs text-tawf-muted mb-1">Current Returns</p>
-                <p className="font-serif text-lg text-tawf-gold">
-                  {formatCurrency(selectedInvestment.currentReturn)}
-                </p>
-              </div>
-              <div className="p-4 bg-tawf-sand-30 rounded-xl">
-                <p className="text-xs text-tawf-muted mb-1">Expected Returns</p>
-                <p className="font-serif text-lg text-tawf-green">
-                  {formatCurrency(selectedInvestment.expectedReturn)}
-                </p>
-              </div>
-            </div>
-
-            {/* Dates */}
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-sm text-tawf-muted">Investment Date</span>
-                <span className="text-sm font-medium">{formatDate(selectedInvestment.investedAt, 'long')}</span>
-              </div>
-              {selectedInvestment.maturesAt && (
-                <div className="flex justify-between">
-                  <span className="text-sm text-tawf-muted">Maturity Date</span>
-                  <span className="text-sm font-medium">{formatDate(selectedInvestment.maturesAt, 'long')}</span>
                 </div>
-              )}
-            </div>
-
-            {/* Transaction Hashes */}
-            {selectedInvestment.txHash && (
-              <div className="p-4 bg-tawf-sand-30 rounded-xl">
-                <p className="text-xs text-tawf-muted mb-2">Transaction Hash</p>
-                <p className="font-mono text-sm text-tawf-green break-all">
-                  {selectedInvestment.txHash}
-                </p>
-              </div>
-            )}
-
-            {selectedInvestment.receiptHash && (
-              <div className="p-4 bg-tawf-gold-10 rounded-xl border border-tawf-gold-20">
-                <p className="text-xs text-tawf-muted mb-2">Digital Receipt (Soulbound NFT)</p>
-                <p className="font-mono text-sm text-tawf-gold break-all">
-                  {selectedInvestment.receiptHash}
-                </p>
-                <Button variant="ghost" size="sm" className="mt-3">
-                  View on Block Explorer
-                </Button>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex gap-3">
-              <Button variant="primary" className="flex-1" disabled={selectedInvestment.status !== 'completed'}>
-                Withdraw Returns
-              </Button>
-              <Button variant="secondary" className="flex-1">
-                Reinvest
-              </Button>
-            </div>
+              );
+            })}
           </div>
         )}
-      </Modal>
+      </Card>
+
+      {action && address && (
+        <ActionModal
+          deal={action.deal}
+          mode={action.mode}
+          address={address}
+          onDone={() => {
+            refetch();
+            setAction(null);
+          }}
+          onClose={() => setAction(null)}
+        />
+      )}
     </div>
   );
 }

@@ -26,8 +26,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedUser = localStorage.getItem('tawf_user');
     if (storedUser) {
       try {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate persisted session on mount
         setUser(JSON.parse(storedUser));
-      } catch (e) {
+      } catch {
         localStorage.removeItem('tawf_user');
       }
     }
@@ -119,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with its provider
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

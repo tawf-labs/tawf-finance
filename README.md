@@ -1,9 +1,9 @@
 # tawf.finance
 
-> **Ethical staking for Southeast Asia's underserved economy.**
-> Earn real returns while funding local businesses — starting from $10. Transparent, Sharia-compliant, and grounded in real trade.
+> **Ethical, Sharia-compliant investing for Southeast Asia's underserved economy — built on Arbitrum.**
+> Earn real returns by funding local businesses, starting from $10. Transparent, on-chain, and grounded in real trade — no speculation, no secondary market.
 
-Governed by [Tawf Foundation](https://tawf.foundation) · Licensed · Sharia-Compliant
+Governed by [Tawf Foundation](https://tawf.foundation) · Sharia-Compliant · Arbitrum (EVM / Solidity)
 
 ---
 
@@ -11,14 +11,16 @@ Governed by [Tawf Foundation](https://tawf.foundation) · Licensed · Sharia-Com
 
 - [Why We're Building This](#why-were-building-this)
 - [What Is tawf.finance?](#what-is-tawffinance)
-- [Ontology & Core Concepts](#ontology--core-concepts)
-- [Key Features](#key-features)
+- [The Product (investor MVP)](#the-product-investor-mvp)
+- [Smart Contracts](#smart-contracts)
 - [Repository Structure](#repository-structure)
 - [Getting Started](#getting-started)
+- [Deployment](#deployment)
 - [Tech Stack](#tech-stack)
+- [KYC (Didit)](#kyc-didit)
 - [Design System](#design-system)
-- [Localization](#localization)
 - [Governance](#governance)
+- [Docs & Buildathon](#docs--buildathon)
 - [License](#license)
 
 ---
@@ -27,151 +29,79 @@ Governed by [Tawf Foundation](https://tawf.foundation) · Licensed · Sharia-Com
 
 ### The Problem
 
-**Traditional finance excludes 64 million+ MSMEs across Southeast Asia.** Local businesses — warungs, farms, craft makers — cannot access capital through traditional banks. They're too small, too informal, or in regions that major financial institutions ignore.
+**Traditional finance excludes 64M+ MSMEs across Southeast Asia.** Local businesses — warungs, farms, craft makers — cannot access capital through banks. They're too small, too informal, or in regions major institutions ignore.
 
-**DeFi has failed them.** Existing yield farms are speculative, risky, and disconnected from the real economy. They don't serve businesses that actually need capital. They don't create real-world impact.
+**DeFi has failed them.** Existing yield products are speculative, volatile, and disconnected from the real economy. They don't serve the businesses that actually need capital, and they don't create real-world impact.
 
 ### Our Solution
 
-We're rebuilding **Baitul Tamwil** (Islamic financial cooperative) for the digital age. Instead of funding speculation, we fund real purchase orders from local businesses to major retailers. Investors earn halal returns from real trade — not speculative yields.
+We're rebuilding **Baitul Tamwil** (an Islamic financial cooperative) for the digital age. Instead of funding speculation, we fund **real purchase orders** from local businesses to major retailers (Indomaret, Alfamart). Investors earn halal returns from real trade.
 
-**Starting from $10**, anyone can participate in ethical finance that:
-- Funds real businesses in Indonesia and Malaysia
-- Generates 8–18% annualized yield from real repayments
-- Is fully Sharia-compliant and governed by Tawf Foundation
-- Creates traceable, tamper-proof digital receipts for every investment
-
-### Mission Areas
-
-| Area | Impact |
-|------|--------|
-| **Economic Inclusion** | Financial access for businesses traditional banks ignore |
-| **Green Finance** | Ethical, sustainable businesses aligned with responsible finance |
-| **Cooperative Empowerment** | Local cooperatives keep relationships; we handle the technology |
+- **From $10** — anyone can participate in ethical finance
+- **8–18% APY** from real business repayments, not speculative yield
+- **Sharia-compliant** — funds real, everyday goods only
+- **On-chain receipts** — every investment mints a soulbound NFT receipt
 
 ---
 
 ## What Is tawf.finance?
 
-tawf.finance is a digital investment platform connecting everyday investors with local MSMEs (micro, small, and medium enterprises) across Southeast Asia — primarily Indonesia and Malaysia.
-
-Instead of speculative DeFi yield farms, tawf.finance funds **real purchase orders** between local businesses and major retailers (e.g., Indomaret, Alfamart). Investors earn a share of the profit when the business gets paid. Every deal is traceable, every receipt is tamper-proof.
+A digital investment platform connecting everyday investors with local MSMEs across Indonesia and Malaysia. A business submits a purchase order → a cooperative verifies it → a licensed firm issues the deal → investors fund it with USDC → when the retailer pays, investors redeem principal + yield.
 
 ---
 
-## Ontology & Core Concepts
+## The Product (investor MVP)
 
-### Investment Flow
+The judge-facing flow lives under `/investor` after signing in (demo login: `investor@tawf.finance`).
 
-```
-┌─────────────┐      ┌─────────────┐      ┌──────────────┐
-│  Business   │ ───▶ │ Cooperative│ ───▶ │ Licensed Firm│
-│ submits PO  │      │ verifies   │      │ issues       │
-└─────────────┘      └─────────────┘      └──────┬───────┘
-                                                  │
-                                                  ▼
-┌─────────────┐      ┌─────────────┐      ┌──────────────┐
-│  Investor   │ ◀─── │   Escrow    │ ◀─── │  tawf.finance│
-│  earns      │      │   holds     │      │  creates    │
-│  profit     │      │   funds     │      │  receipt     │
-└─────────────┘      └─────────────┘      └──────────────┘
-                                                  │
-                                                  ▼
-┌─────────────┐      ┌─────────────┐      ┌──────────────┐
-│  Retailer   │ ───▶ │  Business   │ ───▶ │  Investor    │
-│  pays       │      │  fulfills   │      │  gets paid   │
-└─────────────┘      └─────────────┘      └──────────────┘
-```
-
-### Key Terms
-
-| Term | Meaning |
-|------|---------|
-| **Baitul Tamwil** | Islamic financial cooperative that provides capital to businesses |
-| **Waqf** | Endowment; charitable assets dedicated to community benefit in perpetuity |
-| **Zakat** | Mandatory alms (2.5% of wealth) for eligible recipients (asnaf) |
-| **Asnaf** | Eligible recipients of zakat (the poor, needy, those in debt, etc.) |
-| **BMT** | Baitul Maal wat Tamwil — Islamic cooperatives serving communities across Indonesia |
-| **Purchase Order (PO)** | A retailer's commitment to buy goods from a business; the basis of each investment |
-| **Digital Receipt** | On-chain record tying your investment to a specific real-world deal |
-
-### Trust Architecture
-
-```
-Trust Layers:
-┌─────────────────────────────────────────────────────────────┐
-│ On-Chain Verification (Blockchain)                          │
-│ ├─ Tamper-proof receipt for each investment                 │
-│ └─ Transparent deal status and repayments                   │
-├─────────────────────────────────────────────────────────────┤
-│ Licensed Financial Firm (Regulatory)                         │
-│ ├─ Issues investment instruments                            │
-│ └─ Holds operational licenses                               │
-├─────────────────────────────────────────────────────────────┤
-│ Cooperative (Social)                                         │
-│ ├─ Knows businesses personally                              │
-│ └─ Verifies each deal on the ground                         │
-├─────────────────────────────────────────────────────────────┤
-│ Tawf Foundation (Governance)                                 │
-│ ├─ Non-profit, public-trust entity                          │
-│ └─ Ensures Sharia compliance and mission alignment          │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Key Features
-
-| Feature | Details |
+| Screen | What it does (on-chain) |
 |---|---|
-| **Ethical Staking** | Halal returns from real trade, not speculation |
-| **Annualized Yield** | 8–18% from real business repayments |
-| **Minimum Investment** | $10 — anyone can participate |
-| **Deal Duration** | 30–90 days per deal |
-| **Digital Receipts** | Tamper-proof record tied to each specific deal |
-| **Identity** | Sign in with Tawf ID — no complicated setup |
-| **Sharia-Compliant** | Only funds real, everyday goods (food, herbal products, etc.) |
+| **Pools** (`/investor/pools`) | Lists live deals from `DealRegistry`. Filter by status, invest USDC (auto-approve → invest), see projected yield. |
+| **Portfolio** (`/investor/portfolio`) | Your soulbound receipts as positions. Redeem principal+yield when matured, or claim on default. |
+| **Transactions** (`/investor/transactions`) | Activity ledger of your receipts with explorer links. |
+| **Settings** (`/investor/settings`) | EVM wallet (Arbitrum Sepolia), test-USDC faucet, and identity (Didit KYC). |
+
+**Demo flow:** connect wallet → mint test USDC → invest $10+ in a live deal → soulbound `BondReceiptNFT` is minted → owner repays → redeem returns principal + yield and burns the receipt. See [`docs/demo-script.md`](docs/demo-script.md).
+
+---
+
+## Smart Contracts
+
+`contracts/` — Solidity 0.8.24, Foundry, OpenZeppelin v5. 66 tests pass (`forge test`).
+
+| Contract | Role |
+|---|---|
+| `DealRegistry` | Deal lifecycle state machine (Submitted → BmtApproved → Mintable → Active → Matured → Completed/Defaulted). |
+| `BondReceiptNFT` | Soulbound ERC-1155 receipts. Metadata = principal, APY (bps), duration, status, mint time. Non-transferable. |
+| `RedemptionVault` | Escrow + settlement: `invest`, `repay`, `redeem`, `claimDefault`, `accruedYield`, `payoutFor`. |
+| `MockUSDC` | 6-decimal test USDC with a faucet (10,000 mUSDC). Swap for real test USDC in production. |
+
+Key invariants (all test-covered): deals can only be invested while `Mintable`; receipts are soulbound; redemption returns `principal + principal·apyBps·days/36500` and burns the receipt; double-claim is impossible; repayments are owner/vault-guarded; reentrancy-safe.
 
 ---
 
 ## Repository Structure
 
-This is a monorepo with documentation and the web application:
-
 ```
 tawf-finance/
-├── tawf-finance/              # Web application
-│   ├── public/
-│   │   └── tawflogo.png       # Brand assets
+├── contracts/                  # Foundry project (Solidity)
+│   ├── src/                    #   DealRegistry, BondReceiptNFT, RedemptionVault, mocks/
+│   ├── script/                 #   Deploy.s.sol, SeedDemo.s.sol
+│   ├── test/                   #   66 tests (unit + integration + reentrancy)
+│   └── README.md               #   Contract docs
+├── tawf-finance/               # Web app (React + Vite)
+│   ├── api/kyc/                #   Vercel serverless functions for Didit KYC
 │   ├── src/
+│   │   ├── web3/               #   wagmi config, hooks, ABIs, types, formatting
 │   │   ├── components/
-│   │   │   ├── layout/
-│   │   │   │   ├── Navigation.tsx
-│   │   │   │   └── Footer.tsx
-│   │   │   ├── pages/
-│   │   │   │   ├── Home.tsx
-│   │   │   │   └── Earn.tsx
-│   │   │   ├── sections/
-│   │   │   │   ├── Hero.tsx
-│   │   │   │   ├── Features.tsx
-│   │   │   │   ├── HowItWorks.tsx
-│   │   │   │   ├── Impact.tsx
-│   │   │   │   └── Partners.tsx
-│   │   │   └── ui/
-│   │   │       ├── Button.tsx
-│   │   │       ├── Card.tsx
-│   │   │       ├── FeatureCard.tsx
-│   │   │       └── Section.tsx
-│   │   ├── utils/
-│   │   ├── App.tsx
-│   │   └── main.tsx
-│   ├── index.html
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── tsconfig.json
-├── DESIGN_GUIDELINES.md       # Design system documentation
-├── LICENSE                    # Apache 2.0
-└── README.md                  # This file
+│   │   │   ├── web3/           #   Web3Provider, ConnectButton, GetTestUsdc
+│   │   │   ├── kyc/            #   KycStatusCard (Didit)
+│   │   │   └── pages/investor/ #   Pools, Portfolio, Transactions, Settings
+│   │   └── lib/didit.ts        #   KYC client helpers
+│   ├── .env.example            #   Contract addresses + Didit vars
+│   └── vercel.json             #   SPA rewrite
+├── docs/                       # demo script, pitch outline, submission, KYC
+└── .github/workflows/ci.yml    # Foundry tests + frontend lint/build
 ```
 
 ---
@@ -180,50 +110,62 @@ tawf-finance/
 
 ### Prerequisites
 
-- Node.js 18+
-- npm or compatible package manager
+- **Node.js 18+** (tested on 22)
+- **Foundry** (`curl -L https://foundry.paradigm.xyz | bash && foundryup`)
+- A browser wallet (MetaMask / Rabby) with Arbitrum Sepolia
 
-### Installation
+### Contracts
 
 ```bash
-# Navigate to the app directory
+cd contracts
+forge build        # compile
+forge test -vvv    # 66 tests
+```
+
+### Frontend
+
+```bash
 cd tawf-finance
-
-# Install dependencies
+cp .env.example .env   # fill in deployed addresses (see Deployment)
 npm install
+npm run dev            # http://localhost:5173
 ```
 
-### Development
+### Build & lint
 
 ```bash
-# Start the dev server
-npm run dev
+cd tawf-finance
+npm run lint    # ESLint (clean)
+npm run build   # tsc + vite build
 ```
 
-Opens at `http://localhost:5173` with hot module replacement.
+---
 
-### Build
+## Deployment
+
+### 1. Deploy contracts to Arbitrum Sepolia
 
 ```bash
-# Create production build
-npm run build
+cd contracts
+forge script script/Deploy.s.sol:Deploy \
+  --rpc-url arbitrum_sepolia \
+  --private-key $PRIVATE_KEY \
+  --broadcast --verify
 ```
 
-Outputs to `dist/`. Runs TypeScript compilation then Vite build.
-
-### Preview
+### 2. Seed demo deals
 
 ```bash
-# Preview production build locally
-npm run preview
+forge script script/SeedDemo.s.sol:SeedDemo \
+  --sig "run(address)" $DEAL_REGISTRY_ADDRESS \
+  --rpc-url arbitrum_sepolia --private-key $PRIVATE_KEY --broadcast
 ```
 
-### Lint
+### 3. Wire the frontend
 
-```bash
-# Run ESLint
-npm run lint
-```
+Paste the four deployed addresses into `tawf-finance/.env` (`VITE_DEAL_REGISTRY`, `VITE_RECEIPT_NFT`, `VITE_VAULT`, `VITE_USDC`) and deploy the app to Vercel (`vercel --prod`).
+
+RPC: `https://sepolia-rollup.arbitrum.io/rpc` · Chain ID `421614` · Explorer `https://sepolia.arbiscan.io`.
 
 ---
 
@@ -231,76 +173,51 @@ npm run lint
 
 | Layer | Technology |
 |---|---|
-| **Framework** | React 19 |
-| **Language** | TypeScript 5.9 |
-| **Build Tool** | Vite 8 |
+| **Chain** | Arbitrum Sepolia (EVM, `cancun`) |
+| **Smart contracts** | Solidity 0.8.24, Foundry, OpenZeppelin v5 |
+| **Frontend** | React 19, TypeScript 5.9, Vite 8 |
+| **Web3** | wagmi v2, viem v2, TanStack Query v5 |
 | **Routing** | React Router v7 |
-| **Styling** | Tailwind CSS v4 |
-| **Animation** | Framer Motion |
-| **Icons** | Lucide React |
-| **Linting** | ESLint 9 + typescript-eslint |
+| **Styling** | Tailwind CSS v4, Framer Motion, Lucide React |
+| **KYC** | Didit (identity verification) |
+| **Hosting** | Vercel (serverless `/api/kyc`) |
+
+---
+
+## KYC (Didit)
+
+Identity verification via [Didit](https://www.didit.me/) is integrated behind `VITE_KYC_ENABLED`. The API key stays server-side in Vercel serverless functions (`api/kyc/{session,decision,webhook}.ts`); the frontend only redirects to Didit's hosted flow and reads the decision via a proxy. See [`docs/didit-kyc.md`](docs/didit-kyc.md).
 
 ---
 
 ## Design System
 
-tawf.finance uses a custom design system built on Tailwind CSS v4. Full details in [`DESIGN_GUIDELINES.md`](./DESIGN_GUIDELINES.md).
-
-### Brand Colors
+Custom design system on Tailwind CSS v4. Full details in [`DESIGN_GUIDELINES.md`](./DESIGN_GUIDELINES.md).
 
 | Token | Hex | Usage |
 |---|---|---|
 | `tawf-green` | `#0F3D30` | Primary brand, headings, CTAs |
-| `tawf-green-light` | `#1A5242` | Hover states |
 | `tawf-gold` | `#C5A869` | Accents, highlights |
 | `tawf-sand` | `#F9F6F0` | Background |
 | `tawf-ink` | `#1A1A1A` | Primary text |
 | `tawf-muted` | `#6B7280` | Secondary text |
 
-### Typography
-
-- **Headings**: Cormorant Garamond (serif) — heritage, authority
-- **Body / UI**: Inter (sans-serif) — readability, modern
-
-### Design Principles
-
-1. **Trust Through Transparency** — Clear hierarchy, visible governance
-2. **Heritage Meets Innovation** — Traditional Islamic aesthetics with modern Web3
-3. **Purpose Over Profit** — Mission-first messaging
-4. **Clarity & Simplicity** — Clean layouts, focused content
-5. **Warmth & Approachability** — Friendly, human-centered design
-
----
-
-## Localization
-
-Designed primarily for **Southeast Asian students and investors** in Indonesia and Malaysia.
-
-- **Languages**: English primary, with Bahasa Indonesia / Bahasa Melayu support
-- **Islamic Terms**: Kept in Arabic (zakat, waqf, asnaf) with contextual explanations
-- **Payment Methods**: GoPay, OVO, Dana (ID) · Touch 'n Go, GrabPay (MY)
-- **Currency**: `Rp 750.000` (Indonesia) · `RM 250.00` (Malaysia)
-- **Mobile-First**: Most users access via smartphone
-
-### Islamic Terminology
-
-| Term | Arabic | Indonesian | Malay |
-|------|--------|------------|-------|
-| Zakat | Zakat | Zakat | Zakat |
-| Waqf | Waqf | Wakaf | Wakaf |
-| Alms | Sadaqah | Sedekah | Sedekah |
-| Poor | Fuqara | Fakir Miskin | Fakir Miskin |
+Headings: Cormorant Garamond (serif) · Body/UI: Inter (sans-serif).
 
 ---
 
 ## Governance
 
-tawf.finance is governed by the [Tawf Foundation](https://tawf.foundation) — a non-profit, public-trust entity.
+Governed by [Tawf Foundation](https://tawf.foundation) — a non-profit, public-trust entity. Investment instruments are issued by licensed financial firms; funds go into escrow (the vault), not to tawf.finance; Sharia compliance is verified by the Foundation.
 
-- All investment instruments are issued by **licensed financial firms**
-- Funds go into **secure escrow** — not to tawf.finance directly
-- **Sharia compliance** verified by Tawf Foundation
-- **On-chain verification** ensures transparency and accountability
+---
+
+## Docs & Buildathon
+
+- [`docs/demo-script.md`](docs/demo-script.md) — 3-minute judge demo walkthrough
+- [`docs/pitch-outline.md`](docs/pitch-outline.md) — pitch narrative
+- [`docs/buildathon-submission.md`](docs/buildathon-submission.md) — submission copy
+- [`docs/didit-kyc.md`](docs/didit-kyc.md) — KYC integration notes
 
 ---
 
@@ -308,14 +225,8 @@ tawf.finance is governed by the [Tawf Foundation](https://tawf.foundation) — a
 
 Licensed under the [Apache License 2.0](./LICENSE).
 
----
-
 ## Links
 
 - **Website**: [tawf.finance](https://tawf.finance)
 - **Governance**: [Tawf Foundation](https://tawf.foundation)
 - **Identity**: [Tawf ID](https://id.tawf.foundation)
-
----
-
-*"We're not building another DeFi yield farm. We're rebuilding Baitul Tamwil for the digital age."*

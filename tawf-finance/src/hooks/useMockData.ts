@@ -128,7 +128,7 @@ export function useMockData() {
       activeDeals: fundedDeals,
       totalDisbursed,
       verifiedBusinesses: mockBusinessProfiles.filter(b => b.verifiedBy.includes(user.id)).length,
-      memberCount: 145 + Math.floor(Math.random() * 50), // Mock member count
+      memberCount: 195, // Mock member count (deterministic)
     };
   }, [user]);
 
@@ -159,7 +159,7 @@ export function useMockData() {
   const adminStats = useMemo(() => {
     if (!user || user.role !== 'admin') return null;
 
-    const totalUsers = 2480 + Math.floor(Math.random() * 100);
+    const totalUsers = 2568; // Mock total (deterministic)
     const activeDeals = mockPurchaseOrders.filter(po => po.status === 'funded' || po.status === 'in_progress').length;
     const platformTVL = mockInvestments.reduce((sum, i) => sum + i.amount, 0) * 42; // Mock multiplier
     const pendingApprovals = mockComplianceDocuments.filter(d => d.status === 'pending').length;

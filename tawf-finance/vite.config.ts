@@ -14,15 +14,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      // Use Node.js buffer polyfill
-      buffer: 'buffer',
     },
-  },
-  define: {
-    global: 'globalThis',
-  },
-  optimizeDeps: {
-    include: ['@solana/spl-token', 'buffer'],
   },
   server: {
     fs: {
