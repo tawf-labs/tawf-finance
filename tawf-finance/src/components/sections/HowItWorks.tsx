@@ -21,7 +21,7 @@ const steps = [
     number: '02',
     icon: Building,
     title: 'Cooperative Verifies the Deal',
-    description: 'The cooperative verifies the order and registers the deal. They know the business personally — that\'s the trust layer.',
+    description: 'The cooperative verifies the order and registers the deal. They know the business personally. That is the trust layer.',
     role: 'Cooperative',
   },
   {
@@ -35,7 +35,7 @@ const steps = [
     number: '04',
     icon: Wallet,
     title: 'You Invest',
-    description: 'Sign in, pick a deal, and invest from $10. Your money goes into a secure escrow — not to tawf.finance.',
+    description: 'Sign in, pick a deal, and invest from $10. Your money goes into a secure escrow, not to tawf.finance.',
     role: 'Investor',
   },
   {

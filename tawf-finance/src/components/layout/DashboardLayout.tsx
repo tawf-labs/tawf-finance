@@ -25,6 +25,7 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Wrench,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/Badge';
@@ -78,6 +79,7 @@ const navConfigs: Record<string, NavItem[]> = {
     { id: 'users', label: 'Users', icon: Users, href: '/admin/users' },
     { id: 'investments', label: 'Investments', icon: TrendingUp, href: '/admin/investments' },
     { id: 'pools', label: 'Pools', icon: Briefcase, href: '/admin/pools' },
+    { id: 'ops', label: 'Protocol Ops', icon: Wrench, href: '/admin/ops' },
     { id: 'compliance', label: 'Compliance', icon: Shield, href: '/admin/compliance' },
     { id: 'settings', label: 'Settings', icon: Settings, href: '/admin/settings' },
   ],

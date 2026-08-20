@@ -44,7 +44,7 @@ const features = [
   {
     icon: Lock,
     title: 'Real Assets. Real Demand. Sharia-Compliant.',
-    description: 'We only fund businesses selling real, everyday products — food, herbal goods, and more. Nothing speculative.',
+    description: 'We only fund businesses selling real, everyday products like food, herbal goods, and more. Nothing speculative.',
     label: 'Core Principle',
   },
 ];

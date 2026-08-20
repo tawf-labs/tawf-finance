@@ -47,5 +47,6 @@ export { AdminDashboard } from './admin/AdminDashboard';
 export { AdminUsers } from './admin/Users';
 export { AdminInvestments } from './admin/Investments';
 export { AdminPools } from './admin/Pools';
+export { OwnerOps } from './admin/OwnerOps';
 export { AdminCompliance } from './admin/Compliance';
 export { AdminSettings } from './admin/AdminSettings';

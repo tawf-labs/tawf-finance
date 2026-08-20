@@ -89,7 +89,7 @@ export function KycStatusCard({ compact = false }: { compact?: boolean }) {
         <StatusIcon status={status} />
         <div className="flex-1">
           <p className="font-medium text-tawf-green">Identity Verification</p>
-          <p className="text-xs text-tawf-muted">KYC via Didit — reusable identity for web3</p>
+          <p className="text-xs text-tawf-muted">KYC via Didit. Reusable identity for web3</p>
         </div>
         <Badge variant={meta.variant} size="sm">{meta.label}</Badge>
       </div>

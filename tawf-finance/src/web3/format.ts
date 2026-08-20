@@ -23,7 +23,7 @@ export function formatApy(apyBps: bigint | number): string {
 }
 
 export function shortAddress(address: string | undefined): string {
-  if (!address) return '—';
+  if (!address) return 'N/A';
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 

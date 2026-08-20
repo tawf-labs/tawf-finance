@@ -235,6 +235,123 @@ export function useClaimDefault() {
   return { claim, isPending };
 }
 
+/** The protocol owner address (deployer wallet). */
+export function useOwner() {
+  const { data } = useReadContract({
+    address: DEAL_REGISTRY_ADDRESS,
+    abi: DealRegistryAbi,
+    functionName: 'owner',
+  });
+  return { owner: data as `0x${string}` | undefined };
+}
+
+/** Cooperative underwriting approval (Submitted to BmtApproved). */
+export function useApproveDeal() {
+  const { write, isPending } = useContractWrite();
+  const approve = useCallback(
+    (dealId: bigint) => {
+      if (!DEAL_REGISTRY_ADDRESS) throw new Error('Contracts not configured');
+      return write({
+        address: DEAL_REGISTRY_ADDRESS,
+        abi: DealRegistryAbi,
+        functionName: 'approveDeal',
+        args: [dealId],
+      });
+    },
+    [write],
+  );
+  return { approve, isPending };
+}
+
+/** Confirm issuance (BmtApproved to Mintable). */
+export function useMarkMintable() {
+  const { write, isPending } = useContractWrite();
+  const markMintable = useCallback(
+    (dealId: bigint) => {
+      if (!DEAL_REGISTRY_ADDRESS) throw new Error('Contracts not configured');
+      return write({
+        address: DEAL_REGISTRY_ADDRESS,
+        abi: DealRegistryAbi,
+        functionName: 'markMintable',
+        args: [dealId],
+      });
+    },
+    [write],
+  );
+  return { markMintable, isPending };
+}
+
+/**
+ * Owner repayment. Approves the yield portion to the vault if needed, then
+ * calls repay which marks the deal Matured and opens redemptions.
+ */
+export function useRepay() {
+  const { write, isPending } = useContractWrite();
+  const { address } = useAccount();
+
+  const repay = useCallback(
+    async (dealId: bigint, totalRepayment: bigint, totalFunded: bigint, currentAllowance: bigint) => {
+      if (!address) throw new Error('Connect your wallet first');
+      if (!VAULT_ADDRESS || !USDC_ADDRESS) throw new Error('Contracts not configured');
+
+      const yieldPortion = totalRepayment - totalFunded;
+      if (yieldPortion > 0n && currentAllowance < yieldPortion) {
+        await write({
+          address: USDC_ADDRESS,
+          abi: MockUsdcAbi,
+          functionName: 'approve',
+          args: [VAULT_ADDRESS, yieldPortion],
+        });
+      }
+      return write({
+        address: VAULT_ADDRESS,
+        abi: RedemptionVaultAbi,
+        functionName: 'repay',
+        args: [dealId, totalRepayment],
+      });
+    },
+    [write, address],
+  );
+
+  return { repay, isPending };
+}
+
+/** Early maturity without moving yield (fallback for a quick demo). */
+export function useMarkMatured() {
+  const { write, isPending } = useContractWrite();
+  const markMatured = useCallback(
+    (dealId: bigint) => {
+      if (!DEAL_REGISTRY_ADDRESS) throw new Error('Contracts not configured');
+      return write({
+        address: DEAL_REGISTRY_ADDRESS,
+        abi: DealRegistryAbi,
+        functionName: 'markMatured',
+        args: [dealId],
+      });
+    },
+    [write],
+  );
+  return { markMatured, isPending };
+}
+
+/** Flag an Active deal as defaulted (principal only). */
+export function useDefaultDeal() {
+  const { write, isPending } = useContractWrite();
+  const defaultDeal = useCallback(
+    (dealId: bigint) => {
+      if (!DEAL_REGISTRY_ADDRESS) throw new Error('Contracts not configured');
+      return write({
+        address: DEAL_REGISTRY_ADDRESS,
+        abi: DealRegistryAbi,
+        functionName: 'defaultDeal',
+        args: [dealId],
+      });
+    },
+    [write],
+  );
+  return { defaultDeal, isPending };
+}
+
 /** MockUSDC faucet — testnet-only convenience (10,000 mUSDC). */
 export function useFaucet() {
   const { write, isPending } = useContractWrite();

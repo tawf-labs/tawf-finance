@@ -41,6 +41,7 @@ import {
   AdminPools,
   AdminCompliance,
   AdminSettings,
+  OwnerOps,
 } from './components/pages';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -180,6 +181,7 @@ function AppContent() {
             <Route path="pools" element={<AdminPools />} />
             <Route path="compliance" element={<AdminCompliance />} />
             <Route path="settings" element={<AdminSettings />} />
+            <Route path="ops" element={<OwnerOps />} />
           </Route>
 
           {/* Default redirect for unmatched dashboard routes */}
