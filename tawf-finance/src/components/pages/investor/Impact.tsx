@@ -137,7 +137,7 @@ export function Impact() {
           </div>
           <div className="border-t border-tawf-green-10 pt-4 mt-4">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-tawf-muted">Shariah Compliant</span>
+              <span className="text-tawf-muted">Shariah Aligned</span>
               <Badge variant="success" size="sm">100%</Badge>
             </div>
           </div>

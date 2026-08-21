@@ -16,7 +16,7 @@ export function AdminUsers() {
     { id: 'investor', label: 'Investors', content: null },
     { id: 'business', label: 'Businesses', content: null },
     { id: 'cooperative', label: 'Cooperatives', content: null },
-    { id: 'vendor', label: 'Vendors', content: null },
+    { id: 'issuer', label: 'Licensed Issuers', content: null },
     { id: 'admin', label: 'Admins', content: null },
   ];
 
@@ -32,7 +32,7 @@ export function AdminUsers() {
       case 'investor': return 'success';
       case 'business': return 'teal';
       case 'cooperative': return 'info';
-      case 'vendor': return 'purple';
+      case 'issuer': return 'purple';
       case 'admin': return 'error';
       default: return 'default';
     }

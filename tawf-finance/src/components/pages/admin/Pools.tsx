@@ -116,7 +116,7 @@ export function AdminPools() {
                 <p className="font-medium capitalize text-tawf-green">{pool.riskLevel}</p>
               </div>
               <div>
-                <p className="text-xs text-tawf-muted">Sharia Compliant</p>
+                <p className="text-xs text-tawf-muted">Shariah Aligned</p>
                 <p className="font-medium text-tawf-green">{pool.shariaCompliant ? 'Yes' : 'No'}</p>
               </div>
             </div>

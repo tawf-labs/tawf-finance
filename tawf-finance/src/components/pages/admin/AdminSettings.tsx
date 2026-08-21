@@ -85,12 +85,12 @@ export function AdminSettings() {
 
           {/* Sharia Compliance Settings */}
           <div>
-            <h3 className="font-medium text-tawf-green mb-4">Shariah Compliance Settings</h3>
+            <h3 className="font-medium text-tawf-green mb-4">Shariah Alignment Settings</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">
                 <div>
-                  <p className="font-medium text-tawf-green">Require Shariah Compliance</p>
-                  <p className="text-sm text-tawf-muted">All pools must be Shariah compliant</p>
+                  <p className="font-medium text-tawf-green">Require Shariah Review</p>
+                  <p className="text-sm text-tawf-muted">All pools must be Shariah-aligned</p>
                 </div>
                 <div className="w-12 h-6 bg-tawf-green rounded-full relative">
                   <span className="absolute top-1 left-7 w-4 h-4 bg-white rounded-full" />

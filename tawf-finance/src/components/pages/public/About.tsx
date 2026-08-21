@@ -12,7 +12,7 @@ export function About() {
     },
     {
       icon: <Shield className="w-8 h-8" />,
-      title: 'Shariah Compliant',
+      title: 'Shariah Aligned',
       description: 'All our financial products follow Islamic finance principles, ensuring ethical and responsible investing.',
     },
     {
@@ -61,7 +61,7 @@ export function About() {
           <h2 className="font-serif text-3xl text-tawf-green mb-6">Our Mission</h2>
           <p className="text-lg text-tawf-muted leading-relaxed mb-8">
             To empower millions of underserved MSMEs across Southeast Asia with access to ethical,
-            affordable financing while enabling investors to earn competitive returns through Shariah-compliant investments.
+            affordable financing while enabling investors to earn competitive returns through Shariah-aligned investments.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
             <div>
@@ -123,7 +123,7 @@ export function About() {
             <Card className="p-6 bg-tawf-green text-tawf-sand">
               <h3 className="font-serif text-xl mb-3">Tawf Finance</h3>
               <ul className="space-y-2">
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Shariah-compliant profit sharing</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Shariah-aligned profit sharing</li>
                 <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Based on business performance, not collateral</li>
                 <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Simple, cooperative-powered verification</li>
                 <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Transparent fees on blockchain</li>

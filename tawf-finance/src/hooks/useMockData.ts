@@ -10,8 +10,6 @@ import {
   getTransactionsByUserId,
   getNotificationsByUserId,
   getPurchaseOrdersByBusinessId,
-  getVendorServicesByVendorId,
-  getPartnershipsByVendorId,
   getPartnershipsByCooperativeId,
   getComplianceDocumentsByUserId,
   getBusinessProfileByUserId,
@@ -49,16 +47,6 @@ export function useMockData() {
     return getPurchaseOrdersByBusinessId(user.id);
   }, [user]);
 
-  const vendorServices = useMemo(() => {
-    if (!user) return [];
-    return getVendorServicesByVendorId(user.id);
-  }, [user]);
-
-  const vendorPartnerships = useMemo(() => {
-    if (!user) return [];
-    return getPartnershipsByVendorId(user.id);
-  }, [user]);
-
   const cooperativePartnerships = useMemo(() => {
     if (!user) return [];
     return getPartnershipsByCooperativeId(user.id);
@@ -93,25 +81,6 @@ export function useMockData() {
       completedInvestments: investments.filter(i => i.status === 'completed').length,
     };
   }, [user, investments]);
-
-  // Calculate vendor stats
-  const vendorStats = useMemo(() => {
-    if (!user || user.role !== 'vendor') return null;
-
-    const activeServices = vendorServices.filter(s => s.active).length;
-    const totalOrders = vendorServices.reduce((sum, s) => sum + s.ordersFulfilled, 0);
-    const averageRating = vendorServices.length > 0
-      ? vendorServices.reduce((sum, s) => sum + s.rating, 0) / vendorServices.length
-      : 0;
-
-    return {
-      activeServices,
-      totalOrders,
-      averageRating,
-      activePartnerships: vendorPartnerships.filter(p => p.status === 'active').length,
-      totalEarnings: vendorPartnerships.reduce((sum, p) => sum + p.totalValue, 0),
-    };
-  }, [user, vendorServices, vendorPartnerships]);
 
   // Calculate cooperative stats
   const cooperativeStats = useMemo(() => {
@@ -181,8 +150,6 @@ export function useMockData() {
     notifications,
     unreadNotificationCount,
     purchaseOrders,
-    vendorServices,
-    vendorPartnerships,
     cooperativePartnerships,
     complianceDocuments,
     businessProfile,
@@ -195,7 +162,6 @@ export function useMockData() {
 
     // Stats
     portfolioStats,
-    vendorStats,
     cooperativeStats,
     businessStats,
     adminStats,

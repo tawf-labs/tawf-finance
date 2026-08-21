@@ -16,12 +16,10 @@ import {
   CheckCircle,
   Shield,
   LayoutDashboard,
-  Package,
   DollarSign,
   Truck,
   BarChart3,
   Briefcase,
-  Building2,
   Search,
   ChevronLeft,
   ChevronRight,
@@ -51,12 +49,8 @@ const navConfigs: Record<string, NavItem[]> = {
     { id: 'impact', label: 'Impact', icon: Heart, href: '/investor/impact' },
     { id: 'settings', label: 'Settings', icon: Settings, href: '/investor/settings' },
   ],
-  vendor: [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/vendor/dashboard' },
-    { id: 'services', label: 'Services', icon: Package, href: '/vendor/services' },
-    { id: 'partnerships', label: 'Partnerships', icon: Building2, href: '/vendor/partnerships' },
-    { id: 'compliance', label: 'Compliance', icon: Shield, href: '/vendor/compliance' },
-    { id: 'settings', label: 'Settings', icon: Settings, href: '/vendor/settings' },
+  issuer: [
+    { id: 'ops', label: 'Issuance & Settlement', icon: Wrench, href: '/issuer/ops' },
   ],
   cooperative: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/cooperative/dashboard' },
@@ -83,6 +77,14 @@ const navConfigs: Record<string, NavItem[]> = {
     { id: 'compliance', label: 'Compliance', icon: Shield, href: '/admin/compliance' },
     { id: 'settings', label: 'Settings', icon: Settings, href: '/admin/settings' },
   ],
+};
+
+const roleLabels: Record<string, string> = {
+  investor: 'Investor',
+  business: 'Business',
+  cooperative: 'Cooperative',
+  issuer: 'Licensed Issuer',
+  admin: 'Admin',
 };
 
 export function DashboardLayout() {
@@ -174,7 +176,7 @@ export function DashboardLayout() {
             {!sidebarCollapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user.name}</p>
-                <p className="text-xs text-tawf-sand-60 capitalize">{user.role}</p>
+                <p className="text-xs text-tawf-sand-60">{roleLabels[user.role] || user.role}</p>
               </div>
             )}
           </div>
@@ -304,7 +306,7 @@ export function DashboardLayout() {
                 <Avatar name={user.name} size="sm" />
                 <div className="text-sm">
                   <p className="font-medium text-tawf-ink">{user.name}</p>
-                  <p className="text-xs text-tawf-muted capitalize">{user.role}</p>
+                  <p className="text-xs text-tawf-muted">{roleLabels[user.role] || user.role}</p>
                 </div>
                 <button
                   onClick={logout}

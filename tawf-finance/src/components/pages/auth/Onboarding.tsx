@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Check, ArrowRight, TrendingUp, FileText, Heart, Sprout, Store, Building, Truck, Package } from 'lucide-react';
+import { Check, ArrowRight, TrendingUp, FileText, Heart, Sprout, Store, Building, Shield } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -43,7 +43,7 @@ export function Onboarding() {
               Invest in curated pools with 10-20% APY while supporting real businesses and communities.
             </p>
             <div className="flex justify-center gap-4 mt-6">
-              <Badge variant="success" size="md">Shariah Compliant</Badge>
+              <Badge variant="success" size="md">Shariah Aligned</Badge>
               <Badge variant="info" size="md">10-20% APY</Badge>
               <Badge variant="warning" size="md">Low Risk</Badge>
             </div>
@@ -175,48 +175,48 @@ export function Onboarding() {
         ),
       },
     ],
-    vendor: [
+    issuer: [
       {
         title: 'Welcome to Tawf Finance!',
-        description: 'Let\'s set up your vendor profile.',
+        description: 'Let\'s set up your licensed issuer console.',
         content: (
           <div className="text-center py-8">
             <div className="w-24 h-24 mx-auto mb-6 bg-tawf-green-10 rounded-full flex items-center justify-center">
-              <Truck className="w-12 h-12 text-tawf-green" />
+              <Shield className="w-12 h-12 text-tawf-green" />
             </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Supply & Grow</h3>
+            <h3 className="font-serif text-2xl text-tawf-green mb-3">Issue Shariah-aligned deals</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Connect with cooperatives and MSMEs to supply your products and services.
+              As the licensed issuer, you approve deals, mark them mintable, and settle repayments on-chain.
             </p>
           </div>
         ),
       },
       {
-        title: 'List Your Services',
-        description: 'Showcase your offerings to MSMEs.',
+        title: 'Approve and Mint',
+        description: 'Move deals through the lifecycle.',
         content: (
           <div className="text-center py-8">
             <div className="w-24 h-24 mx-auto mb-6 bg-purple-50 rounded-full flex items-center justify-center">
-              <Package className="w-12 h-12 text-purple-600" />
+              <Check className="w-12 h-12 text-purple-600" />
             </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Expand Your Reach</h3>
+            <h3 className="font-serif text-2xl text-tawf-green mb-3">Run the Lifecycle</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              List your services and products to reach thousands of MSMEs looking for reliable vendors.
+              Approve submitted deals and mark them mintable so investors can fund them.
             </p>
           </div>
         ),
       },
       {
         title: 'You\'re All Set!',
-        description: 'Start receiving orders today.',
+        description: 'Start issuing and settling deals.',
         content: (
           <div className="text-center py-8">
             <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-tawf-green to-tawf-gold rounded-full flex items-center justify-center text-white">
               <Check className="w-12 h-12" />
             </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Ready to Serve?</h3>
+            <h3 className="font-serif text-2xl text-tawf-green mb-3">Ready to Settle?</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Add your services and start receiving orders from MSMEs across Indonesia.
+              Repay and mature funded deals so investors can redeem principal plus yield.
             </p>
           </div>
         ),
@@ -236,7 +236,7 @@ export function Onboarding() {
         investor: '/investor/dashboard',
         business: '/business/dashboard',
         cooperative: '/cooperative/dashboard',
-        vendor: '/vendor/dashboard',
+        issuer: '/issuer/ops',
         admin: '/admin/dashboard',
       };
       navigate(redirectMap[user?.role || 'investor']);
@@ -248,7 +248,7 @@ export function Onboarding() {
       investor: '/investor/dashboard',
       business: '/business/dashboard',
       cooperative: '/cooperative/dashboard',
-      vendor: '/vendor/dashboard',
+      issuer: '/issuer/ops',
       admin: '/admin/dashboard',
     };
     navigate(redirectMap[user?.role || 'investor']);

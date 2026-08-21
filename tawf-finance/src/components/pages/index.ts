@@ -19,12 +19,7 @@ export { Transactions } from './investor/Transactions';
 export { Impact } from './investor/Impact';
 export { Settings as InvestorSettings } from './investor/Settings';
 
-// Vendor Pages
-export { VendorDashboard } from './vendor/VendorDashboard';
-export { Services } from './vendor/Services';
-export { Partnerships } from './vendor/Partnerships';
-export { Compliance } from './vendor/Compliance';
-export { VendorSettings as VendorSettings } from './vendor/VendorSettings';
+// Vendor Pages removed (replaced by issuer role)
 
 // Cooperative Pages
 export { CooperativeDashboard } from './cooperative/CooperativeDashboard';

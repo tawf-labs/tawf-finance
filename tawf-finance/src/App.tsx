@@ -18,11 +18,6 @@ import {
   Transactions,
   Impact,
   InvestorSettings,
-  VendorDashboard,
-  Services,
-  Partnerships,
-  Compliance,
-  VendorSettings,
   CooperativeDashboard,
   Verification,
   Businesses,
@@ -68,7 +63,7 @@ function AppContent() {
   const location = useLocation();
   const isAppHost = window.location.hostname === 'app.tawf.finance';
   const isDashboardPage = location.pathname.includes('/investor') ||
-                          location.pathname.includes('/vendor') ||
+                          location.pathname.includes('/issuer') ||
                           location.pathname.includes('/cooperative') ||
                           location.pathname.includes('/business') ||
                           location.pathname.includes('/admin');
@@ -116,20 +111,16 @@ function AppContent() {
             <Route path="settings" element={<InvestorSettings />} />
           </Route>
 
-          {/* Vendor Dashboard Routes */}
+          {/* Issuer (Licensed Sekuritas) Routes */}
           <Route
-            path="/vendor/*"
+            path="/issuer/*"
             element={
               <ProtectedRoute>
                 <DashboardLayout />
               </ProtectedRoute>
             }
           >
-            <Route path="dashboard" element={<VendorDashboard />} />
-            <Route path="services" element={<Services />} />
-            <Route path="partnerships" element={<Partnerships />} />
-            <Route path="compliance" element={<Compliance />} />
-            <Route path="settings" element={<VendorSettings />} />
+            <Route path="ops" element={<OwnerOps />} />
           </Route>
 
           {/* Cooperative Dashboard Routes */}

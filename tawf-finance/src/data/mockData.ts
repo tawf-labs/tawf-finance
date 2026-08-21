@@ -5,7 +5,7 @@
 // TYPES
 // ============================================================================
 
-export type UserRole = 'investor' | 'vendor' | 'cooperative' | 'business' | 'admin';
+export type UserRole = 'investor' | 'business' | 'cooperative' | 'issuer' | 'admin';
 
 export interface User {
   id: string;
@@ -218,31 +218,31 @@ export const mockUsers: User[] = [
     kycVerified: true,
     phoneNumber: '+6283456789012',
   },
-  // Vendors
+  // Licensed Issuers (Sekuritas)
   {
-    id: 'ven-1',
-    name: 'PT Indonesia Teknologi',
-    email: 'contact@indonesiatek.co.id',
-    role: 'vendor',
+    id: 'iss-1',
+    name: 'PT Sekuritas Indonesia',
+    email: 'issuer@sekuritas.tawf.finance',
+    role: 'issuer',
     avatar: '',
     status: 'active',
     joinedAt: '2023-11-05T00:00:00Z',
     tier: 'platinum',
     kycVerified: true,
-    organization: 'PT Indonesia Teknologi',
+    organization: 'PT Sekuritas Indonesia',
     phoneNumber: '+622112345678',
   },
   {
-    id: 'ven-2',
-    name: 'CV Sukses Jaya',
-    email: 'info@suksesjaya.com',
-    role: 'vendor',
+    id: 'iss-2',
+    name: 'Sekuritas Nusantara',
+    email: 'ops@sekuritasnusantara.co.id',
+    role: 'issuer',
     avatar: '',
     status: 'active',
     joinedAt: '2024-01-20T00:00:00Z',
     tier: 'gold',
     kycVerified: true,
-    organization: 'CV Sukses Jaya',
+    organization: 'Sekuritas Nusantara',
     phoneNumber: '+622123456789',
   },
   // Cooperatives
@@ -356,7 +356,7 @@ export const mockUsers: User[] = [
 // Demo users for login
 export const demoUsers = {
   investor: mockUsers[0],
-  vendor: mockUsers[3],
+  issuer: mockUsers[3],
   cooperative: mockUsers[5],
   business: mockUsers[8],
   admin: mockUsers[12],

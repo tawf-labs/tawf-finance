@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, ArrowRight, User, Store, Building, Truck, Shield } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, ArrowRight, User, Store, Building, Landmark, Shield } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
@@ -81,12 +81,12 @@ export function Login() {
                 <p className="text-sm font-medium text-tawf-green">Cooperative</p>
               </button>
               <button
-                onClick={() => handleDemoLogin('vendor')}
+                onClick={() => handleDemoLogin('issuer')}
                 disabled={isLoading}
                 className="p-3 border border-tawf-green-10 rounded-xl hover:border-tawf-green hover:bg-tawf-green-5 transition-colors text-center disabled:opacity-50"
               >
-                <Truck className="w-6 h-6 mx-auto mb-1 text-tawf-green" />
-                <p className="text-sm font-medium text-tawf-green">Vendor</p>
+                <Landmark className="w-6 h-6 mx-auto mb-1 text-tawf-green" />
+                <p className="text-sm font-medium text-tawf-green">Licensed Issuer</p>
               </button>
             </div>
             <button

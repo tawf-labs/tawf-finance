@@ -178,7 +178,7 @@ export function AdminDashboard() {
             { role: 'Investors', count: 1520, color: 'bg-tawf-green' },
             { role: 'Businesses', count: 680, color: 'bg-tawf-gold' },
             { role: 'Cooperatives', count: 45, color: 'bg-blue-500' },
-            { role: 'Vendors', count: 120, color: 'bg-purple-500' },
+            { role: 'Licensed Issuers', count: 8, color: 'bg-purple-500' },
             { role: 'Admins', count: 15, color: 'bg-gray-500' },
           ].map((item) => (
             <div key={item.role} className="p-4 border border-tawf-green-10 rounded-xl">

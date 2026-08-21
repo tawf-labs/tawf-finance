@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { useAuth } from '@/hooks/useAuth';
 
-export function VendorSettings() {
+export function CooperativeSettings() {
   const { user } = useAuth();
 
   return (
@@ -13,12 +13,12 @@ export function VendorSettings() {
       {/* Header */}
       <div>
         <h1 className="font-serif text-3xl text-tawf-green mb-2">Settings</h1>
-        <p className="text-tawf-muted">Manage your vendor profile and preferences</p>
+        <p className="text-tawf-muted">Manage your cooperative profile and preferences</p>
       </div>
 
       {/* Profile Section */}
       <Card className="p-6">
-        <h3 className="font-serif text-xl text-tawf-green mb-4">Company Profile</h3>
+        <h3 className="font-serif text-xl text-tawf-green mb-4">Cooperative Profile</h3>
 
         <div className="flex items-center gap-6 p-6 bg-tawf-sand-30 rounded-xl mb-6">
           <div className="p-4 bg-white rounded-xl">
@@ -37,7 +37,7 @@ export function VendorSettings() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-tawf-ink mb-2">Company Name</label>
+            <label className="block text-sm font-medium text-tawf-ink mb-2">Cooperative Name</label>
             <input
               type="text"
               defaultValue={user?.organization}
@@ -45,12 +45,11 @@ export function VendorSettings() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-tawf-ink mb-2">Business Type</label>
+            <label className="block text-sm font-medium text-tawf-ink mb-2">Cooperative Type</label>
             <select className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold">
-              <option>PT (Perseroan Terbatas)</option>
-              <option>CV (Commanditaire Vennootschap)</option>
-              <option>Firm</option>
-              <option>UD (Usaha Dagang)</option>
+              <option>BMT (Baitul Maal wat Tamwil)</option>
+              <option>Koperasi Simpan Pinjam</option>
+              <option>Koperasi Syariah</option>
             </select>
           </div>
           <div>
@@ -82,7 +81,7 @@ export function VendorSettings() {
             </label>
             <input
               type="url"
-              placeholder="https://yourcompany.com"
+              placeholder="https://yourcooperative.co.id"
               className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
             />
           </div>
@@ -93,7 +92,7 @@ export function VendorSettings() {
             </label>
             <textarea
               rows={2}
-              placeholder="Full business address"
+              placeholder="Full cooperative address"
               className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
             />
           </div>
@@ -105,14 +104,14 @@ export function VendorSettings() {
         </div>
       </Card>
 
-      {/* Service Preferences */}
+      {/* Verification Preferences */}
       <Card className="p-6">
-        <h3 className="font-serif text-xl text-tawf-green mb-4">Service Preferences</h3>
+        <h3 className="font-serif text-xl text-tawf-green mb-4">Verification Preferences</h3>
         <div className="space-y-4">
           <div className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">
             <div>
-              <p className="font-medium text-tawf-green">Auto-accept Orders</p>
-              <p className="text-sm text-tawf-muted">Automatically accept orders within your capacity</p>
+              <p className="font-medium text-tawf-green">Auto-approve Verified Businesses</p>
+              <p className="text-sm text-tawf-muted">Approve businesses that pass automated checks</p>
             </div>
             <button className="w-12 h-6 rounded-full bg-tawf-green relative">
               <span className="absolute top-1 left-7 w-4 h-4 bg-white rounded-full" />
@@ -120,17 +119,8 @@ export function VendorSettings() {
           </div>
           <div className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">
             <div>
-              <p className="font-medium text-tawf-green">Weekend Deliveries</p>
-              <p className="text-sm text-tawf-muted">Allow deliveries on weekends</p>
-            </div>
-            <button className="w-12 h-6 rounded-full bg-gray-200 relative">
-              <span className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full" />
-            </button>
-          </div>
-          <div className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">
-            <div>
               <p className="font-medium text-tawf-green">Email Notifications</p>
-              <p className="text-sm text-tawf-muted">Receive email notifications for new orders</p>
+              <p className="text-sm text-tawf-muted">Receive email notifications for new deals</p>
             </div>
             <button className="w-12 h-6 rounded-full bg-tawf-green relative">
               <span className="absolute top-1 left-7 w-4 h-4 bg-white rounded-full" />
@@ -147,9 +137,9 @@ export function VendorSettings() {
         </div>
         <div className="space-y-3">
           {[
-            { name: 'Ahmad Rahman', role: 'Owner', email: 'ahmad@indonesiatek.co.id' },
-            { name: 'Siti Nurhaliza', role: 'Operations Manager', email: 'siti@indonesiatek.co.id' },
-            { name: 'Budi Santoso', role: 'Sales', email: 'budi@indonesiatek.co.id' },
+            { name: 'Ahmad Rahman', role: 'Chairperson', email: 'ahmad@bmtberkat.co.id' },
+            { name: 'Siti Nurhaliza', role: 'Verification Officer', email: 'siti@bmtberkat.co.id' },
+            { name: 'Budi Santoso', role: 'Finance', email: 'budi@bmtberkat.co.id' },
           ].map((member, index) => (
             <div key={index} className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">
               <div className="flex items-center gap-3">

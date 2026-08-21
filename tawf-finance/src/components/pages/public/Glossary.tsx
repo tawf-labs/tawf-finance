@@ -25,7 +25,7 @@ export function Glossary() {
     },
     {
       term: 'Halal',
-      definition: 'Permissible or lawful according to Islamic law. All investments on Tawf Finance are halal-compliant.',
+      definition: 'Permissible or lawful according to Islamic law. All investments on Tawf Finance are halal-aligned.',
       category: 'General',
     },
     {

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Check, ArrowRight, ArrowLeft, User, Store, Building, Truck } from 'lucide-react';
+import { Check, ArrowRight, ArrowLeft, User, Store, Building, Shield } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
-type UserRole = 'investor' | 'business' | 'cooperative' | 'vendor';
+type UserRole = 'investor' | 'business' | 'cooperative' | 'issuer';
 
 interface FormData {
   firstName: string;
@@ -51,10 +51,10 @@ export function Register() {
       description: 'Verify and fund local businesses',
       color: 'bg-blue-500',
     },
-    vendor: {
-      title: 'Vendor',
-      icon: <Truck className="w-8 h-8" />,
-      description: 'Supply goods and services',
+    issuer: {
+      title: 'Licensed Issuer',
+      icon: <Shield className="w-8 h-8" />,
+      description: 'Approve, mint, repay, and mature deals',
       color: 'bg-purple-500',
     },
   };
@@ -204,7 +204,7 @@ export function Register() {
                   />
                 </div>
 
-                {(selectedRole === 'business' || selectedRole === 'cooperative' || selectedRole === 'vendor') && (
+                {(selectedRole === 'business' || selectedRole === 'cooperative' || selectedRole === 'issuer') && (
                   <div>
                     <label className="block text-sm font-medium text-tawf-ink mb-2">Organization/Business Name</label>
                     <input
