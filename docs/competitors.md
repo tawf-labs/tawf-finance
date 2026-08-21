@@ -23,8 +23,8 @@ the market.
 | What it tokenizes | Private securities: PE, credit, funds, real estate (BlackRock BUIDL, Hamilton Lane, KKR) | Community Green Sukuk trade finance deals: Indonesian warung purchase orders |
 | Investor | Accredited and institutional | Retail, anyone |
 | Minimum ticket | Roughly 25k to 100k USD and up | 10 USD |
-| Token | ERC-3643 security tokens, regulated and transferable | Soulbound ERC-1155 receipts, non transferable |
-| Secondary market | Yes, its own ATS and broker dealer | No, receipts cannot be resold |
+| Token | ERC-3643 security tokens, regulated and transferable | Soulbound ERC-1155 receipts with a programmable transfer policy |
+| Secondary market | Yes, its own ATS and broker dealer | On the roadmap: Shariah-aligned transferability, non transferable today |
 | Regulation | SEC registered transfer agent, broker dealer, and ATS | Unregulated demo on Arbitrum Sepolia testnet |
 | Chain | Multi chain, including Ethereum and Avalanche | Arbitrum, EVM with cheap gas |
 | Yield | Fund or instrument return | 8 to 18 percent APY from real trade repayment |
@@ -37,8 +37,9 @@ Securitize is institutional tokenized securities infrastructure. It makes
 large private assets liquid and compliant for qualified buyers.
 
 Tawf Finance is retail impact credit. It turns a 10 dollar ticket into a
-soulbound proof of funding for a real small business. The receipts cannot be
-flipped, so yield comes from trade repayment rather than speculation.
+soulbound proof of funding for a real small business. Transferability is
+programmable, so yield comes from trade repayment while eligible instruments
+can enter a Shariah-aligned secondary market.
 
 One line for judges: Securitize tokenizes large private assets for
 institutions. Tawf tokenizes 10 dollar micro tickets into real small business
@@ -52,4 +53,5 @@ trade finance for everyone else.
   Tawf relies on a cooperative that personally knows the business and the
   anchor buyer that pays the invoice.
 - Exit: Securitize offers secondary trading. Tawf offers redemption at
-  maturity with a burned receipt, a cleaner proof of repayment.
+  maturity with a burned receipt, plus programmable transferability for
+  eligible instruments on the roadmap.

@@ -87,7 +87,7 @@ export function Contact() {
             className="text-tawf-muted text-lg md:text-xl leading-relaxed"
           >
             We're building the future of ethical finance in Southeast Asia. Join us in
-            empowering millions of underserved businesses with transparent, Sharia-compliant
+            empowering millions of underserved businesses with transparent, Shariah-aligned
             investment opportunities.
           </motion.p>
         </motion.div>

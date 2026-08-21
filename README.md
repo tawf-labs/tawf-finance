@@ -1,9 +1,9 @@
 # tawf.finance
 
-> **Ethical, Sharia-compliant investing for Southeast Asia's underserved economy — built on Arbitrum.**
-> Earn real returns by funding local businesses, starting from $10. Transparent, on-chain, and grounded in real trade — no speculation, no secondary market.
+> **Ethical, Shariah-aligned investing for Southeast Asia's underserved economy, built on Arbitrum.**
+> Earn real returns by funding local businesses, starting from $10. Transparent, on-chain, and grounded in real trade, with a Shariah-aligned secondary market on the roadmap.
 
-Governed by [Tawf Foundation](https://tawf.foundation) · Sharia-Compliant · Arbitrum (EVM / Solidity)
+Governed by [Tawf Foundation](https://tawf.foundation) · Shariah-Aligned · Arbitrum (EVM / Solidity)
 
 ---
 
@@ -29,7 +29,7 @@ Governed by [Tawf Foundation](https://tawf.foundation) · Sharia-Compliant · Ar
 
 ### The Problem
 
-**Traditional finance excludes 64M+ MSMEs across Southeast Asia.** Local businesses — warungs, farms, craft makers — cannot access capital through banks. They're too small, too informal, or in regions major institutions ignore.
+**Traditional finance excludes 64M+ MSMEs across Southeast Asia.** Local businesses such as warungs, farms, and craft makers cannot access capital through banks. They're too small, too informal, or in regions major institutions ignore.
 
 **DeFi has failed them.** Existing yield products are speculative, volatile, and disconnected from the real economy. They don't serve the businesses that actually need capital, and they don't create real-world impact.
 
@@ -37,10 +37,10 @@ Governed by [Tawf Foundation](https://tawf.foundation) · Sharia-Compliant · Ar
 
 We're rebuilding **Baitul Tamwil** (an Islamic financial cooperative) for the digital age. Instead of funding speculation, we fund **real purchase orders** from local businesses to major retailers (Indomaret, Alfamart). Investors earn halal returns from real trade.
 
-- **From $10** — anyone can participate in ethical finance
-- **8–18% APY** from real business repayments, not speculative yield
-- **Sharia-compliant** — funds real, everyday goods only
-- **On-chain receipts** — every investment mints a soulbound NFT receipt
+- **From $10**: anyone can participate in ethical finance
+- **8 to 18% APY** from real business repayments, not speculative yield
+- **Shariah-aligned**: funds real, everyday goods only
+- **On-chain receipts**: every investment mints a soulbound NFT receipt
 
 ---
 
@@ -67,7 +67,7 @@ The judge-facing flow lives under `/investor` after signing in (demo login: `inv
 
 ## Smart Contracts
 
-`contracts/` — Solidity 0.8.24, Foundry, OpenZeppelin v5. 66 tests pass (`forge test`).
+`contracts/`: Solidity 0.8.24, Foundry, OpenZeppelin v5. 66 tests pass (`forge test`).
 
 | Contract | Role |
 |---|---|
@@ -76,7 +76,7 @@ The judge-facing flow lives under `/investor` after signing in (demo login: `inv
 | `RedemptionVault` | Escrow + settlement: `invest`, `repay`, `redeem`, `claimDefault`, `accruedYield`, `payoutFor`. |
 | `MockUSDC` | 6-decimal test USDC with a faucet (10,000 mUSDC). Swap for real test USDC in production. |
 
-Key invariants (all test-covered): deals can only be invested while `Mintable`; receipts are soulbound; redemption returns `principal + principal·apyBps·days/36500` and burns the receipt; double-claim is impossible; repayments are owner/vault-guarded; reentrancy-safe.
+Key invariants (all test-covered): deals can only be invested while `Mintable`. Receipts are soulbound. Redemption returns `principal + principal·apyBps·days/36500` and burns the receipt. Double-claim is impossible. Repayments are owner/vault-guarded. The contracts are reentrancy-safe.
 
 ---
 
@@ -186,7 +186,7 @@ RPC: `https://sepolia-rollup.arbitrum.io/rpc` · Chain ID `421614` · Explorer `
 
 ## KYC (Didit)
 
-Identity verification via [Didit](https://www.didit.me/) is integrated behind `VITE_KYC_ENABLED`. The API key stays server-side in Vercel serverless functions (`api/kyc/{session,decision,webhook}.ts`); the frontend only redirects to Didit's hosted flow and reads the decision via a proxy. See [`docs/didit-kyc.md`](docs/didit-kyc.md).
+Identity verification via [Didit](https://www.didit.me/) is integrated behind `VITE_KYC_ENABLED`. The API key stays server-side in Vercel serverless functions (`api/kyc/{session,decision,webhook}.ts`). The frontend only redirects to Didit's hosted flow and reads the decision via a proxy. See [`docs/didit-kyc.md`](docs/didit-kyc.md).
 
 ---
 
@@ -208,16 +208,16 @@ Headings: Cormorant Garamond (serif) · Body/UI: Inter (sans-serif).
 
 ## Governance
 
-Governed by [Tawf Foundation](https://tawf.foundation) — a non-profit, public-trust entity. Investment instruments are issued by licensed financial firms; funds go into escrow (the vault), not to tawf.finance; Sharia compliance is verified by the Foundation.
+Governed by [Tawf Foundation](https://tawf.foundation), a non-profit public trust entity. Investment instruments are issued by licensed financial firms. Funds go into escrow (the vault), not to tawf.finance. Shariah review is provided by independent advisers.
 
 ---
 
 ## Docs & Buildathon
 
-- [`docs/demo-script.md`](docs/demo-script.md) — 3-minute judge demo walkthrough
-- [`docs/pitch-outline.md`](docs/pitch-outline.md) — pitch narrative
-- [`docs/buildathon-submission.md`](docs/buildathon-submission.md) — submission copy
-- [`docs/didit-kyc.md`](docs/didit-kyc.md) — KYC integration notes
+- [`docs/demo-script.md`](docs/demo-script.md): 3-minute judge demo walkthrough
+- [`docs/pitch-outline.md`](docs/pitch-outline.md): pitch narrative
+- [`docs/buildathon-submission.md`](docs/buildathon-submission.md): submission copy
+- [`docs/didit-kyc.md`](docs/didit-kyc.md): KYC integration notes
 
 ---
 

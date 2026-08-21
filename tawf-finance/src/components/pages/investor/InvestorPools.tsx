@@ -363,7 +363,7 @@ export function InvestorPools() {
               )}
             </Button>
             <p className="text-xs text-tawf-muted text-center">
-              One soulbound receipt per investment, non-transferable by design.
+              One soulbound receipt per investment, non-transferable at issuance.
             </p>
           </div>
         ) : null}

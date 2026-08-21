@@ -43,7 +43,7 @@ const features = [
   },
   {
     icon: Lock,
-    title: 'Real Assets. Real Demand. Sharia-Compliant.',
+    title: 'Real Assets. Real Demand. Shariah-Aligned.',
     description: 'We only fund businesses selling real, everyday products like food, herbal goods, and more. Nothing speculative.',
     label: 'Core Principle',
   },

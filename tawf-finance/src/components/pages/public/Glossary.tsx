@@ -70,7 +70,7 @@ export function Glossary() {
     },
     {
       term: 'Soulbound NFT',
-      definition: 'A non-transferable NFT used to represent digital receipts and proof of investment on Tawf Finance. These cannot be sold or traded.',
+      definition: 'A digital receipt and proof of investment on Tawf Finance. Receipts are non-transferable at issuance. Transferable instruments are on the roadmap.',
       category: 'Technology',
     },
     {

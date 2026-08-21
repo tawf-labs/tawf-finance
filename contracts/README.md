@@ -1,9 +1,9 @@
-# Tawf Finance — Smart Contracts
+# Tawf Finance Smart Contracts
 
 The on-chain core of the **Warung Economy Sukuk**: real purchase orders from
-Indonesian warungs are funded by retail investors as community Green Sukuk —
-soulbound bond receipts, from **USD 10**, no secondary market, returns from
-real trade only.
+Indonesian warungs are funded by retail investors as community Green Sukuk.
+Investors hold soulbound bond receipts from **USD 10**, with returns from real
+trade and a programmable transfer policy for a Shariah-aligned secondary market.
 
 Deployed for the **Arbitrum Open House Singapore Buildathon** on **Arbitrum
 Sepolia**. The same EVM codebase is deployable to Base (the roadmap's
@@ -27,7 +27,7 @@ BondReceiptNFT.sol (soulbound ERC-1155)   owner: repay() → matured
 | `DealRegistry.sol` | Deal ledger + lifecycle state machine | No |
 | `BondReceiptNFT.sol` | Soulbound ERC-1155 receipt (on-chain metadata) | No |
 | `RedemptionVault.sol` | The only money-moving contract (USDC) | Yes |
-| `mocks/MockUSDC.sol` | 6-decimal test token with a faucet (demo only) | — |
+| `mocks/MockUSDC.sol` | 6-decimal test token with a faucet (demo only) | No |
 
 ## Deal lifecycle
 
@@ -38,20 +38,20 @@ Submitted → BmtApproved → Mintable → Active → Matured → Completed
 ```
 
 A deal may repay from **Mintable** (partial funding) or **Active** (fully
-funded) — what matters is outstanding principal. Yield is shared pro-rata to
+funded). What matters is outstanding principal. Yield is shared pro-rata to
 receipt holders at redemption.
 
 ## Security posture
 
 - **Soulbound**: every transfer/approval path reverts (`_update` override +
-  `setApprovalForAll` blocked) — tested exhaustively.
+  `setApprovalForAll` blocked), tested exhaustively.
 - **Reentrancy**: `ReentrancyGuard` + checks-effects-interactions on every
-  money-moving function; a malicious-token reentry test proves the guard.
-- **No admin keys over funds**: the owner cannot withdraw investor USDC; the
+  money-moving function. A malicious-token reentry test proves the guard.
+- **No admin keys over funds**: the owner cannot withdraw investor USDC. The
   vault only pays out against burned receipts.
 - **MVP access model**: owner drives lifecycle transitions. The roadmap
   replaces this with `BMTGateway.sol` (originator role) and
-  `SekuritasOracle.sol` (EIP-712 + 48h timelock) — see
+  `SekuritasOracle.sol` (EIP-712 + 48h timelock). See
   `../tawf-finance-roadmap-hasanvc (1).docx`.
 
 ## Usage
@@ -88,7 +88,7 @@ forge script script/SeedDemo.s.sol:SeedDemo \
 ## Out of scope for this buildathon MVP
 
 `SekuritasOracle.sol` (EIP-712 + 48h timelock), `BMTGateway.sol`,
-`SekuritasGateway.sol`, TID/ZK identity, Mosqify/TawfAudit — all specified in
+`SekuritasGateway.sol`, TID/ZK identity, Mosqify/TawfAudit are all specified in
 the roadmap docs and planned as the next milestone.
 
 Licensed under Apache 2.0.
