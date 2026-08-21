@@ -16,7 +16,7 @@ export function HowItWorks() {
       step: '02',
       icon: <Wallet className="w-8 h-8" />,
       title: 'Connect & Invest',
-      description: 'Connect your wallet and stake your chosen amount. Minimum investment starts at just $10.',
+      description: 'Connect your wallet and invest your chosen amount. Minimum investment starts at just $10.',
     },
     {
       step: '03',

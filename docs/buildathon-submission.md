@@ -13,7 +13,7 @@ Tawf Finance
 
 ## Tagline
 
-Shariah-aligned and ethical capital-markets infrastructure on Arbitrum. Fund real warung purchase orders through BMTs, earn yield from trade, not speculation.
+Shariah-aligned and ethical capital-markets infrastructure on Arbitrum. Fund real MSME purchase orders through BMTs, earn yield from trade, not speculation.
 
 ## Elevator pitch (≤150 words)
 

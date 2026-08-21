@@ -162,7 +162,7 @@ export function InvestorPools() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">Investment Pools</h1>
-          <p className="text-tawf-muted">Fund real warung purchase orders from USD 10</p>
+          <p className="text-tawf-muted">Fund real MSME purchase orders from $10</p>
         </div>
         <div className="flex items-center gap-3">
           <GetTestUsdc />
@@ -191,7 +191,7 @@ export function InvestorPools() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-tawf-muted" />
             <input
               type="text"
-              placeholder="Search warung or anchor buyer..."
+              placeholder="Search business or anchor buyer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-12 pr-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"

@@ -220,8 +220,8 @@ export function Earn() {
                   2
                 </span>
                 <div>
-                  <p className="font-medium text-tawf-green">Connect & Stake</p>
-                  <p className="text-sm">Connect your wallet and stake your chosen amount. Minimum investment starts at $10.</p>
+                  <p className="font-medium text-tawf-green">Connect & Invest</p>
+                  <p className="text-sm">Connect your wallet and invest your chosen amount. Minimum investment starts at $10.</p>
                 </div>
               </li>
               <li className="flex gap-4">

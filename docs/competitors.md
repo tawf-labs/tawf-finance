@@ -20,9 +20,9 @@ the market.
 
 | Dimension | Securitize | Tawf Finance |
 |---|---|---|
-| What it tokenizes | Private securities: PE, credit, funds, real estate (BlackRock BUIDL, Hamilton Lane, KKR) | Community Green Sukuk trade finance deals: Indonesian warung purchase orders |
+| What it tokenizes | Private securities: PE, credit, funds, real estate (BlackRock BUIDL, Hamilton Lane, KKR) | Community Green Sukuk trade finance deals: Indonesian MSME purchase orders |
 | Investor | Accredited and institutional | Retail, anyone |
-| Minimum ticket | Roughly 25k to 100k USD and up | 10 USD |
+| Minimum ticket | Roughly 25k to 100k USD and up | $10 |
 | Token | ERC-3643 security tokens, regulated and transferable | Soulbound ERC-1155 receipts with a programmable transfer policy |
 | Secondary market | Yes, its own ATS and broker dealer | On the roadmap: Shariah-aligned transferability, non transferable today |
 | Regulation | SEC registered transfer agent, broker dealer, and ATS | Unregulated demo on Arbitrum Sepolia testnet |

@@ -235,7 +235,7 @@ export function Settings() {
                 <h4 className="font-medium text-blue-800 mb-2">About Arbitrum Sepolia</h4>
                 <p className="text-sm text-blue-700">
                   Tawf Finance runs on Arbitrum Sepolia, an Ethereum Layer-2 testnet. Use MetaMask or Rabby, mint
-                  free test USDC from the faucet, and invest from USD 10. Returns come from real warung trade, with
+                  free test USDC from the faucet, and invest from $10. Returns come from real MSME trade, with
                   a Shariah-aligned secondary market on the roadmap.
                 </p>
               </div>

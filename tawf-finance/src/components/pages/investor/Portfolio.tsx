@@ -121,7 +121,7 @@ export function Portfolio() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">My Portfolio</h1>
-          <p className="text-tawf-muted">Your soulbound warung sukuk receipts</p>
+          <p className="text-tawf-muted">Your soulbound sukuk receipts</p>
         </div>
         <GetTestUsdc />
       </div>

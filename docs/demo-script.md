@@ -11,7 +11,7 @@
 
 ## 0:00 to 0:20 Hook and problem (10s voiceover)
 
-> "64 million small businesses in Southeast Asia can't get bank loans. DeFi gives them speculative yield farms instead of capital. Tawf Finance funds real warung purchase orders on Arbitrum, and investors earn halal returns from real trade, starting at $10."
+> "64 million small businesses in Southeast Asia can't get bank loans. DeFi gives them speculative yield farms instead of capital. Tawf Finance funds real MSME purchase orders on Arbitrum, and investors earn halal returns from real trade, starting at $10."
 
 *Show:* Landing hero → click "Start investing" → investor dashboard.
 

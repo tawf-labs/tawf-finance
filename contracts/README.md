@@ -1,8 +1,9 @@
 # Tawf Finance Smart Contracts
 
-The on-chain core of the **Warung Economy Sukuk**: real purchase orders from
-Indonesian warungs are funded by retail investors as community Green Sukuk.
-Investors hold soulbound bond receipts from **USD 10**, with returns from real
+The on-chain core of the **MSME Green Sukuk**: real purchase orders from
+Indonesian MSMEs (warungs, farms, and craft makers) are funded by retail
+investors as community Green Sukuk.
+Investors hold soulbound bond receipts from **$10**, with returns from real
 trade and a programmable transfer policy for a Shariah-aligned secondary market.
 
 Deployed for the **Arbitrum Open House Singapore Buildathon** on **Arbitrum
