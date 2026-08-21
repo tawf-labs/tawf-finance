@@ -17,7 +17,7 @@ as follows.
 |---|---|---|
 | Tech vendor | tawf.finance (PT Indonesia) | Registry, structuring engine, tokenization, settlement, marketplace UI |
 | Licensed issuer | Sekuritas partner | Legal issuance, underwriting, disclosure, OJK filings |
-| Originator | BMT or cooperative | KYB, underwriting, servicing the underlying businesses |
+| Originator | BMT (Islamic cooperative) | KYB, underwriting, servicing the underlying businesses |
 | Shariah review | Independent board (ABSI, DSN-MUI aligned) | Review each structure, issue guidance |
 
 This split keeps Tawf out of the regulated activities it cannot yet perform. It

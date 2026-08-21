@@ -13,7 +13,7 @@ const partnerCategories = [
   {
     icon: Building,
     title: 'Cooperative Network',
-    description: 'Local cooperatives provide the trusted relationship layer with businesses across Southeast Asia.',
+    description: 'BMTs and Islamic cooperatives provide the trusted relationship layer with businesses across Southeast Asia.',
     partners: ['PBMT Ventura', 'BMT UGT Sidogiri', '4,500+ Cooperatives'],
     status: 'Nationwide Coverage',
   },
@@ -27,8 +27,8 @@ const partnerCategories = [
   {
     icon: Network,
     title: 'Ecosystem',
-    description: 'Integrated with TID for identity verification and Base Network for settlement.',
-    partners: ['TID', 'Base Network'],
+    description: 'Integrated with TID for identity verification and Arbitrum for settlement.',
+    partners: ['TID', 'Arbitrum'],
     status: 'Full Stack Integration',
   },
 ];

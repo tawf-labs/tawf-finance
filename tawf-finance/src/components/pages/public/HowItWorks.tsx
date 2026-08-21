@@ -37,7 +37,7 @@ export function HowItWorks() {
       step: '02',
       icon: <Shield className="w-8 h-8" />,
       title: 'Get Verified',
-      description: 'Your local cooperative verifies your business and approves the funding request.',
+      description: 'Your local BMT cooperatives verify your business and approve the funding request.',
     },
     {
       step: '03',

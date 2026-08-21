@@ -21,7 +21,7 @@
 
 - Point at the live deals (Warung Sari Rejeki → Indomaret, 12% APY / 30d. Jamu Bu Rini → Alfamart, 15% / 45d. Keripik Mbak Yuli, 9% / 60d). Read from the `DealRegistry` contract, not mock data.
 - Tap the status filter chips (Submitted / Mintable / Active / Matured…) to show the deal lifecycle.
-- Note the anchor buyer (Indomaret, Alfamart) and the `BmtApproved` status → these are real purchase orders that a cooperative has verified.
+- Note the anchor buyer (Indomaret, Alfamart) and the `BmtApproved` status → these are real purchase orders that a BMT has verified.
 
 ## 0:50 to 1:40 Invest $10 and mint a soulbound receipt (the money shot)
 

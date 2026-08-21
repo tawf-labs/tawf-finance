@@ -131,7 +131,7 @@ export function Onboarding() {
     cooperative: [
       {
         title: 'Welcome to Tawf Finance!',
-        description: 'Let\'s set up your cooperative dashboard.',
+        description: 'Let\'s set up your BMT cooperative dashboard.',
         content: (
           <div className="text-center py-8">
             <div className="w-24 h-24 mx-auto mb-6 bg-tawf-green-10 rounded-full flex items-center justify-center">
