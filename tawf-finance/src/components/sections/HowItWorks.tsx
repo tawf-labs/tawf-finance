@@ -89,7 +89,7 @@ export function HowItWorks() {
         >
           <p className="label mb-4">The Flow</p>
           <h2 className="font-serif text-3xl md:text-4xl lg:text-5xl text-tawf-green mb-6">
-            How Ethical Staking
+            How Ethical Investing
             <span className="block text-tawf-gold">Actually Works</span>
           </h2>
           <p className="text-tawf-muted text-lg">

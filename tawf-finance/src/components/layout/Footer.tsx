@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
-const stakingPools = [
+const investmentPools = [
   { name: 'Kurban Farms Pool', href: '/earn' },
   { name: 'Warung Pool', href: '/earn' },
   { name: 'Jamu & Herbal Pool', href: '/earn' },
@@ -71,13 +71,13 @@ export function Footer() {
           >
             <h2 className="text-2xl font-bold text-white mb-3">Tawf Labs</h2>
             <p className="text-white/60 text-sm leading-relaxed mb-6">
-              We tokenize the underserved economy. Stake and earn real yield while
+              We tokenize the underserved economy. Invest and earn real yield while
               providing working capital for Southeast Asian MSMEs.
             </p>
             <p className="text-white/40 text-sm">Governed by Tawf Foundation</p>
           </motion.div>
 
-          <FooterColumn title="Staking Pools" links={stakingPools} delay={0.1} />
+          <FooterColumn title="Investment Pools" links={investmentPools} delay={0.1} />
           <FooterColumn title="Platform" links={platformLinks} delay={0.2} />
           <FooterColumn title="Foundation" links={foundationLinks} delay={0.3} />
           <FooterColumn title="Resources" links={resourceLinks} delay={0.4} />

@@ -13,7 +13,7 @@ import { Section } from '../ui/Section';
 const features = [
   {
     icon: Shield,
-    title: 'Ethical Staking',
+    title: 'Ethical Investing',
     description: 'Earn real returns the halal way. We fund real businesses, not speculation.',
     label: 'Core Product',
   },
@@ -84,7 +84,7 @@ export function Features() {
         >
           <p className="label mb-4">Why tawf.finance</p>
           <h2 className="font-serif text-3xl md:text-4xl lg:text-5xl text-tawf-green mb-6">
-            Ethical Staking. Real Impact.
+            Ethical Investing. Real Impact.
             <span className="block text-tawf-gold">Real Yield + Good Deeds.</span>
           </h2>
           <p className="text-tawf-muted text-lg">
