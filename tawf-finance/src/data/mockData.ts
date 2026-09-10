@@ -56,6 +56,7 @@ export interface Pool {
   createdAt: string;
   roiHistory: { date: string; value: number }[];
   usdcTreasury: string; // USDC token account to receive investments
+  instrumentId?: string; // links to the Islamic finance instrument in instrumentCatalog
 }
 
 export interface PurchaseOrder {
@@ -363,6 +364,136 @@ export const demoUsers = {
 };
 
 // ============================================================================
+// ISLAMIC FINANCE INSTRUMENT CATALOG
+// ============================================================================
+// Tawf is the all-in-one tokenization infrastructure for BPRS. Every akad a
+// BPRS originates can be represented, structured, and settled on the same
+// primitive. Status is honest about what is live today versus on the roadmap.
+
+export type AkadFamily = 'Debt-based' | 'Equity-based' | 'Social' | 'Tradable';
+export type InstrumentStatus = 'Live' | 'Structured' | 'Pipeline' | 'Roadmap';
+
+export interface Instrument {
+  id: string;
+  name: string;
+  arabic: string;
+  family: AkadFamily;
+  status: InstrumentStatus;
+  summary: string;       // plain-English role
+  useCase: string;       // typical BPRS use
+  yieldBand: string;     // display band, no em-dash
+  dsnRef: string;        // DSN-MUI fatwa reference (illustrative)
+}
+
+// Yield bands per family: debt-like 5 to 9 percent, equity-like 7 to 11
+// percent, social (Qard) 0 percent. Sukuk profit tracks the underlying pool.
+export const instrumentCatalog: Instrument[] = [
+  {
+    id: 'murabaha',
+    name: 'Murabaha',
+    arabic: 'مرابحة',
+    family: 'Debt-based',
+    status: 'Live',
+    summary: 'Cost-plus sale. The bank buys an asset and resells it to the client at a disclosed markup on deferred terms.',
+    useCase: 'Working capital and trade or inventory financing for micro and small clients.',
+    yieldBand: '5 to 9 percent',
+    dsnRef: 'DSN-MUI No. 04/2000',
+  },
+  {
+    id: 'ijarah',
+    name: 'Ijarah',
+    arabic: 'إجارة',
+    family: 'Debt-based',
+    status: 'Structured',
+    summary: 'Lease. The bank owns an asset and leases its usufruct to the client for a rental over a fixed term.',
+    useCase: 'Equipment, vehicle, and property financing.',
+    yieldBand: '5 to 9 percent',
+    dsnRef: 'DSN-MUI No. 09/2000',
+  },
+  {
+    id: 'musyarakah',
+    name: 'Musyarakah',
+    arabic: 'مشاركة',
+    family: 'Equity-based',
+    status: 'Live',
+    summary: 'Partnership. All parties contribute capital and share profit and loss by an agreed ratio.',
+    useCase: 'Joint financing and the financing sell-down pool structure.',
+    yieldBand: '7 to 11 percent (variable)',
+    dsnRef: 'DSN-MUI No. 08/2000',
+  },
+  {
+    id: 'mudarabah',
+    name: 'Mudarabah',
+    arabic: 'مضاربة',
+    family: 'Equity-based',
+    status: 'Structured',
+    summary: 'Profit-sharing. One party funds, the other manages. Profit is shared, capital loss sits with the funder absent misconduct.',
+    useCase: 'Investment mandates where the bank or client manages the venture.',
+    yieldBand: '7 to 11 percent (variable)',
+    dsnRef: 'DSN-MUI No. 07/2000',
+  },
+  {
+    id: 'wakalah-istithmar',
+    name: 'Wakalah bil Istithmar',
+    arabic: 'وكالة بالاستثمار',
+    family: 'Equity-based',
+    status: 'Live',
+    summary: 'Investment agency. An agent invests the principal capital on the client behalf for a fee.',
+    useCase: 'The core financing sell-down akad for an outside investor pool.',
+    yieldBand: '7 to 11 percent (variable)',
+    dsnRef: 'DSN-MUI No. 10/2000',
+  },
+  {
+    id: 'salam',
+    name: 'Salam',
+    arabic: 'سلم',
+    family: 'Debt-based',
+    status: 'Pipeline',
+    summary: 'Advance purchase. Full payment now for a commodity delivered at a defined future date.',
+    useCase: 'Agricultural pre-harvest financing.',
+    yieldBand: '5 to 9 percent',
+    dsnRef: 'DSN-MUI No. 05/2000',
+  },
+  {
+    id: 'istisna',
+    name: "Istisna'",
+    arabic: 'استصناع',
+    family: 'Debt-based',
+    status: 'Pipeline',
+    summary: 'Manufacture to order. Financing for goods built or constructed to a specification, paid in stages.',
+    useCase: 'Construction and made-to-order manufacturing financing.',
+    yieldBand: '5 to 9 percent',
+    dsnRef: 'DSN-MUI No. 06/2000',
+  },
+  {
+    id: 'qard-hasan',
+    name: 'Qard Hasan',
+    arabic: 'قرض حسن',
+    family: 'Social',
+    status: 'Roadmap',
+    summary: 'Benevolent loan. Principal only, no return. A social instrument funded through the Baitul Maal side.',
+    useCase: 'Hardship and social financing distributed through community channels.',
+    yieldBand: '0 percent (social)',
+    dsnRef: 'DSN-MUI No. 19/2001',
+  },
+  {
+    id: 'sukuk',
+    name: 'Sukuk',
+    arabic: 'صكوك',
+    family: 'Tradable',
+    status: 'Roadmap',
+    summary: 'Tradable certificates of ownership in a pool or project. The tier-2 product for BPRS above the issuance threshold.',
+    useCase: 'Public offering for the few BPRS above the IDR 80bn core-capital threshold.',
+    yieldBand: 'tracks the underlying pool',
+    dsnRef: 'DSN-MUI No. 32/2002',
+  },
+];
+
+export function getInstrumentById(id: string): Instrument | undefined {
+  return instrumentCatalog.find(i => i.id === id);
+}
+
+// ============================================================================
 // MOCK POOLS
 // ============================================================================
 
@@ -372,7 +503,7 @@ export const mockPools: Pool[] = [
     name: 'BPRS Barokah Agri Financing Pool',
     description: 'Economic exposure to a pool of seasonal agricultural financing originated and serviced by BPRS Barokah, under a musyarakah sell-down akad.',
     category: 'Agriculture',
-    apy: { min: 12, max: 18 },
+    apy: { min: 7, max: 10 },
     duration: { min: 30, max: 60 },
     minInvestment: 10,
     tvl: 125000,
@@ -383,21 +514,22 @@ export const mockPools: Pool[] = [
     shariaCompliant: true,
     createdAt: '2024-01-01T00:00:00Z',
     roiHistory: [
-      { date: '2024-01', value: 12.5 },
-      { date: '2024-02', value: 14.2 },
-      { date: '2024-03', value: 15.8 },
-      { date: '2024-04', value: 16.5 },
-      { date: '2024-05', value: 17.2 },
-      { date: '2024-06', value: 18.0 },
+      { date: '2024-01', value: 7.2 },
+      { date: '2024-02', value: 7.8 },
+      { date: '2024-03', value: 8.4 },
+      { date: '2024-04', value: 8.9 },
+      { date: '2024-05', value: 9.4 },
+      { date: '2024-06', value: 9.8 },
     ],
     usdcTreasury: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
+    instrumentId: 'musyarakah',
   },
   {
     id: 'warung',
     name: 'BPRS Amanah Micro-Trade Pool',
     description: 'Exposure to a pool of micro-trade working-capital financing serviced locally by BPRS Amanah Ummah, funded outside its own deposit market.',
     category: 'Retail',
-    apy: { min: 10, max: 15 },
+    apy: { min: 6, max: 8 },
     duration: { min: 30, max: 45 },
     minInvestment: 10,
     tvl: 89000,
@@ -408,21 +540,22 @@ export const mockPools: Pool[] = [
     shariaCompliant: true,
     createdAt: '2024-01-15T00:00:00Z',
     roiHistory: [
-      { date: '2024-01', value: 10.2 },
-      { date: '2024-02', value: 11.5 },
-      { date: '2024-03', value: 12.8 },
-      { date: '2024-04', value: 13.2 },
-      { date: '2024-05', value: 14.0 },
-      { date: '2024-06', value: 15.0 },
+      { date: '2024-01', value: 6.2 },
+      { date: '2024-02', value: 6.6 },
+      { date: '2024-03', value: 7.0 },
+      { date: '2024-04', value: 7.3 },
+      { date: '2024-05', value: 7.6 },
+      { date: '2024-06', value: 8.0 },
     ],
     usdcTreasury: '9h1Y7M7pJFQnHcLiSGYKZJ3PVPLNbYbGykxJgQKPXqVz',
+    instrumentId: 'murabaha',
   },
   {
     id: 'jamu-herbal',
     name: 'BPRS Barokah Consumer Financing Pool',
     description: 'Exposure to a pool of Shariah consumer financing serviced by BPRS Barokah. Pool size, NPF ratio, and akad compliance are verifiable on-chain.',
     category: 'Health & Wellness',
-    apy: { min: 14, max: 20 },
+    apy: { min: 6, max: 9 },
     duration: { min: 45, max: 90 },
     minInvestment: 25,
     tvl: 67000,
@@ -433,20 +566,21 @@ export const mockPools: Pool[] = [
     shariaCompliant: true,
     createdAt: '2024-02-01T00:00:00Z',
     roiHistory: [
-      { date: '2024-02', value: 14.5 },
-      { date: '2024-03', value: 16.2 },
-      { date: '2024-04', value: 17.8 },
-      { date: '2024-05', value: 18.5 },
-      { date: '2024-06', value: 19.5 },
+      { date: '2024-02', value: 6.5 },
+      { date: '2024-03', value: 7.2 },
+      { date: '2024-04', value: 7.8 },
+      { date: '2024-05', value: 8.4 },
+      { date: '2024-06', value: 9.0 },
     ],
     usdcTreasury: '3HCyVKzPRgDfgWzE1j2tKcAqNnfNW4P6qKq4VqB9bNqm',
+    instrumentId: 'murabaha',
   },
   {
     id: 'organic-food',
     name: 'BPRS Insan Cita Agri Financing Pool',
     description: 'Exposure to a pool of organic-agriculture financing originated and serviced by BPRS Insan Cita, under a wakalah bil istithmar structure.',
     category: 'Agriculture',
-    apy: { min: 10, max: 16 },
+    apy: { min: 7, max: 10 },
     duration: { min: 60, max: 90 },
     minInvestment: 15,
     tvl: 45000,
@@ -457,20 +591,21 @@ export const mockPools: Pool[] = [
     shariaCompliant: true,
     createdAt: '2024-02-15T00:00:00Z',
     roiHistory: [
-      { date: '2024-02', value: 10.5 },
-      { date: '2024-03', value: 12.0 },
-      { date: '2024-04', value: 13.5 },
-      { date: '2024-05', value: 14.8 },
-      { date: '2024-06', value: 16.0 },
+      { date: '2024-02', value: 7.2 },
+      { date: '2024-03', value: 7.9 },
+      { date: '2024-04', value: 8.6 },
+      { date: '2024-05', value: 9.3 },
+      { date: '2024-06', value: 10.0 },
     ],
     usdcTreasury: '5j7s6NiJS3JAkvgkoc18WVAsiSaci2pxB2A6ueCJP4tpr',
+    instrumentId: 'wakalah-istithmar',
   },
   {
     id: 'artisan-goods',
     name: 'BPRS Barokah Trade Financing Pool',
     description: 'Exposure to a pool of small-trade financing (including craft and heritage producers) serviced by BPRS Barokah under a compliant sell-down akad.',
     category: 'Crafts & Heritage',
-    apy: { min: 12, max: 17 },
+    apy: { min: 5, max: 8 },
     duration: { min: 45, max: 75 },
     minInvestment: 20,
     tvl: 38000,
@@ -481,19 +616,20 @@ export const mockPools: Pool[] = [
     shariaCompliant: true,
     createdAt: '2024-03-01T00:00:00Z',
     roiHistory: [
-      { date: '2024-03', value: 12.0 },
-      { date: '2024-04', value: 13.5 },
-      { date: '2024-05', value: 15.0 },
-      { date: '2024-06', value: 16.5 },
+      { date: '2024-03', value: 5.5 },
+      { date: '2024-04', value: 6.2 },
+      { date: '2024-05', value: 7.0 },
+      { date: '2024-06', value: 7.8 },
     ],
     usdcTreasury: '2nL2iTqkPjHbK2tGDs1R69nJG6vNXQzsgY3hPSKiJBrVV',
+    instrumentId: 'murabaha',
   },
   {
     id: 'manufacturing-sme',
     name: 'BPRS Amanah SME Financing Pool',
     description: 'Exposure to a pool of small-enterprise (manufacturing) financing serviced by BPRS Amanah Ummah, structured as a musyarakah sell-down.',
     category: 'Manufacturing',
-    apy: { min: 11, max: 16 },
+    apy: { min: 8, max: 11 },
     duration: { min: 60, max: 90 },
     minInvestment: 50,
     tvl: 95000,
@@ -504,14 +640,15 @@ export const mockPools: Pool[] = [
     shariaCompliant: true,
     createdAt: '2024-01-20T00:00:00Z',
     roiHistory: [
-      { date: '2024-01', value: 11.0 },
-      { date: '2024-02', value: 12.5 },
-      { date: '2024-03', value: 13.8 },
-      { date: '2024-04', value: 14.5 },
-      { date: '2024-05', value: 15.2 },
-      { date: '2024-06', value: 16.0 },
+      { date: '2024-01', value: 8.0 },
+      { date: '2024-02', value: 8.6 },
+      { date: '2024-03', value: 9.2 },
+      { date: '2024-04', value: 9.8 },
+      { date: '2024-05', value: 10.4 },
+      { date: '2024-06', value: 11.0 },
     ],
     usdcTreasury: '4kL3jTrPkHbK2tGDs1R69nJG6vNXQzsgY3hPSKiJBrVVE',
+    instrumentId: 'musyarakah',
   },
 ];
 
@@ -526,12 +663,12 @@ export const mockInvestments: Investment[] = [
     poolId: 'kurban-farms',
     poolName: 'BPRS Barokah Agri Financing Pool',
     amount: 500,
-    apy: 15,
+    apy: 9,
     status: 'active',
     investedAt: '2024-03-01T00:00:00Z',
     maturesAt: '2024-05-01T00:00:00Z',
-    expectedReturn: 75,
-    currentReturn: 45,
+    expectedReturn: 45,
+    currentReturn: 27,
     txHash: '5j7s6NiJS3JAkvgkoc18WVAsiSaci2pxB2A6ueCJP4tprVSpra1HKbbEJPHy4EQqpoLwghV4bVw3kYHcCYLwEEMdF',
     receiptHash: 'GjJvC1wKrFhfJJV3JGKRsVLQMpPqHjLjjTMR4LJQkXTz',
   },
@@ -541,12 +678,12 @@ export const mockInvestments: Investment[] = [
     poolId: 'warung',
     poolName: 'BPRS Amanah Micro-Trade Pool',
     amount: 300,
-    apy: 12,
+    apy: 7,
     status: 'active',
     investedAt: '2024-03-15T00:00:00Z',
     maturesAt: '2024-04-30T00:00:00Z',
-    expectedReturn: 36,
-    currentReturn: 28,
+    expectedReturn: 21,
+    currentReturn: 16,
     txHash: '2nL2iTqkPjHbK2tGDs1R69nJG6vNXQzsgY3hPSKiJBrVVEpXqBqKNvhRvXkUwQGfKTpF9w3R8WzLkBq2kHvFmZ4',
     receiptHash: 'DrJvC1wKrFhfJJV3JGKRsVLQMpPqHjLjjTMR4LJQkXT2',
   },
@@ -556,12 +693,12 @@ export const mockInvestments: Investment[] = [
     poolId: 'jamu-herbal',
     poolName: 'BPRS Barokah Consumer Financing Pool',
     amount: 250,
-    apy: 18,
+    apy: 8,
     status: 'completed',
     investedAt: '2024-01-10T00:00:00Z',
     maturesAt: '2024-03-10T00:00:00Z',
-    expectedReturn: 45,
-    currentReturn: 45,
+    expectedReturn: 20,
+    currentReturn: 20,
     txHash: '4kL3jTrPkHbK2tGDs1R69nJG6vNXQzsgY3hPSKiJBrVVEpXqBqKNvhRvXkUwQGfKTpF9w3R8WzLkBq2kHvFmZ5',
     receiptHash: 'HrJvC1wKrFhfJJV3JGKRsVLQMpPqHjLjjTMR4LJQkXT3',
   },
@@ -571,12 +708,12 @@ export const mockInvestments: Investment[] = [
     poolId: 'organic-food',
     poolName: 'BPRS Insan Cita Agri Financing Pool',
     amount: 200,
-    apy: 14,
+    apy: 9,
     status: 'active',
     investedAt: '2024-03-20T00:00:00Z',
     maturesAt: '2024-05-20T00:00:00Z',
-    expectedReturn: 28,
-    currentReturn: 12,
+    expectedReturn: 18,
+    currentReturn: 8,
     txHash: '3mL4kUsQlHcK2tGDs1R69nJG6vNXQzsgY3hPSKiJBrVVEpXqBqKNvhRvXkUwQGfKTpF9w3R8WzLkBq2kHvFmZ6',
   },
   {
@@ -585,12 +722,12 @@ export const mockInvestments: Investment[] = [
     poolId: 'artisan-goods',
     poolName: 'BPRS Barokah Trade Financing Pool',
     amount: 150,
-    apy: 15,
+    apy: 7,
     status: 'active',
     investedAt: '2024-02-15T00:00:00Z',
     maturesAt: '2024-04-15T00:00:00Z',
-    expectedReturn: 22.5,
-    currentReturn: 20,
+    expectedReturn: 10.5,
+    currentReturn: 9,
   },
   {
     id: 'inv-006',
@@ -598,12 +735,12 @@ export const mockInvestments: Investment[] = [
     poolId: 'warung',
     poolName: 'BPRS Amanah Micro-Trade Pool',
     amount: 100,
-    apy: 11,
+    apy: 6,
     status: 'active',
     investedAt: '2024-03-25T00:00:00Z',
     maturesAt: '2024-04-25T00:00:00Z',
-    expectedReturn: 11,
-    currentReturn: 5,
+    expectedReturn: 6,
+    currentReturn: 3,
   },
 ];
 
@@ -786,7 +923,7 @@ export const mockNotifications: Notification[] = [
     id: 'notif-002',
     userId: 'inv-1',
     title: 'New Financing Pool Available',
-    message: 'BPRS Amanah SME Financing Pool is now open with an 11-16% target profit rate.',
+    message: 'BPRS Amanah SME Financing Pool is now open with an 8 to 11 percent target profit rate.',
     type: 'info',
     read: false,
     createdAt: '2024-03-27T14:20:00Z',
@@ -836,7 +973,7 @@ export const mockImpactMetrics: ImpactMetrics = {
   countries: 1,
   womenLedBusinesses: 980,
   ruralBusinesses: 1650,
-  averageROI: 14.5,
+  averageROI: 7.8,
 };
 
 // ============================================================================

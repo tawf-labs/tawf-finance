@@ -5,6 +5,7 @@ export { Earn } from './Earn';
 export { About } from './public/About';
 export { HowItWorks } from './public/HowItWorks';
 export { Glossary } from './public/Glossary';
+export { Instruments } from './public/Instruments';
 
 // Auth Pages
 export { Login } from './auth/Login';

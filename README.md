@@ -1,7 +1,7 @@
 # tawf.finance
 
-> **Originator-side Islamic capital-markets infrastructure for Indonesian BPRS, built on Arbitrum.**
-> A licensed Shariah bank sells down a pool of its financing to an outside investor pool through a compliant akad. Take exposure from $10. Transparent, on-chain, and grounded in real serviced financing, with a Shariah-aligned secondary market on the roadmap.
+> **The all-in-one tokenization infrastructure for Indonesian BPRS, built on Arbitrum.**
+> One platform for every Islamic finance akad a licensed Shariah bank originates: structure, tokenize, sell down, and settle real financing on-chain. Take exposure from $10, with returns from 5%. Transparent, verifiable, and grounded in real serviced financing.
 
 Governed by [Tawf Foundation](https://tawf.foundation) · Shariah-Aligned · Arbitrum (EVM / Solidity)
 
@@ -50,6 +50,24 @@ We give a BPRS a wider funding channel. The bank originates and services Shariah
 ## What Is tawf.finance?
 
 Originator-side infrastructure connecting everyday investors with licensed Indonesian BPRS. A bank originates and services a financing pool → its DPS reviews the sell-down akad → an investor pool funds it with USDC → the bank services and remits collections → investors redeem principal + profit. First product is a **financing sell-down**, not sukuk issuance (issuance is the tier-2 product for the few BPRS above the IDR 80bn threshold).
+
+### Instrument coverage
+
+Tawf is designed as one primitive for the full range of Islamic finance instruments a BPRS originates. Status is honest about what is live in the demo today versus structured, in the pipeline, or on the roadmap.
+
+| Instrument | Family | Status | Return band | Role |
+|---|---|---|---|---|
+| Murabaha | Debt-based | Live | 5 to 9% | Cost-plus trade and working-capital financing |
+| Musyarakah | Equity-based | Live | 7 to 11% | Partnership and the financing sell-down pool |
+| Wakalah bil Istithmar | Equity-based | Live | 7 to 11% | Investment-agency sell-down for an investor pool |
+| Ijarah | Debt-based | Structured | 5 to 9% | Lease of equipment, vehicles, property |
+| Mudarabah | Equity-based | Structured | 7 to 11% | Profit-sharing investment mandate |
+| Salam | Debt-based | Pipeline | 5 to 9% | Agricultural pre-harvest financing |
+| Istisna' | Debt-based | Pipeline | 5 to 9% | Manufacture and construction to order |
+| Qard Hasan | Social | Roadmap | 0% | Benevolent, principal-only social financing |
+| Sukuk | Tradable | Roadmap | tracks pool | Public offering for BPRS above IDR 80bn core capital |
+
+Live instruments are structured with a partner DPS and running in the demo. The rest are staged deliberately: the wedge is the sell-down (Murabaha and Musyarakah), and nothing is presented as live before an akad is validated with a design-partner bank.
 
 ---
 

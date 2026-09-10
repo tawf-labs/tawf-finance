@@ -31,9 +31,9 @@ const features = [
   },
   {
     icon: TrendingUp,
-    title: 'Returns From Serviced Financing',
-    description: 'Returns come from the bank servicing and remitting real financing repayments. When the pool performs, you get paid.',
-    label: 'Returns',
+    title: 'Every Islamic Finance Akad',
+    description: 'Murabaha, ijarah, musyarakah, mudarabah, wakalah, salam, istisna, qard, and sukuk. One primitive represents them all.',
+    label: 'Coverage',
   },
   {
     icon: Users,
@@ -84,11 +84,11 @@ export function Features() {
         >
           <p className="label mb-4">Why tawf.finance</p>
           <h2 className="font-serif text-3xl md:text-4xl lg:text-5xl text-tawf-green mb-6">
-            Ethical Investing. Real Impact.
-            <span className="block text-tawf-gold">Real Yield + Good Deeds.</span>
+            One Platform. Every Akad.
+            <span className="block text-tawf-gold">Real Serviced Financing.</span>
           </h2>
           <p className="text-tawf-muted text-lg">
-            A licensed Shariah bank originates and services the financing. You take exposure to a defined pool of it, on-chain.
+            A licensed Shariah bank originates and services the financing. Tawf structures, tokenizes, and settles it on-chain, across the full range of Islamic finance instruments.
           </p>
         </motion.div>
 

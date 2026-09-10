@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 const publicNavLinks = [
   { name: 'Features', href: '/#features' },
+  { name: 'Instruments', href: '/instruments' },
   { name: 'How It Works', href: '/#how-it-works' },
   { name: 'Impact', href: '/#impact' },
 ];
@@ -78,6 +79,7 @@ export function Navigation() {
                 ) : (
                   <>
                     <Link to="/about" className="nav-link">About</Link>
+                    <Link to="/instruments" className="nav-link">Instruments</Link>
                     <Link to="/how-it-works" className="nav-link">How It Works</Link>
                     <Link to="/glossary" className="nav-link">Glossary</Link>
                   </>
@@ -156,6 +158,7 @@ export function Navigation() {
                     ) : (
                       <>
                         <Link to="/about" className="nav-link py-2" onClick={() => setIsMobileMenuOpen(false)}>About</Link>
+                        <Link to="/instruments" className="nav-link py-2" onClick={() => setIsMobileMenuOpen(false)}>Instruments</Link>
                         <Link to="/how-it-works" className="nav-link py-2" onClick={() => setIsMobileMenuOpen(false)}>How It Works</Link>
                         <Link to="/glossary" className="nav-link py-2" onClick={() => setIsMobileMenuOpen(false)}>Glossary</Link>
                       </>

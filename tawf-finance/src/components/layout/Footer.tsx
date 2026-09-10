@@ -21,6 +21,7 @@ const foundationLinks = [
 ];
 
 const resourceLinks = [
+  { name: 'Instruments', href: '/instruments' },
   { name: 'Glossary', href: '#' },
   { name: 'Research', href: '#' },
   { name: 'Contact', href: '#' },
