@@ -154,7 +154,19 @@ export function Instruments() {
 
       {/* Honest footer note */}
       <Section className="py-16 border-t border-tawf-green/10">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-3xl mx-auto space-y-6">
+          <Card className="p-8 bg-white border border-tawf-green/10">
+            <h2 className="font-serif text-xl text-tawf-green mb-3">Substance over form</h2>
+            <p className="text-tawf-muted text-sm leading-relaxed">
+              The standing critique of Islamic finance is that products can be Islamic in legal
+              form but conventional in economic substance. Tawf treats that as the risk to beat,
+              not a detail. The status labels exist so nothing is presented as more than it is,
+              equity-based structures (musyarakah, wakalah) are preferred over debt-like ones for
+              genuine risk sharing, and any sukuk is targeted as asset-backed with a true sale
+              rather than a bond in disguise. Every akad here is referenced to a DSN-MUI fatwa and
+              reviewed by a partner bank DPS before it is called live.
+            </p>
+          </Card>
           <Card className="p-8 bg-tawf-green text-tawf-sand">
             <h2 className="font-serif text-xl mb-3">How to read the status labels</h2>
             <ul className="space-y-3 text-sm text-tawf-sand/90">

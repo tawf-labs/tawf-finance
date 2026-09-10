@@ -5,12 +5,17 @@ export function Glossary() {
   const terms = [
     {
       term: 'Akad (Aqd)',
-      definition: 'A contract or agreement in Islamic finance. In Tawf Finance, this refers to the agreement between investor and MSME for profit-sharing investment.',
+      definition: 'A contract or agreement in Islamic finance. In Tawf Finance, this refers to the sell-down agreement between the investor pool and the originating BPRS, reviewed by the bank\'s DPS.',
       category: 'General',
     },
     {
       term: 'Bai Al-Inah',
-      definition: 'A financing arrangement where the financier buys an asset from the customer on a deferred payment basis and immediately sells it back to the customer on a cash basis at a lower price.',
+      definition: 'A credit sale with immediate spot repurchase between the same parties. Widely viewed as a legal stratagem that replicates an interest-bearing loan, so Tawf does not use it.',
+      category: 'Contracts',
+    },
+    {
+      term: 'Tawarruq (Commodity Murabaha)',
+      definition: 'A credit purchase followed by an onward spot sale to a third party to raise cash. Organized tawarruq was ruled a stratagem by the OIC Fiqh Academy (2009). Following the Oman precedent, Tawf avoids it.',
       category: 'Contracts',
     },
     {
@@ -69,6 +74,16 @@ export function Glossary() {
       category: 'Products',
     },
     {
+      term: 'Form vs Substance',
+      definition: 'The core critique of Islamic finance: a product can be Islamic in legal form yet conventional in economic substance. Tawf treats avoiding this as a design goal, favouring genuine risk sharing and asset-backing over legal engineering.',
+      category: 'General',
+    },
+    {
+      term: 'Asset-Backed vs Asset-Based Sukuk',
+      definition: 'Asset-backed sukuk involve a true sale, so holders own the underlying asset and returns derive from it. Asset-based sukuk keep recourse to the originator and behave like conventional bonds. Tawf targets asset-backed structures.',
+      category: 'Products',
+    },
+    {
       term: 'Wakalah bil Istithmar',
       definition: 'An investment-agency akad in which an agent invests capital on behalf of a principal for a fee. One of the two candidate sell-down structures Tawf uses.',
       category: 'Contracts',
@@ -90,7 +105,7 @@ export function Glossary() {
     },
     {
       term: 'Sukuk',
-      definition: 'Islamic bonds representing ownership in a tangible asset or project. For a BPRS, issuance under POJK 7/2024 Art 35 requires IDR 80bn+ core capital, so it is Tawf\'s tier-2 product, not the first.',
+      definition: 'Islamic investment certificates representing undivided ownership in real assets (not bonds). Tawf targets asset-backed sukuk. For a BPRS, issuance under POJK 7/2024 Art 35 requires IDR 80bn+ core capital, so it is Tawf\'s tier-2 product, not the first.',
       category: 'Products',
     },
     {

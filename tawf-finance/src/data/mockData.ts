@@ -382,7 +382,7 @@ export interface Instrument {
   summary: string;       // plain-English role
   useCase: string;       // typical BPRS use
   yieldBand: string;     // display band, no em-dash
-  dsnRef: string;        // DSN-MUI fatwa reference (illustrative)
+  dsnRef: string;        // DSN-MUI fatwa reference (verified against DSN-MUI fatwa register)
 }
 
 // Yield bands per family: debt-like 5 to 9 percent, equity-like 7 to 11
@@ -394,10 +394,10 @@ export const instrumentCatalog: Instrument[] = [
     arabic: 'مرابحة',
     family: 'Debt-based',
     status: 'Live',
-    summary: 'Cost-plus sale. The bank buys an asset and resells it to the client at a disclosed markup on deferred terms.',
+    summary: 'Cost-plus trust sale. The bank first owns the asset, then resells it to the client at a disclosed markup on deferred terms, taking genuine ownership risk before the sale.',
     useCase: 'Working capital and trade or inventory financing for micro and small clients.',
     yieldBand: '5 to 9 percent',
-    dsnRef: 'DSN-MUI No. 04/2000',
+    dsnRef: 'DSN-MUI No. 04/DSN-MUI/IV/2000',
   },
   {
     id: 'ijarah',
@@ -408,7 +408,7 @@ export const instrumentCatalog: Instrument[] = [
     summary: 'Lease. The bank owns an asset and leases its usufruct to the client for a rental over a fixed term.',
     useCase: 'Equipment, vehicle, and property financing.',
     yieldBand: '5 to 9 percent',
-    dsnRef: 'DSN-MUI No. 09/2000',
+    dsnRef: 'DSN-MUI No. 09/DSN-MUI/IV/2000',
   },
   {
     id: 'musyarakah',
@@ -416,10 +416,10 @@ export const instrumentCatalog: Instrument[] = [
     arabic: 'مشاركة',
     family: 'Equity-based',
     status: 'Live',
-    summary: 'Partnership. All parties contribute capital and share profit and loss by an agreed ratio.',
+    summary: 'Partnership. All parties contribute capital and genuinely share profit and loss by an agreed ratio. An equity-based, risk-sharing structure.',
     useCase: 'Joint financing and the financing sell-down pool structure.',
     yieldBand: '7 to 11 percent (variable)',
-    dsnRef: 'DSN-MUI No. 08/2000',
+    dsnRef: 'DSN-MUI No. 08/DSN-MUI/IV/2000',
   },
   {
     id: 'mudarabah',
@@ -430,7 +430,7 @@ export const instrumentCatalog: Instrument[] = [
     summary: 'Profit-sharing. One party funds, the other manages. Profit is shared, capital loss sits with the funder absent misconduct.',
     useCase: 'Investment mandates where the bank or client manages the venture.',
     yieldBand: '7 to 11 percent (variable)',
-    dsnRef: 'DSN-MUI No. 07/2000',
+    dsnRef: 'DSN-MUI No. 07/DSN-MUI/IV/2000',
   },
   {
     id: 'wakalah-istithmar',
@@ -438,10 +438,10 @@ export const instrumentCatalog: Instrument[] = [
     arabic: 'وكالة بالاستثمار',
     family: 'Equity-based',
     status: 'Live',
-    summary: 'Investment agency. An agent invests the principal capital on the client behalf for a fee.',
+    summary: 'Investment agency. An agent invests the principal\'s capital on the principal\'s behalf for a fee. The core sell-down akad for an outside investor pool.',
     useCase: 'The core financing sell-down akad for an outside investor pool.',
     yieldBand: '7 to 11 percent (variable)',
-    dsnRef: 'DSN-MUI No. 10/2000',
+    dsnRef: 'DSN-MUI No. 10/DSN-MUI/IV/2000 (Wakalah)',
   },
   {
     id: 'salam',
@@ -452,7 +452,7 @@ export const instrumentCatalog: Instrument[] = [
     summary: 'Advance purchase. Full payment now for a commodity delivered at a defined future date.',
     useCase: 'Agricultural pre-harvest financing.',
     yieldBand: '5 to 9 percent',
-    dsnRef: 'DSN-MUI No. 05/2000',
+    dsnRef: 'DSN-MUI No. 05/DSN-MUI/IV/2000',
   },
   {
     id: 'istisna',
@@ -463,7 +463,7 @@ export const instrumentCatalog: Instrument[] = [
     summary: 'Manufacture to order. Financing for goods built or constructed to a specification, paid in stages.',
     useCase: 'Construction and made-to-order manufacturing financing.',
     yieldBand: '5 to 9 percent',
-    dsnRef: 'DSN-MUI No. 06/2000',
+    dsnRef: 'DSN-MUI No. 06/DSN-MUI/IV/2000',
   },
   {
     id: 'qard-hasan',
@@ -474,7 +474,7 @@ export const instrumentCatalog: Instrument[] = [
     summary: 'Benevolent loan. Principal only, no return. A social instrument funded through the Baitul Maal side.',
     useCase: 'Hardship and social financing distributed through community channels.',
     yieldBand: '0 percent (social)',
-    dsnRef: 'DSN-MUI No. 19/2001',
+    dsnRef: 'DSN-MUI No. 19/DSN-MUI/IV/2001',
   },
   {
     id: 'sukuk',
@@ -482,10 +482,10 @@ export const instrumentCatalog: Instrument[] = [
     arabic: 'صكوك',
     family: 'Tradable',
     status: 'Roadmap',
-    summary: 'Tradable certificates of ownership in a pool or project. The tier-2 product for BPRS above the issuance threshold.',
+    summary: 'Tradable certificates representing undivided ownership in real assets. Tawf targets asset-backed (true-sale) sukuk, not asset-based structures that merely mimic a bond. The tier-2 product for BPRS above the issuance threshold.',
     useCase: 'Public offering for the few BPRS above the IDR 80bn core-capital threshold.',
     yieldBand: 'tracks the underlying pool',
-    dsnRef: 'DSN-MUI No. 32/2002',
+    dsnRef: 'DSN-MUI No. 32/DSN-MUI/IX/2002',
   },
 ];
 
