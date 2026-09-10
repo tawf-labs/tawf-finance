@@ -5,12 +5,19 @@ import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
 
 /**
  * @title DealRegistry
- * @notice On-chain ledger of community Green Sukuk deals (warung purchase
- *         orders funded by retail investors).
+ * @notice On-chain ledger of BPRS financing sell-down pools (a licensed
+ *         Shariah bank sells down economic exposure to a pool of the financing
+ *         it originates and services, funded by an outside investor pool).
  *
  * @dev No funds are ever held by this contract — it is the source of truth
- *      for deal lifecycle state. The RedemptionVault moves money and mints
+ *      for pool lifecycle state. The RedemptionVault moves money and mints
  *      receipts; the BondReceiptNFT stores investor-level receipt metadata.
+ *
+ *      Naming note: identifiers (DealRegistry, Deal, BmtApproved, bmtOriginator)
+ *      are retained from the original code so the tested state machine and the
+ *      frontend ABIs stay intact. Read a "deal" as a financing pool,
+ *      `BmtApproved` as originator/DPS-approved, and `bmtOriginator` as the
+ *      originating BPRS.
  *
  *      State machine:
  *          Submitted → BmtApproved → Mintable → Active → Matured → Completed
@@ -18,26 +25,26 @@ import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
  *                                                          Defaulted
  *
  *      MVP access model: the owner (Tawf Labs) drives every transition.
- *      The roadmap replaces this with BMTGateway.sol (originator role) and
+ *      The roadmap replaces this with an originator gateway (BPRS role) and
  *      SekuritasOracle.sol (EIP-712 + 48h timelock for the regulated issuer).
  */
 contract DealRegistry is Ownable {
     enum DealStatus {
-        Submitted,    // 0 — deal submitted by a BMT originator
-        BmtApproved,  // 1 — cooperative underwriting approved
-        Mintable,     // 2 — issuance confirmed; investors may fund
-        Active,       // 3 — funding target reached; working capital live
-        Matured,      // 4 — repayment received; redemptions open
+        Submitted,    // 0 — pool submitted by a BPRS originator
+        BmtApproved,  // 1 — originator/DPS approved (akad reviewed)
+        Mintable,     // 2 — sell-down confirmed; investors may fund
+        Active,       // 3 — funding target reached; capacity released
+        Matured,      // 4 — servicer remittance received; redemptions open
         Completed,    // 5 — all receipts redeemed/burned
-        Defaulted     // 6 — deal failed; principal-only return
+        Defaulted     // 6 — pool failed; principal-only return
     }
 
     struct Deal {
         uint256 id;
-        bytes32 invoiceHash;       // SHA-256 of the underlying invoice (IPFS pin)
-        string supplierName;       // e.g. "Warung Sari Rejeki"
-        string anchorBuyer;        // e.g. "Indomaret" / "Alfamart"
-        address bmtOriginator;     // cooperative that underwrote the deal
+        bytes32 invoiceHash;       // SHA-256 of the akad + pool-composition doc (IPFS pin)
+        string supplierName;       // financing segment, e.g. "Micro-Trade Financing Segment"
+        string anchorBuyer;        // originating BPRS, e.g. "BPRS Amanah Ummah"
+        address bmtOriginator;     // BPRS that originated and services the financing
         uint96 apyBps;             // annualized yield in basis points (1200 = 12%)
         uint32 durationDays;       // 30–90
         uint96 minInvestment;      // in USDC base units (6 decimals)
@@ -98,7 +105,7 @@ contract DealRegistry is Ownable {
      * @param invoiceHash_      SHA-256 hash of the invoice document
      * @param supplierName_     Business receiving working capital
      * @param anchorBuyer_      Buyer of the goods (the repayment source)
-     * @param bmtOriginator_    Cooperative that underwrote the deal
+     * @param bmtOriginator_    BPRS that originated and services the financing
      * @param apyBps_           Annualized yield in basis points
      * @param durationDays_     Deal duration in days
      * @param minInvestment_    Minimum ticket size (USDC base units)
@@ -148,7 +155,7 @@ contract DealRegistry is Ownable {
         emit DealCreated(id, supplierName_, anchorBuyer_, invoiceHash_);
     }
 
-    /// @notice Cooperative underwriting approval (Submitted → BmtApproved).
+    /// @notice Originator/DPS approval (Submitted → BmtApproved).
     function approveDeal(uint256 id) external onlyOwner {
         _requireStatus(id, DealStatus.Submitted);
         _transition(id, DealStatus.BmtApproved);

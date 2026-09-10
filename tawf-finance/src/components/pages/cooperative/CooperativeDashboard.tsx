@@ -23,14 +23,14 @@ export function CooperativeDashboard() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="font-serif text-3xl text-tawf-green mb-2">Cooperative Dashboard</h1>
+        <h1 className="font-serif text-3xl text-tawf-green mb-2">BPRS Originator Dashboard</h1>
         <p className="text-tawf-muted">Manage business verifications and partnerships</p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Active Deals"
+          title="Active Sell-Downs"
           value={cooperativeStats?.activeDeals || 0}
           change={2}
           changeType="absolute"
@@ -38,7 +38,7 @@ export function CooperativeDashboard() {
           color="green"
         />
         <StatCard
-          title="Verified Businesses"
+          title="Approved Segments"
           value={cooperativeStats?.verifiedBusinesses || 0}
           change={3}
           changeType="absolute"
@@ -46,14 +46,14 @@ export function CooperativeDashboard() {
           color="gold"
         />
         <StatCard
-          title="Total Disbursed"
+          title="Total Sold Down"
           value={formatCurrency(cooperativeStats?.totalDisbursed || 0)}
           change={12}
           icon={<TrendingUp className="w-5 h-5" />}
           color="blue"
         />
         <StatCard
-          title="Member Count"
+          title="Staff Count"
           value={cooperativeStats?.memberCount || 0}
           icon={<Users className="w-5 h-5" />}
           color="purple"
@@ -70,7 +70,7 @@ export function CooperativeDashboard() {
             <div className="flex-1">
               <h3 className="font-medium text-yellow-800">Pending Verifications</h3>
               <p className="text-sm text-yellow-700">
-                You have {cooperativeStats?.pendingVerifications} purchase orders awaiting verification
+                You have {cooperativeStats?.pendingVerifications} pool tranches awaiting DPS approval
               </p>
             </div>
             <Link to="/cooperative/verification">
@@ -120,10 +120,10 @@ export function CooperativeDashboard() {
           </div>
         </Card>
 
-        {/* Recently Verified Businesses */}
+        {/* Recently Approved Segments */}
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-serif text-xl text-tawf-green">Verified Businesses</h2>
+            <h2 className="font-serif text-xl text-tawf-green">Approved Segments</h2>
             <Link to="/cooperative/businesses" className="text-sm text-tawf-gold hover:underline">
               View All
             </Link>
@@ -161,10 +161,10 @@ export function CooperativeDashboard() {
         <h2 className="font-serif text-xl text-tawf-green mb-4">Recent Activity</h2>
         <div className="space-y-4">
           {[
-            { action: 'Verified PO', business: 'Warung Berkah', time: '2 hours ago', type: 'success' },
-            { action: 'New business registered', business: 'Tani Makmur', time: '5 hours ago', type: 'info' },
-            { action: 'Funded PO', business: 'Jamu Herbal Sehat', time: '1 day ago', type: 'success' },
-            { action: 'Disbursed funds', business: 'Kerajinan Nusantara', time: '2 days ago', type: 'info' },
+            { action: 'Approved pool tranche', business: 'Micro-Trade Financing Segment', time: '2 hours ago', type: 'success' },
+            { action: 'New segment registered', business: 'Agri Financing Segment', time: '5 hours ago', type: 'info' },
+            { action: 'Funded pool tranche', business: 'Consumer Financing Segment', time: '1 day ago', type: 'success' },
+            { action: 'Remitted collections', business: 'SME Financing Segment', time: '2 days ago', type: 'info' },
           ].map((activity, index) => (
             <div key={index} className="flex items-center gap-4">
               <div className={`p-2 rounded-lg ${activity.type === 'success' ? 'bg-green-50' : 'bg-blue-50'}`}>
@@ -209,8 +209,8 @@ export function CooperativeDashboard() {
             <Building2 className="w-5 h-5 text-tawf-gold" />
           </div>
           <div className="flex-1">
-            <p className="font-medium text-tawf-green">Businesses</p>
-            <p className="text-xs text-tawf-muted">View MSMEs</p>
+            <p className="font-medium text-tawf-green">Segments</p>
+            <p className="text-xs text-tawf-muted">View financing segments</p>
           </div>
         </Link>
 

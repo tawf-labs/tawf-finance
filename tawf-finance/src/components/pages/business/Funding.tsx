@@ -161,8 +161,8 @@ export function Funding() {
         <h2 className="font-serif text-xl text-tawf-green mb-4">How Funding Works</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[
-            { step: '1', title: 'Create PO', desc: 'Submit a purchase order with your chosen vendor' },
-            { step: '2', title: 'Verification', desc: 'Cooperative verifies the PO and business details' },
+            { step: '1', title: 'Assemble Pool', desc: 'The BPRS assembles a defined pool of financing it services' },
+            { step: '2', title: 'DPS Review', desc: 'The bank\'s DPS reviews the sell-down akad and pool details' },
             { step: '3', title: 'Funding', desc: 'Investor pool funds the verified PO' },
             { step: '4', title: 'Repayment', desc: 'Repay as your sales come in, profit-sharing' },
           ].map((item) => (

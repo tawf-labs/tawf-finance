@@ -1,7 +1,7 @@
 # tawf.finance
 
-> **Ethical, Shariah-aligned investing for Southeast Asia's underserved economy, built on Arbitrum.**
-> Earn real returns by funding local businesses, starting from $10. Transparent, on-chain, and grounded in real trade, with a Shariah-aligned secondary market on the roadmap.
+> **Originator-side Islamic capital-markets infrastructure for Indonesian BPRS, built on Arbitrum.**
+> A licensed Shariah bank sells down a pool of its financing to an outside investor pool through a compliant akad. Take exposure from $10. Transparent, on-chain, and grounded in real serviced financing, with a Shariah-aligned secondary market on the roadmap.
 
 Governed by [Tawf Foundation](https://tawf.foundation) · Shariah-Aligned · Arbitrum (EVM / Solidity)
 
@@ -29,24 +29,27 @@ Governed by [Tawf Foundation](https://tawf.foundation) · Shariah-Aligned · Arb
 
 ### The Problem
 
-**Traditional finance excludes 64M+ MSMEs across Southeast Asia.** Local businesses such as warungs, farms, and craft makers cannot access capital through banks. They're too small, too informal, or in regions major institutions ignore.
+**Indonesia's Shariah rural banks (BPRS) are structurally squeezed.** LPS caps their guaranteed deposit rate at 6.25% versus 3.75% for commercial banks, and they can only collect deposits inside their own operating area. They pay more for funding, can't reach beyond their district, and lose the micro segment to larger banks moving downmarket. Consolidation (POJK 7/2026) puts a clock on it. The binding constraint: they cannot grow their financing book without balance-sheet capacity they don't have.
 
-**DeFi has failed them.** Existing yield products are speculative, volatile, and disconnected from the real economy. They don't serve the businesses that actually need capital, and they don't create real-world impact.
+**DeFi hasn't served them.** Existing yield products are speculative, volatile, and disconnected from the real economy. There is no low-minimum, verifiable way for investors to take exposure to real, OJK-supervised Shariah bank financing.
 
 ### Our Solution
 
-We're rebuilding **Baitul Tamwil** (an Islamic financial cooperative) for the digital age. Instead of funding speculation, we fund **real purchase orders** from local businesses to major retailers (Indomaret, Alfamart). Investors earn halal returns from real trade.
+We give a BPRS a wider funding channel. The bank originates and services Shariah financing locally; an outside investor pool takes economic exposure to a defined pool of it through a compliant akad (**wakalah bil istithmar** or **musyarakah**). The bank keeps origination and servicing revenue, releases balance-sheet capacity (CAR/BMPK relief), and gets funding priced outside its local deposit market.
 
-- **From $10**: anyone can participate in ethical finance
-- **8 to 18% APY** from real business repayments, not speculative yield
-- **Shariah-aligned**: funds real, everyday goods only
+- **From $10**: anyone can take exposure to real serviced financing
+- **Returns from serviced financing**, not speculative yield
+- **Shariah-aligned**: a sell-down akad a bank's DPS will sign
 - **On-chain receipts**: every investment mints a soulbound NFT receipt
+- **Verifiable pool**: pool size, NPF ratio, and akad compliance — without exposing any borrower (the zero-knowledge direction)
+
+> Why BPRS and not BMT: POJK 7/2024 Art 35 lets a BPRS raise in the capital market; a koperasi cannot lawfully issue to non-members. A BPRS is OJK-supervised, LPS-insured, audited, and reports into SLIK — the regulator is the attestation layer. See [`docs/regulation.md`](docs/regulation.md). Tawf's own identity stays BMT: Foundation as Baitul Maal, Labs as Baitul Tamwil.
 
 ---
 
 ## What Is tawf.finance?
 
-A digital investment platform connecting everyday investors with local MSMEs across Indonesia and Malaysia. A business submits a purchase order → a cooperative verifies it → a licensed firm issues the deal → investors fund it with USDC → when the retailer pays, investors redeem principal + yield.
+Originator-side infrastructure connecting everyday investors with licensed Indonesian BPRS. A bank originates and services a financing pool → its DPS reviews the sell-down akad → an investor pool funds it with USDC → the bank services and remits collections → investors redeem principal + profit. First product is a **financing sell-down**, not sukuk issuance (issuance is the tier-2 product for the few BPRS above the IDR 80bn threshold).
 
 ---
 
@@ -61,7 +64,7 @@ The judge-facing flow lives under `/investor` after signing in (demo login: `inv
 | **Transactions** (`/investor/transactions`) | Activity ledger of your receipts with explorer links. |
 | **Settings** (`/investor/settings`) | EVM wallet (Arbitrum Sepolia), test-USDC faucet, and identity (Didit KYC). |
 
-**Demo flow:** connect wallet → mint test USDC → invest $10+ in a live deal → soulbound `BondReceiptNFT` is minted → owner repays → redeem returns principal + yield and burns the receipt. See [`docs/demo-script.md`](docs/demo-script.md).
+**Demo flow:** connect wallet → mint test USDC → invest $10+ in a live financing pool → soulbound `BondReceiptNFT` is minted → the BPRS services and remits (`repay`) → redeem returns principal + profit and burns the receipt. See [`docs/demo-script.md`](docs/demo-script.md).
 
 ---
 

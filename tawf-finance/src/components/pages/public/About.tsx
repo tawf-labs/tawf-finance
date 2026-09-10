@@ -8,22 +8,22 @@ export function About() {
     {
       icon: <Heart className="w-8 h-8" />,
       title: 'Impact-First',
-      description: 'We prioritize positive social impact alongside financial returns, supporting MSMEs across Southeast Asia.',
+      description: 'We give licensed Shariah rural banks (BPRS) a wider funding channel, and give investors verifiable exposure to real serviced financing.',
     },
     {
       icon: <Shield className="w-8 h-8" />,
       title: 'Shariah Aligned',
-      description: 'All our financial products follow Islamic finance principles, ensuring ethical and responsible investing.',
+      description: 'Every sell-down akad (wakalah bil istithmar / musyarakah) is reviewed by the bank\'s DPS, ensuring ethical and responsible structures.',
     },
     {
       icon: <Users className="w-8 h-8" />,
-      title: 'Community Driven',
-      description: 'We empower local cooperatives to verify and support businesses in their communities.',
+      title: 'Originator-Led',
+      description: 'The BPRS keeps originating and servicing its own financing. We provide the structuring, rails, and verification.',
     },
     {
       icon: <Award className="w-8 h-8" />,
       title: 'Transparent',
-      description: 'Blockchain technology ensures every transaction is verifiable and traceable.',
+      description: 'On-chain verification of pool size, NPF ratio, and akad compliance, without exposing any borrower identity.',
     },
   ];
 
@@ -31,7 +31,7 @@ export function About() {
     { name: 'Hasan VC', role: 'Founder & CEO', bio: 'Former investment banker with 15+ years in Islamic finance' },
     { name: 'Sarah Ahmed', role: 'CTO', bio: 'Blockchain pioneer building ethical DeFi solutions' },
     { name: 'Dr. Rahman', role: 'Shariah Board Lead', bio: 'PhD in Islamic Finance, 20+ years of experience' },
-    { name: 'Dewi Lestari', role: 'Head of Operations', bio: 'Expert in MSME development across Indonesia' },
+    { name: 'Dewi Lestari', role: 'Head of Operations', bio: 'Expert in Shariah banking and BPRS operations across Indonesia' },
   ];
 
   return (
@@ -49,8 +49,9 @@ export function About() {
             <span className="block text-tawf-gold">Real Impact</span>
           </h1>
           <p className="text-tawf-muted text-lg md:text-xl leading-relaxed max-w-2xl mx-auto">
-            Tawf Finance bridges the gap between investors and micro, small, and medium enterprises,
-            following Shariah principles to create ethical financial growth for all.
+            Tawf Finance is originator-side Islamic capital-markets infrastructure. We let a licensed
+            Shariah bank (BPRS) sell down a pool of its financing to an outside investor pool through
+            a compliant akad.
           </p>
         </motion.div>
       </Section>
@@ -60,21 +61,22 @@ export function About() {
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="font-serif text-3xl text-tawf-green mb-6">Our Mission</h2>
           <p className="text-lg text-tawf-muted leading-relaxed mb-8">
-            To empower millions of underserved MSMEs across Southeast Asia with access to ethical,
-            affordable financing while enabling investors to earn competitive returns through Shariah-aligned investments.
+            To give Indonesia&apos;s capital-constrained Shariah rural banks a funding channel priced
+            outside their local deposit market, while enabling investors to take verifiable, Shariah-aligned
+            exposure to real serviced financing.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
             <div>
-              <p className="font-serif text-4xl text-tawf-green mb-2">10M+</p>
-              <p className="text-tawf-muted">MSMEs to Support</p>
+              <p className="font-serif text-4xl text-tawf-green mb-2">~175</p>
+              <p className="text-tawf-muted">BPRS in Indonesia</p>
             </div>
             <div>
-              <p className="font-serif text-4xl text-tawf-green mb-2">$50B</p>
-              <p className="text-tawf-muted">Addressable Market</p>
+              <p className="font-serif text-4xl text-tawf-green mb-2">250bp</p>
+              <p className="text-tawf-muted">Funding Cost Gap</p>
             </div>
             <div>
-              <p className="font-serif text-4xl text-tawf-green mb-2">15%</p>
-              <p className="text-tawf-muted">Target IRR</p>
+              <p className="font-serif text-4xl text-tawf-green mb-2">$10</p>
+              <p className="text-tawf-muted">Minimum Exposure</p>
             </div>
           </div>
         </div>
@@ -114,20 +116,20 @@ export function About() {
               <h3 className="font-serif text-xl text-tawf-green mb-3">Traditional Finance</h3>
               <ul className="space-y-2 text-tawf-muted">
                 <li className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> Interest-based (riba)</li>
-                <li className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> Collateral requirements</li>
-                <li className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> Complex application process</li>
-                <li className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> Hidden fees</li>
-                <li className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> No social impact tracking</li>
+                <li className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> Trapped inside one operating area</li>
+                <li className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> High, capped deposit funding cost</li>
+                <li className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> Quarterly PDF from the servicer</li>
+                <li className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> Balance sheet constrains growth</li>
               </ul>
             </Card>
             <Card className="p-6 bg-tawf-green text-tawf-sand">
               <h3 className="font-serif text-xl mb-3">Tawf Finance</h3>
               <ul className="space-y-2">
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Shariah-aligned profit sharing</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Based on business performance, not collateral</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Simple, cooperative-powered verification</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Transparent fees on blockchain</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Measurable social impact</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Shariah-aligned profit sharing via a sell-down akad</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Funding priced outside the local deposit market</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> DPS-reviewed, OJK-supervised originator</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Continuous on-chain pool verification</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Releases balance-sheet capacity to keep growing</li>
               </ul>
             </Card>
           </div>
@@ -169,8 +171,8 @@ export function About() {
                 color: 'tawf-green',
               },
               {
-                layer: 'Layer 2: Cooperative Network',
-                description: 'Local BMTs and cooperatives verify businesses using real-world relationships',
+                layer: 'Layer 2: BPRS Originator',
+                description: 'A licensed, OJK-supervised Shariah bank originates and services the financing and reports into SLIK',
                 color: 'tawf-gold',
               },
               {

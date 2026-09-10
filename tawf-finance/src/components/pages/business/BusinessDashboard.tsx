@@ -25,7 +25,7 @@ export function BusinessDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">Business Dashboard</h1>
-          <p className="text-tawf-muted">Manage purchase orders and funding</p>
+          <p className="text-tawf-muted">Manage financing pool tranches and funding</p>
         </div>
         <Link to="/business/purchase-orders">
           <button className="flex items-center gap-2 px-4 py-3 bg-tawf-green text-tawf-sand rounded-full text-sm font-medium hover:bg-tawf-green-light transition-colors">
@@ -108,10 +108,10 @@ export function BusinessDashboard() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Active Purchase Orders */}
+        {/* Active Pool Tranches */}
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-serif text-xl text-tawf-green">Active Purchase Orders</h2>
+            <h2 className="font-serif text-xl text-tawf-green">Active Pool Tranches</h2>
             <Link to="/business/purchase-orders" className="text-sm text-tawf-gold hover:underline">
               View All
             </Link>
@@ -120,7 +120,7 @@ export function BusinessDashboard() {
             {activePOs.length === 0 ? (
               <div className="text-center py-8">
                 <FileText className="w-12 h-12 text-tawf-muted mx-auto mb-2" />
-                <p className="text-tawf-muted">No active purchase orders</p>
+                <p className="text-tawf-muted">No active pool tranches</p>
               </div>
             ) : (
               activePOs.slice(0, 3).map((po) => (
@@ -150,10 +150,10 @@ export function BusinessDashboard() {
           </div>
         </Card>
 
-        {/* Pending Purchase Orders */}
+        {/* Pending Pool Tranches */}
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-serif text-xl text-tawf-green">Pending POs</h2>
+            <h2 className="font-serif text-xl text-tawf-green">Pending Tranches</h2>
             <Link to="/business/purchase-orders" className="text-sm text-tawf-gold hover:underline">
               View All
             </Link>
@@ -161,7 +161,7 @@ export function BusinessDashboard() {
           <div className="space-y-3">
             {pendingPOs.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-tawf-muted">No pending purchase orders</p>
+                <p className="text-tawf-muted">No pending pool tranches</p>
               </div>
             ) : (
               pendingPOs.slice(0, 3).map((po) => (

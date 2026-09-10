@@ -36,25 +36,25 @@ export function Register() {
     investor: {
       title: 'Investor',
       icon: <User className="w-8 h-8" />,
-      description: 'Earn returns while supporting MSMEs',
+      description: 'Take exposure to BPRS financing pools',
       color: 'bg-tawf-green',
     },
     business: {
-      title: 'Business Owner',
+      title: 'Financing Segment',
       icon: <Store className="w-8 h-8" />,
-      description: 'Get funding for your MSME',
+      description: 'Manage a BPRS financing segment',
       color: 'bg-tawf-gold',
     },
     cooperative: {
-      title: 'Cooperative (BMT)',
+      title: 'BPRS Originator',
       icon: <Building className="w-8 h-8" />,
-      description: 'Verify and fund local businesses',
+      description: 'Originate, service, and sell down financing',
       color: 'bg-blue-500',
     },
     issuer: {
       title: 'Licensed Issuer',
       icon: <Shield className="w-8 h-8" />,
-      description: 'Approve, mint, repay, and mature deals',
+      description: 'Approve, mint, service, and mature pools',
       color: 'bg-purple-500',
     },
   };

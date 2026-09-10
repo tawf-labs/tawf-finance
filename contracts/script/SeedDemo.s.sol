@@ -5,8 +5,8 @@ import { Script, console2 } from "forge-std/Script.sol";
 import { DealRegistry } from "../src/DealRegistry.sol";
 
 /**
- * @notice Seeds three realistic warung deals into the registry and brings
- *         them to Mintable so the investor portal has a populated market.
+ * @notice Seeds three realistic BPRS financing pools into the registry and
+ *         brings them to Mintable so the investor portal has a populated market.
  *
  * @dev Must be run by the registry owner (same key as Deploy).
  *
@@ -15,31 +15,36 @@ import { DealRegistry } from "../src/DealRegistry.sol";
  *          --private-key $PRIVATE_KEY --broadcast -vvvv \
  *          --sig "run(address)" $DEAL_REGISTRY
  *
- *      Deal economics are taken from the tawf-finance roadmap: 8-18%
- *      annualized yield, 30-90 day cycles, USD 10 minimum, Indomaret /
- *      Alfamart / distributor anchor buyers.
+ *      Each "deal" is a financing sell-down pool: a licensed BPRS originates
+ *      and services a pool of Shariah financing, and an outside investor pool
+ *      takes economic exposure through a wakalah bil istithmar / musyarakah
+ *      akad. Economics: 30-90 day cycles, USD 10 minimum. The `supplierName`
+ *      field carries the financing segment; `anchorBuyer` carries the
+ *      originating BPRS.
  */
 contract SeedDemo is Script {
     function run(address registry_) external {
         DealRegistry registry = DealRegistry(registry_);
 
-        // Placeholder BMT originator (cooperative underwriter).
-        address bmt = vm.addr(12345);
+        // Placeholder BPRS originator (the licensed servicing bank).
+        // (Struct field is `bmtOriginator` to mirror the deployed Solidity.)
+        address bprs = vm.addr(12345);
 
-        // Invoice hashes would normally be SHA-256 of the pinned invoice doc.
-        bytes32 invoice1 = keccak256("tawf-demo/warung-sari-rejeki/indomaret/PO-2026-001");
-        bytes32 invoice2 = keccak256("tawf-demo/jamu-bu-rini/alfamart/PO-2026-002");
-        bytes32 invoice3 = keccak256("tawf-demo/keripik-mbak-yuli/cv-sumber-berkah/PO-2026-003");
+        // Pool reference hashes would normally be SHA-256 of the pinned
+        // akad + pool-composition document.
+        bytes32 pool1 = keccak256("tawf-demo/bprs-amanah/micro-trade/POOL-2026-001");
+        bytes32 pool2 = keccak256("tawf-demo/bprs-barokah/agri/POOL-2026-002");
+        bytes32 pool3 = keccak256("tawf-demo/bprs-sejahtera/sme/POOL-2026-003");
 
         vm.startBroadcast();
 
-        // 1. Warung Sari Rejeki — 12% APY, 30 days, $10 min, $2,500 target.
+        // 1. BPRS Amanah — Micro-Trade Pool — 12% target, 30 days, $10 min, $2,500 target.
         uint256 id1 = registry.createDeal(
-            invoice1,
-            "Warung Sari Rejeki",
-            "Indomaret",
-            bmt,
-            1200,          // 12.00% annualized
+            pool1,
+            "Micro-Trade Financing Segment",
+            "BPRS Amanah Ummah",
+            bprs,
+            1200,          // 12.00% annualized profit rate
             30,            // 30 days
             10 * 10 ** 6,  // $10.00 min (USDC 6 decimals)
             2_500 * 10 ** 6 // $2,500 target
@@ -47,12 +52,12 @@ contract SeedDemo is Script {
         registry.approveDeal(id1);
         registry.markMintable(id1);
 
-        // 2. Jamu Bu Rini — 15% APY, 45 days, $10 min, $1,800 target.
+        // 2. BPRS Barokah — Agri Pool — 15% target, 45 days, $10 min, $1,800 target.
         uint256 id2 = registry.createDeal(
-            invoice2,
-            "Jamu Bu Rini",
-            "Alfamart",
-            bmt,
+            pool2,
+            "Agri Financing Segment",
+            "BPRS Barokah Sejahtera",
+            bprs,
             1500,
             45,
             10 * 10 ** 6,
@@ -61,12 +66,12 @@ contract SeedDemo is Script {
         registry.approveDeal(id2);
         registry.markMintable(id2);
 
-        // 3. Keripik Mbak Yuli — 9% APY, 60 days, $10 min, $3,000 target.
+        // 3. BPRS Sejahtera — SME Pool — 9% target, 60 days, $10 min, $3,000 target.
         uint256 id3 = registry.createDeal(
-            invoice3,
-            "Keripik Mbak Yuli",
-            "CV Sumber Berkah",
-            bmt,
+            pool3,
+            "SME Financing Segment",
+            "BPRS Insan Cita",
+            bprs,
             900,
             60,
             10 * 10 ** 6,
@@ -77,7 +82,7 @@ contract SeedDemo is Script {
 
         vm.stopBroadcast();
 
-        console2.log("Seeded deals:", id1, id2, id3);
+        console2.log("Seeded pools:", id1, id2, id3);
         console2.log("Registry:   ", address(registry));
     }
 }

@@ -3,51 +3,52 @@
 **Target:** Arbitrum Open House Singapore Buildathon judges. Live, on Arbitrum Sepolia.
 
 **Setup (before recording):**
-1. Deploy + verify contracts, seed demo deals (`SeedDemo.s.sol`), wire `.env`, deploy web app.
-2. Wallet A (investor) with some test USDC. Wallet B (owner) is the `owner` of the vault.
+1. Deploy + verify contracts, seed demo financing pools (`SeedDemo.s.sol`), wire `.env`, deploy web app.
+2. Wallet A (investor) with some test USDC. Wallet B (servicer/owner) is the `owner` of the vault.
 3. Log in as `investor@tawf.finance` (demo user).
 
 ---
 
 ## 0:00 to 0:20 Hook and problem (10s voiceover)
 
-> "64 million small businesses in Southeast Asia can't get bank loans. DeFi gives them speculative yield farms instead of capital. Tawf Finance funds real MSME purchase orders on Arbitrum, and investors earn halal returns from real trade, starting at $10."
+> "Indonesia's Shariah rural banks pay the highest deposit rates in the system and can only fund inside their own district, so they can't grow their financing book. Tawf Finance lets a bank sell down a pool of its financing to investors on Arbitrum, releasing balance-sheet capacity while keeping origination and servicing."
 
 *Show:* Landing hero → click "Start investing" → investor dashboard.
 
-## 0:20 to 0:50 The on-chain deals (Pools)
+## 0:20 to 0:50 The on-chain financing pools
 
 *Navigate to `/investor/pools`.*
 
-- Point at the live deals (Warung Sari Rejeki → Indomaret, 12% APY / 30d. Jamu Bu Rini → Alfamart, 15% / 45d. Keripik Mbak Yuli, 9% / 60d). Read from the `DealRegistry` contract, not mock data.
-- Tap the status filter chips (Submitted / Mintable / Active / Matured…) to show the deal lifecycle.
-- Note the anchor buyer (Indomaret, Alfamart) and the `BmtApproved` status → these are real purchase orders that a BMT has verified.
+- Point at the live pools (BPRS Amanah — micro-trade financing segment, ~14% target, 30d. BPRS Barokah — agri financing, ~15% / 45d. BPRS Sejahtera — SME manufacturing, ~12% / 60d). Read from the `DealRegistry` contract, not mock data.
+- Tap the status filter chips (Submitted / Mintable / Active / Matured…) to show the pool lifecycle.
+- Note the originator (a licensed BPRS) and the approved status → these are financing pools an OJK-supervised bank has originated and a DPS has reviewed.
 
 ## 0:50 to 1:40 Invest $10 and mint a soulbound receipt (the money shot)
 
-- Click **Invest** on "Warung Sari Rejeki".
-- Enter **$25**, show the projected yield at maturity (auto-computed from `principal · apyBps · days / 36500`).
+- Click **Invest** on "BPRS Amanah".
+- Enter **$25**, show the projected profit at maturity (auto-computed from `principal · apyBps · days / 36500`).
 - Click **Approve USDC** then **Invest** (two txs. Point at the tx hashes / Arbiscan links).
 - After confirm, jump to **Portfolio** → the position appears with a **soulbound receipt** (ERC-1155, non-transferable).
 
-> "That receipt is the proof. It is soulbound at issuance, so your money is locked to a specific real deal. Transferable instruments arrive with our Shariah-aligned secondary market."
+> "That receipt is your economic exposure to a defined pool of the bank's financing under a wakalah bil istithmar structure. It is soulbound at issuance. Transferable instruments arrive with our Shariah-aligned secondary market."
 
-## 1:40 to 2:20 Repay and redeem (close the loop)
+## 1:40 to 2:20 Servicer remits and redeem (close the loop)
 
-- Switch to Wallet B (owner), run `repay` for the deal (or call `markMatured`/`completeDeal` if time-boxed) so the deal matures.
+- Switch to Wallet B (servicer/owner), run `repay` for the pool (or `markMatured`/`completeDeal` if time-boxed) so the pool matures. This represents the BPRS servicing and remitting collections.
 - Back in **Portfolio**, the receipt flips to **Matured** and shows the exact payout (`payoutFor`).
-- Click **Redeem** → receive principal + yield, and the receipt is **burned** on-chain (show `ReceiptBurned` / explorer).
-- Optional: show a **Defaulted** deal → `claimDefault` returns principal.
+- Click **Redeem** → receive principal + profit, and the receipt is **burned** on-chain (show `ReceiptBurned` / explorer).
+- Optional: show a **Defaulted** pool → `claimDefault` returns principal.
 
-## 2:20 to 2:50 KYC and why Arbitrum
+## 2:20 to 2:50 Verification, KYC, and why Arbitrum
 
+- Show the pool metrics: **pool size, NPF ratio, akad compliance** — the properties a bank can publish continuously without exposing any borrower identity (the ZK direction).
 - Open **Settings → Wallets**: EVM wallet on Arbitrum Sepolia + test-USDC faucet.
 - Open **Identity**: show Didit KYC → "Verify identity" → hosted Didit flow (mention: reusable web3 identity, $0.33/check).
-- Why Arbitrum: "Cheap, fast, and EVM-native. We can mint a receipt for ~150k gas and move the same Solidity to Base tomorrow."
+- Why Arbitrum: "Cheap, fast, EVM-native. We mint a receipt for ~150k gas and move the same Solidity to Base tomorrow."
 
 ## 2:50 to 3:00 Close
 
-> "Real businesses. Real receipts. Real yield from trade, not speculation. Tawf Finance: ethical finance, on-chain."
+> "A licensed bank, a real financing pool, verifiable without exposing borrowers. Tawf Finance: originator-side Islamic capital markets, on-chain."
 
 ---
 

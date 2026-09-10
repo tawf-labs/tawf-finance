@@ -52,8 +52,8 @@ export function Verification() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="font-serif text-3xl text-tawf-green mb-2">Purchase Order Verification</h1>
-          <p className="text-tawf-muted">Review and verify purchase orders from MSMEs</p>
+          <h1 className="font-serif text-3xl text-tawf-green mb-2">Financing Pool Approval</h1>
+          <p className="text-tawf-muted">Review and approve financing pool tranches for sell-down</p>
         </div>
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-tawf-muted" />
@@ -111,7 +111,7 @@ export function Verification() {
           {getTabPOs().length === 0 ? (
             <div className="text-center py-12">
               <FileText className="w-16 h-16 text-tawf-muted mx-auto mb-4" />
-              <p className="text-tawf-muted">No purchase orders found</p>
+              <p className="text-tawf-muted">No financing pool tranches found</p>
             </div>
           ) : (
             getTabPOs().map((po) => (
@@ -176,7 +176,7 @@ export function Verification() {
       <Modal
         isOpen={showApproveModal}
         onClose={() => setShowApproveModal(false)}
-        title="Approve Purchase Order"
+        title="Approve Pool Tranche"
         size="md"
       >
         {selectedPO && (
@@ -191,9 +191,9 @@ export function Verification() {
             <div>
               <label className="block text-sm font-medium text-tawf-ink mb-2">Funding Source</label>
               <select className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold">
-                <option>Pool: Warung Pool</option>
-                <option>Pool: Kurban Farms Pool</option>
-                <option>Pool: Jamu & Herbal Pool</option>
+                <option>Pool: BPRS Amanah Micro-Trade Pool</option>
+                <option>Pool: BPRS Barokah Agri Financing Pool</option>
+                <option>Pool: BPRS Barokah Consumer Financing Pool</option>
               </select>
             </div>
 
@@ -218,7 +218,7 @@ export function Verification() {
       <Modal
         isOpen={showRejectModal}
         onClose={() => setShowRejectModal(false)}
-        title="Reject Purchase Order"
+        title="Reject Pool Tranche"
         size="md"
       >
         {selectedPO && (

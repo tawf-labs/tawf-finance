@@ -23,16 +23,16 @@ export function Onboarding() {
             <div className="w-24 h-24 mx-auto mb-6 bg-tawf-green-10 rounded-full flex items-center justify-center">
               <Sprout className="w-12 h-12 text-tawf-green" />
             </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Ethical Finance, Real Impact</h3>
+            <h3 className="font-serif text-2xl text-tawf-green mb-3">Verifiable Islamic Bank Financing</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Tawf Finance connects investors like you with MSMEs across Southeast Asia, following Shariah principles.
+              Tawf Finance connects investors like you with licensed Indonesian BPRS financing pools, following Shariah principles.
             </p>
           </div>
         ),
       },
       {
-        title: 'Explore Investment Pools',
-        description: 'Discover vetted MSMEs seeking funding.',
+        title: 'Explore Financing Pools',
+        description: 'Discover live BPRS financing pools.',
         content: (
           <div className="text-center py-8">
             <div className="w-24 h-24 mx-auto mb-6 bg-tawf-gold-10 rounded-full flex items-center justify-center">
@@ -60,7 +60,7 @@ export function Onboarding() {
             </div>
             <h3 className="font-serif text-2xl text-tawf-green mb-3">Real Impact, Real Stories</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Track the MSMEs you've supported, jobs created, and communities impacted by your investments.
+              Track the financing pools you've backed, the BPRS you've funded, and the capacity you've helped release.
             </p>
           </div>
         ),
@@ -90,39 +90,39 @@ export function Onboarding() {
             <div className="w-24 h-24 mx-auto mb-6 bg-tawf-green-10 rounded-full flex items-center justify-center">
               <Store className="w-12 h-12 text-tawf-green" />
             </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Grow Your MSME</h3>
+            <h3 className="font-serif text-2xl text-tawf-green mb-3">Grow Your Financing Book</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Get working capital for your business through our network of cooperatives and investors.
+              Access funding priced outside your local deposit market through our network of investors.
             </p>
           </div>
         ),
       },
       {
-        title: 'Create Purchase Orders',
-        description: 'Request funding for inventory and supplies.',
+        title: 'Create Pool Tranches',
+        description: 'Assemble financing pools for sell-down.',
         content: (
           <div className="text-center py-8">
             <div className="w-24 h-24 mx-auto mb-6 bg-tawf-gold-10 rounded-full flex items-center justify-center">
               <FileText className="w-12 h-12 text-tawf-gold" />
             </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Quick & Easy Funding</h3>
+            <h3 className="font-serif text-2xl text-tawf-green mb-3">Release Balance-Sheet Capacity</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Submit purchase orders and get verified by your cooperative for fast funding approval.
+              Assemble financing pool tranches and get them reviewed by your DPS for a compliant sell-down.
             </p>
           </div>
         ),
       },
       {
         title: 'You\'re All Set!',
-        description: 'Start requesting funding today.',
+        description: 'Start selling down financing today.',
         content: (
           <div className="text-center py-8">
             <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-tawf-green to-tawf-gold rounded-full flex items-center justify-center text-white">
               <Check className="w-12 h-12" />
             </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Ready to Get Funded?</h3>
+            <h3 className="font-serif text-2xl text-tawf-green mb-3">Ready to Sell Down?</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Your Tawf Score is {78} - complete your profile to improve it and access better rates.
+              Your Tawf Score is {78} - complete your profile to improve it and access better pricing.
             </p>
           </div>
         ),
@@ -131,30 +131,30 @@ export function Onboarding() {
     cooperative: [
       {
         title: 'Welcome to Tawf Finance!',
-        description: 'Let\'s set up your BMT cooperative dashboard.',
+        description: 'Let\'s set up your BPRS originator dashboard.',
         content: (
           <div className="text-center py-8">
             <div className="w-24 h-24 mx-auto mb-6 bg-tawf-green-10 rounded-full flex items-center justify-center">
               <Building className="w-12 h-12 text-tawf-green" />
             </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Empower Your Community</h3>
+            <h3 className="font-serif text-2xl text-tawf-green mb-3">Widen Your Funding Channel</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Verify local businesses and facilitate funding to support MSMEs in your area.
+              Sell down pools of the financing you originate and service to an outside investor pool.
             </p>
           </div>
         ),
       },
       {
-        title: 'Verify & Fund Businesses',
-        description: 'Review and approve purchase orders.',
+        title: 'Structure & Fund Pools',
+        description: 'Assemble pools and get DPS sign-off.',
         content: (
           <div className="text-center py-8">
             <div className="w-24 h-24 mx-auto mb-6 bg-blue-50 rounded-full flex items-center justify-center">
               <Check className="w-12 h-12 text-blue-600" />
             </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Build Trust & Grow</h3>
+            <h3 className="font-serif text-2xl text-tawf-green mb-3">Release Capacity, Keep Servicing</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Use your local knowledge to verify businesses and help them access the funding they need.
+              Sell down a defined pool through a compliant akad while retaining origination and servicing revenue.
             </p>
           </div>
         ),

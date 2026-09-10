@@ -7,7 +7,7 @@ export type DealStatus = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export const DEAL_STATUS_LABEL: Record<DealStatus, string> = {
   0: 'Submitted',
-  1: 'BMT Approved',
+  1: 'Originator Approved',
   2: 'Mintable',
   3: 'Active',
   4: 'Matured',

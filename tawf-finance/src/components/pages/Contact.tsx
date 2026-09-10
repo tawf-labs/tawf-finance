@@ -27,8 +27,8 @@ const itemVariants: Variants = {
 const partnershipTypes = [
   {
     icon: Building2,
-    title: 'Cooperative Partnership',
-    description: 'BMTs and cooperatives across Indonesia & Malaysia',
+    title: 'BPRS Originator Partnership',
+    description: 'Licensed Shariah rural banks looking for a wider funding channel',
   },
   {
     icon: Users,
@@ -38,7 +38,7 @@ const partnershipTypes = [
   {
     icon: Handshake,
     title: 'Strategic Alliance',
-    description: 'Technology, compliance, and distribution partners',
+    description: 'Technology, custody, compliance, and distribution partners',
   },
 ];
 
@@ -86,9 +86,9 @@ export function Contact() {
             variants={itemVariants}
             className="text-tawf-muted text-lg md:text-xl leading-relaxed"
           >
-            We're building the future of ethical finance in Southeast Asia. Join us in
-            empowering millions of underserved businesses with transparent, Shariah-aligned
-            investment opportunities.
+            We&apos;re building originator-side Islamic capital-markets infrastructure for Indonesian
+            BPRS. Partner with us to open a wider funding channel and take verifiable, Shariah-aligned
+            exposure to real serviced financing.
           </motion.p>
         </motion.div>
       </Section>
@@ -188,7 +188,7 @@ export function Contact() {
                 name="organization"
                 required
                 className="w-full px-4 py-3 rounded-lg border border-tawf-green/20 bg-white focus:border-tawf-gold focus:outline-none focus:ring-2 focus:ring-tawf-gold/20 transition-colors"
-                placeholder="Your cooperative, company, or organization"
+                placeholder="Your BPRS, company, or organization"
               />
             </div>
 
@@ -203,7 +203,7 @@ export function Contact() {
                 className="w-full px-4 py-3 rounded-lg border border-tawf-green/20 bg-white focus:border-tawf-gold focus:outline-none focus:ring-2 focus:ring-tawf-gold/20 transition-colors"
               >
                 <option value="">Select partnership type</option>
-                <option value="Cooperative Partnership">Cooperative Partnership (BMT/Koperasi)</option>
+                <option value="BPRS Originator Partnership">BPRS Originator Partnership</option>
                 <option value="Investor Partnership">Investor Partnership</option>
                 <option value="Strategic Alliance">Strategic Alliance</option>
                 <option value="Technology Partnership">Technology Partnership</option>
