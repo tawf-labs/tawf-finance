@@ -9,6 +9,7 @@ import {
   About,
   HowItWorks,
   Glossary,
+  Instruments,
   Login,
   Register,
   Onboarding,
@@ -80,6 +81,7 @@ function AppContent() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/about" element={<About />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
+          <Route path="/instruments" element={<Instruments />} />
           <Route path="/glossary" element={<Glossary />} />
 
           {/* Auth Routes */}

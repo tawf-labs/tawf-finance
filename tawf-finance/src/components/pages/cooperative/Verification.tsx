@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { Tabs } from '@/components/ui/Tabs';
 import { useMockData } from '@/hooks/useMockData';
-import { formatCurrency, formatDate, getStatusColor } from '@/data/mockData';
+import { formatCurrency, formatDate, getStatusColor, instrumentCatalog } from '@/data/mockData';
 
 export function Verification() {
   const { allPurchaseOrders } = useMockData();
@@ -186,6 +186,17 @@ export function Verification() {
               <p className="font-medium text-tawf-green">{selectedPO.businessName}</p>
               <p className="text-sm text-tawf-muted mt-3 mb-1">Amount</p>
               <p className="font-serif text-xl text-tawf-green">{formatCurrency(selectedPO.amount)}</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-tawf-ink mb-2">Instrument (akad)</label>
+              <select className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold">
+                {instrumentCatalog.map((inst) => (
+                  <option key={inst.id} disabled={inst.status === 'Roadmap'}>
+                    {inst.name} ({inst.status})
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

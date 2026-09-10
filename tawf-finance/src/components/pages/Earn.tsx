@@ -9,6 +9,7 @@ interface Pool {
   id: string;
   name: string;
   description: string;
+  instrument: string;
   apy: string;
   duration: string;
   minInvestment: string;
@@ -21,8 +22,9 @@ const pools: Pool[] = [
   {
     id: 'bprs-amanah-microtrade',
     name: 'BPRS Amanah Micro-Trade',
-    description: 'Take exposure to a pool of micro-trade financing originated and serviced by a licensed Shariah bank, under a wakalah bil istithmar akad.',
-    apy: '12-16%',
+    description: 'Take exposure to a pool of micro-trade financing originated and serviced by a licensed Shariah bank, under a murabaha structure.',
+    instrument: 'Murabaha',
+    apy: '6-8%',
     duration: '30-60 days',
     minInvestment: '$10',
     tvl: '$125,000',
@@ -33,7 +35,8 @@ const pools: Pool[] = [
     id: 'bprs-barokah-agri',
     name: 'BPRS Barokah Agri Financing',
     description: 'A pool of seasonal agricultural financing serviced by the originating BPRS. NPF ratio and akad compliance are verifiable on-chain.',
-    apy: '13-17%',
+    instrument: 'Musyarakah',
+    apy: '7-10%',
     duration: '45-90 days',
     minInvestment: '$25',
     tvl: '$89,000',
@@ -44,7 +47,8 @@ const pools: Pool[] = [
     id: 'bprs-sejahtera-sme',
     name: 'BPRS Sejahtera SME',
     description: 'Exposure to a pool of small-enterprise financing, structured as a musyarakah sell-down. The bank retains origination and servicing.',
-    apy: '11-15%',
+    instrument: 'Musyarakah',
+    apy: '8-11%',
     duration: '60-90 days',
     minInvestment: '$25',
     tvl: '$67,000',
@@ -55,7 +59,8 @@ const pools: Pool[] = [
     id: 'bprs-amanah-consumer',
     name: 'BPRS Amanah Consumer',
     description: 'A pool of Shariah consumer financing. Verify pool size, NPF ratio, and akad compliance without any borrower being exposed.',
-    apy: '10-14%',
+    instrument: 'Murabaha',
+    apy: '6-9%',
     duration: '60-90 days',
     minInvestment: '$15',
     tvl: '$45,000',
@@ -66,7 +71,8 @@ const pools: Pool[] = [
     id: 'bprs-barokah-trade',
     name: 'BPRS Barokah Trade',
     description: 'Exposure to a pool of working-capital trade financing serviced locally by the originating BPRS, funded outside its deposit market.',
-    apy: '12-16%',
+    instrument: 'Wakalah bil Istithmar',
+    apy: '7-10%',
     duration: '45-75 days',
     minInvestment: '$20',
     tvl: '$38,000',
@@ -99,9 +105,12 @@ function PoolCard({ pool }: { pool: Pool }) {
     <motion.div variants={itemVariants}>
       <Card hover className="h-full p-6">
         <div className="flex items-start justify-between mb-4">
-          <span className="text-xs uppercase tracking-wide text-tawf-green font-medium">
-            {pool.category}
-          </span>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs uppercase tracking-wide text-tawf-green font-medium">
+              {pool.category}
+            </span>
+            <span className="text-xs font-medium text-tawf-gold">{pool.instrument}</span>
+          </div>
           {pool.available ? (
             <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
               <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
