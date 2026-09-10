@@ -15,7 +15,7 @@ export function AdminUsers() {
     { id: 'all', label: 'All Users', content: null },
     { id: 'investor', label: 'Investors', content: null },
     { id: 'business', label: 'Businesses', content: null },
-    { id: 'cooperative', label: 'Cooperatives', content: null },
+    { id: 'cooperative', label: 'BPRS Originators', content: null },
     { id: 'issuer', label: 'Licensed Issuers', content: null },
     { id: 'admin', label: 'Admins', content: null },
   ];

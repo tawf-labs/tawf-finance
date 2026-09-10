@@ -13,15 +13,15 @@ export function Businesses() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="font-serif text-3xl text-tawf-green mb-2">Registered Businesses</h1>
-          <p className="text-tawf-muted">View and manage MSMEs in your network</p>
+          <h1 className="font-serif text-3xl text-tawf-green mb-2">Financing Segments</h1>
+          <p className="text-tawf-muted">View and manage the financing segments in your pools</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-tawf-muted" />
             <input
               type="text"
-              placeholder="Search businesses..."
+              placeholder="Search segments..."
               className="pl-12 pr-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
             />
           </div>

@@ -12,21 +12,21 @@ export function Members() {
   const [showAddModal, setShowAddModal] = useState(false);
 
   const members = [
-    { id: '1', name: 'Haji Abdullah', role: 'Chairman', email: 'abdullah@bmtberkat.co.id', status: 'active', joined: '2023-08-15' },
-    { id: '2', name: 'Siti Aminah', role: 'Secretary', email: 'siti@bmtberkat.co.id', status: 'active', joined: '2023-08-15' },
-    { id: '3', name: 'Budi Hartono', role: 'Treasurer', email: 'budi@bmtberkat.co.id', status: 'active', joined: '2023-09-01' },
-    { id: '4', name: 'Rahmat Hidayat', role: 'Verification Officer', email: 'rahmat@bmtberkat.co.id', status: 'active', joined: '2023-10-15' },
-    { id: '5', name: 'Dewi Sartika', role: 'Member', email: 'dewi@bmtberkat.co.id', status: 'active', joined: '2024-01-10' },
-    { id: '6', name: 'Agus Setiawan', role: 'Member', email: 'agus@bmtberkat.co.id', status: 'active', joined: '2024-02-20' },
-    { id: '7', name: 'Rina Wati', role: 'Member', email: 'rina@bmtberkat.co.id', status: 'pending', joined: '2024-03-25' },
+    { id: '1', name: 'Haji Abdullah', role: 'Direktur Utama', email: 'abdullah@bprsamanahummah.co.id', status: 'active', joined: '2023-08-15' },
+    { id: '2', name: 'Siti Aminah', role: 'Corporate Secretary', email: 'siti@bprsamanahummah.co.id', status: 'active', joined: '2023-08-15' },
+    { id: '3', name: 'Budi Hartono', role: 'Treasury', email: 'budi@bprsamanahummah.co.id', status: 'active', joined: '2023-09-01' },
+    { id: '4', name: 'Rahmat Hidayat', role: 'DPS Member', email: 'rahmat@bprsamanahummah.co.id', status: 'active', joined: '2023-10-15' },
+    { id: '5', name: 'Dewi Sartika', role: 'Servicing Officer', email: 'dewi@bprsamanahummah.co.id', status: 'active', joined: '2024-01-10' },
+    { id: '6', name: 'Agus Setiawan', role: 'Servicing Officer', email: 'agus@bprsamanahummah.co.id', status: 'active', joined: '2024-02-20' },
+    { id: '7', name: 'Rina Wati', role: 'Analyst', email: 'rina@bprsamanahummah.co.id', status: 'pending', joined: '2024-03-25' },
   ];
 
   const getRoleIcon = (role: string) => {
     switch (role) {
-      case 'Chairman': return <Crown className="w-4 h-4 text-tawf-gold" />;
-      case 'Treasurer': return <Coins className="w-4 h-4 text-tawf-gold" />;
-      case 'Secretary': return <FileText className="w-4 h-4 text-tawf-green" />;
-      case 'Verification Officer': return <Shield className="w-4 h-4 text-tawf-green" />;
+      case 'Direktur Utama': return <Crown className="w-4 h-4 text-tawf-gold" />;
+      case 'Treasury': return <Coins className="w-4 h-4 text-tawf-gold" />;
+      case 'Corporate Secretary': return <FileText className="w-4 h-4 text-tawf-green" />;
+      case 'DPS Member': return <Shield className="w-4 h-4 text-tawf-green" />;
       default: return null;
     }
   };
@@ -36,7 +36,7 @@ export function Members() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="font-serif text-3xl text-tawf-green mb-2">Cooperative Members</h1>
+          <h1 className="font-serif text-3xl text-tawf-green mb-2">Bank Staff</h1>
           <p className="text-tawf-muted">Manage {user?.organization} team members</p>
         </div>
         <Button variant="primary" size="md" onClick={() => setShowAddModal(true)}>

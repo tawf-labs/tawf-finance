@@ -112,7 +112,7 @@ Seller order
 
 ### 5.1 Primary market
 
-- BMT or Sekuritas creates a pool from eligible assets.
+- A BPRS originator (or Sekuritas, for issued instruments) creates a pool from eligible financing assets.
 - Tawf registers assets, applies the structuring engine, generates disclosures.
 - Investors subscribe and receive certificates.
 

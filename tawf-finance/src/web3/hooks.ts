@@ -352,7 +352,7 @@ export function useDefaultDeal() {
   return { defaultDeal, isPending };
 }
 
-/** MockUSDC faucet — testnet-only convenience (10,000 mUSDC). */
+/** MockUSDC faucet, testnet-only convenience (10,000 mUSDC). */
 export function useFaucet() {
   const { write, isPending } = useContractWrite();
   const faucet = useCallback(() => {

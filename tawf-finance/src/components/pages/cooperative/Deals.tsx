@@ -15,7 +15,7 @@ export function Deals() {
       {/* Header */}
       <div>
         <h1 className="font-serif text-3xl text-tawf-green mb-2">Active Deals</h1>
-        <p className="text-tawf-muted">Track funded purchase orders and repayment progress</p>
+        <p className="text-tawf-muted">Track funded pool tranches and servicer remittance progress</p>
       </div>
 
       {/* Stats */}

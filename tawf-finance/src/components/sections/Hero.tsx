@@ -38,17 +38,17 @@ export function Hero() {
           variants={itemVariants}
           className="font-serif text-5xl md:text-6xl lg:text-7xl text-tawf-green leading-[1.1] mb-6"
         >
-          We Tokenize the
-          <span className="block text-tawf-gold">Underserved Economy</span>
+          We Tokenize
+          <span className="block text-tawf-gold">Islamic Bank Financing</span>
         </motion.h1>
 
         <motion.p
           variants={itemVariants}
           className="text-tawf-muted text-lg md:text-xl leading-relaxed mb-8"
         >
-          Earn real returns while supporting local businesses across Southeast Asia.
-          Starting from <span className="text-tawf-green font-medium">$10</span>.
-          Transparent, ethical, and grounded in real trade.
+          Take exposure to a licensed Shariah bank&apos;s financing pool through a
+          compliant sell-down akad. Starting from <span className="text-tawf-green font-medium">$10</span>.
+          Transparent, verifiable, and grounded in real serviced financing.
         </motion.p>
 
         <motion.div

@@ -9,20 +9,20 @@ export function HowItWorks() {
     {
       step: '01',
       icon: <Search className="w-8 h-8" />,
-      title: 'Browse Pools',
-      description: 'Explore our curated investment pools supporting different MSME sectors across Southeast Asia.',
+      title: 'Browse Financing Pools',
+      description: 'Explore live BPRS financing pools. See pool size, NPF ratio, and akad compliance before you commit.',
     },
     {
       step: '02',
       icon: <Wallet className="w-8 h-8" />,
-      title: 'Connect & Invest',
-      description: 'Connect your wallet and invest your chosen amount. Minimum investment starts at just $10.',
+      title: 'Connect & Take Exposure',
+      description: 'Connect your wallet and take exposure to a pool from just $10. Your funds go into a secure escrow.',
     },
     {
       step: '03',
       icon: <CheckCircle className="w-8 h-8" />,
       title: 'Receive Returns',
-      description: 'Earn profit share as businesses grow. Your funds are recycled into new opportunities.',
+      description: 'The bank services and remits collections. At maturity you redeem principal and profit, and your receipt is burned.',
     },
   ];
 
@@ -30,20 +30,20 @@ export function HowItWorks() {
     {
       step: '01',
       icon: <FileText className="w-8 h-8" />,
-      title: 'Create PO',
-      description: 'Submit a purchase order for the inventory or supplies your business needs.',
+      title: 'BPRS Assembles a Pool',
+      description: 'A licensed Shariah bank assembles a defined pool of the financing it has already originated and services.',
     },
     {
       step: '02',
       icon: <Shield className="w-8 h-8" />,
-      title: 'Get Verified',
-      description: 'Your local BMT cooperatives verify your business and approve the funding request.',
+      title: 'DPS Reviews the Akad',
+      description: 'The bank\'s Dewan Pengawas Syariah reviews the sell-down akad (wakalah bil istithmar or musyarakah).',
     },
     {
       step: '03',
       icon: <TrendingUp className="w-8 h-8" />,
-      title: 'Grow Business',
-      description: 'Receive funding, fulfill orders, and repay as your revenue comes in.',
+      title: 'Release Capacity',
+      description: 'The pool is funded by outside investors, releasing CAR and BMPK capacity so the bank can keep growing its book.',
     },
   ];
 
@@ -62,8 +62,8 @@ export function HowItWorks() {
             <span className="block text-tawf-gold">Impactful Investing</span>
           </h1>
           <p className="text-tawf-muted text-lg md:text-xl leading-relaxed max-w-2xl mx-auto">
-            Our platform makes it easy to invest in MSMEs or get funding for your business,
-            all while following Shariah principles.
+            Take verifiable exposure to a licensed Shariah bank&apos;s financing pool, or give your
+            BPRS a wider funding channel, all through a compliant sell-down akad.
           </p>
         </motion.div>
       </Section>
@@ -74,7 +74,7 @@ export function HowItWorks() {
           <div className="text-center mb-12">
             <h2 className="font-serif text-3xl text-tawf-green mb-4">For Investors</h2>
             <p className="text-tawf-muted max-w-2xl mx-auto">
-              Start earning competitive returns while supporting real businesses in just a few steps
+              Take Shariah-aligned exposure to real, OJK-supervised bank financing in just a few steps
             </p>
           </div>
 
@@ -119,9 +119,9 @@ export function HowItWorks() {
       <Section className="py-16">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="font-serif text-3xl text-tawf-green mb-4">For Business Owners</h2>
+            <h2 className="font-serif text-3xl text-tawf-green mb-4">For BPRS Originators</h2>
             <p className="text-tawf-muted max-w-2xl mx-auto">
-              Access the funding you need to grow your MSME without collateral or complex paperwork
+              Access a funding channel priced outside your local deposit market and release balance-sheet capacity
             </p>
           </div>
 
@@ -169,13 +169,13 @@ export function HowItWorks() {
             </div>
             <div className="p-6 bg-tawf-sand-30 rounded-xl text-center">
               <p className="text-4xl font-serif text-tawf-green mb-2">~2-5%</p>
-              <p className="font-medium text-tawf-ink mb-1">Platform Fee</p>
-              <p className="text-sm text-tawf-muted">From profit returns to MSMEs</p>
+              <p className="font-medium text-tawf-ink mb-1">Structuring Fee</p>
+              <p className="text-sm text-tawf-muted">On each sell-down pool</p>
             </div>
             <div className="p-6 bg-tawf-sand-30 rounded-xl text-center">
               <p className="text-4xl font-serif text-tawf-green mb-2">1%</p>
-              <p className="font-medium text-tawf-ink mb-1">Cooperative Fee</p>
-              <p className="text-sm text-tawf-muted">For verification services</p>
+              <p className="font-medium text-tawf-ink mb-1">Servicing Fee</p>
+              <p className="text-sm text-tawf-muted">Retained by the BPRS servicer</p>
             </div>
           </div>
         </div>

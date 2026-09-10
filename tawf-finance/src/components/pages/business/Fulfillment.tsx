@@ -179,8 +179,8 @@ export function Fulfillment() {
         <Card className="p-12 text-center">
           <Package className="w-16 h-16 text-tawf-muted mx-auto mb-4" />
           <h3 className="font-serif text-xl text-tawf-green mb-2">No Orders Yet</h3>
-          <p className="text-tawf-muted mb-6">Create a purchase order to get started</p>
-          <Button variant="primary">Create Purchase Order</Button>
+          <p className="text-tawf-muted mb-6">Create a financing pool tranche to get started</p>
+          <Button variant="primary">Create Pool Tranche</Button>
         </Card>
       )}
     </div>

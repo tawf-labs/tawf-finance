@@ -13,19 +13,19 @@ Tawf Finance
 
 ## Tagline
 
-Shariah-aligned and ethical capital-markets infrastructure on Arbitrum. Fund real MSME purchase orders through BMTs, earn yield from trade, not speculation.
+Originator-side Islamic capital-markets infrastructure on Arbitrum. A licensed Shariah bank (BPRS) sells down a pool of its financing to an outside investor pool through a compliant akad, earning funding while releasing balance-sheet capacity.
 
 ## Elevator pitch (≤150 words)
 
-64 million small businesses in Southeast Asia can't access bank credit, while crypto funnels capital into speculative yield. Tawf Finance is Shariah-aligned and ethical capital-markets infrastructure for Islamic cooperatives (BMTs) on Arbitrum. A BMT verifies a purchase order, a licensed firm issues a deal, and investors fund it in USDC. When the retailer pays, investors redeem principal plus yield. Every investment mints a soulbound ERC-1155 receipt tied to a specific real deal. Transferability is programmable, so returns come from real trade and eligible instruments can enter a Shariah-aligned secondary market. Built with Solidity on Arbitrum Sepolia: a DealRegistry lifecycle, a soulbound BondReceiptNFT, and a RedemptionVault, with a full investor app (invest, redeem, default claim) plus Didit KYC. 66 passing contract tests. Real businesses, real receipts, real yield.
+Indonesia's Shariah rural banks (BPRS) are squeezed: LPS caps their deposit rate at 6.25% vs 3.75% for commercial banks, they can only fund inside their own operating area, and consolidation (POJK 7/2026) puts a clock on growth. Tawf Finance is originator-side infrastructure that lets a BPRS sell down a pool of its financing to an outside investor pool through a compliant akad (wakalah bil istithmar / musyarakah). The bank keeps origination and servicing revenue, releases capacity, and gets funding priced outside its local deposit market. Every investment mints a soulbound ERC-1155 receipt tied to a specific pool. Built on Arbitrum Sepolia: a DealRegistry lifecycle, a soulbound BondReceiptNFT, and a RedemptionVault, plus a full investor app and Didit KYC. 66 passing contract tests. The moat is a continuously verifiable pool — size, NPF, akad compliance — without exposing any borrower.
 
 ## Problem statement
 
-Traditional finance excludes 64M+ MSMEs across Southeast Asia. DeFi's answer is speculative and disconnected from the real economy. Impact investors lack a low-minimum, verifiable way to fund real small businesses.
+BPRS have an expensive, geographically trapped liability side and a regulatory clock, so they cannot grow their financing book. Impact investors lack a low-minimum, verifiable way to take exposure to real Shariah bank financing.
 
 ## Solution
 
-On-chain, Shariah-aligned purchase-order financing: USDC in, real deal funded, soulbound receipt, principal+yield redeemed when the retailer pays. Transferability is programmable, so eligible instruments can trade while debt-heavy pools stay non-transferable.
+On-chain financing sell-down: an outside investor pool funds a defined pool of BPRS financing via a compliant akad; the servicer remits repayments; investors redeem principal + profit. Transferability is programmable per instrument and Shariah guidance.
 
 ## How it's built (technical)
 
@@ -36,12 +36,16 @@ On-chain, Shariah-aligned purchase-order financing: USDC in, real deal funded, s
 
 ## What's deployed (Arbitrum Sepolia)
 
-- 4 contracts deployed + verified, 3 demo deals seeded (Indomaret / Alfamart / CV Sumber Berkah anchor buyers).
+- 4 contracts deployed + verified, demo financing pools seeded.
 - Web app wired to the deployed addresses. Test USDC faucet for judges.
+
+## Why it's different (Tennet)
+
+Tennet is custody — it holds keys for assets that already exist, with no DPS, no akad, no DSN-MUI relationship. Tawf is origination: it brings a BPRS financing pool into on-chain existence and structures the sell-down a bank's DPS will sign. Tennet sits below Tawf in the stack, a dependency or partner, not a competitor.
 
 ## Demo video script
 
-See [`docs/demo-script.md`](./demo-script.md). The 3-minute loop: invest, soulbound receipt, repay, redeem, burn.
+See [`docs/demo-script.md`](./demo-script.md). The 3-minute loop: invest, soulbound receipt, servicer remits, redeem, burn.
 
 ## Repo
 

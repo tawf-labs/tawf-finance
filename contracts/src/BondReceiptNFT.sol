@@ -7,7 +7,7 @@ import { Strings } from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 /**
  * @title BondReceiptNFT
- * @notice Soulbound ERC-1155 bond receipts for the Warung Economy Sukuk.
+ * @notice Soulbound ERC-1155 receipts for BPRS financing sell-down pools.
  *
  * @dev Every investment mints exactly one non-transferable receipt token
  *      (token id == deal id). Receipts can never be transferred, sold, or
@@ -238,9 +238,9 @@ contract BondReceiptNFT is ERC1155, Ownable {
             "data:application/json;base64,",
             _encodeBase64(
                 abi.encodePacked(
-                    '{"name":"Tawf Warung Sukuk Receipt #',
+                    '{"name":"Tawf BPRS Financing Receipt #',
                     Strings.toString(dealId),
-                    '","description":"Soulbound bond receipt - one real warung purchase order. Non-transferable.","attributes":[{',
+                    '","description":"Soulbound receipt - exposure to one BPRS financing sell-down pool. Non-transferable.","attributes":[{',
                     '"trait_type":"supplier","value":"',
                     _dealSupplier[dealId],
                     '"},{"trait_type":"anchor_buyer","value":"',

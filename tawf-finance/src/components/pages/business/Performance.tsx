@@ -115,7 +115,7 @@ export function Performance() {
             {[
               { factor: 'Repayment History', score: 95, weight: '40%' },
               { factor: 'Business Stability', score: 82, weight: '25%' },
-              { factor: 'Cooperative Relations', score: 88, weight: '20%' },
+              { factor: 'Servicing Track Record', score: 88, weight: '20%' },
               { factor: 'Documentation', score: 70, weight: '15%' },
             ].map((item) => (
               <div key={item.factor}>
@@ -147,7 +147,7 @@ export function Performance() {
           <div>
             <h3 className="font-medium text-tawf-green mb-1">Improve Your Score</h3>
             <p className="text-sm text-tawf-muted mb-3">
-              Complete repayments on time, maintain good documentation, and strengthen cooperative relationships to improve your Tawf Score.
+              Complete remittances on time, maintain good documentation, and strengthen your servicing track record to improve your Tawf Score.
             </p>
             <div className="flex gap-2">
               <Badge variant="info" size="sm">Upload missing documents</Badge>

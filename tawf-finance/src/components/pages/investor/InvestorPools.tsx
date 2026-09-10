@@ -42,7 +42,7 @@ function DealCard({ deal, onInvest }: { deal: Deal; onInvest: (deal: Deal) => vo
 
       <h3 className="font-serif text-xl text-tawf-green mb-2">{deal.supplierName}</h3>
       <p className="text-tawf-muted text-sm leading-relaxed mb-4">
-        Purchase order funded by <span className="text-tawf-green font-medium">{deal.anchorBuyer}</span>. Yield
+        Financing pool serviced by <span className="text-tawf-green font-medium">{deal.anchorBuyer}</span>. Profit
         repaid from real trade, not speculation.
       </p>
 
@@ -162,7 +162,7 @@ export function InvestorPools() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">Investment Pools</h1>
-          <p className="text-tawf-muted">Fund real MSME purchase orders from $10</p>
+          <p className="text-tawf-muted">Take exposure to real BPRS financing pools from $10</p>
         </div>
         <div className="flex items-center gap-3">
           <GetTestUsdc />

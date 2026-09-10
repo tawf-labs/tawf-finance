@@ -13,12 +13,12 @@ export function CooperativeSettings() {
       {/* Header */}
       <div>
         <h1 className="font-serif text-3xl text-tawf-green mb-2">Settings</h1>
-        <p className="text-tawf-muted">Manage your cooperative profile and preferences</p>
+        <p className="text-tawf-muted">Manage your BPRS originator profile and preferences</p>
       </div>
 
       {/* Profile Section */}
       <Card className="p-6">
-        <h3 className="font-serif text-xl text-tawf-green mb-4">Cooperative Profile</h3>
+        <h3 className="font-serif text-xl text-tawf-green mb-4">BPRS Originator Profile</h3>
 
         <div className="flex items-center gap-6 p-6 bg-tawf-sand-30 rounded-xl mb-6">
           <div className="p-4 bg-white rounded-xl">
@@ -37,7 +37,7 @@ export function CooperativeSettings() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-tawf-ink mb-2">Cooperative Name</label>
+            <label className="block text-sm font-medium text-tawf-ink mb-2">Bank Name</label>
             <input
               type="text"
               defaultValue={user?.organization}
@@ -45,11 +45,11 @@ export function CooperativeSettings() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-tawf-ink mb-2">Cooperative Type</label>
+            <label className="block text-sm font-medium text-tawf-ink mb-2">Institution Type</label>
             <select className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold">
-              <option>BMT (Baitul Maal wat Tamwil)</option>
-              <option>Koperasi Simpan Pinjam</option>
-              <option>Koperasi Syariah</option>
+              <option>BPRS (Bank Pembiayaan Rakyat Syariah)</option>
+              <option>BPR Syariah (Unit Konvensional)</option>
+              <option>Sekuritas Partner</option>
             </select>
           </div>
           <div>
@@ -81,7 +81,7 @@ export function CooperativeSettings() {
             </label>
             <input
               type="url"
-              placeholder="https://yourcooperative.co.id"
+              placeholder="https://yourbprs.co.id"
               className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
             />
           </div>
@@ -92,7 +92,7 @@ export function CooperativeSettings() {
             </label>
             <textarea
               rows={2}
-              placeholder="Full cooperative address"
+              placeholder="Full bank head-office address"
               className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
             />
           </div>
@@ -110,7 +110,7 @@ export function CooperativeSettings() {
         <div className="space-y-4">
           <div className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">
             <div>
-              <p className="font-medium text-tawf-green">Auto-approve Verified Businesses</p>
+              <p className="font-medium text-tawf-green">Auto-approve DPS-Reviewed Pools</p>
               <p className="text-sm text-tawf-muted">Approve businesses that pass automated checks</p>
             </div>
             <button className="w-12 h-6 rounded-full bg-tawf-green relative">
@@ -137,9 +137,9 @@ export function CooperativeSettings() {
         </div>
         <div className="space-y-3">
           {[
-            { name: 'Ahmad Rahman', role: 'Chairperson', email: 'ahmad@bmtberkat.co.id' },
-            { name: 'Siti Nurhaliza', role: 'Verification Officer', email: 'siti@bmtberkat.co.id' },
-            { name: 'Budi Santoso', role: 'Finance', email: 'budi@bmtberkat.co.id' },
+            { name: 'Ahmad Rahman', role: 'Direktur Utama', email: 'ahmad@bprsamanahummah.co.id' },
+            { name: 'Siti Nurhaliza', role: 'Servicing Officer', email: 'siti@bprsamanahummah.co.id' },
+            { name: 'Budi Santoso', role: 'Finance', email: 'budi@bprsamanahummah.co.id' },
           ].map((member, index) => (
             <div key={index} className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">
               <div className="flex items-center gap-3">

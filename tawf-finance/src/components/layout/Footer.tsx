@@ -2,11 +2,11 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
 const investmentPools = [
-  { name: 'Kurban Farms Pool', href: '/earn' },
-  { name: 'Warung Pool', href: '/earn' },
-  { name: 'Jamu & Herbal Pool', href: '/earn' },
-  { name: 'Organic Food Pool', href: '/earn' },
-  { name: 'Artisan Goods Pool', href: '/earn' },
+  { name: 'BPRS Amanah Micro-Trade', href: '/earn' },
+  { name: 'BPRS Barokah Agri Financing', href: '/earn' },
+  { name: 'BPRS Sejahtera SME', href: '/earn' },
+  { name: 'BPRS Amanah Consumer', href: '/earn' },
+  { name: 'BPRS Barokah Trade', href: '/earn' },
 ];
 
 const platformLinks = [
@@ -71,8 +71,8 @@ export function Footer() {
           >
             <h2 className="text-2xl font-bold text-white mb-3">Tawf Labs</h2>
             <p className="text-white/60 text-sm leading-relaxed mb-6">
-              We tokenize the underserved economy. Invest and earn real yield while
-              providing working capital for Southeast Asian MSMEs.
+              Originator-side Islamic capital-markets infrastructure. Take verifiable exposure
+              to a licensed Shariah bank&apos;s financing pool through a compliant sell-down akad.
             </p>
             <p className="text-white/40 text-sm">Governed by Tawf Foundation</p>
           </motion.div>

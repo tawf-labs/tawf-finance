@@ -62,14 +62,14 @@ export function AdminSettings() {
                 <p className="text-xs text-tawf-muted mt-1">Fee charged on all transactions</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-tawf-ink mb-2">Cooperative Fee (%)</label>
+                <label className="block text-sm font-medium text-tawf-ink mb-2">Servicing Fee (%)</label>
                 <input
                   type="number"
                   step="0.1"
                   defaultValue="1.0"
                   className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
                 />
-                <p className="text-xs text-tawf-muted mt-1">Fee for cooperative services</p>
+                <p className="text-xs text-tawf-muted mt-1">Fee retained by the BPRS servicer</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-tawf-ink mb-2">Min Investment ($)</label>

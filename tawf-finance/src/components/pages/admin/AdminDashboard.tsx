@@ -17,11 +17,11 @@ export function AdminDashboard() {
   const { adminStats, systemAlerts } = useMockData();
 
   const recentActivity = [
-    { action: 'New user registered', user: 'Tani Makmur', time: '5 min ago', type: 'user' },
-    { action: 'PO approved', user: 'BMT Berkat', time: '15 min ago', type: 'po' },
+    { action: 'New originator registered', user: 'BPRS Insan Cita', time: '5 min ago', type: 'user' },
+    { action: 'Pool tranche approved', user: 'BPRS Amanah Ummah', time: '15 min ago', type: 'po' },
     { action: 'Investment made', user: 'Ahmad Rahman', time: '1 hour ago', type: 'investment' },
-    { action: 'Verification completed', user: 'Koperasi Sejahtera', time: '2 hours ago', type: 'verification' },
-    { action: 'Funding disbursed', user: 'Warung Berkah', time: '3 hours ago', type: 'funding' },
+    { action: 'DPS review completed', user: 'BPRS Barokah Sejahtera', time: '2 hours ago', type: 'verification' },
+    { action: 'Sell-down funded', user: 'Micro-Trade Financing Segment', time: '3 hours ago', type: 'funding' },
   ];
 
   return (
@@ -71,7 +71,7 @@ export function AdminDashboard() {
           color="gold"
         />
         <StatCard
-          title="Active Deals"
+          title="Active Pools"
           value={adminStats?.activeDeals || 0}
           change={3}
           changeType="absolute"
@@ -177,7 +177,7 @@ export function AdminDashboard() {
           {[
             { role: 'Investors', count: 1520, color: 'bg-tawf-green' },
             { role: 'Businesses', count: 680, color: 'bg-tawf-gold' },
-            { role: 'Cooperatives', count: 45, color: 'bg-blue-500' },
+            { role: 'BPRS Originators', count: 45, color: 'bg-blue-500' },
             { role: 'Licensed Issuers', count: 8, color: 'bg-purple-500' },
             { role: 'Admins', count: 15, color: 'bg-gray-500' },
           ].map((item) => (

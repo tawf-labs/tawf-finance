@@ -39,12 +39,12 @@ export function PurchaseOrders() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="font-serif text-3xl text-tawf-green mb-2">Purchase Orders</h1>
-          <p className="text-tawf-muted">Create and manage your purchase orders</p>
+          <h1 className="font-serif text-3xl text-tawf-green mb-2">Financing Pool Tranches</h1>
+          <p className="text-tawf-muted">Create and manage your financing pool tranches</p>
         </div>
         <Button variant="primary" size="md" onClick={() => setShowCreateModal(true)}>
           <Plus className="w-4 h-4 mr-2" />
-          New Purchase Order
+          New Pool Tranche
         </Button>
       </div>
 
@@ -55,7 +55,7 @@ export function PurchaseOrders() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-tawf-muted" />
             <input
               type="text"
-              placeholder="Search purchase orders..."
+              placeholder="Search pool tranches..."
               className="w-full pl-12 pr-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
             />
           </div>
@@ -141,7 +141,7 @@ export function PurchaseOrders() {
           {filteredPOs.length === 0 && (
             <div className="text-center py-12">
               <FileText className="w-16 h-16 text-tawf-muted mx-auto mb-4" />
-              <p className="text-tawf-muted">No purchase orders found</p>
+              <p className="text-tawf-muted">No pool tranches found</p>
             </div>
           )}
         </div>
@@ -151,7 +151,7 @@ export function PurchaseOrders() {
       <Modal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title="Create Purchase Order"
+        title="Create Pool Tranche"
         size="lg"
       >
         <div className="space-y-6">

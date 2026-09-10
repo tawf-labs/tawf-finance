@@ -4,7 +4,7 @@ import { injected } from 'wagmi/connectors';
 import { RPC_URL } from './constants';
 
 /**
- * Wagmi client. Injected (MetaMask / Rabby / any EIP-1193) only — the demo
+ * Wagmi client. Injected (MetaMask / Rabby / any EIP-1193) only. The demo
  * targets a desktop browser with an EVM wallet on Arbitrum Sepolia.
  */
 export const config = createConfig({

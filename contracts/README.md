@@ -1,14 +1,23 @@
 # Tawf Finance Smart Contracts
 
-The on-chain core of the **MSME Green Sukuk**: real purchase orders from
-Indonesian MSMEs (warungs, farms, and craft makers) are funded by retail
-investors as community Green Sukuk.
-Investors hold soulbound bond receipts from **$10**, with returns from real
-trade and a programmable transfer policy for a Shariah-aligned secondary market.
+The on-chain core of the **BPRS financing sell-down**: a licensed Shariah bank
+(Bank Pembiayaan Rakyat Syariah) originates and services real financing, and an
+outside investor pool takes economic exposure to a defined pool of it through a
+compliant akad (wakalah bil istithmar / musyarakah).
+Investors hold soulbound receipts from **$10**, with returns from the serviced
+financing and a programmable transfer policy for a Shariah-aligned secondary
+market.
 
 Deployed for the **Arbitrum Open House Singapore Buildathon** on **Arbitrum
 Sepolia**. The same EVM codebase is deployable to Base (the roadmap's
 canonical chain) with zero contract changes.
+
+> Naming note: the on-chain identifiers (`DealRegistry`, `BondReceiptNFT`,
+> `RedemptionVault`, and the `Deal`/`BmtApproved` enum) are retained from the
+> original code so the tested state machine stays intact. Read them in the BPRS
+> domain: a "deal" is a **financing pool**, `BmtApproved` is the
+> **originator/DPS-approved** state, and "repay" is the **servicer remitting
+> collections** from the bank.
 
 ## Architecture
 
@@ -30,7 +39,7 @@ BondReceiptNFT.sol (soulbound ERC-1155)   owner: repay() → matured
 | `RedemptionVault.sol` | The only money-moving contract (USDC) | Yes |
 | `mocks/MockUSDC.sol` | 6-decimal test token with a faucet (demo only) | No |
 
-## Deal lifecycle
+## Financing-pool lifecycle
 
 ```
 Submitted → BmtApproved → Mintable → Active → Matured → Completed
@@ -38,9 +47,9 @@ Submitted → BmtApproved → Mintable → Active → Matured → Completed
                                         Defaulted
 ```
 
-A deal may repay from **Mintable** (partial funding) or **Active** (fully
-funded). What matters is outstanding principal. Yield is shared pro-rata to
-receipt holders at redemption.
+`BmtApproved` = originator/DPS-approved. A pool may repay from **Mintable**
+(partial funding) or **Active** (fully funded); what matters is outstanding
+principal. Profit is shared pro-rata to receipt holders at redemption.
 
 ## Security posture
 
@@ -51,7 +60,7 @@ receipt holders at redemption.
 - **No admin keys over funds**: the owner cannot withdraw investor USDC. The
   vault only pays out against burned receipts.
 - **MVP access model**: owner drives lifecycle transitions. The roadmap
-  replaces this with `BMTGateway.sol` (originator role) and
+  replaces this with an originator gateway (BPRS role) and
   `SekuritasOracle.sol` (EIP-712 + 48h timelock). See
   `../tawf-finance-roadmap-hasanvc (1).docx`.
 
@@ -88,7 +97,7 @@ forge script script/SeedDemo.s.sol:SeedDemo \
 
 ## Out of scope for this buildathon MVP
 
-`SekuritasOracle.sol` (EIP-712 + 48h timelock), `BMTGateway.sol`,
+`SekuritasOracle.sol` (EIP-712 + 48h timelock), an originator gateway (BPRS role),
 `SekuritasGateway.sol`, TID/ZK identity, Mosqify/TawfAudit are all specified in
 the roadmap docs and planned as the next milestone.
 
