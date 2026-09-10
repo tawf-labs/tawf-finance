@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { Web3Provider } from '@/components/web3/Web3Provider';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Navigation, Footer, DashboardLayout } from './components/layout';
 import {
   Home,
@@ -101,7 +102,9 @@ function AppContent() {
             path="/investor/*"
             element={
               <ProtectedRoute>
-                <DashboardLayout />
+                <ErrorBoundary area="dashboard">
+                  <DashboardLayout />
+                </ErrorBoundary>
               </ProtectedRoute>
             }
           >
@@ -118,7 +121,9 @@ function AppContent() {
             path="/issuer/*"
             element={
               <ProtectedRoute>
-                <DashboardLayout />
+                <ErrorBoundary area="dashboard">
+                  <DashboardLayout />
+                </ErrorBoundary>
               </ProtectedRoute>
             }
           >
@@ -130,7 +135,9 @@ function AppContent() {
             path="/cooperative/*"
             element={
               <ProtectedRoute>
-                <DashboardLayout />
+                <ErrorBoundary area="dashboard">
+                  <DashboardLayout />
+                </ErrorBoundary>
               </ProtectedRoute>
             }
           >
@@ -147,7 +154,9 @@ function AppContent() {
             path="/business/*"
             element={
               <ProtectedRoute>
-                <DashboardLayout />
+                <ErrorBoundary area="dashboard">
+                  <DashboardLayout />
+                </ErrorBoundary>
               </ProtectedRoute>
             }
           >
@@ -164,7 +173,9 @@ function AppContent() {
             path="/admin/*"
             element={
               <ProtectedRoute>
-                <DashboardLayout />
+                <ErrorBoundary area="dashboard">
+                  <DashboardLayout />
+                </ErrorBoundary>
               </ProtectedRoute>
             }
           >
@@ -193,11 +204,13 @@ function AppContent() {
 
 function App() {
   return (
-    <Web3Provider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </Web3Provider>
+    <ErrorBoundary>
+      <Web3Provider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </Web3Provider>
+    </ErrorBoundary>
   );
 }
 
