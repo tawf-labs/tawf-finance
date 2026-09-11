@@ -38,17 +38,17 @@ export function Hero() {
           variants={itemVariants}
           className="font-serif text-5xl md:text-6xl lg:text-7xl text-tawf-green leading-[1.1] mb-6"
         >
-          We Tokenize the
-          <span className="block text-tawf-gold">Underserved Economy</span>
+          The Tokenization Infrastructure
+          <span className="block text-tawf-gold">for Islamic Banks</span>
         </motion.h1>
 
         <motion.p
           variants={itemVariants}
           className="text-tawf-muted text-lg md:text-xl leading-relaxed mb-8"
         >
-          Earn real returns while supporting local businesses across Southeast Asia.
-          Starting from <span className="text-tawf-green font-medium">$10</span>.
-          Transparent, ethical, and grounded in real trade.
+          One platform for every Islamic finance akad a BPRS originates. Structure,
+          tokenize, and settle real financing on-chain. Take exposure from
+          <span className="text-tawf-green font-medium"> $10</span>.
         </motion.p>
 
         <motion.div
@@ -71,18 +71,18 @@ export function Hero() {
 
         <motion.div variants={itemVariants} className="flex items-center justify-center gap-8">
           <div>
-            <p className="font-serif text-3xl md:text-4xl text-tawf-green">8-18%</p>
-            <p className="text-tawf-muted text-sm">Annual Yield</p>
+            <p className="font-serif text-3xl md:text-4xl text-tawf-green">from 5%</p>
+            <p className="text-tawf-muted text-sm">Target Return</p>
           </div>
           <div className="w-px h-12 bg-tawf-green/20" />
           <div>
-            <p className="font-serif text-3xl md:text-4xl text-tawf-green">30-90</p>
-            <p className="text-tawf-muted text-sm">Day Duration</p>
+            <p className="font-serif text-3xl md:text-4xl text-tawf-green">9</p>
+            <p className="text-tawf-muted text-sm">Akad Instruments</p>
           </div>
           <div className="w-px h-12 bg-tawf-green/20" />
           <div>
             <p className="font-serif text-3xl md:text-4xl text-tawf-green">$10</p>
-            <p className="text-tawf-muted text-sm">Min Investment</p>
+            <p className="text-tawf-muted text-sm">Minimum Exposure</p>
           </div>
         </motion.div>
 

@@ -14,26 +14,26 @@ const features = [
   {
     icon: Shield,
     title: 'Ethical Investing',
-    description: 'Earn real returns the halal way. We fund real businesses, not speculation.',
+    description: 'Take exposure to a licensed Shariah bank\'s financing pool through a compliant akad, not speculation.',
     label: 'Core Product',
   },
   {
     icon: Receipt,
     title: 'Tamper-Proof Digital Receipts',
-    description: 'Every investment is recorded as a digital receipt. It stays with you until your money is returned with profit. No trading, no games.',
+    description: 'Every investment is recorded as a soulbound receipt tied to a specific financing pool. It stays with you until principal and profit are returned.',
     label: 'Technology',
   },
   {
     icon: Coins,
     title: 'From $10 Minimum',
-    description: 'Anyone can participate. Pool your money with others to fund a local business and earn a share of the profit.',
+    description: 'Anyone can participate. Pool your money with others to take exposure to a defined pool of BPRS financing and earn a share of the profit.',
     label: 'Accessibility',
   },
   {
     icon: TrendingUp,
-    title: '8-18% Annualized Yield',
-    description: 'Returns come from real business repayments only. When the business gets paid, you get paid.',
-    label: 'Returns',
+    title: 'Every Islamic Finance Akad',
+    description: 'Murabaha, ijarah, musyarakah, mudarabah, wakalah, salam, istisna, qard, and sukuk. One primitive represents them all.',
+    label: 'Coverage',
   },
   {
     icon: Users,
@@ -43,8 +43,8 @@ const features = [
   },
   {
     icon: Lock,
-    title: 'Real Assets. Real Demand. Shariah-Aligned.',
-    description: 'We only fund businesses selling real, everyday products like food, herbal goods, and more. Nothing speculative.',
+    title: 'Verifiable Pool. Borrowers Stay Private.',
+    description: 'Verify pool size, NPF ratio, and akad compliance continuously, without the bank exposing a single borrower identity or contract.',
     label: 'Core Principle',
   },
 ];
@@ -84,11 +84,11 @@ export function Features() {
         >
           <p className="label mb-4">Why tawf.finance</p>
           <h2 className="font-serif text-3xl md:text-4xl lg:text-5xl text-tawf-green mb-6">
-            Ethical Investing. Real Impact.
-            <span className="block text-tawf-gold">Real Yield + Good Deeds.</span>
+            One Platform. Every Akad.
+            <span className="block text-tawf-gold">Real Serviced Financing.</span>
           </h2>
           <p className="text-tawf-muted text-lg">
-            We fund real trade between local businesses and major retailers across Southeast Asia.
+            A licensed Shariah bank originates and services the financing. Tawf structures, tokenizes, and settles it on-chain, across the full range of Islamic finance instruments.
           </p>
         </motion.div>
 

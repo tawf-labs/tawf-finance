@@ -6,29 +6,29 @@ const partnerCategories = [
   {
     icon: ShieldCheck,
     title: 'Sekuritas Partners',
-    description: 'Licensed financial firms who issue the investment instruments. They handle the regulation so you don\'t have to worry about it.',
+    description: 'Licensed financial firms who issue tradable instruments where a pool clears the issuance threshold. They carry the regulatory burden.',
     partners: ['Ina Sekuritas', 'Trimegah Sekuritas', 'Mandiri Sekuritas'],
-    status: 'Plan A • Plan B • Plan C',
+    status: 'Tier-2 Issuance Path',
   },
   {
     icon: Building,
-    title: 'Cooperative Network',
-    description: 'BMTs and Islamic cooperatives provide the trusted relationship layer with businesses across Southeast Asia.',
-    partners: ['PBMT Ventura', 'BMT UGT Sidogiri', '4,500+ Cooperatives'],
-    status: 'Nationwide Coverage',
+    title: 'BPRS Originators',
+    description: 'Licensed Shariah rural banks originate and service the financing. OJK-supervised, LPS-insured, and reporting into SLIK, they are the attestation layer.',
+    partners: ['Hijra Bank', 'Design-partner BPRS', '~175 BPRS Segment'],
+    status: 'First Customer Segment',
   },
   {
     icon: Store,
-    title: 'Major Retailers',
-    description: 'Southeast Asia\'s largest retailers provide reliable repayment through verified purchase orders.',
-    partners: ['Indomaret', 'Alfamart', 'Ethical Distributors'],
-    status: '46,000+ Stores Combined',
+    title: 'Shariah Governance',
+    description: 'Each sell-down akad is reviewed by the bank\'s Dewan Pengawas Syariah and an independent DSN-MUI-aligned board.',
+    partners: ['BPRS DPS', 'DSN-MUI Aligned', 'Independent Board'],
+    status: 'Akad Reviewed Before Code',
   },
   {
     icon: Network,
     title: 'Ecosystem',
-    description: 'Integrated with TID for identity verification and Arbitrum for settlement.',
-    partners: ['TID', 'Arbitrum'],
+    description: 'Integrated with TID for identity, a licensed custodian for the digital-asset leg, and Arbitrum for settlement.',
+    partners: ['TID', 'Licensed Custody', 'Arbitrum'],
     status: 'Full Stack Integration',
   },
 ];
@@ -72,8 +72,8 @@ export function Partners() {
             <span className="block text-tawf-gold">Infrastructure</span>
           </h2>
           <p className="text-tawf-muted text-lg">
-            We don&apos;t compete with banks or cooperatives. We give them better tools,
-            and connect their businesses to investors who care.
+            We don&apos;t compete with banks. We give a licensed Shariah bank a
+            wider funding channel, and connect its financing to investors who care.
           </p>
         </motion.div>
 

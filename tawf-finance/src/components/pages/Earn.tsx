@@ -9,6 +9,7 @@ interface Pool {
   id: string;
   name: string;
   description: string;
+  instrument: string;
   apy: string;
   duration: string;
   minInvestment: string;
@@ -19,59 +20,64 @@ interface Pool {
 
 const pools: Pool[] = [
   {
-    id: 'kurban-farms',
-    name: 'Kurban Farms Pool',
-    description: 'Support livestock farmers with ethical financing for cattle, goats, and sheep. Earn returns from seasonal demand cycles.',
-    apy: '12-18%',
+    id: 'bprs-amanah-microtrade',
+    name: 'BPRS Amanah Micro-Trade',
+    description: 'Take exposure to a pool of micro-trade financing originated and serviced by a licensed Shariah bank, under a murabaha structure.',
+    instrument: 'Murabaha',
+    apy: '6-8%',
     duration: '30-60 days',
     minInvestment: '$10',
     tvl: '$125,000',
     available: true,
+    category: 'Micro-Trade',
+  },
+  {
+    id: 'bprs-barokah-agri',
+    name: 'BPRS Barokah Agri Financing',
+    description: 'A pool of seasonal agricultural financing serviced by the originating BPRS. NPF ratio and akad compliance are verifiable on-chain.',
+    instrument: 'Musyarakah',
+    apy: '7-10%',
+    duration: '45-90 days',
+    minInvestment: '$25',
+    tvl: '$89,000',
+    available: true,
     category: 'Agriculture',
   },
   {
-    id: 'warung',
-    name: 'Warung Pool',
-    description: 'Fund neighborhood convenience stores (warungs) across Indonesia. Help small retailers restock inventory and grow their business.',
-    apy: '10-15%',
-    duration: '30-45 days',
-    minInvestment: '$10',
-    tvl: '$89,000',
-    available: true,
-    category: 'Retail',
-  },
-  {
-    id: 'jamu-herbal',
-    name: 'Jamu & Herbal Pool',
-    description: 'Finance traditional herbal medicine producers. Support Indonesia\'s natural wellness industry while earning steady yields.',
-    apy: '14-20%',
-    duration: '45-90 days',
+    id: 'bprs-sejahtera-sme',
+    name: 'BPRS Sejahtera SME',
+    description: 'Exposure to a pool of small-enterprise financing, structured as a musyarakah sell-down. The bank retains origination and servicing.',
+    instrument: 'Musyarakah',
+    apy: '8-11%',
+    duration: '60-90 days',
     minInvestment: '$25',
     tvl: '$67,000',
     available: true,
-    category: 'Health & Wellness',
+    category: 'SME Financing',
   },
   {
-    id: 'organic-food',
-    name: 'Organic Food Pool',
-    description: 'Back organic farmers and sustainable food producers. Your investment supports chemical-free agriculture and healthy food access.',
-    apy: '10-16%',
+    id: 'bprs-amanah-consumer',
+    name: 'BPRS Amanah Consumer',
+    description: 'A pool of Shariah consumer financing. Verify pool size, NPF ratio, and akad compliance without any borrower being exposed.',
+    instrument: 'Murabaha',
+    apy: '6-9%',
     duration: '60-90 days',
     minInvestment: '$15',
     tvl: '$45,000',
     available: true,
-    category: 'Agriculture',
+    category: 'Consumer Financing',
   },
   {
-    id: 'artisan-goods',
-    name: 'Artisan Goods Pool',
-    description: 'Fund traditional craftsmen and women creating batik, pottery, woodwork, and other cultural heritage products.',
-    apy: '12-17%',
+    id: 'bprs-barokah-trade',
+    name: 'BPRS Barokah Trade',
+    description: 'Exposure to a pool of working-capital trade financing serviced locally by the originating BPRS, funded outside its deposit market.',
+    instrument: 'Wakalah bil Istithmar',
+    apy: '7-10%',
     duration: '45-75 days',
     minInvestment: '$20',
     tvl: '$38,000',
     available: true,
-    category: 'Crafts & Heritage',
+    category: 'Trade Financing',
   },
 ];
 
@@ -99,9 +105,12 @@ function PoolCard({ pool }: { pool: Pool }) {
     <motion.div variants={itemVariants}>
       <Card hover className="h-full p-6">
         <div className="flex items-start justify-between mb-4">
-          <span className="text-xs uppercase tracking-wide text-tawf-green font-medium">
-            {pool.category}
-          </span>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs uppercase tracking-wide text-tawf-green font-medium">
+              {pool.category}
+            </span>
+            <span className="text-xs font-medium text-tawf-gold">{pool.instrument}</span>
+          </div>
           {pool.available ? (
             <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
               <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
@@ -181,8 +190,8 @@ export function Earn() {
             <span className="block text-tawf-gold">Create Real Impact</span>
           </h1>
           <p className="text-tawf-muted text-lg md:text-xl leading-relaxed max-w-2xl mx-auto">
-            Choose from our curated pools of vetted MSMEs across Southeast Asia.
-            Each investment supports real businesses and generates real returns.
+            Choose from live pools of financing originated and serviced by licensed Indonesian BPRS.
+            Each pool is a compliant sell-down akad, verifiable on-chain.
           </p>
         </motion.div>
 
@@ -212,7 +221,7 @@ export function Earn() {
                 </span>
                 <div>
                   <p className="font-medium text-tawf-green">Select a Pool</p>
-                  <p className="text-sm">Choose from our vetted MSME pools based on your preferences and risk appetite.</p>
+                  <p className="text-sm">Choose from live BPRS financing pools by segment, NPF ratio, and target profit.</p>
                 </div>
               </li>
               <li className="flex gap-4">
@@ -220,8 +229,8 @@ export function Earn() {
                   2
                 </span>
                 <div>
-                  <p className="font-medium text-tawf-green">Connect & Invest</p>
-                  <p className="text-sm">Connect your wallet and invest your chosen amount. Minimum investment starts at $10.</p>
+                  <p className="font-medium text-tawf-green">Connect & Take Exposure</p>
+                  <p className="text-sm">Connect your wallet and take exposure from $10. Your funds go into a secure escrow.</p>
                 </div>
               </li>
               <li className="flex gap-4">
@@ -230,7 +239,7 @@ export function Earn() {
                 </span>
                 <div>
                   <p className="font-medium text-tawf-green">Earn Returns</p>
-                  <p className="text-sm">Receive yield as businesses repay. Funds are recycled into new opportunities.</p>
+                  <p className="text-sm">The BPRS services and remits collections. Redeem principal and profit at maturity.</p>
                 </div>
               </li>
             </ol>

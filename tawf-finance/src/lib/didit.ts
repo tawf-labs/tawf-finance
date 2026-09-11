@@ -1,7 +1,7 @@
 /**
  * Client helpers for the Didit KYC integration.
  *
- * The Didit API key never enters the browser — all calls go through the
+ * The Didit API key never enters the browser, all calls go through the
  * serverless functions under /api/kyc/*. KYC is opt-in behind VITE_KYC_ENABLED.
  */
 
@@ -29,7 +29,7 @@ export function saveKyc(address: string, record: KycRecord): void {
   try {
     localStorage.setItem(storageKey(address), JSON.stringify(record));
   } catch {
-    // storage unavailable — ignore
+    // storage unavailable, ignore
   }
 }
 

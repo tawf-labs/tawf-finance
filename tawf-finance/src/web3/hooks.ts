@@ -15,7 +15,7 @@ import {
   VAULT_ADDRESS,
   USDC_ADDRESS,
 } from './constants';
-import { mapDeal, mapReceipt, type Deal, type ReceiptMeta } from './types';
+import { mapDeal, mapReceipt, isValidRawDeal, type Deal, type ReceiptMeta } from './types';
 
 // ---------------------------------------------------------------------------
 // Reads
@@ -23,7 +23,7 @@ import { mapDeal, mapReceipt, type Deal, type ReceiptMeta } from './types';
 
 function asDeals(data: unknown): Deal[] {
   if (!Array.isArray(data)) return [];
-  return (data as unknown as Parameters<typeof mapDeal>[0][]).map(mapDeal);
+  return data.filter(isValidRawDeal).map((raw) => mapDeal(raw as Parameters<typeof mapDeal>[0]));
 }
 
 /** All deals in the registry, newest last. */
@@ -352,7 +352,7 @@ export function useDefaultDeal() {
   return { defaultDeal, isPending };
 }
 
-/** MockUSDC faucet — testnet-only convenience (10,000 mUSDC). */
+/** MockUSDC faucet, testnet-only convenience (10,000 mUSDC). */
 export function useFaucet() {
   const { write, isPending } = useContractWrite();
   const faucet = useCallback(() => {

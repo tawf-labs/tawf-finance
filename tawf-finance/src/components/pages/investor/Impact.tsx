@@ -8,34 +8,34 @@ import { cn } from '@/utils/cn';
 const impactStories = [
   {
     id: 1,
-    business: 'Warung Berkah',
-    location: 'Jakarta Selatan, Indonesia',
-    category: 'Retail',
-    impact: 'Expanded inventory by 40% and hired 2 new employees after receiving funding.',
+    business: 'Micro-Trade Financing Segment',
+    location: 'BPRS Amanah Ummah, Jakarta Selatan',
+    category: 'Micro-Trade',
+    impact: 'Sell-down released capacity to grow the micro-trade financing book by 40%.',
     icon: <Store className="w-8 h-8" />,
   },
   {
     id: 2,
-    business: 'Jamu Herbal Sehat',
-    location: 'Yogyakarta, Indonesia',
-    category: 'Health & Wellness',
-    impact: 'Increased production capacity by 60% and now supplies 50+ retail stores.',
+    business: 'Consumer Financing Segment',
+    location: 'BPRS Barokah Sejahtera, Yogyakarta',
+    category: 'Consumer Financing',
+    impact: 'Funding priced outside the local deposit market lifted originations by 60%.',
     icon: <Leaf className="w-8 h-8" />,
   },
   {
     id: 3,
-    business: 'Kerajinan Nusantara',
-    location: 'Surakarta, Indonesia',
-    category: 'Crafts',
-    impact: 'Preserved traditional batik techniques and trained 15 local artisans.',
+    business: 'SME Financing Segment',
+    location: 'BPRS Amanah Ummah, Surakarta',
+    category: 'SME Financing',
+    impact: 'A musyarakah sell-down freed CAR/BMPK capacity for 15 new SME facilities.',
     icon: <Palette className="w-8 h-8" />,
   },
 ];
 
 const digitalReceipts = [
-  { id: 'inv-001', pool: 'Kurban Farms Pool', amount: 500, date: '2024-03-01', hash: '0xabc123...' },
-  { id: 'inv-002', pool: 'Warung Pool', amount: 300, date: '2024-03-15', hash: '0xdef456...' },
-  { id: 'inv-003', pool: 'Jamu & Herbal Pool', amount: 250, date: '2024-01-10', hash: '0xghi789...' },
+  { id: 'inv-001', pool: 'BPRS Barokah Agri Financing Pool', amount: 500, date: '2024-03-01', hash: '0xabc123...' },
+  { id: 'inv-002', pool: 'BPRS Amanah Micro-Trade Pool', amount: 300, date: '2024-03-15', hash: '0xdef456...' },
+  { id: 'inv-003', pool: 'BPRS Barokah Consumer Financing Pool', amount: 250, date: '2024-01-10', hash: '0xghi789...' },
 ];
 
 export function Impact() {
@@ -131,9 +131,9 @@ export function Impact() {
             <div className="w-32 h-32 mx-auto mb-4 rounded-full bg-gradient-to-br from-tawf-green to-tawf-gold flex items-center justify-center">
               <Heart className="w-16 h-16 text-white" />
             </div>
-            <p className="text-sm text-tawf-muted mb-1">Your investments have helped support</p>
-            <p className="font-serif text-3xl text-tawf-green mb-2">12 MSMEs</p>
-            <p className="text-sm text-tawf-muted">across 3 communities</p>
+            <p className="text-sm text-tawf-muted mb-1">Your exposure has helped fund</p>
+            <p className="font-serif text-3xl text-tawf-green mb-2">3 BPRS</p>
+            <p className="text-sm text-tawf-muted">across 5 financing pools</p>
           </div>
           <div className="border-t border-tawf-green-10 pt-4 mt-4">
             <div className="flex items-center justify-between text-sm">

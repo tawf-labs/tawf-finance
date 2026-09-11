@@ -2,47 +2,67 @@
 
 ## One-liner
 
-**Tawf Finance is Shariah-aligned and ethical capital-markets infrastructure for Islamic cooperatives (BMTs). We enable BMTs to structure, tokenize, issue, manage, and, where permitted, trade real economic interests on-chain.**
+**Tawf Finance is originator-side Islamic capital-markets infrastructure for Indonesian BPRS. We let a licensed Shariah bank sell down a pool of its financing to an outside investor pool through a compliant akad, on-chain and continuously verifiable.**
 
 ## Problem
 
-- 64M+ MSMEs in Southeast Asia are excluded from bank credit (too small / informal / remote).
-- Crypto's answer so far is speculative yield, disconnected from the real economy.
-- Impact investors have no liquid, low-minimum, verifiable way to fund real small businesses.
+- A BPRS (Bank Pembiayaan Rakyat Syariah) has an expensive, geographically trapped liability side. LPS caps its guaranteed deposit rate at 6.25% versus 3.75% for commercial banks, and it can only collect deposits inside its own operating area.
+- It cannot grow its financing book without balance-sheet capacity it does not have, and consolidation (POJK 7/2026) puts a clock on it.
+- Impact investors have no low-minimum, verifiable way to take exposure to real Shariah bank financing.
 
 ## Solution
 
-- Digitize **Baitul Tamwil** (Islamic cooperative finance) on-chain.
-- A business submits a purchase order → a cooperative verifies it → a licensed firm issues a deal → investors fund it in **USDC** → the retailer pays → investors redeem **principal + yield**.
-- Every investment mints a **soulbound receipt (ERC-1155)**, proof of a specific real deal. Transferability is programmable: non-transferable, conditional, or transferable depending on the instrument's structure and shariah guidance.
+- The BPRS originates and services Shariah financing locally.
+- Tawf structures a **financing sell-down / joint financing** so an outside investor pool takes economic exposure to a defined pool through a compliant akad — **wakalah bil istithmar** or **musyarakah**.
+- The bank keeps origination and servicing revenue, releases balance-sheet capacity (CAR/BMPK relief), and gets funding priced outside its local deposit market.
+- Every investment mints a **soulbound receipt (ERC-1155)** tied to a specific pool tranche. Transferability is programmable per instrument and Shariah guidance.
+
+## Why BPRS and not BMT
+
+- POJK 7/2024 Article 35 lets a BPRS raise in the capital market; a koperasi cannot lawfully issue to non-members.
+- A BPRS is OJK-supervised, LPS-insured, audited, and reports into SLIK — the regulator is the attestation layer, which solves most of the tokenization oracle problem.
+- Every BPRS already has a DPS and DSN-MUI-standardised akad. We digitise an existing instrument, not invent one.
+- Honest counterweight: BMT is more underserved. We are choosing addressability, not need.
 
 ## Why Arbitrum
 
 - Cheap, fast, EVM-native: receipt mint ~150k gas and redemption ~135k.
-- USDC-native rails for real trade settlement.
+- USDC-native rails for settlement.
 - Solidity is portable: the same contracts deploy to Base / any EVM L2.
 
 ## Product (what's live)
 
-- **DealRegistry**: deal lifecycle (Submitted → BmtApproved → Mintable → Active → Matured → Completed/Defaulted).
+- **DealRegistry**: financing-pool lifecycle (Submitted → originator-approved → Mintable → Active → Matured → Completed/Defaulted).
 - **BondReceiptNFT**: soulbound receipts carrying principal/APY/duration and a transfer policy.
-- **RedemptionVault**: escrow, invest, repay, redeem, default claim.
+- **RedemptionVault**: escrow, invest, servicer remittance, redeem, default claim.
 - **Investor app**: on-chain pools, portfolio (redeem/claim), activity ledger, wallet + test-USDC faucet, **Didit KYC**.
 - 66 passing contract tests (unit + integration + reentrancy).
 
+## The wow (the moat)
+
+A real BPRS pool where anyone can verify **pool size, NPF ratio, and akad compliance** continuously — without the bank exposing a single borrower identity or contract. That is a zero-knowledge problem, and no bank will publish its financing book without it. Tokenization is the boring part everyone can copy. Custody players (e.g. Tennet) cannot build this and have no reason to.
+
 ## Business model
 
-- Origination and servicing fee on each funded deal.
-- Secondary market trading fee, listing fee, and settlement fee on transferable instruments.
+- Structuring and servicing fee on each sell-down pool.
+- Secondary trading / listing / settlement fees on transferable instruments.
 - KYC at $0.33/check (500 free/mo via Didit).
-- B2B2C: cooperatives keep the relationship. Tawf provides the rails and compliance.
+- B2B: the BPRS keeps the customer relationship. Tawf provides the rails, structuring, and verification.
 
-## Traction / roadmap
+## Sequencing / roadmap
 
-- Seed demo deals funded on Arbitrum Sepolia (Indomaret, Alfamart anchor buyers).
-- Roadmap: real USDC, licensed issuer integration, programmable transferability, a Shariah-aligned secondary market, Base deployment, KYB for businesses, zakat/waqf allocations.
+- One design-partner BPRS first (e.g. Hijra Bank), not the segment.
+- Sell-down akad reviewed by a DSN-MUI scholar and the partner DPS **before** code.
+- Proof before mainnet; enter via the OJK sandbox route, map IT-provider obligations early.
+- Keep BMT as the pilot surface for ZISWAF (zakat/waqf/qurban) modules through community channels.
+
+## What would falsify the thesis
+
+- No BPRS will give up yield to release capacity (central commercial assumption — test with one bank first).
+- Consolidation shrinks the segment faster than expected.
+- OJK requires a licence for tokenised bank-financing exposure that Tawf cannot obtain this cycle.
 
 ## Ask (buildathon)
 
-- Judge as a **working, real-economy RWA primitive on Arbitrum**, not another yield farm.
-- Judge the full loop: seed deal → invest USDC → soulbound receipt → repay → redeem → burn.
+- Judge as a **working, real-economy RWA primitive on Arbitrum**, not a yield farm.
+- Judge the full loop: pool → invest USDC → soulbound receipt → servicer remits → redeem → burn.

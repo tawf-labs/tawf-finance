@@ -12,46 +12,46 @@ import { Section } from '../ui/Section';
 
 const stats = [
   {
-    icon: Users,
-    value: '64M+',
-    label: 'Southeast Asian MSMEs',
-    description: 'Potential beneficiaries across the archipelago.',
-  },
-  {
     icon: Building2,
-    value: '4,500+',
-    label: 'BMT Cooperatives',
-    description: 'BMT cooperatives for origination.',
+    value: '~175',
+    label: 'Indonesian BPRS',
+    description: 'Licensed Shariah rural banks, the first customer segment.',
   },
   {
     icon: TrendingUp,
-    value: '20M+',
-    label: 'Cooperative Members',
-    description: 'Existing BMT members ready for ethical finance.',
+    value: '250bp',
+    label: 'Funding Cost Gap',
+    description: 'LPS caps BPRS deposits at 6.25% vs 3.75% for commercial banks.',
+  },
+  {
+    icon: Users,
+    value: 'SLIK',
+    label: 'Regulator Attestation',
+    description: 'BPRS are OJK-supervised, LPS-insured, audited, and report into SLIK.',
   },
   {
     icon: Globe,
     value: '$10',
     label: 'Minimum Investment',
-    description: 'Democratizing access to real yield for everyone.',
+    description: 'Democratizing access to real serviced financing for everyone.',
   },
 ];
 
 const impacts = [
   {
     icon: HeartHandshake,
-    title: 'Economic Inclusion',
-    description: 'Bring financial access to the businesses traditional banks ignore. Millions of small businesses across Southeast Asia still lack access to fair credit.',
+    title: 'Wider Funding Channel',
+    description: 'A BPRS pays the highest deposit rates in the system and can only fund inside its own district. We open a funding channel priced outside its local deposit market.',
   },
   {
     icon: Sprout,
-    title: 'Green Finance',
-    description: 'Every deal supports ethical, sustainable businesses aligned with responsible finance principles.',
+    title: 'Balance-Sheet Capacity',
+    description: 'Selling down a financing pool releases CAR and BMPK capacity so the bank can keep growing its book, while retaining origination and servicing revenue.',
   },
   {
     icon: Building2,
-    title: 'Cooperative Empowerment',
-    description: 'Local cooperatives keep their relationships with businesses while tawf.finance handles the technology. Everyone wins.',
+    title: 'Bank Keeps the Relationship',
+    description: 'The BPRS keeps originating and servicing its own financing while tawf.finance provides the structuring, rails, and verification. Everyone wins.',
   },
 ];
 
@@ -107,9 +107,10 @@ export function Impact() {
             <span className="block text-tawf-gold">Purpose</span>
           </h2>
           <p className="text-tawf-sand/70 text-lg">
-            We&apos;re not building another DeFi yield farm. We&apos;re rebuilding
-            Baitul Tamwil for the digital age: community finance that actually
-            serves communities.
+            We&apos;re not building another DeFi yield farm. We give a licensed
+            Shariah bank a wider funding channel, and give everyday investors
+            verifiable exposure to real serviced financing. Tawf&apos;s own
+            identity stays Baitul Tamwil.
           </p>
         </motion.div>
 

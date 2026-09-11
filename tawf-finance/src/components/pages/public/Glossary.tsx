@@ -5,17 +5,27 @@ export function Glossary() {
   const terms = [
     {
       term: 'Akad (Aqd)',
-      definition: 'A contract or agreement in Islamic finance. In Tawf Finance, this refers to the agreement between investor and MSME for profit-sharing investment.',
+      definition: 'A contract or agreement in Islamic finance. In Tawf Finance, this refers to the sell-down agreement between the investor pool and the originating BPRS, reviewed by the bank\'s DPS.',
       category: 'General',
     },
     {
       term: 'Bai Al-Inah',
-      definition: 'A financing arrangement where the financier buys an asset from the customer on a deferred payment basis and immediately sells it back to the customer on a cash basis at a lower price.',
+      definition: 'A credit sale with immediate spot repurchase between the same parties. Widely viewed as a legal stratagem that replicates an interest-bearing loan, so Tawf does not use it.',
       category: 'Contracts',
     },
     {
+      term: 'Tawarruq (Commodity Murabaha)',
+      definition: 'A credit purchase followed by an onward spot sale to a third party to raise cash. Organized tawarruq was ruled a stratagem by the OIC Fiqh Academy (2009). Following the Oman precedent, Tawf avoids it.',
+      category: 'Contracts',
+    },
+    {
+      term: 'BPRS (Bank Pembiayaan Rakyat Syariah)',
+      definition: 'A licensed Islamic rural bank in Indonesia. Unlike a BMT, a BPRS is OJK-supervised, LPS-insured, and may raise in the capital market under POJK 7/2024 Art 35. Tawf Finance\'s first customer segment.',
+      category: 'Organizations',
+    },
+    {
       term: 'BMT (Baitul Maal wat Tamwil)',
-      definition: 'Islamic cooperative financial institution in Indonesia that combines savings and financing activities. BMTs serve as crucial intermediaries for MSME financing.',
+      definition: 'Islamic cooperative financial institution in Indonesia combining social (Baitul Maal) and commercial (Baitul Tamwil) finance. Tawf\'s own organisational identity, and a later distribution channel for ZISWAF modules, not the first paying customer.',
       category: 'Organizations',
     },
     {
@@ -40,23 +50,43 @@ export function Glossary() {
     },
     {
       term: 'MSME',
-      definition: 'Micro, Small, and Medium Enterprises. Tawf Finance focuses on supporting these businesses which often lack access to traditional banking services.',
+      definition: 'Micro, Small, and Medium Enterprises. The underlying borrowers a BPRS finances. Tawf takes exposure to a pool of that financing, not to individual MSMEs directly.',
       category: 'Business',
     },
     {
       term: 'Musharakah',
-      definition: 'A joint partnership where all parties contribute capital and share profits and losses according to their capital contribution ratio.',
+      definition: 'A joint partnership where all parties contribute capital and share profits and losses according to their capital contribution ratio. One of the two candidate sell-down akad structures Tawf uses.',
       category: 'Contracts',
     },
     {
-      term: 'NBP (Non-Bank Financial Institution)',
-      definition: 'Financial institutions that are not banks but provide financial services. BMTs fall under this category in Indonesia.',
+      term: 'NPF (Non-Performing Financing)',
+      definition: 'The Shariah-finance equivalent of a non-performing loan ratio. A key, continuously verifiable metric of a BPRS financing pool\'s health on Tawf Finance.',
+      category: 'Business',
+    },
+    {
+      term: 'DPS (Dewan Pengawas Syariah)',
+      definition: 'The Shariah Supervisory Board every BPRS is required to have. It reviews and signs off on the sell-down akad, making the structure the defensible asset.',
       category: 'Organizations',
     },
     {
-      term: 'PO (Purchase Order)',
-      definition: 'A commercial document issued by a buyer to a seller indicating types, quantities, and agreed prices for products or services. MSMEs use POs to request funding.',
-      category: 'Business',
+      term: 'Financing Sell-Down',
+      definition: 'Tawf\'s first product: a BPRS sells down economic exposure to a defined pool of its financing to an outside investor pool through a compliant akad, releasing balance-sheet capacity while retaining origination and servicing.',
+      category: 'Products',
+    },
+    {
+      term: 'Form vs Substance',
+      definition: 'The core critique of Islamic finance: a product can be Islamic in legal form yet conventional in economic substance. Tawf treats avoiding this as a design goal, favouring genuine risk sharing and asset-backing over legal engineering.',
+      category: 'General',
+    },
+    {
+      term: 'Asset-Backed vs Asset-Based Sukuk',
+      definition: 'Asset-backed sukuk involve a true sale, so holders own the underlying asset and returns derive from it. Asset-based sukuk keep recourse to the originator and behave like conventional bonds. Tawf targets asset-backed structures.',
+      category: 'Products',
+    },
+    {
+      term: 'Wakalah bil Istithmar',
+      definition: 'An investment-agency akad in which an agent invests capital on behalf of a principal for a fee. One of the two candidate sell-down structures Tawf uses.',
+      category: 'Contracts',
     },
     {
       term: 'Riba',
@@ -75,12 +105,12 @@ export function Glossary() {
     },
     {
       term: 'Sukuk',
-      definition: 'Islamic bonds that represent ownership in a tangible asset or a specific project. Tawf Finance may offer sukuk-like structures in the future.',
+      definition: 'Islamic investment certificates representing undivided ownership in real assets (not bonds). Tawf targets asset-backed sukuk. For a BPRS, issuance under POJK 7/2024 Art 35 requires IDR 80bn+ core capital, so it is Tawf\'s tier-2 product, not the first.',
       category: 'Products',
     },
     {
       term: 'Tawf Score',
-      definition: 'A proprietary credit scoring system for MSMEs based on alternative data like transaction history, cooperative relationships, and business performance.',
+      definition: 'A proprietary scoring system for BPRS financing pools based on pool composition, NPF ratio, servicing track record, and akad compliance.',
       category: 'Platform',
     },
     {
@@ -161,7 +191,7 @@ export function Glossary() {
               </div>
               <div>
                 <h3 className="font-medium mb-2">In Indonesia</h3>
-                <p className="text-sm text-tawf-sand-80">OJK regulates, BMTs serve as key intermediaries for MSMEs</p>
+                <p className="text-sm text-tawf-sand-80">OJK regulates. A BPRS is a licensed, LPS-insured Shariah bank and the first originator segment</p>
               </div>
             </div>
           </Card>

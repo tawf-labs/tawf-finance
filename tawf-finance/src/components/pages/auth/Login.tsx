@@ -78,7 +78,7 @@ export function Login() {
                 className="p-3 border border-tawf-green-10 rounded-xl hover:border-tawf-green hover:bg-tawf-green-5 transition-colors text-center disabled:opacity-50"
               >
                 <Building className="w-6 h-6 mx-auto mb-1 text-tawf-green" />
-                <p className="text-sm font-medium text-tawf-green">Cooperative</p>
+                <p className="text-sm font-medium text-tawf-green">BPRS Originator</p>
               </button>
               <button
                 onClick={() => handleDemoLogin('issuer')}

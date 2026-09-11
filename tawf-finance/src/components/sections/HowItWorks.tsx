@@ -12,44 +12,44 @@ import { Section } from '../ui/Section';
 const steps = [
   {
     number: '01',
-    icon: Store,
-    title: 'Business Submits an Order',
-    description: 'A local business submits a purchase order from a major retailer like Indomaret or Alfamart to their local BMT.',
-    role: 'Business',
+    icon: Building,
+    title: 'BPRS Originates Financing',
+    description: 'A licensed Shariah bank (BPRS) originates and services Shariah financing locally, the way it already does today.',
+    role: 'BPRS',
   },
   {
     number: '02',
-    icon: Building,
-    title: 'BMT Verifies the Deal',
-    description: 'The BMT verifies the order and registers the deal. They know the business personally. That is the trust layer.',
-    role: 'BMT',
+    icon: FileCheck,
+    title: 'DPS Reviews the Sell-Down Akad',
+    description: 'The bank\'s Dewan Pengawas Syariah reviews the sell-down structure (wakalah bil istithmar or musyarakah). The akad is the defensible asset.',
+    role: 'DPS',
   },
   {
     number: '03',
-    icon: FileCheck,
-    title: 'Investment Instrument Issued',
-    description: 'A licensed financial firm issues the investment instrument. tawf.finance creates your digital receipt tied to this specific deal.',
-    role: 'Licensed Firm',
+    icon: Store,
+    title: 'Financing Pool Registered',
+    description: 'A defined pool of the bank\'s financing is registered on-chain. tawf.finance creates your soulbound receipt tied to this specific pool.',
+    role: 'Tawf',
   },
   {
     number: '04',
     icon: Wallet,
-    title: 'You Invest',
-    description: 'Sign in, pick a deal, and invest from $10. Your money goes into a secure escrow, not to tawf.finance.',
+    title: 'You Take Exposure',
+    description: 'Sign in, pick a pool, and invest from $10. Your money goes into a secure escrow, not to tawf.finance.',
     role: 'Investor',
   },
   {
     number: '05',
-    icon: Store,
-    title: 'Business Fulfills the Order',
-    description: 'The business delivers the goods. The retailer pays the invoice within 30-90 days.',
-    role: 'Business',
+    icon: Building,
+    title: 'The Bank Services and Remits',
+    description: 'The BPRS keeps servicing the underlying financing and remits collections. It releases balance-sheet capacity while keeping origination revenue.',
+    role: 'BPRS',
   },
   {
     number: '06',
     icon: CheckCircle,
     title: 'You Get Paid',
-    description: 'Once repaid, your principal and profit are released to your wallet. The receipt is closed. Deal done.',
+    description: 'Once the pool matures, your principal and profit are released to your wallet and the receipt is burned. Done.',
     role: 'Investor',
   },
 ];
@@ -160,13 +160,13 @@ export function HowItWorks() {
         >
           <div className="inline-flex flex-col sm:flex-row items-center gap-4 p-6 rounded-2xl bg-tawf-green border border-tawf-green-20">
             <p className="text-tawf-sand font-medium">
-              Ready to fund real businesses across Southeast Asia?
+              Ready to take exposure to real Islamic bank financing?
             </p>
             <a
               href="#"
               className="px-6 py-3 rounded-full bg-tawf-gold text-tawf-green font-medium text-sm uppercase tracking-wide hover:bg-white transition-colors whitespace-nowrap"
             >
-              View Active Deals
+              View Financing Pools
             </a>
           </div>
         </motion.div>
