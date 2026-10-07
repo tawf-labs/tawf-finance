@@ -1,0 +1,33 @@
+id,attack,target,expected,observed,match,enforcing_mechanism
+1,BPRS officer approves own deal (skips Sharia board),DealRegistry,blocked,blocked,yes,AccessControlUnauthorizedAccount
+2,AI agent key approves deal (Sharia action),DealRegistry,blocked,blocked,yes,AccessControlUnauthorizedAccount
+3,AI agent key registers a financing,DealRegistry,blocked,blocked,yes,AccessControlUnauthorizedAccount
+4,Stranger registers a financing,DealRegistry,blocked,blocked,yes,AccessControlUnauthorizedAccount
+5,Sharia board marks mintable (ops action),DealRegistry,blocked,blocked,yes,AccessControlUnauthorizedAccount
+6,Mark mintable before Sharia approval,DealRegistry,blocked,blocked,yes,InvalidTransition
+7,Approve an already approved deal,DealRegistry,blocked,blocked,yes,InvalidTransition
+8,Invest before deal is Mintable,RedemptionVault,blocked,blocked,yes,FundingClosed
+9,Repay with no funding (release without verification proxy),RedemptionVault,blocked,blocked,yes,FundingClosed
+10,Stranger forces early maturity,DealRegistry,blocked,blocked,yes,NotMatured(uint256)
+11,Stranger calls repay,RedemptionVault,blocked,blocked,yes,AccessControlUnauthorizedAccount
+12,Agent repays below principal,RedemptionVault,blocked,blocked,yes,RepaymentBelowPrincipal
+13,Agent key matures pool at zero yield with no collection proof,RedemptionVault,allowed (known gap),allowed,yes,none (no on-chain check)
+14,Agent key reports arbitrary repayment amount (no oracle),RedemptionVault,allowed (known gap),allowed,yes,none (no on-chain check)
+15,Agent key defaults any Active pool unilaterally,DealRegistry,allowed (known gap),allowed,yes,none (no on-chain check)
+16,Stranger defaults an Active pool,DealRegistry,blocked,blocked,yes,AccessControlUnauthorizedAccount
+17,Reuse the same document hash for a second financing,DealRegistry,allowed (known gap),allowed,yes,none (no on-chain check)
+18,"One key holding officer, Sharia and ops roles passes all gates",DealRegistry,allowed (known gap),allowed,yes,none (no on-chain check)
+19,Officer and agent colluding cannot approve without Sharia key,DealRegistry,blocked,blocked,yes,AccessControlUnauthorizedAccount
+20,Non-admin grants itself Sharia role,DealRegistry,blocked,blocked,yes,AccessControlUnauthorizedAccount
+21,Agent grants itself admin role,DealRegistry,blocked,blocked,yes,AccessControlUnauthorizedAccount
+22,Non-admin repoints registry vault,DealRegistry,blocked,blocked,yes,AccessControlUnauthorizedAccount
+23,Admin re-configures vault after go-live,RedemptionVault,blocked,blocked,yes,AlreadyConfigured
+24,Non-admin sets transfer policy,Compliance,blocked,blocked,yes,AccessControlUnauthorizedAccount
+25,Direct fundDeal call bypassing vault,DealRegistry,blocked,blocked,yes,NotVault()
+26,Direct receipt mint bypassing vault,BondReceiptNFT,blocked,blocked,yes,NotVault()
+27,Stranger completes a deal,DealRegistry,blocked,blocked,yes,NotVault()
+28,Redeem before maturity,RedemptionVault,blocked,blocked,yes,NotMatured(uint256)
+29,Claim default on a non-defaulted deal,RedemptionVault,blocked,blocked,yes,NotDefaulted
+30,Non-investor redeems,RedemptionVault,blocked,blocked,yes,NotInvestor
+31,Double redeem,RedemptionVault,blocked,blocked,yes,AlreadyRedeemed
+32,Transfer soulbound receipt to another wallet,BondReceiptNFT,blocked,blocked,yes,Soulbound

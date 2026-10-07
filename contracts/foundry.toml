@@ -17,3 +17,12 @@ arbitrum_sepolia = "https://sepolia-rollup.arbitrum.io/rpc"
 
 [etherscan]
 arbitrum_sepolia = { key = "${ARBISCAN_API_KEY}", url = "https://api-sepolia.arbiscan.io/api" }
+
+# Synthetic evaluation profile (book chapter). Usage: FOUNDRY_PROFILE=eval forge test
+[profile.eval]
+test = "test/eval"
+script = "script/eval"
+isolate = true
+gas_limit = 9223372036854775807
+memory_limit = 2147483648
+fs_permissions = [{ access = "read-write", path = "../eval" }]
