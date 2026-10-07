@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
-import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 
 /**
  * @title DealRegistry
@@ -24,11 +24,21 @@ import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
  *                                                          ↘
  *                                                          Defaulted
  *
- *      MVP access model: the owner (Tawf Labs) drives every transition.
- *      The roadmap replaces this with an originator gateway (BPRS role) and
- *      SekuritasOracle.sol (EIP-712 + 48h timelock for the regulated issuer).
+ *      Access model: role-separated via AccessControl instead of a single
+ *      owner, so each stakeholder in the regulation.md role split can hold
+ *      its own key or multisig. ORIGINATOR_ROLE lists deals, SHARIAH_ROLE
+ *      approves them (the on-chain moment corresponding to a real DPS
+ *      sign-off), OPS_ROLE runs routine lifecycle transitions, ADMIN_ROLE
+ *      wires the vault and manages the other roles. The roadmap still
+ *      expects a SekuritasOracle.sol (EIP-712 + 48h timelock) for the
+ *      regulated issuer once that licence exists; this role split is the
+ *      step before it, not a replacement for it.
  */
-contract DealRegistry is Ownable {
+contract DealRegistry is AccessControl {
+    bytes32 public constant ORIGINATOR_ROLE = keccak256("ORIGINATOR_ROLE");
+    bytes32 public constant SHARIAH_ROLE = keccak256("SHARIAH_ROLE");
+    bytes32 public constant OPS_ROLE = keccak256("OPS_ROLE");
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     enum DealStatus {
         Submitted,    // 0 — pool submitted by a BPRS originator
         BmtApproved,  // 1 — originator/DPS approved (akad reviewed)
@@ -83,14 +93,20 @@ contract DealRegistry is Ownable {
         _;
     }
 
-    constructor() Ownable(msg.sender) {}
+    /// @param admin Address (an EOA for local dev, a Safe multisig in
+    ///        production) granted DEFAULT_ADMIN_ROLE and ADMIN_ROLE. It must
+    ///        grant ORIGINATOR_ROLE / SHARIAH_ROLE / OPS_ROLE separately.
+    constructor(address admin) {
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(ADMIN_ROLE, admin);
+    }
 
     // ---------------------------------------------------------------------
-    // Owner configuration
+    // Admin configuration
     // ---------------------------------------------------------------------
 
     /// @notice Set the RedemptionVault address. Only the vault may fund deals.
-    function setVault(address vault_) external onlyOwner {
+    function setVault(address vault_) external onlyRole(ADMIN_ROLE) {
         if (vault_ == address(0)) revert InvalidVaultAddress();
         vault = vault_;
         emit VaultSet(vault_);
@@ -120,7 +136,7 @@ contract DealRegistry is Ownable {
         uint32 durationDays_,
         uint96 minInvestment_,
         uint96 fundingTarget_
-    ) external onlyOwner returns (uint256 id) {
+    ) external onlyRole(ORIGINATOR_ROLE) returns (uint256 id) {
         if (
             bytes(supplierName_).length == 0 ||
             bytes(anchorBuyer_).length == 0 ||
@@ -155,14 +171,17 @@ contract DealRegistry is Ownable {
         emit DealCreated(id, supplierName_, anchorBuyer_, invoiceHash_);
     }
 
-    /// @notice Originator/DPS approval (Submitted → BmtApproved).
-    function approveDeal(uint256 id) external onlyOwner {
+    /// @notice DPS/Shariah board approval (Submitted → BmtApproved). Held by
+    ///         a Safe multisig combining the DPS and the independent board
+    ///         (regulation.md §3.6), so this transition corresponds to a real
+    ///         Shariah sign-off, not a routine operational action.
+    function approveDeal(uint256 id) external onlyRole(SHARIAH_ROLE) {
         _requireStatus(id, DealStatus.Submitted);
         _transition(id, DealStatus.BmtApproved);
     }
 
     /// @notice Issuance confirmed; investors may fund (BmtApproved → Mintable).
-    function markMintable(uint256 id) external onlyOwner {
+    function markMintable(uint256 id) external onlyRole(OPS_ROLE) {
         _requireStatus(id, DealStatus.BmtApproved);
         _transition(id, DealStatus.Mintable);
     }
@@ -198,7 +217,7 @@ contract DealRegistry is Ownable {
      *
      * @dev A deal may mature from Mintable (partial funding) or Active (fully
      *      funded) — what matters is that it has real principal outstanding.
-     *      Anyone may mature a deal after `maturesAt`; the owner and the
+     *      Anyone may mature a deal after `maturesAt`; OPS_ROLE and the
      *      vault may mature early (needed for the live testnet demo so
      *      judges don't wait 30+ days).
      */
@@ -208,7 +227,7 @@ contract DealRegistry is Ownable {
             revert InvalidTransition(deal.status, DealStatus.Active);
         }
         if (
-            msg.sender != owner() &&
+            !hasRole(OPS_ROLE, msg.sender) &&
             msg.sender != vault &&
             block.timestamp < deal.maturesAt
         ) {
@@ -218,11 +237,11 @@ contract DealRegistry is Ownable {
     }
 
     /// @notice Finalize a fully-redeemed deal. Called by the vault when the
-    ///         last receipt is burned; owner may also call it. Accepts both
-    ///         Matured (paid out with yield) and Defaulted (principal-only)
-    ///         deals.
+    ///         last receipt is burned; OPS_ROLE may also call it. Accepts
+    ///         both Matured (paid out with yield) and Defaulted
+    ///         (principal-only) deals.
     function completeDeal(uint256 id) external {
-        if (msg.sender != owner() && msg.sender != vault) revert NotVault();
+        if (!hasRole(OPS_ROLE, msg.sender) && msg.sender != vault) revert NotVault();
         Deal storage deal = _requireExists(id);
         if (deal.status != DealStatus.Matured && deal.status != DealStatus.Defaulted) {
             revert InvalidTransition(deal.status, DealStatus.Matured);
@@ -231,7 +250,7 @@ contract DealRegistry is Ownable {
     }
 
     /// @notice Flag a deal as defaulted (principal-only return).
-    function defaultDeal(uint256 id) external onlyOwner {
+    function defaultDeal(uint256 id) external onlyRole(OPS_ROLE) {
         _requireStatus(id, DealStatus.Active);
         _transition(id, DealStatus.Defaulted);
     }

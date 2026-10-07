@@ -56,14 +56,18 @@ contract ReentrancyTest is Test {
     function setUp() public {
         vm.startPrank(owner);
         token = new MaliciousToken();
-        nft = new BondReceiptNFT();
-        registry = new DealRegistry();
-        vault = new RedemptionVault();
+        nft = new BondReceiptNFT(owner);
+        registry = new DealRegistry(owner);
+        vault = new RedemptionVault(owner);
 
         token.setVault(address(vault));
         registry.setVault(address(vault));
         nft.setVault(address(vault));
         vault.configure(IERC20(address(token)), registry, nft);
+        registry.grantRole(registry.ORIGINATOR_ROLE(), owner);
+        registry.grantRole(registry.SHARIAH_ROLE(), owner);
+        registry.grantRole(registry.OPS_ROLE(), owner);
+        vault.grantRole(vault.OPS_ROLE(), owner);
         vm.stopPrank();
     }
 

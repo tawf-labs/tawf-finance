@@ -10,6 +10,9 @@ optimizer_runs = 200
 via_ir = true
 evm_version = "cancun"
 fuzz = { runs = 256 }
+# The synthetic evaluation needs write access and raised limits, so it runs under
+# its own profile (FOUNDRY_PROFILE=eval). It still compiles with everything else.
+no_match_path = "test/eval/*"
 
 # Arbitrum Sepolia
 [rpc_endpoints]
@@ -22,6 +25,7 @@ arbitrum_sepolia = { key = "${ARBISCAN_API_KEY}", url = "https://api-sepolia.arb
 [profile.eval]
 test = "test/eval"
 script = "script/eval"
+no_match_path = "test/prototype/*"
 isolate = true
 gas_limit = 9223372036854775807
 memory_limit = 2147483648

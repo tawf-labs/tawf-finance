@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
-import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
@@ -23,14 +23,19 @@ import { BondReceiptNFT } from "./BondReceiptNFT.sol";
  *      Checks-effects-interactions and ReentrancyGuard everywhere money
  *      moves. The vault never holds more than what deals owe + pending yield.
  */
-contract RedemptionVault is Ownable, ReentrancyGuard {
+contract RedemptionVault is AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
+
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant OPS_ROLE = keccak256("OPS_ROLE");
 
     IERC20 public usdc;
     DealRegistry public registry;
     BondReceiptNFT public nft;
+    bool private _configured;
 
     error NotConfigured();
+    error AlreadyConfigured();
     error AmountBelowMinimum();
     error FundingClosed(uint256 dealId);
     error RepaymentBelowPrincipal();
@@ -46,13 +51,23 @@ contract RedemptionVault is Ownable, ReentrancyGuard {
     event Redeemed(uint256 indexed dealId, address indexed investor, uint256 payout);
     event DefaultClaimed(uint256 indexed dealId, address indexed investor, uint256 payout);
 
-    constructor() Ownable(msg.sender) {}
+    /// @param admin Address (an EOA for local dev, a Safe multisig in
+    ///        production) granted DEFAULT_ADMIN_ROLE and ADMIN_ROLE.
+    constructor(address admin) {
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(ADMIN_ROLE, admin);
+    }
 
     // ---------------------------------------------------------------------
-    // Owner configuration
+    // Admin configuration
     // ---------------------------------------------------------------------
 
-    function configure(IERC20 usdc_, DealRegistry registry_, BondReceiptNFT nft_) external onlyOwner {
+    /// @notice One-time wiring of the token, registry, and receipt contracts.
+    /// @dev Callable exactly once. The original version could be re-called
+    ///      at any time by the owner, silently repointing custody-adjacent
+    ///      state post go-live; that gap is closed here.
+    function configure(IERC20 usdc_, DealRegistry registry_, BondReceiptNFT nft_) external onlyRole(ADMIN_ROLE) {
+        if (_configured) revert AlreadyConfigured();
         if (
             address(usdc_) == address(0) ||
             address(registry_) == address(0) ||
@@ -63,6 +78,7 @@ contract RedemptionVault is Ownable, ReentrancyGuard {
         usdc = usdc_;
         registry = registry_;
         nft = nft_;
+        _configured = true;
     }
 
     // ---------------------------------------------------------------------
@@ -111,8 +127,15 @@ contract RedemptionVault is Ownable, ReentrancyGuard {
      *      this vault for the yield portion.
      *
      * @param totalRepayment Total repaid by the anchor buyer: principal + profit.
+     *
+     * @dev Gated by OPS_ROLE rather than a single owner, held by a multisig
+     *      requiring at least two of BPRS finance, Tawf ops, and an
+     *      independent auditor (regulation.md, disbursement-integrity
+     *      staged path, stage 1). This is the single highest-risk function
+     *      in the system, the amount is currently supplied by the caller
+     *      with no on-chain check against real collections.
      */
-    function repay(uint256 dealId, uint96 totalRepayment) external nonReentrant onlyOwner {
+    function repay(uint256 dealId, uint96 totalRepayment) external nonReentrant onlyRole(OPS_ROLE) {
         DealRegistry.Deal memory deal = _requireConfigured(dealId);
 
         if (deal.totalFunded == 0) revert FundingClosed(dealId);
