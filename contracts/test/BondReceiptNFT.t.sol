@@ -17,7 +17,7 @@ contract BondReceiptNFTTest is Test {
     uint96 public constant PRINCIPAL = 100 * 10 ** 6; // $100
 
     function setUp() public {
-        nft = new BondReceiptNFT();
+        nft = new BondReceiptNFT(address(this));
         nft.setVault(vault);
     }
 

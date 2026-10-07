@@ -1,0 +1,15 @@
+{
+ "claude-haiku-4-5-20251001": {
+  "errors": [
+   [
+    "C137",
+    "genuine",
+    "plain",
+    "mismatch"
+   ]
+  ]
+ },
+ "claude-sonnet-5-5": {
+  "errors": []
+ }
+}

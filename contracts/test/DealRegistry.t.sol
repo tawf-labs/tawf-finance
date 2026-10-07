@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { BaseSetup } from "./Base.t.sol";
-import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
 import { DealRegistry } from "../src/DealRegistry.sol";
 import { RedemptionVault } from "../src/RedemptionVault.sol";
 
@@ -86,8 +86,12 @@ contract DealRegistryTest is BaseSetup {
         registry.createDeal(keccak256("x"), "Warung", "Indomaret", bmt, 1200, 0, MIN_INVEST, TARGET);
     }
 
-    function test_CreateDeal_onlyOwner() public {
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+    function test_CreateDeal_onlyOriginatorRole() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, stranger, registry.ORIGINATOR_ROLE()
+            )
+        );
         vm.prank(stranger);
         registry.createDeal(keccak256("x"), "Warung", "Indomaret", bmt, 1200, 30, MIN_INVEST, TARGET);
     }
