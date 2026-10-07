@@ -26,3 +26,11 @@ isolate = true
 gas_limit = 9223372036854775807
 memory_limit = 2147483648
 fs_permissions = [{ access = "read-write", path = "../eval" }]
+
+# Local-Anvil prototype profile (disbursement verification layer, future work).
+# Scopes tests + scripts to the prototype namespace so the prototype builds and
+# tests in isolation; it does not alter the default or eval profiles, the
+# production contracts, or their ABIs. Usage: FOUNDRY_PROFILE=prototype forge test
+[profile.prototype]
+test = "test/prototype"
+script = "script/prototype"

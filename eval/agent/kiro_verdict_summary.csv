@@ -1,0 +1,2 @@
+model,cases,mismatch_cases,match_cases,tp_mismatch_flagged,fn_false_release,fp_false_flag,tn_match_released,escalated,parse_errors,false_release_rate,false_flag_rate,latency_mean_s,kiro_credits_total
+kiro-default,12,4,8,4,0,0,8,0,0,0.0%,0.0%,7.91,1.99

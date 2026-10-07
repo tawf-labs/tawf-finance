@@ -1,0 +1,2 @@
+model,cases,milestones_registered,releases_executed,match_verdicts,flags_human_review,human_review_total,register_or_verdict_errors,adverse_agent_writes,mis_releases
+kiro-default,12,12,8,8,4,4,0,0,0
