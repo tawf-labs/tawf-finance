@@ -78,12 +78,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--tag", default="", help="prefix for the output file, e.g. api -> raw/api-<model>.jsonl, so earlier results are never resumed")
     a = ap.parse_args()
     os.makedirs(RAW, exist_ok=True)
     cases = [json.loads(l) for l in open(os.path.join(HERE, "cases.jsonl"))]
     if a.limit:
         cases = cases[:a.limit]
-    out_path = os.path.join(RAW, a.model + ".jsonl")
+    out_path = os.path.join(RAW, (a.tag + "-" if a.tag else "") + a.model + ".jsonl")
     done = {json.loads(l)["id"] for l in open(out_path)} if os.path.exists(out_path) else set()
     spend = load_spend()
     pin, pout = PRICE.get(a.model, (1.0, 5.0))
