@@ -2,8 +2,9 @@
 pragma solidity ^0.8.20;
 
 import { ERC1155 } from "openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
-import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 import { Strings } from "openzeppelin-contracts/contracts/utils/Strings.sol";
+import { Compliance } from "./Compliance.sol";
 
 /**
  * @title BondReceiptNFT
@@ -18,8 +19,15 @@ import { Strings } from "openzeppelin-contracts/contracts/utils/Strings.sol";
  *      Sharia framing: non-transferability (no secondary market, no maysir),
  *      one receipt per real invoice (no gharar), returns from real trade
  *      only (no riba).
+ *
+ *      Transfer policy: soulbound is the default and, with no Compliance
+ *      module wired, the only possible state (see `_update`). Once a
+ *      Compliance module is set, whether a given dealId may transfer is
+ *      delegated to it (secondary-market.md phase 2/3), so flipping a pool's
+ *      policy never requires a redeploy of this contract.
  */
-contract BondReceiptNFT is ERC1155, Ownable {
+contract BondReceiptNFT is ERC1155, AccessControl {
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     enum ReceiptStatus {
         Active,      // 0 — minted and live (default)
         Matured,     // 1 — deal repaid; derived from deal snapshot
@@ -46,6 +54,11 @@ contract BondReceiptNFT is ERC1155, Ownable {
     /// @notice The vault authorized to mint, mature, and burn receipts.
     address public vault;
 
+    /// @notice Optional ERC-3643-style compliance module. Unset (address(0))
+    ///         means every non-mint/burn transfer reverts, the original
+    ///         hardcoded soulbound behavior.
+    Compliance public compliance;
+
     mapping(uint256 => mapping(address => ReceiptMeta)) private _receipts;
     mapping(uint256 => DealSnapshot) private _dealSnapshots;
     mapping(uint256 => string) private _dealSupplier;
@@ -71,15 +84,24 @@ contract BondReceiptNFT is ERC1155, Ownable {
         _;
     }
 
-    constructor() ERC1155("") Ownable(msg.sender) {}
+    constructor(address admin) ERC1155("") {
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(ADMIN_ROLE, admin);
+    }
 
     // ---------------------------------------------------------------------
-    // Owner configuration
+    // Admin configuration
     // ---------------------------------------------------------------------
 
-    function setVault(address vault_) external onlyOwner {
+    function setVault(address vault_) external onlyRole(ADMIN_ROLE) {
         if (vault_ == address(0)) revert InvalidVaultAddress();
         vault = vault_;
+    }
+
+    /// @notice Wire (or unwire, via address(0)) the compliance module that
+    ///         gates non-mint/burn transfers. See `_update`.
+    function setCompliance(Compliance compliance_) external onlyRole(ADMIN_ROLE) {
+        compliance = compliance_;
     }
 
     // ---------------------------------------------------------------------
@@ -258,8 +280,11 @@ contract BondReceiptNFT is ERC1155, Ownable {
     // ---------------------------------------------------------------------
 
     /**
-     * @notice Block ALL transfers. The only legal state changes are minting
-     *         (from == address(0)) and burning (to == address(0)).
+     * @notice Minting (from == address(0)) and burning (to == address(0))
+     *         are always allowed. Any other transfer is soulbound by
+     *         default; if a Compliance module is wired, each token id in
+     *         the batch is checked against that dealId's transfer policy
+     *         instead of an unconditional revert.
      */
     function _update(
         address from,
@@ -267,14 +292,35 @@ contract BondReceiptNFT is ERC1155, Ownable {
         uint256[] memory ids,
         uint256[] memory values
     ) internal virtual override {
-        if (from != address(0) && to != address(0)) revert Soulbound();
+        if (from != address(0) && to != address(0)) {
+            if (address(compliance) == address(0)) revert Soulbound();
+            for (uint256 i = 0; i < ids.length; i++) {
+                if (!compliance.canTransfer(address(this), ids[i], from, to)) {
+                    revert Soulbound();
+                }
+            }
+        }
         super._update(from, to, ids, values);
     }
 
-    /// @notice No operator approvals, ever — a receipt has no owner to
-    ///         delegate control to.
+    /// @notice No operator approvals. Direct owner-initiated transfers are
+    ///         the only path a Transferable/Conditional policy opens up
+    ///         (see `_update`); operator-based marketplace settlement is
+    ///         secondary-market.md phase 2/3, out of scope here.
     function setApprovalForAll(address, bool) public pure override {
         revert Soulbound();
+    }
+
+    /// @dev AccessControl and ERC1155 both implement ERC165; resolve the
+    ///      diamond explicitly.
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(ERC1155, AccessControl)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
     }
 
     // ---------------------------------------------------------------------
