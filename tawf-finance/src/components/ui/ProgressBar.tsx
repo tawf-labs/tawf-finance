@@ -36,15 +36,15 @@ export const ProgressBar = forwardRef<HTMLDivElement, ProgressBarProps>(
     };
 
     const colorStyles = {
-      green: 'bg-tawf-green',
-      gold: 'bg-tawf-gold',
+      green: 'bg-jade',
+      gold: 'bg-honey',
       blue: 'bg-blue-500',
       purple: 'bg-purple-500',
     };
 
     const bgStyles = {
-      green: 'bg-tawf-green-10',
-      gold: 'bg-tawf-gold-10',
+      green: 'bg-glaze',
+      gold: 'bg-butter/60',
       blue: 'bg-blue-100',
       purple: 'bg-purple-100',
     };
@@ -54,7 +54,7 @@ export const ProgressBar = forwardRef<HTMLDivElement, ProgressBarProps>(
         {(showLabel || label) && (
           <div className="flex justify-between items-center mb-1.5">
             <span className="text-xs text-tawf-muted">{label || 'Progress'}</span>
-            <span className="text-xs font-medium text-tawf-green">{percentage.toFixed(0)}%</span>
+            <span className="font-mono text-xs font-medium text-ink tabular-nums">{percentage.toFixed(0)}%</span>
           </div>
         )}
         <div className={cn('w-full rounded-full overflow-hidden', bgStyles[color], sizeStyles[size])}>

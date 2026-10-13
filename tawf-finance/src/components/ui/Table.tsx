@@ -73,7 +73,7 @@ export function Table<T>({
               <th
                 key={column.id}
                 className={cn(
-                  'py-3 px-4 text-left text-xs font-semibold uppercase tracking-wider text-tawf-muted',
+                  'py-3 px-4 text-left font-mono text-[0.68rem] font-medium uppercase tracking-[0.1em] text-tawf-muted whitespace-nowrap',
                   column.sortable && sortable && 'cursor-pointer hover:text-tawf-green transition-colors',
                   column.className
                 )}
@@ -88,7 +88,7 @@ export function Table<T>({
                           'w-3 h-3 -mb-1.5',
                           sortColumn === column.id && sortDirection === 'asc'
                             ? 'text-tawf-green'
-                            : 'text-gray-300'
+                            : 'text-line'
                         )}
                       />
                       <ChevronDown
@@ -96,7 +96,7 @@ export function Table<T>({
                           'w-3 h-3 -mt-1.5',
                           sortColumn === column.id && sortDirection === 'desc'
                             ? 'text-tawf-green'
-                            : 'text-gray-300'
+                            : 'text-line'
                         )}
                       />
                     </span>
@@ -119,7 +119,7 @@ export function Table<T>({
                 key={keyExtractor(item)}
                 onClick={() => onRowClick?.(item)}
                 className={cn(
-                  'border-b border-tawf-green-5 hover:bg-tawf-sand-30 transition-colors',
+                  'border-b border-line/70 last:border-0 hover:bg-stone/70 transition-colors',
                   onRowClick && 'cursor-pointer'
                 )}
               >

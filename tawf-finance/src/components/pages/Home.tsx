@@ -1,12 +1,5 @@
-import { Hero, Features, HowItWorks, Impact } from '../sections';
+import { Landing } from '../landing/Landing';
 
 export function Home() {
-  return (
-    <>
-      <Hero />
-      <Features />
-      <HowItWorks />
-      <Impact />
-    </>
-  );
+  return <Landing />;
 }

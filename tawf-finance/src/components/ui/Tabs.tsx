@@ -32,21 +32,21 @@ export function Tabs({ tabs, defaultTab, variant = 'underline', className, onCha
 
   const variantStyles = {
     underline: {
-      container: 'border-b border-tawf-green-10',
-      tab: 'pb-3 border-b-2 -mb-px transition-colors',
-      active: 'border-tawf-green text-tawf-green',
-      inactive: 'border-transparent text-tawf-muted hover:text-tawf-green',
+      container: 'border-b border-line overflow-x-auto',
+      tab: 'min-h-11 whitespace-nowrap px-1 pb-3 border-b-2 -mb-px text-sm font-medium transition-colors',
+      active: 'border-jade text-ink',
+      inactive: 'border-transparent text-tawf-muted hover:text-ink',
     },
     pills: {
-      container: 'bg-tawf-sand-30 p-1 rounded-xl inline-flex',
-      tab: 'px-4 py-2 rounded-lg transition-all duration-200 text-sm font-medium',
-      active: 'bg-white text-tawf-green shadow-sm',
+      container: 'bg-glaze p-1 rounded-full inline-flex max-w-full overflow-x-auto',
+      tab: 'min-h-9 whitespace-nowrap px-4 rounded-full transition-[background,color] duration-200 text-sm font-medium',
+      active: 'bg-white text-ink shadow-tile',
       inactive: 'text-tawf-muted hover:text-tawf-green',
     },
     segmented: {
-      container: 'bg-tawf-sand-30 p-1 rounded-lg inline-flex',
-      tab: 'px-3 py-1.5 rounded-md transition-all duration-200 text-sm font-medium',
-      active: 'bg-tawf-green text-white',
+      container: 'bg-glaze p-1 rounded-xl inline-flex max-w-full overflow-x-auto',
+      tab: 'min-h-9 whitespace-nowrap px-3 rounded-lg transition-[background,color] duration-200 text-sm font-medium',
+      active: 'bg-ink text-white',
       inactive: 'text-tawf-muted hover:text-tawf-green',
     },
   };

@@ -1,101 +1,115 @@
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
-const investmentPools = [
-  { name: 'BPRS Amanah Micro-Trade', href: '/earn' },
-  { name: 'BPRS Barokah Agri Financing', href: '/earn' },
-  { name: 'BPRS Sejahtera SME', href: '/earn' },
-  { name: 'BPRS Amanah Consumer', href: '/earn' },
-  { name: 'BPRS Barokah Trade', href: '/earn' },
+type FooterLink = { name: string; href: string };
+
+const groups: { title: string; links: FooterLink[] }[] = [
+  {
+    title: 'Explore',
+    links: [
+      { name: 'Lifecycle', href: '/#how-it-works' },
+      { name: 'Receipt', href: '/#receipt' },
+      { name: 'Instruments', href: '/instruments' },
+      { name: 'Glossary', href: '/glossary' },
+    ],
+  },
+  {
+    title: 'Platform',
+    links: [
+      { name: 'Investor app', href: 'https://app.tawf.finance/login' },
+      { name: 'Tawf ID', href: 'https://id.tawf.foundation' },
+    ],
+  },
+  {
+    title: 'Foundation',
+    links: [
+      { name: 'Tawf Foundation', href: 'https://tawf.foundation' },
+      { name: 'About', href: '/about' },
+      { name: 'Contact', href: '/contact' },
+    ],
+  },
 ];
 
-const platformLinks = [
-  { name: 'Tawf ID', href: 'https://id.tawf.foundation' },
-];
+const MASK = {
+  maskImage: 'url(/tawf-wordmark.png)',
+  WebkitMaskImage: 'url(/tawf-wordmark.png)',
+  maskSize: 'contain',
+  WebkitMaskSize: 'contain',
+  maskRepeat: 'no-repeat',
+  WebkitMaskRepeat: 'no-repeat',
+} as const;
 
-const foundationLinks = [
-  { name: 'Our Mission', href: '#' },
-  { name: 'Governance', href: '#' },
-  { name: 'Org Structure', href: '#' },
-  { name: 'Manifesto', href: '#' },
-];
+const linkCls = 'inline-flex min-h-9 items-center text-[0.95rem] text-ink/70 transition-colors hover:text-ink';
 
-const resourceLinks = [
-  { name: 'Instruments', href: '/instruments' },
-  { name: 'Glossary', href: '#' },
-  { name: 'Research', href: '#' },
-  { name: 'Contact', href: '#' },
-  { name: 'Privacy Policy', href: '#' },
-  { name: 'Terms of Service', href: '#' },
-];
-
-function FooterColumn({ title, links, delay }: { title: string; links: { name: string; href: string }[]; delay: number }) {
-  const isExternal = (href: string) => href.startsWith('http');
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.6, delay }}
-    >
-      <h3 className="font-medium text-white/80 mb-4">{title}</h3>
-      <ul className="space-y-3">
-        {links.map((link) => (
-          <li key={link.name}>
-            {isExternal(link.href) ? (
-              <a href={link.href} className="text-white/40 hover:text-tawf-gold transition-colors text-sm">
-                {link.name}
-              </a>
-            ) : (
-              <Link to={link.href} className="text-white/40 hover:text-tawf-gold transition-colors text-sm">
-                {link.name}
-              </Link>
-            )}
-          </li>
-        ))}
-      </ul>
-    </motion.div>
-  );
+function FooterAnchor({ link }: { link: FooterLink }) {
+  if (link.href.startsWith('http')) {
+    return <a href={link.href} className={linkCls}>{link.name}</a>;
+  }
+  // Hash links must be plain anchors so the browser scrolls to the section.
+  if (link.href.includes('#')) {
+    return <a href={link.href} className={linkCls}>{link.name}</a>;
+  }
+  return <Link to={link.href} className={linkCls}>{link.name}</Link>;
 }
 
 export function Footer() {
+  const reduce = useReducedMotion();
   return (
-    <footer className="bg-tawf-ink text-white">
-      <div className="section-container py-16">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-12 mb-12">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <h2 className="text-2xl font-bold text-white mb-3">Tawf Labs</h2>
-            <p className="text-white/60 text-sm leading-relaxed mb-6">
-              Originator-side Islamic capital-markets infrastructure. Take verifiable exposure
-              to a licensed Shariah bank&apos;s financing pool through a compliant sell-down akad.
+    <footer className="relative overflow-hidden border-t border-ink/[0.07] bg-white text-ink">
+      <div className="section-container relative pt-20 lg:pt-28">
+        <div className="grid gap-14 lg:grid-cols-12">
+          <div className="lg:col-span-5">
+            <span role="img" aria-label="Tawf" className="block h-9 w-[150px] bg-ink" style={MASK} />
+            <p className="mt-6 max-w-sm text-[0.95rem] leading-relaxed text-ink/65">
+              Originator-side infrastructure for licensed Indonesian Shariah banks. Built by Tawf Labs on Arbitrum,
+              governed by Tawf Foundation.
             </p>
-            <p className="text-white/40 text-sm">Governed by Tawf Foundation</p>
-          </motion.div>
+          </div>
 
-          <FooterColumn title="Investment Pools" links={investmentPools} delay={0.1} />
-          <FooterColumn title="Platform" links={platformLinks} delay={0.2} />
-          <FooterColumn title="Foundation" links={foundationLinks} delay={0.3} />
-          <FooterColumn title="Resources" links={resourceLinks} delay={0.4} />
+          <nav aria-label="Footer" className="grid grid-cols-2 gap-10 sm:grid-cols-3 lg:col-span-6 lg:col-start-7">
+            {groups.map((g) => (
+              <div key={g.title}>
+                <h2 className="font-sans text-xs font-semibold text-ink/50">{g.title}</h2>
+                <ul className="mt-4 space-y-1">
+                  {g.links.map((l) => (
+                    <li key={l.name}><FooterAnchor link={l} /></li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </nav>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="pt-8 border-t border-white/10 flex items-center justify-center"
-        >
-          <p className="text-white/40 text-sm">
-            © {new Date().getFullYear()} Tawf Labs. All rights reserved.
-          </p>
-        </motion.div>
+        <div className="mt-16 flex flex-col gap-4 border-t border-ink/[0.07] py-6 text-sm text-ink/60 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} Tawf Labs. Testnet. Not an offer of securities.</p>
+          <button
+            type="button"
+            onClick={() => window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' })}
+            className="inline-flex min-h-11 items-center gap-2 self-start text-ink transition-colors hover:text-tawf-green sm:self-auto"
+          >
+            Back to top <span aria-hidden="true">↑</span>
+          </button>
+        </div>
       </div>
+
+      {/* The wordmark as the floor of the site: tinted through a mask so it sits in
+          the palette, and rising into place as the footer arrives. */}
+      <motion.div
+        aria-hidden="true"
+        initial={reduce ? false : { y: '40%' }}
+        whileInView={{ y: '0%' }}
+        viewport={{ once: true, amount: 0.2 }}
+        transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
+        className="pointer-events-none mx-auto -mb-[3vw] mt-2 aspect-[710/171] w-[92vw] bg-ink/[0.04]"
+        style={{
+          maskImage: 'url(/tawf-wordmark.png)',
+          WebkitMaskImage: 'url(/tawf-wordmark.png)',
+          maskSize: 'contain',
+          WebkitMaskSize: 'contain',
+          maskRepeat: 'no-repeat',
+          WebkitMaskRepeat: 'no-repeat',
+        }}
+      />
     </footer>
   );
 }
