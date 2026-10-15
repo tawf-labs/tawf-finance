@@ -1,41 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@500;600&family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Figtree:ital,wght@0,400..700;1,400..600&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
-/* Tawf Design System Tokens */
+/* Tawf · Zellige. Glazed tile on limestone: jade on stone, honey for capital,
+   an 8-point khatam grid as quiet structure. Every text pair below is AA. */
 @theme {
-  /* Primary Colors */
-  --color-tawf-green: #0F3D30;
-  --color-tawf-green-light: #1A5242;
-  --color-tawf-gold: #C5A869;
-  --color-tawf-sand: #F9F6F0;
-  --color-tawf-ink: #1A1A1A;
-  --color-tawf-muted: #6B7280;
+  /* Core. Legacy tawf-* names are kept so all pages pick up the system;
+     the values are Zellige. */
+  --color-tawf-green: #10261F;       /* ink-jade: headings, primary fill. 14:1 on stone */
+  --color-tawf-green-light: #1F6B57; /* jade: accent, links. 5.4:1 on stone */
+  --color-tawf-gold: #8A6414;        /* honey: capital accent. 4.7:1 on stone */
+  --color-tawf-sand: #EEF1EC;        /* limestone page ground */
+  --color-tawf-ink: #10261F;
+  --color-tawf-muted: #4A5F57;       /* soft text. 6:1 on stone */
 
-  /* Color Variants */
-  --color-tawf-green-10: rgb(15 61 48 / 0.1);
-  --color-tawf-green-20: rgb(15 61 48 / 0.2);
-  --color-tawf-gold-10: rgb(197 168 105 / 0.1);
-  --color-tawf-gold-20: rgb(197 168 105 / 0.2);
-  --color-tawf-sand-30: rgb(249 246 240 / 0.3);
-  --color-tawf-sand-50: rgb(249 246 240 / 0.5);
+  --color-ink: #10261F;
+  --color-jade: #1F6B57;
+  --color-jade-deep: #175545;
+  --color-stone: #EEF1EC;
+  --color-glaze: #DCE8E1;            /* tile fill, hero ground */
+  --color-glaze-deep: #C9DDD1;
+  --color-line: #CED8D1;
+  --color-butter: #F2E3B5;
+  --color-honey: #8A6414;
+  --color-clay: #9A3B2E;             /* errors. AA on white and stone */
 
-  /* Spacing */
-  --spacing-section: 6rem;
-  --spacing-section-mobile: 4rem;
-  --spacing-card-gap: 1.5rem;
-  --spacing-card-padding: 2rem;
-  --spacing-card-padding-lg: 2.5rem;
+  /* Landing pastels: one ground per chapter so sections read apart.
+     Ink and jade stay AA on all three. */
+  --color-mint: #D3ECDD;
+  --color-peach: #F8DCCB;
+  --color-paper: #FBFCFA;
 
-  /* Border Radius */
+  /* Old landing tints, remapped to glaze so nothing renders unstyled. */
+  --color-mint-50: #F5F8F5;
+  --color-mint-100: #E6EEE9;
+  --color-mint-200: #DCE8E1;
+  --color-mint-300: #C9DDD1;
+
+  --color-tawf-green-10: rgb(16 38 31 / 0.08);
+  --color-tawf-green-20: rgb(16 38 31 / 0.16);
+  --color-tawf-gold-10: rgb(138 100 20 / 0.1);
+  --color-tawf-gold-20: rgb(138 100 20 / 0.2);
+  --color-tawf-sand-30: rgb(238 241 236 / 0.6);
+  --color-tawf-sand-50: rgb(238 241 236 / 0.85);
+
+  --spacing-section: 7rem;
+  --spacing-section-mobile: 4.5rem;
+  --spacing-card-gap: 1.25rem;
+  --spacing-card-padding: 1.75rem;
+  --spacing-card-padding-lg: 2.25rem;
+
   --radius-card: 1rem;
   --radius-box: 1.5rem;
   --radius-button: 9999px;
 
-  /* Font Families */
-  --font-serif: "Cormorant Garamond", "Times New Roman", serif;
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  /* font-serif is what every page heading uses: it now maps to the display grotesk. */
+  --font-serif: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-sans: "Figtree", system-ui, -apple-system, sans-serif;
+  --font-arabic: "Noto Naskh Arabic", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Type Scale */
   --text-hero: 3.5rem;
   --text-h1: 3.75rem;
   --text-h2: 2.5rem;
@@ -44,12 +68,15 @@
   --text-body-lg: 1.125rem;
   --text-body: 1rem;
   --text-small: 0.875rem;
+
+  --shadow-tile: 0 1px 0 rgb(16 38 31 / 0.04), 0 8px 24px -12px rgb(16 38 31 / 0.18);
+  --shadow-lift: 0 2px 0 rgb(16 38 31 / 0.04), 0 24px 48px -20px rgb(16 38 31 / 0.28);
+  --ease-glaze: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Global Styles */
 @layer base {
   * {
-    @apply border-tawf-green-10;
+    @apply border-line;
   }
 
   html {
@@ -57,120 +84,139 @@
   }
 
   body {
-    @apply bg-tawf-sand text-tawf-ink antialiased;
+    @apply bg-stone text-ink antialiased;
     font-family: var(--font-sans);
+    font-feature-settings: "ss01";
   }
 
-  /* Selection */
   ::selection {
-    @apply bg-tawf-gold-20 text-tawf-green;
+    @apply bg-butter text-ink;
   }
 
-  /* Focus Styles */
   *:focus-visible {
-    @apply outline-2 outline-offset-2 outline-tawf-gold;
+    @apply outline-2 outline-offset-2 outline-jade;
+  }
+  .bg-tawf-green *:focus-visible,
+  .bg-ink *:focus-visible {
+    @apply outline-butter;
   }
 
-  /* Typography */
   h1, h2, h3, h4, h5, h6 {
-    @apply font-serif font-medium;
+    @apply font-serif font-semibold;
+    font-stretch: 86%;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+  h1 {
+    letter-spacing: -0.045em;
+  }
+
+  /* Figures line up everywhere: tables, stats, balances. */
+  td, th, .tabular, [class*="font-mono"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  button, [role="button"], a {
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
 @layer components {
-  /* Section Container */
   .section-container {
-    @apply max-w-7xl mx-auto px-6;
+    @apply max-w-7xl mx-auto px-5 sm:px-8;
   }
 
   .section-padding {
     @apply py-section-mobile md:py-section;
   }
 
-  /* Navigation */
   .nav-link {
-    @apply text-tawf-ink uppercase tracking-wider text-xs font-medium hover:text-tawf-green transition-colors duration-300;
+    @apply text-ink/70 text-sm font-medium hover:text-ink transition-colors duration-200;
   }
 
-  /* Buttons */
   .btn-primary {
-    @apply bg-tawf-green text-tawf-sand px-8 py-4 rounded-full font-medium uppercase tracking-wide transition-all duration-300 hover:bg-tawf-green-light hover:shadow-lg;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-ink px-7 text-sm font-semibold text-white transition-[background,transform] duration-200 hover:bg-jade active:translate-y-px;
   }
 
   .btn-secondary {
-    @apply bg-transparent border border-tawf-green text-tawf-green px-6 py-2.5 rounded-full font-medium uppercase tracking-wide transition-all duration-300 hover:bg-tawf-green hover:text-tawf-sand;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-ink ring-1 ring-line transition-[background,box-shadow] duration-200 hover:ring-ink/40;
   }
 
-  /* Cards */
   .card {
-    @apply bg-white border border-tawf-green-10 rounded-2xl p-card-padding transition-all duration-300;
+    @apply bg-white border border-line rounded-2xl p-card-padding transition-[box-shadow,border-color] duration-300;
   }
 
   .card-hover {
-    @apply hover:shadow-lg hover:border-tawf-green-20;
+    @apply hover:shadow-lift hover:border-glaze-deep;
   }
 
   .card-sand {
-    @apply bg-tawf-sand-30;
+    @apply bg-glaze/50;
   }
 
-  /* Text Styles */
   .text-gradient {
-    @apply bg-gradient-to-r from-tawf-green to-tawf-green-light bg-clip-text text-transparent;
+    @apply text-jade;
   }
 
   .text-gold {
-    @apply text-tawf-gold;
+    @apply text-honey;
   }
 
   .label {
-    @apply uppercase tracking-widest text-xs text-tawf-gold font-medium;
+    @apply font-mono uppercase tracking-[0.14em] text-[0.7rem] text-jade font-medium;
+  }
+
+  /* Khatam tile: an 8-point star lattice. Use on glaze grounds at low contrast. */
+  .tile {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cpolygon points='32,6 39.6,13.6 50.4,13.6 50.4,24.4 58,32 50.4,39.6 50.4,50.4 39.6,50.4 32,58 24.4,50.4 13.6,50.4 13.6,39.6 6,32 13.6,24.4 13.6,13.6 24.4,13.6' fill='%23C9DDD1' fill-opacity='.55' stroke='%23B6CFC0' stroke-opacity='.6'/%3E%3Ccircle r='5' fill='%23F2E3B5' fill-opacity='.7'/%3E%3Ccircle cx='64' r='5' fill='%23F2E3B5' fill-opacity='.7'/%3E%3Ccircle cy='64' r='5' fill='%23F2E3B5' fill-opacity='.7'/%3E%3Ccircle cx='64' cy='64' r='5' fill='%23F2E3B5' fill-opacity='.7'/%3E%3C/svg%3E");
+    background-size: 64px 64px;
+  }
+
+  .grain {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.06 0 0 0 0 0.15 0 0 0 0 0.12 0 0 0 .06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .display {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-stretch: 82%;
+    letter-spacing: -0.05em;
+    line-height: 0.95;
   }
 }
 
-/* Animations */
 @layer utilities {
   .animate-fade-in {
-    animation: fadeIn 0.8s ease-out forwards;
+    animation: fadeIn 0.6s var(--ease-glaze) both;
   }
-
   .animate-slide-up {
-    animation: slideUp 0.8s ease-out forwards;
+    animation: slideUp 0.7s var(--ease-glaze) both;
   }
-
   .animate-scale-in {
-    animation: scaleIn 1s ease-out forwards;
+    animation: scaleIn 0.7s var(--ease-glaze) both;
   }
 
   @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
-
   @keyframes slideUp {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
   }
-
   @keyframes scaleIn {
-    from {
-      opacity: 0;
-      transform: scale(0.95);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

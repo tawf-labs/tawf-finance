@@ -69,7 +69,7 @@ export function Modal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-ink/40 backdrop-blur-sm z-50"
             onClick={closeOnOverlayClick ? onClose : undefined}
           />
 
@@ -81,21 +81,21 @@ export function Modal({
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.2 }}
               className={cn(
-                'w-full bg-white rounded-2xl shadow-2xl pointer-events-auto',
+                'w-full max-h-[calc(100svh-2rem)] overflow-y-auto bg-white rounded-3xl shadow-lift ring-1 ring-line pointer-events-auto',
                 sizeStyles[size],
                 className
               )}
             >
               {/* Header */}
               {(title || showCloseButton) && (
-                <div className="flex items-center justify-between px-6 py-4 border-b border-tawf-green-10">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-line">
                   {title && (
-                    <h3 className="font-serif text-xl text-tawf-green">{title}</h3>
+                    <h3 className="font-serif text-xl text-ink">{title}</h3>
                   )}
                   {showCloseButton && (
                     <button
                       onClick={onClose}
-                      className="p-2 rounded-full hover:bg-tawf-sand-50 text-tawf-muted hover:text-tawf-green transition-colors"
+                      className="p-2 rounded-full hover:bg-glaze text-tawf-muted hover:text-tawf-green transition-colors"
                       aria-label="Close modal"
                     >
                       <X className="w-5 h-5" />

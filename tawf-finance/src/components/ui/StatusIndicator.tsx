@@ -13,13 +13,13 @@ export interface StatusIndicatorProps extends HTMLAttributes<HTMLSpanElement> {
 export const StatusIndicator = forwardRef<HTMLSpanElement, StatusIndicatorProps>(
   ({ status, showLabel = false, label, size = 'md', variant = 'dot', className, ...props }, ref) => {
     const statusConfig = {
-      online: { color: 'bg-green-500', text: 'Online' },
-      offline: { color: 'bg-gray-400', text: 'Offline' },
-      away: { color: 'bg-yellow-500', text: 'Away' },
-      busy: { color: 'bg-red-500', text: 'Busy' },
-      active: { color: 'bg-green-500', text: 'Active' },
-      inactive: { color: 'bg-gray-400', text: 'Inactive' },
-      pending: { color: 'bg-yellow-500', text: 'Pending' },
+      online: { color: 'bg-jade', text: 'Online' },
+      offline: { color: 'bg-line', text: 'Offline' },
+      away: { color: 'bg-[#C9962B]', text: 'Away' },
+      busy: { color: 'bg-clay', text: 'Busy' },
+      active: { color: 'bg-jade', text: 'Active' },
+      inactive: { color: 'bg-line', text: 'Inactive' },
+      pending: { color: 'bg-[#C9962B]', text: 'Pending' },
     };
 
     const config = statusConfig[status];

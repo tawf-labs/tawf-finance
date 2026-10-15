@@ -9,15 +9,15 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 
 export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ children, variant = 'default', hover = false, className, ...props }, ref) => {
-    const baseStyles = 'rounded-2xl border transition-all duration-300';
+    const baseStyles = 'rounded-2xl border transition-[box-shadow,border-color] duration-300';
 
     const variantStyles = {
-      default: 'bg-white border-tawf-green-10',
-      sand: 'bg-tawf-sand-30 border-tawf-green-10',
-      glass: 'bg-tawf-sand-50/90 backdrop-blur-sm border-white/20',
+      default: 'bg-white border-line',
+      sand: 'bg-glaze/50 border-line',
+      glass: 'bg-white/75 backdrop-blur-md border-white/60',
     };
 
-    const hoverStyles = hover ? 'hover:shadow-lg hover:border-tawf-green-20' : '';
+    const hoverStyles = hover ? 'hover:shadow-lift hover:border-glaze-deep' : '';
 
     return (
       <div

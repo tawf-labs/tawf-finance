@@ -9,18 +9,18 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ children, variant = 'primary', size = 'md', className, ...props }, ref) => {
-    const baseStyles = 'inline-flex items-center justify-center rounded-full font-medium uppercase tracking-wide transition-all duration-300';
+    const baseStyles = 'inline-flex items-center justify-center gap-2 rounded-full font-semibold transition-[background,box-shadow,transform] duration-200 active:translate-y-px disabled:pointer-events-none disabled:opacity-50';
 
     const variantStyles = {
-      primary: 'bg-tawf-green text-tawf-sand hover:bg-tawf-green-light hover:shadow-lg',
-      secondary: 'border border-tawf-green text-tawf-green hover:bg-tawf-green hover:text-tawf-sand',
-      ghost: 'bg-transparent text-tawf-green hover:bg-tawf-green-10',
+      primary: 'bg-ink text-white hover:bg-jade',
+      secondary: 'bg-white text-ink ring-1 ring-line hover:ring-ink/40',
+      ghost: 'bg-transparent text-ink hover:bg-glaze',
     };
 
     const sizeStyles = {
-      sm: 'px-4 py-2 text-xs',
-      md: 'px-8 py-4 text-sm',
-      lg: 'px-10 py-5 text-base',
+      sm: 'min-h-9 px-4 text-xs',
+      md: 'min-h-11 px-6 text-sm',
+      lg: 'min-h-13 px-8 text-base',
     };
 
     return (
