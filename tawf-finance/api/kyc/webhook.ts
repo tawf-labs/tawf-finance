@@ -1,5 +1,5 @@
 /**
- * Didit KYC — webhook receiver (Vercel Edge function).
+ * Didit KYC. webhook receiver (Vercel Edge function).
  *
  * Receives verification events from Didit. In this MVP there is no durable
  * store, so events are logged and acknowledged. Before production you should:

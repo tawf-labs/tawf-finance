@@ -185,7 +185,7 @@ function AppContent() {
         </Routes>
       </main>
 
-      {/* Footer - only show on non-dashboard pages */}
+      {/* Footer, only shown on non-dashboard pages */}
       {!isDashboardPage && <Footer />}
     </>
   );

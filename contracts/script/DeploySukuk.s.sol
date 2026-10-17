@@ -25,7 +25,7 @@ import { SukukDistributor } from "../src/sukuk/SukukDistributor.sol";
  *        SUBSCRIPTION_PERIOD               seconds
  *        ISSUER_TREASURY                   the bank's receiving wallet
  *        SUKUK_NAME, SUKUK_SYMBOL          token metadata
- *        ADMIN                             optional, defaults to the broadcaster;
+ *        ADMIN                             optional, defaults to the broadcaster,
  *                                          a Safe multisig in production
  *
  *      The token is NonTransferable until POLICY_ROLE sets a policy for

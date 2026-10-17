@@ -1,5 +1,5 @@
 /**
- * Didit KYC — decision proxy (Vercel Edge function).
+ * Didit KYC. decision proxy (Vercel Edge function).
  *
  * Reads the authoritative decision server-side so the API key never reaches
  * the browser. Returns the raw Didit decision payload for a session.
