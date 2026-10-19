@@ -16,8 +16,8 @@
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getAddress, isAddress, type Address } from 'viem'
-import { isConfigured } from '../tokenization/_lib/operator.js'
-import { ensureVerified } from '../tokenization/_lib/identity.js'
+import { isConfigured } from '../_tokenization/_lib/operator.js'
+import { ensureVerified } from '../_tokenization/_lib/identity.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
