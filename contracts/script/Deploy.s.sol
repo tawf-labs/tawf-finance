@@ -7,10 +7,12 @@ import { MockUSDC } from "../src/mocks/MockUSDC.sol";
 import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT } from "../src/BondReceiptNFT.sol";
 import { RedemptionVault } from "../src/RedemptionVault.sol";
+import { PooledFinancingVault } from "../src/PooledFinancingVault.sol";
 
 /**
- * @notice Deploys the full Warung Economy Sukuk stack to the broadcast chain
- *         (Arbitrum Sepolia for the buildathon) and wires the contracts.
+ * @notice Deploys the per-deal Tawf stack (DealRegistry, BondReceiptNFT,
+ *         RedemptionVault) plus the pooled ERC-4626 vault to the broadcast
+ *         chain and wires the AccessControl role split.
  *
  * @dev Usage:
  *      forge script script/Deploy.s.sol:Deploy --rpc-url arbitrum_sepolia \
@@ -18,18 +20,58 @@ import { RedemptionVault } from "../src/RedemptionVault.sol";
  *
  *      To use real test USDC instead of MockUSDC, pass the USDC address as
  *      the first script argument: --sig "run(address)" $TEST_USDC.
+ *
+ *      Identity model (post ERC-3643 migration): receipts and pooled shares
+ *      are soulbound by default, so the base per-deal product needs no
+ *      identity registry wired. A secondary market is opened later, per akad,
+ *      by an admin calling `setIdentityRegistry` + `setTransferPolicy` with the
+ *      shared T-REX IdentityRegistry (deployed by DeployTokenization.s.sol).
+ *
+ *      Every role (ORIGINATOR_ROLE, SHARIAH_ROLE, OPS_ROLE, ADMIN_ROLE) is
+ *      granted to the single broadcaster here, matching the previous
+ *      single-owner testnet posture so SeedDemo.s.sol keeps working. This is a
+ *      deliberate testnet simplification: production should grant each role to
+ *      its own Safe multisig, a later config change, not a redeploy.
  */
 contract Deploy is Script {
-    function run() external returns (MockUSDC usdc, BondReceiptNFT nft, DealRegistry registry, RedemptionVault vault) {
-        (usdc, nft, registry, vault) = _run(address(0));
+    function run()
+        external
+        returns (
+            MockUSDC usdc,
+            BondReceiptNFT nft,
+            DealRegistry registry,
+            RedemptionVault vault,
+            PooledFinancingVault pooledVault
+        )
+    {
+        (usdc, nft, registry, vault, pooledVault) = _run(address(0));
     }
 
-    function run(address usdcAddress) external returns (MockUSDC usdc, BondReceiptNFT nft, DealRegistry registry, RedemptionVault vault) {
-        (usdc, nft, registry, vault) = _run(usdcAddress);
+    function run(address usdcAddress)
+        external
+        returns (
+            MockUSDC usdc,
+            BondReceiptNFT nft,
+            DealRegistry registry,
+            RedemptionVault vault,
+            PooledFinancingVault pooledVault
+        )
+    {
+        (usdc, nft, registry, vault, pooledVault) = _run(usdcAddress);
     }
 
-    function _run(address usdcAddress) internal returns (MockUSDC usdc, BondReceiptNFT nft, DealRegistry registry, RedemptionVault vault) {
+    function _run(address usdcAddress)
+        internal
+        returns (
+            MockUSDC usdc,
+            BondReceiptNFT nft,
+            DealRegistry registry,
+            RedemptionVault vault,
+            PooledFinancingVault pooledVault
+        )
+    {
         vm.startBroadcast();
+        address admin = msg.sender;
 
         if (usdcAddress == address(0)) {
             usdc = new MockUSDC();
@@ -37,20 +79,30 @@ contract Deploy is Script {
             usdc = MockUSDC(usdcAddress);
         }
 
-        nft = new BondReceiptNFT();
-        registry = new DealRegistry();
-        vault = new RedemptionVault();
+        nft = new BondReceiptNFT(admin);
+        registry = new DealRegistry(admin);
+        vault = new RedemptionVault(admin);
+        pooledVault = new PooledFinancingVault(IERC20(address(usdc)), admin);
 
+        // Per-deal product wiring (unchanged shape from the original deploy).
         registry.setVault(address(vault));
         nft.setVault(address(vault));
         vault.configure(IERC20(address(usdc)), registry, nft);
 
+        // Testnet role grants: one broadcaster holds every role.
+        registry.grantRole(registry.ORIGINATOR_ROLE(), admin);
+        registry.grantRole(registry.SHARIAH_ROLE(), admin);
+        registry.grantRole(registry.OPS_ROLE(), admin);
+        vault.grantRole(vault.OPS_ROLE(), admin);
+        pooledVault.grantRole(pooledVault.OPS_ROLE(), admin);
+
         vm.stopBroadcast();
 
-        console2.log("MockUSDC:       ", address(usdc));
-        console2.log("BondReceiptNFT: ", address(nft));
-        console2.log("DealRegistry:   ", address(registry));
-        console2.log("RedemptionVault:", address(vault));
-        console2.log("Owner:          ", registry.owner());
+        console2.log("MockUSDC:            ", address(usdc));
+        console2.log("BondReceiptNFT:      ", address(nft));
+        console2.log("DealRegistry:        ", address(registry));
+        console2.log("RedemptionVault:     ", address(vault));
+        console2.log("PooledFinancingVault:", address(pooledVault));
+        console2.log("Admin (all roles):   ", admin);
     }
 }

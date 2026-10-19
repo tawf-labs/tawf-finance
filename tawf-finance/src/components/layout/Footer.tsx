@@ -17,6 +17,7 @@ const groups: { title: string; links: FooterLink[] }[] = [
     title: 'Platform',
     links: [
       { name: 'Investor app', href: 'https://app.tawf.finance/login' },
+      { name: 'Proof of Reserve', href: '/proof-of-reserve' },
       { name: 'Tawf ID', href: 'https://id.tawf.foundation' },
     ],
   },

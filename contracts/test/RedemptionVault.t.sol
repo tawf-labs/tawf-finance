@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { BaseSetup } from "./Base.t.sol";
-import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT } from "../src/BondReceiptNFT.sol";
@@ -97,7 +97,9 @@ contract RedemptionVaultTest is BaseSetup {
         uint256 id = _mintableDeal();
         _fund(id, alice, HUNDRED);
 
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, stranger, vault.OPS_ROLE())
+        );
         vm.prank(stranger);
         vault.repay(id, HUNDRED);
     }
@@ -226,13 +228,17 @@ contract RedemptionVaultTest is BaseSetup {
     // ------------------------------------------------------------------
 
     function test_Configure_zeroAddress_reverts() public {
+        // configure() is one-shot and setUp already used it, so test a fresh vault.
+        RedemptionVault fresh = new RedemptionVault(owner);
         vm.expectRevert(RedemptionVault.InvalidAddress.selector);
         vm.prank(owner);
-        vault.configure(IERC20(address(0)), registry, nft);
+        fresh.configure(IERC20(address(0)), registry, nft);
     }
 
     function test_Configure_onlyOwner() public {
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, stranger, vault.ADMIN_ROLE())
+        );
         vm.prank(stranger);
         vault.configure(IERC20(address(usdc)), registry, nft);
     }

@@ -1,0 +1,8 @@
+eval/agent/__pycache__/
+# Local-Anvil prototype runtime artifacts (never committed).
+# Patterns are relative to this file's directory (eval/agent/).
+onchain/deployment.local.json
+onchain/anvil.log
+onchain/anvil.pid
+onchain/__pycache__/
+__pycache__/

@@ -246,7 +246,7 @@ export const mockUsers: User[] = [
     organization: 'Sekuritas Nusantara',
     phoneNumber: '+622123456789',
   },
-  // BPRS Originators (role kept as 'cooperative' for routing/state compatibility; displayed as "BPRS Originator")
+  // BPRS Originators (role kept as 'cooperative' for routing/state compatibility, displayed as "BPRS Originator")
   {
     id: 'coop-1',
     name: 'BPRS Amanah Ummah',
@@ -286,7 +286,7 @@ export const mockUsers: User[] = [
     organization: 'BPRS Insan Cita',
     phoneNumber: '+62753456789',
   },
-  // Financing Segments (role kept as 'business'; represents a BPRS financing branch/segment)
+  // Financing Segments (role kept as 'business', represents a BPRS financing branch/segment)
   {
     id: 'bus-1',
     name: 'Micro-Trade Financing Segment',

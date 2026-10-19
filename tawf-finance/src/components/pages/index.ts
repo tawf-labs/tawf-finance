@@ -6,6 +6,7 @@ export { About } from './public/About';
 export { HowItWorks } from './public/HowItWorks';
 export { Glossary } from './public/Glossary';
 export { Instruments } from './public/Instruments';
+export { ProofOfReserve } from './public/ProofOfReserve';
 
 // Auth Pages
 export { Login } from './auth/Login';
@@ -19,6 +20,8 @@ export { Portfolio } from './investor/Portfolio';
 export { Transactions } from './investor/Transactions';
 export { Impact } from './investor/Impact';
 export { Settings as InvestorSettings } from './investor/Settings';
+export { InvestorDeposito } from './investor/Deposito';
+export { InvestorSukuk } from './investor/Sukuk';
 
 // Vendor Pages removed (replaced by issuer role)
 
@@ -46,3 +49,4 @@ export { AdminPools } from './admin/Pools';
 export { OwnerOps } from './admin/OwnerOps';
 export { AdminCompliance } from './admin/Compliance';
 export { AdminSettings } from './admin/AdminSettings';
+export { AdminTokenization } from './admin/Tokenization';

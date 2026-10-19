@@ -1,0 +1,4 @@
+agent,cases,mismatch_cases,genuine_cases,tp_flagged,fn_false_release,fp_false_flag,tn_released,escalated,milestones_registered,released_on_chain,flagged_on_chain,mis_releases,bridge_errors
+Kiro (kiro-cli),12,4,8,4,0,0,8,0,12,8,4,0,0
+Claude Haiku 4.5 (subagent),12,4,8,4,0,0,8,0,12,8,4,0,0
+Claude Sonnet 5.5 (subagent),12,4,8,4,0,0,8,0,12,8,4,0,0

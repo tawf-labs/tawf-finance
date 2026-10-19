@@ -27,6 +27,9 @@ jobs:
       - name: Run tests
         run: forge test -vvv
 
+      - name: Run synthetic evaluation (eval profile)
+        run: FOUNDRY_PROFILE=eval forge test -vv
+
   frontend:
     name: Frontend (Vite)
     runs-on: ubuntu-latest

@@ -1,0 +1,9 @@
+lifecycle,network,gas,usd_low_gas_price,usd_base_gas_price,usd_high_gas_price
+"Lifecycle, 4 fundings (local Cancun gas)",Arbitrum (assumed),1954314,0.0586,0.1173,0.5863
+"Lifecycle, 4 fundings (local Cancun gas)",Ethereum L1 (assumed),1954314,2.9315,5.8629,29.3147
+"Scale avg, 100 financings (3 to 5 fundings, local)",Arbitrum (assumed),1838075,0.0551,0.1103,0.5514
+"Scale avg, 100 financings (3 to 5 fundings, local)",Ethereum L1 (assumed),1838075,2.7571,5.5142,27.5711
+"Scale avg, 1000 financings (3 to 5 fundings, local)",Arbitrum (assumed),1853872,0.0556,0.1112,0.5562
+"Scale avg, 1000 financings (3 to 5 fundings, local)",Ethereum L1 (assumed),1853872,2.7808,5.5616,27.8081
+"Lifecycle, 1 funding (measured on Ethereum Sepolia)",Arbitrum (assumed),2812797,0.0844,0.1688,0.8438
+"Lifecycle, 1 funding (measured on Ethereum Sepolia)",Ethereum L1 (assumed),2812797,4.2192,8.4384,42.192

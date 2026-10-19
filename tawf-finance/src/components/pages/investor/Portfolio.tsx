@@ -8,9 +8,12 @@ import { Modal } from '@/components/ui/Modal';
 import { ConnectButton } from '@/components/web3/ConnectButton';
 import { GetTestUsdc } from '@/components/web3/GetTestUsdc';
 import { useMyReceipts, usePayoutFor, useRedeem, useClaimDefault } from '@/web3/hooks';
+import { useTawfSeries, useSukuk } from '@/web3/tokenizationHooks';
 import { RECEIPT_STATUS_LABEL, type ReceiptStatus, type Deal } from '@/web3/types';
-import { formatUsdc, formatApy, formatTimestamp, getRevertReason } from '@/web3/format';
+import { formatUsdc, formatApy, formatTimestamp, formatIdr, getRevertReason } from '@/web3/format';
 import { RECEIPT_NFT_ADDRESS, isConfigured, explorerTxUrl, explorerAddressUrl } from '@/web3/constants';
+import { isTokenizationConfigured, SUKUK_SYMBOL } from '@/web3/tokenization';
+import { SUKUK_STATUS_LABEL } from '@/web3/tokenizationAbis';
 import { cn } from '@/utils/cn';
 
 const RECEIPT_VARIANT: Record<ReceiptStatus, 'info' | 'success' | 'warning' | 'error' | 'default'> = {
@@ -106,7 +109,13 @@ function ActionModal({
 export function Portfolio() {
   const { address, isConnected } = useAccount();
   const { positions, isLoading, refetch } = useMyReceipts(address);
+  const { state: seriesState } = useTawfSeries(address);
+  const { state: sukukState } = useSukuk(address);
   const [action, setAction] = useState<{ deal: Deal; mode: 'redeem' | 'claim' } | null>(null);
+
+  const seriesPending = seriesState.coins.reduce((s, c) => s + c.pending, 0n);
+  const hasSeries = seriesState.balance > 0n || seriesPending > 0n;
+  const hasSukuk = sukukState.balance > 0n;
 
   const totalInvested = positions.reduce((s, p) => s + p.meta.principal, 0n);
   const totalProjected = positions.reduce(
@@ -247,6 +256,58 @@ export function Portfolio() {
           </div>
         )}
       </Card>
+
+      {isTokenizationConfigured && isConnected && (hasSeries || hasSukuk) && (
+        <Card className="p-6">
+          <p className="font-medium text-tawf-green mb-4 flex items-center gap-2">
+            <Briefcase className="w-4 h-4" /> Tokenized positions (ERC-3643)
+          </p>
+          <div className="space-y-3">
+            {hasSeries && (
+              <div className="flex flex-col md:flex-row md:items-center gap-4 p-4 rounded-xl border border-tawf-green-10 bg-white">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-medium text-tawf-green">tDEP-TAWF-S1</p>
+                    <Badge variant="info" size="sm">Tawf Deposito Series</Badge>
+                  </div>
+                  <p className="text-xs text-tawf-muted">Wrapped Tawf deposit · 1 token = IDR 1 claim on Tawf</p>
+                </div>
+                <div className="flex md:flex-col items-center md:items-end gap-1 shrink-0">
+                  <p className="text-sm text-tawf-muted">Holding</p>
+                  <p className="font-semibold text-tawf-green">{formatIdr(seriesState.balance)}</p>
+                </div>
+                <div className="flex md:flex-col items-center md:items-end gap-1 shrink-0">
+                  <p className="text-sm text-tawf-muted">Claimable profit</p>
+                  <p className="font-semibold text-tawf-gold">{formatIdr(seriesState.claimableSen)}</p>
+                </div>
+              </div>
+            )}
+            {hasSukuk && (
+              <div className="flex flex-col md:flex-row md:items-center gap-4 p-4 rounded-xl border border-tawf-green-10 bg-white">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-medium text-tawf-green">{SUKUK_SYMBOL}</p>
+                    <Badge variant="info" size="sm">{SUKUK_STATUS_LABEL[sukukState.status]}</Badge>
+                  </div>
+                  <p className="text-xs text-tawf-muted">Sukuk series · returns from serviced financing</p>
+                </div>
+                <div className="flex md:flex-col items-center md:items-end gap-1 shrink-0">
+                  <p className="text-sm text-tawf-muted">Holding</p>
+                  <p className="font-semibold text-tawf-green">{formatUsdc(sukukState.balance)}</p>
+                </div>
+                <div className="flex md:flex-col items-center md:items-end gap-1 shrink-0">
+                  <p className="text-sm text-tawf-muted">Claimable profit</p>
+                  <p className="font-semibold text-tawf-gold">{formatUsdc(sukukState.claimable)}</p>
+                </div>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-tawf-muted mt-4">
+            Manage these positions in <span className="font-medium">Deposito</span> and{' '}
+            <span className="font-medium">Sukuk</span>.
+          </p>
+        </Card>
+      )}
 
       {action && address && (
         <ActionModal

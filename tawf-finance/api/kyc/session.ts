@@ -1,5 +1,5 @@
 /**
- * Didit KYC — serverless session creation (Vercel Edge function).
+ * Didit KYC. serverless session creation (Vercel Edge function).
  *
  * The Didit API key is a secret, so session creation must happen server-side.
  * This endpoint calls `POST https://verification.didit.me/v3/session/` and

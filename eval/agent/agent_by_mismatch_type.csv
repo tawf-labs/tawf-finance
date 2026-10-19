@@ -1,0 +1,15 @@
+model,mismatch_type,subtype,cases,flagged_mismatch,escalated,false_release,flag_rate
+claude-haiku-4-5-20251001,amount_altered,clear,20,20,0,0,100.0%
+claude-haiku-4-5-20251001,amount_altered,hard_under_5pct,10,10,0,0,100.0%
+claude-haiku-4-5-20251001,category_mismatch,clear,20,20,0,0,100.0%
+claude-haiku-4-5-20251001,date_outside_window,clear,20,20,0,0,100.0%
+claude-haiku-4-5-20251001,duplicate_invoice,exact_reuse,20,20,0,0,100.0%
+claude-haiku-4-5-20251001,duplicate_invoice,hard_near_duplicate,10,10,0,0,100.0%
+claude-haiku-4-5-20251001,vendor_not_approved,clear,20,20,0,0,100.0%
+claude-sonnet-5-5,amount_altered,clear,20,20,0,0,100.0%
+claude-sonnet-5-5,amount_altered,hard_under_5pct,10,10,0,0,100.0%
+claude-sonnet-5-5,category_mismatch,clear,20,20,0,0,100.0%
+claude-sonnet-5-5,date_outside_window,clear,20,20,0,0,100.0%
+claude-sonnet-5-5,duplicate_invoice,exact_reuse,20,20,0,0,100.0%
+claude-sonnet-5-5,duplicate_invoice,hard_near_duplicate,10,10,0,0,100.0%
+claude-sonnet-5-5,vendor_not_approved,clear,20,20,0,0,100.0%

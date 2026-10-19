@@ -1,0 +1,3 @@
+model,cases,escalated,escalation_rate,parse_errors,tp_mismatch_flagged,fn_false_release,fp_false_flag,tn_match_released,mismatch_escalated,genuine_escalated,precision_decided,recall_decided,f1_decided,precision_escal_as_flag,recall_escal_as_flag,f1_escal_as_flag,false_release_rate,false_flag_rate,latency_mean_s,latency_p95_s,cost_usd_total,cost_usd_per_case,input_tokens,output_tokens
+claude-haiku-4-5-20251001,300,0,0.0%,0,120,0,1,179,0,0,0.992,1.000,0.996,0.992,1.000,0.996,0.0%,0.6%,n/a,n/a,n/a,n/a,n/a,n/a
+claude-sonnet-5-5,300,0,0.0%,0,120,0,0,180,0,0,1.000,1.000,1.000,1.000,1.000,1.000,0.0%,0.0%,n/a,n/a,n/a,n/a,n/a,n/a

@@ -10,6 +10,7 @@ import {
   HowItWorks,
   Glossary,
   Instruments,
+  ProofOfReserve,
   Login,
   Register,
   Onboarding,
@@ -19,6 +20,8 @@ import {
   Transactions,
   Impact,
   InvestorSettings,
+  InvestorDeposito,
+  InvestorSukuk,
   CooperativeDashboard,
   Verification,
   Businesses,
@@ -37,6 +40,7 @@ import {
   AdminPools,
   AdminCompliance,
   AdminSettings,
+  AdminTokenization,
   OwnerOps,
 } from './components/pages';
 import { useAuth } from '@/hooks/useAuth';
@@ -82,6 +86,7 @@ function AppContent() {
           <Route path="/about" element={<About />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/instruments" element={<Instruments />} />
+          <Route path="/proof-of-reserve" element={<ProofOfReserve />} />
           <Route path="/glossary" element={<Glossary />} />
 
           {/* Auth Routes */}
@@ -107,6 +112,8 @@ function AppContent() {
           >
             <Route path="dashboard" element={<InvestorDashboard />} />
             <Route path="pools" element={<InvestorPools />} />
+            <Route path="deposito" element={<InvestorDeposito />} />
+            <Route path="sukuk" element={<InvestorSukuk />} />
             <Route path="portfolio" element={<Portfolio />} />
             <Route path="transactions" element={<Transactions />} />
             <Route path="impact" element={<Impact />} />
@@ -172,6 +179,7 @@ function AppContent() {
             <Route path="users" element={<AdminUsers />} />
             <Route path="investments" element={<AdminInvestments />} />
             <Route path="pools" element={<AdminPools />} />
+            <Route path="tokenization" element={<AdminTokenization />} />
             <Route path="compliance" element={<AdminCompliance />} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="ops" element={<OwnerOps />} />
@@ -185,7 +193,7 @@ function AppContent() {
         </Routes>
       </main>
 
-      {/* Footer - only show on non-dashboard pages */}
+      {/* Footer, only shown on non-dashboard pages */}
       {!isDashboardPage && <Footer />}
     </>
   );
