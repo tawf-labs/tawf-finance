@@ -48,6 +48,12 @@ library LedgerLeaf {
     /// @notice Reserve snapshot for a product. subject productId,
     ///         a = snapshot ts, b = total placed sen.
     bytes32 internal constant DEPOSITO_RESERVE = keccak256("tawf.deposito.reserve");
+    /// @notice Profit credited for a Tawf deposito series period. subject
+    ///         seriesId, a = period, b = profit sen.
+    bytes32 internal constant DEPOSITO_PROFIT = keccak256("tawf.deposito.profit");
+    /// @notice Series maturity: principal returned. subject seriesId,
+    ///         a = maturity ts, b = principal sen.
+    bytes32 internal constant DEPOSITO_MATURITY = keccak256("tawf.deposito.maturity");
 
     /**
      * @notice Encode a ledger leaf exactly as tawf-network's LedgerLeaf.hash.

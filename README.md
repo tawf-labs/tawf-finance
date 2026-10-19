@@ -60,12 +60,13 @@ Tawf is designed as one primitive for the full range of Islamic finance instrume
 | Murabaha | Debt-based | Live | 5 to 9% | Cost-plus trade and working-capital financing |
 | Musyarakah | Equity-based | Live | 7 to 11% | Partnership and the financing sell-down pool |
 | Wakalah bil Istithmar | Equity-based | Live | 7 to 11% | Investment-agency sell-down for an investor pool |
+| Deposito | Equity-based | Demo | nisbah share | Mudharabah time deposit, wrapped as one Tawf series token (Model B, ERC-3643) |
 | Ijarah | Debt-based | Structured | 5 to 9% | Lease of equipment, vehicles, property |
 | Mudarabah | Equity-based | Structured | 7 to 11% | Profit-sharing investment mandate |
 | Salam | Debt-based | Pipeline | 5 to 9% | Agricultural pre-harvest financing |
 | Istisna' | Debt-based | Pipeline | 5 to 9% | Manufacture and construction to order |
 | Qard Hasan | Social | Roadmap | 0% | Benevolent, principal-only social financing |
-| Sukuk | Tradable | Roadmap | tracks pool | Public offering for BPRS above IDR 80bn core capital |
+| Sukuk | Tradable | Demo | tracks pool | Tokenized BPRS sukuk series (ERC-3643) with proof of reserve |
 
 Live instruments are structured with a partner DPS and running in the demo. The rest are staged deliberately: the wedge is the sell-down (Murabaha and Musyarakah), and nothing is presented as live before an akad is validated with a design-partner bank.
 
@@ -84,6 +85,20 @@ The judge-facing flow lives under `/investor` after signing in (demo login: `inv
 
 **Demo flow:** connect wallet → mint test USDC → invest $10+ in a live financing pool → soulbound `BondReceiptNFT` is minted → the BPRS services and remits (`repay`) → redeem returns principal + profit and burns the receipt. See [`docs/demo-script.md`](docs/demo-script.md).
 
+### Tokenization demo (ERC-3643 deposito + sukuk)
+
+A second track tokenizes a licensed BPRS's time deposits and a sukuk series as ERC-3643 (T-REX) tokens, gated by proof of reserve from Tawf Network:
+
+- **Tawf Deposito Series** (`/investor/deposito`): Model B, a wrapped Tawf deposit. One series token (`tDEP-TAWF-S1`, 2 decimals, 1 token = IDR 1 claim on Tawf) backed by Tawf's single dedicated account at the BPRS. Subscribe in USDC (approve + subscribe), cancel before allocation, claim profit, redeem after maturity. A sandbox mode badge (PILOT ONLY / SCREENED GROUP / OJK SANDBOX) and caps are shown, and the disclosures must be acknowledged before subscribing.
+- **Sukuk** (`/investor/sukuk`): subscribe with USDC to the `tSUKUK-DEMO-2026` series, claim periodic profit, redeem at maturity, or refund a cancelled subscription.
+- **Settings** adds a "Get test funds + verify identity (ERC-3643)" button that funds mUSDC and registers an ONCHAINID verified identity.
+- **Admin** (`/admin/tokenization`): a **Tawf treasury** tab (post FX rate, list pending subscriptions, place converted funds at the BPRS, allocate, distribute profit, settle maturity, screen wallets, set mode + caps) and a **BPRS** tab (sync, simulate the bank crediting profit and maturing, and the sukuk lifecycle).
+- **Proof of Reserve** (`/proof-of-reserve`): tokens outstanding on Arbitrum vs Tawf's dedicated account balance at the BPRS (anchored), profits credited vs distributed, and a client-side `LedgerAnchor.verify` check. The sukuk section remains.
+
+The trust path is `core banking → bprs-connector → Tawf Network ledger → LedgerAnchor on Arbitrum → allocate gate`: the series only mints against a Merkle-verified `DEPOSITO_RESERVE` leaf and never beyond the anchored account balance. Server-side operator actions run in the Vercel functions under [`tawf-finance/api/tokenization/`](tawf-finance/api/tokenization/). See [`docs/tokenized-deposito.md`](docs/tokenized-deposito.md).
+
+The sukuk runs the full lifecycle across both chains: its L2 `SukukDistributor` is deployed with the exact sukukId, face value and maturity the Tawf Network `SukukLedger` holds (so the `SUKUK_APPROVED` leaf verifies), subscribe → close records `markIssued` back on the L3, the BPRS then declares each period's realized profit and, after maturity, the redemption on the L3 (via the bprs-connector), and Tawf funds exactly those declared amounts on Arbitrum for holders to claim and redeem. All sukuk amounts, including the reserve snapshot, are in USDC base units (6 decimals), the settlement token's unit.
+
 ---
 
 ## Smart Contracts
@@ -95,6 +110,11 @@ The judge-facing flow lives under `/investor` after signing in (demo login: `inv
 | `DealRegistry` | Deal lifecycle state machine (Submitted → BmtApproved → Mintable → Active → Matured → Completed/Defaulted). |
 | `BondReceiptNFT` | Soulbound ERC-1155 receipts. Metadata = principal, APY (bps), duration, status, mint time. Non-transferable. |
 | `RedemptionVault` | Escrow + settlement: `invest`, `repay`, `redeem`, `claimDefault`, `accruedYield`, `payoutFor`. |
+| T-REX suite (ERC-3643) | Shared identity token stack (`Token`, `IdentityRegistry`, `ModularCompliance`, ONCHAINID) reused across the Tawf deposito series token and the sukuk series. Holders must be verified; transfers are limited to eligible identities. |
+| `TawfDepositoSeries` | Model B series: escrows USDC subscriptions, allocates against a Merkle-verified `DEPOSITO_RESERVE` for Tawf's dedicated account, distributes profit and settles maturity (both proven), all in USDC at a posted FX rate. |
+| `SandboxModule` | T-REX compliance module enforcing the series sandbox policy: mode (PILOT_ONLY / SCREENED_GROUP / SANDBOX_ADMITTED) by reading ONCHAINID screening claims, and caps (max investors, per-investor balance, series cap, series end). |
+| `DistributionCheckpointModule` | Compliance module bound to each ERC-3643 token so profit follows the holder of record across transfers. |
+| `SukukDistributor` | Sukuk primary subscription, periodic profit, and redemption at maturity or default, each gated by a Merkle-verified ledger fact. |
 | `MockUSDC` | 6-decimal test USDC with a faucet (10,000 mUSDC). Swap for real test USDC in production. |
 
 Key invariants (all test-covered): deals can only be invested while `Mintable`. Receipts are soulbound. Redemption returns `principal + principal·apyBps·days/36500` and burns the receipt. Double-claim is impossible. Repayments are owner/vault-guarded. The contracts are reentrancy-safe.

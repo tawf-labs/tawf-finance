@@ -1,27 +1,53 @@
 /**
- * Didit KYC. webhook receiver (Vercel Edge function).
+ * Didit KYC webhook receiver.
  *
- * Receives verification events from Didit. In this MVP there is no durable
- * store, so events are logged and acknowledged. Before production you should:
+ * On an Approved decision whose `vendor_data` is a wallet address, this calls
+ * the shared ERC-3643 identity helper so the wallet becomes a verified holder
+ * the same way the faucet does. This is the production path: a human completes
+ * Didit's hosted flow and the webhook promotes their wallet to verified.
+ *
+ * Runs on the Vercel Node runtime (not edge) because it shares the viem-based
+ * identity helper with the tokenization functions.
+ *
+ * Before production you should also:
  *   1. verify the `X-Signature-V2` HMAC using Didit's canonical JSON
- *      serialization (see docs.didit.me/integration/webhooks),
- *   2. de-duplicate on `event_id`,
- *   3. persist `status` against `vendor_data` (the wallet address).
+ *      serialization (DIDIT_WEBHOOK_SECRET),
+ *   2. de-duplicate on `event_id`.
  */
-export const config = { runtime: 'edge' };
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { getAddress, isAddress, type Address } from 'viem'
+import { isConfigured } from '../tokenization/_lib/operator.js'
+import { ensureVerified } from '../tokenization/_lib/identity.js'
 
-export default async function handler(request: Request): Promise<Response> {
-  if (request.method !== 'POST') {
-    return Response.json({ error: 'Method not allowed' }, { status: 405 });
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' })
+    return
   }
 
-  const body = (await request.json().catch(() => ({}))) as {
-    event_id?: string;
-    status?: string;
-  };
+  const body = (req.body ?? {}) as {
+    event_id?: string
+    status?: string
+    decision?: { status?: string }
+    vendor_data?: string
+  }
 
-  console.log('[didit:webhook]', JSON.stringify({ event_id: body.event_id, status: body.status }));
+  const status = String(body.status ?? body.decision?.status ?? '').toLowerCase()
+  const vendorData = body.vendor_data
+
+  console.log('[didit:webhook]', JSON.stringify({ event_id: body.event_id, status }))
+
+  // Promote the wallet to a verified identity on approval, best-effort.
+  if (status.includes('approved') && vendorData && isAddress(vendorData) && isConfigured()) {
+    try {
+      await ensureVerified(getAddress(vendorData) as Address)
+    } catch (err) {
+      console.error('[didit:webhook] identity registration failed', (err as Error).message)
+      // Still acknowledge so Didit does not retry; a wallet can also self-serve
+      // the faucet to get verified.
+    }
+  }
 
   // Acknowledge within Didit's 5s window to avoid retries.
-  return Response.json({ ok: true });
+  res.status(200).json({ ok: true })
 }

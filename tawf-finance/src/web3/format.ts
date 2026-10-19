@@ -36,6 +36,32 @@ export function formatTimestamp(unixSeconds: bigint | number): string {
   });
 }
 
+/**
+ * Format a 2-decimal deposito amount (rupiah sen, 1 token = IDR 1) as IDR.
+ * The base unit is one sen, so 100 base units = IDR 1.
+ */
+export function formatIdr(senBaseUnits: bigint | number): string {
+  const rupiah = typeof senBaseUnits === 'bigint' ? Number(senBaseUnits) / 100 : senBaseUnits / 100;
+  return rupiah.toLocaleString('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+}
+
+/** Deposito token units for display (1 token = IDR 1, 2 decimals). */
+export function formatDepositoUnits(senBaseUnits: bigint): string {
+  const units = Number(senBaseUnits) / 100;
+  return units.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+/** 5000 (basis points) -> "50%" for a nisbah profit-sharing ratio. */
+export function formatBps(bps: bigint | number): string {
+  const n = typeof bps === 'bigint' ? Number(bps) : bps;
+  return `${(n / 100).toFixed(n % 100 === 0 ? 0 : 2)}%`;
+}
+
 /** Human-friendly reason extraction from a viem wallet/contract error. */
 export function getRevertReason(error: unknown): string {
   if (error instanceof Error) {

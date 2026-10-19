@@ -3,21 +3,27 @@ pragma solidity 0.8.17;
 
 // NOTE: This script imports the T-REX and onchain-id concrete contracts, which are pinned to
 // `pragma solidity 0.8.17`. Therefore this file is pinned to 0.8.17. It reaches the 0.8.20/0.8.24
-// Tawf contracts (DepositoReserveController, DepositoDistributor, SukukDistributor, MockIDRX,
-// DealRegistry, BondReceiptNFT, RedemptionVault) only through vm.deployCode and minimal
-// interfaces, never via direct imports of those sources. The DistributionCheckpointModule is
-// itself 0.8.17 so it is imported directly.
+// Tawf contracts (TawfDepositoSeries, SukukDistributor, MockUSDC, DealRegistry, BondReceiptNFT,
+// RedemptionVault) only through vm.deployCode and minimal interfaces, never via direct imports of
+// those sources. The DistributionCheckpointModule and SandboxModule are themselves 0.8.17 so they
+// are imported directly.
 //
 // Purpose: a single-operator demo deployment for Arbitrum Sepolia (chainId 421614). ONE env var
 // PRIVATE_KEY controls everything; the derived operator address holds every role. The shared
-// T-REX identity suite is deployed once and reused across every deposito tenor token and the
+// T-REX identity suite is deployed once and reused across the Tawf deposito series token and the
 // sukuk series token. LedgerAnchor is supplied via env (LEDGER_ANCHOR, LEDGER_CHAIN_ID) because
 // the ledger lives in tawf-network.
 //
-// Identity model (same as tawf-gold-bsi DeployDemo): the off-chain faucet deploys an IdentityProxy
-// with the OPERATOR as management key, adds an operator-signed KYC claim, then registerIdentity.
-// The IdentityProxy creation bytecode and ImplementationAuthority are exported so the faucet can
-// reproduce that off-chain via viem.
+// Model B (wrapped Tawf deposit): instead of four per-tenor deposito tokens, there is ONE Tawf
+// deposito series token (tDEP-TAWF-S1, 2 decimals, sen) backed by Tawf's single dedicated account
+// at the BPRS. Its compliance carries a DistributionCheckpointModule (so profit follows holders)
+// and a SandboxModule (the regulated eligibility + caps gate, default mode PILOT_ONLY). The
+// TawfDepositoSeries contract is the token's only minter/burner.
+//
+// Claim topics 2 (TAWF_SCREENED) and 3 (OJK_SANDBOX_PARTICIPANT): these are deliberately NOT added
+// to the shared ClaimTopicsRegistry, since every identity in the shared IdentityRegistry would then
+// be required to carry them (and the sukuk/KYC holders do not). The SandboxModule reads those
+// claims itself off each holder's ONCHAINID, so the gate is per-series, not registry-wide.
 
 import "forge-std/Script.sol";
 
@@ -35,21 +41,26 @@ import {IdFactory} from "@onchain-id/solidity/contracts/factory/IdFactory.sol";
 
 import {DistributionCheckpointModule} from "../src/sukuk/DistributionCheckpointModule.sol";
 import {IBalanceCheckpoint} from "../src/sukuk/IBalanceCheckpoint.sol";
-
-/// @notice Minimal view of DepositoReserveController (`^0.8.24`), reached via vm.deployCode.
-interface IDepositoController {
-    function addProduct(bytes32 productId, address token, uint8 tenorMonths, uint16 nisbahBps) external;
-}
+import {SandboxModule} from "../src/deposito/SandboxModule.sol";
 
 /// @title DeployTokenization
 /// @notice Single-operator ("everything") demo deployment of the Tawf tokenization suite:
-///         shared T-REX identity, deposito (4 tenors) and one sukuk series on Arbitrum Sepolia.
+///         shared T-REX identity, the Tawf deposito series (Model B) and one sukuk series on
+///         Arbitrum Sepolia.
 contract DeployTokenization is Script {
     uint256 internal constant KYC_TOPIC = 1;
     uint16 internal constant COUNTRY_ID = 360; // Indonesia
 
     bytes32 internal constant INSTITUTION_ID = keccak256("bprs.demo");
     bytes32 internal constant SUKUK_ID = keccak256("sukuk.demo.2026");
+    bytes32 internal constant DEFAULT_SERIES_ID = keccak256("tawf.series.1");
+
+    // Series terms (match the ReserveLedger registration in tawf-network's SetupTawfSeries).
+    uint8 internal constant SERIES_TENOR = 3;
+    uint16 internal constant SERIES_NISBAH = 6000;
+    // Demo FX: 1 USDC = 16,000.00 IDR -> idrPerUsdc = 1_600_000 (two-decimal precision).
+    uint256 internal constant FX_INITIAL_RATE = 1_600_000;
+    uint64 internal constant SERIES_END_OFFSET = 90 days;
 
     struct Shared {
         address identityRegistry;
@@ -66,14 +77,14 @@ contract DeployTokenization is Script {
         uint256 ledgerChainId;
         address anchor;
         address operator;
-        address idrx;
-        address depositoController;
+        address mockUsdc;
         Shared shared;
-        // per-tenor arrays, index-aligned with [1,3,6,12]
-        uint8[4] tenors;
-        address[4] depositoTokens;
-        address[4] depositoDistributors;
-        bytes32[4] productIds;
+        // Tawf deposito series (Model B)
+        bytes32 seriesId;
+        address seriesToken;
+        address series; // TawfDepositoSeries
+        address sandboxModule;
+        uint256 fxInitialRate;
         // sukuk
         address sukukToken;
         address sukukDistributor;
@@ -81,7 +92,6 @@ contract DeployTokenization is Script {
         address dealRegistry;
         address bondReceiptNft;
         address redemptionVault;
-        address mockUsdc;
         uint256 deployBlock;
     }
 
@@ -109,38 +119,27 @@ contract DeployTokenization is Script {
         d.ledgerChainId = ledgerChainId;
         d.anchor = anchor;
         d.operator = operator;
-        d.tenors = [uint8(1), 3, 6, 12];
+        d.seriesId = vm.envOr("TAWF_SERIES_ID", DEFAULT_SERIES_ID);
+        d.fxInitialRate = FX_INITIAL_RATE;
+
+        _loadSukukTerms();
 
         // 1. Shared T-REX identity suite (operator owns everything).
         d.shared = _deployShared(operator);
         _sharedIdentityRegistry = d.shared.identityRegistry;
+        _sharedClaimIssuer = d.shared.claimIssuer;
 
-        // 2. MockIDRX settlement token (2 decimals) and MockUSDC (sukuk + per-deal use it).
-        d.idrx = deployCode("MockIDRX.sol:MockIDRX");
+        // 2. MockUSDC settlement token (6 decimals) for the series and the sukuk.
         d.mockUsdc = deployCode("MockUSDC.sol:MockUSDC");
         _sukukUsdc = d.mockUsdc;
 
-        // 3. Deposito reserve controller (admin + issuer = operator).
-        d.depositoController = deployCode(
-            "DepositoReserveController.sol:DepositoReserveController",
-            abi.encode(anchor, INSTITUTION_ID, operator, operator)
-        );
+        // 3. Tawf deposito series token + compliance + modules + series contract.
+        (d.seriesToken, d.series, d.sandboxModule) = _deployTawfSeries(operator, d.mockUsdc, anchor, d.seriesId);
 
-        // 4. One token + compliance + module + distributor per tenor.
-        for (uint256 i = 0; i < 4; i++) {
-            uint8 tenor = d.tenors[i];
-            (address token, address distributor, bytes32 productId) =
-                _deployDepositoTenor(operator, d.idrx, d.depositoController, anchor, tenor);
-            d.depositoTokens[i] = token;
-            d.depositoDistributors[i] = distributor;
-            d.productIds[i] = productId;
-        }
-
-        // 5. Sukuk series token + compliance + module + distributor.
+        // 4. Sukuk series token + compliance + module + distributor.
         (d.sukukToken, d.sukukDistributor) = _deploySukuk(operator, anchor);
 
-        // 6. Per-deal product (DealRegistry / BondReceiptNFT / RedemptionVault), wired to the
-        //    shared T-REX IdentityRegistry so a secondary market can be opened later.
+        // 5. Per-deal product (DealRegistry / BondReceiptNFT / RedemptionVault).
         (d.dealRegistry, d.bondReceiptNft, d.redemptionVault) =
             _deployPerDeal(operator, d.shared.identityRegistry, d.mockUsdc);
 
@@ -157,6 +156,9 @@ contract DeployTokenization is Script {
         IdentityRegistry ir = new IdentityRegistry();
         ir.init(address(tir), address(ctr), address(irs));
         irs.bindIdentityRegistry(address(ir));
+        // Only KYC (topic 1) is registry-wide required. TAWF_SCREENED (2) and
+        // OJK_SANDBOX_PARTICIPANT (3) are checked by the SandboxModule itself,
+        // so they are NOT added here.
         ctr.addClaimTopic(KYC_TOPIC);
 
         Identity identityImpl = new Identity(operator, true); // library mode
@@ -164,8 +166,12 @@ contract DeployTokenization is Script {
         IdFactory idFactory = new IdFactory(address(implAuth));
 
         ClaimIssuer claimIssuer = new ClaimIssuer(operator);
-        uint256[] memory topics = new uint256[](1);
+        // The Tawf ClaimIssuer is trusted for KYC and for the screening/sandbox
+        // claims the SandboxModule reads (topics 2 and 3).
+        uint256[] memory topics = new uint256[](3);
         topics[0] = KYC_TOPIC;
+        topics[1] = 2; // TAWF_SCREENED
+        topics[2] = 3; // OJK_SANDBOX_PARTICIPANT
         tir.addTrustedIssuer(claimIssuer, topics);
 
         ir.addAgent(operator); // operator registers verified holders
@@ -181,46 +187,75 @@ contract DeployTokenization is Script {
         });
     }
 
-    function _deployDepositoTenor(
-        address operator,
-        address idrx,
-        address controller,
-        address anchor,
-        uint8 tenor
-    ) internal returns (address tokenAddr, address distributor, bytes32 productId) {
+    function _deployTawfSeries(address operator, address usdc, address anchor, bytes32 seriesId)
+        internal
+        returns (address tokenAddr, address series, address sandboxAddr)
+    {
         ModularCompliance mc = new ModularCompliance();
         mc.init();
         Token token = new Token();
-        string memory suffix = _tenorSuffix(tenor);
         token.init(
             _sharedIdentityRegistry,
             address(mc),
-            string(abi.encodePacked("Tawf Deposito BPRS Demo ", suffix)),
-            string(abi.encodePacked("tDEP-DEMO-", suffix)),
+            "Tawf Deposito Series 1 (BPRS Demo)",
+            "tDEP-TAWF-S1",
             2,
             address(0)
         );
 
-        DistributionCheckpointModule module = new DistributionCheckpointModule();
+        DistributionCheckpointModule checkpoint = new DistributionCheckpointModule();
+        SandboxModule sandbox = new SandboxModule();
 
-        distributor = deployCode(
-            "DepositoDistributor.sol:DepositoDistributor",
-            abi.encode(idrx, address(token), address(module), operator, operator)
+        // TawfDepositoSeries: (usdc, anchor, token, checkpointModule, sandbox, compliance,
+        // Terms{seriesId, tenorMonths, nisbahBps}, treasury, admin, operator, maxRateAge).
+        series = deployCode(
+            "TawfDepositoSeries.sol:TawfDepositoSeries",
+            abi.encode(
+                usdc,
+                anchor,
+                address(token),
+                address(checkpoint),
+                address(sandbox),
+                address(mc),
+                seriesId,
+                SERIES_TENOR,
+                SERIES_NISBAH,
+                operator, // treasury (demo: the operator wallet is the Tawf treasury)
+                operator, // admin
+                operator, // operator
+                uint64(1 days) // maxRateAge
+            )
         );
 
-        module.setHook(address(mc), IBalanceCheckpoint(distributor));
-        mc.addModule(address(module));
+        // Configure and bind the SandboxModule first: mode PILOT_ONLY, treasury = operator,
+        // default caps, seriesEnd = now + 90 days. Then bind the checkpoint module.
+        sandbox.initConfig(
+            address(mc),
+            SandboxModule.Mode.PILOT_ONLY,
+            operator, // treasury
+            _sharedClaimIssuer, // Tawf ClaimIssuer for topic 2/3 claims
+            0, // maxInvestors -> default 50
+            0, // maxBalancePerInvestor -> default Rp10,000,000
+            0, // seriesCap -> default Rp500,000,000
+            uint64(block.timestamp) + SERIES_END_OFFSET
+        );
+        mc.addModule(address(sandbox));
 
-        // Controller mints placements; distributor burns on redeem. Both are token agents.
-        token.addAgent(controller);
-        token.addAgent(distributor);
+        checkpoint.setHook(address(mc), IBalanceCheckpoint(series));
+        mc.addModule(address(checkpoint));
+
+        // The series contract is the only minter/burner.
+        token.addAgent(series);
         token.addAgent(operator);
         token.unpause();
 
-        productId = keccak256(abi.encode(INSTITUTION_ID, tenor));
-        IDepositoController(controller).addProduct(productId, address(token), tenor, _nisbahBps(tenor));
+        // Grant FX_ROLE to the operator so the demo backend can post rates, and
+        // post the initial demo rate.
+        ISeriesConfig(series).grantRole(keccak256("FX_ROLE"), operator);
+        ISeriesConfig(series).postRate(FX_INITIAL_RATE);
 
         tokenAddr = address(token);
+        sandboxAddr = address(sandbox);
     }
 
     function _deploySukuk(address operator, address anchor)
@@ -234,7 +269,6 @@ contract DeployTokenization is Script {
 
         DistributionCheckpointModule module = new DistributionCheckpointModule();
 
-        uint40 maturity = uint40(block.timestamp + 365 days);
         distributor = deployCode(
             "SukukDistributor.sol:SukukDistributor",
             abi.encode(
@@ -244,12 +278,12 @@ contract DeployTokenization is Script {
                 address(token),
                 address(module),
                 // Terms { sukukId, faceValue, maturity, minRaise, minSubscription, subscriptionPeriod, issuerTreasury }
-                SUKUK_ID,
-                uint256(500_000e6),
-                maturity,
-                uint256(100_000e6),
-                uint256(10e6),
-                uint40(14 days),
+                _sukukId,
+                _sukukFace,
+                _sukukMaturity,
+                _sukukMinRaise,
+                _sukukMinSubscription,
+                _sukukSubscriptionPeriod,
                 operator,
                 operator
             )
@@ -263,6 +297,17 @@ contract DeployTokenization is Script {
         token.unpause();
 
         tokenAddr = address(token);
+    }
+
+    /// @dev Load the sukuk terms from env into instance fields, applying demo
+    ///      defaults for everything except the required maturity.
+    function _loadSukukTerms() internal {
+        _sukukId = vm.envOr("SUKUK_ID", SUKUK_ID);
+        _sukukFace = vm.envOr("SUKUK_FACE", uint256(5000e6));
+        _sukukMaturity = uint40(vm.envUint("SUKUK_MATURITY"));
+        _sukukMinRaise = vm.envOr("SUKUK_MIN_RAISE", uint256(1000e6));
+        _sukukMinSubscription = vm.envOr("SUKUK_MIN_SUBSCRIPTION", uint256(10e6));
+        _sukukSubscriptionPeriod = uint40(vm.envOr("SUKUK_SUBSCRIPTION_PERIOD", uint256(1 days)));
     }
 
     function _deployPerDeal(address operator, address identityRegistry, address mockUsdc)
@@ -286,24 +331,18 @@ contract DeployTokenization is Script {
 
     // --- transient operator-scoped wiring values ---------------------------------
     // deployCode-created contracts cannot be referenced by their 0.8.20/0.8.24 types from this
-    // 0.8.17 unit, so a couple of addresses needed deep in the per-tenor loop are kept here.
+    // 0.8.17 unit, so a couple of addresses needed deep in the deploy flow are kept here.
     address internal _sharedIdentityRegistry;
+    address internal _sharedClaimIssuer;
     address internal _sukukUsdc;
 
-    function _tenorSuffix(uint8 tenor) internal pure returns (string memory) {
-        if (tenor == 1) return "1M";
-        if (tenor == 3) return "3M";
-        if (tenor == 6) return "6M";
-        return "12M";
-    }
-
-    function _nisbahBps(uint8 tenor) internal pure returns (uint16) {
-        // Illustrative demo profit-sharing ratios by tenor.
-        if (tenor == 1) return 4000;
-        if (tenor == 3) return 4500;
-        if (tenor == 6) return 5000;
-        return 5500;
-    }
+    // --- sukuk terms, resolved from env in _loadSukukTerms -----------------------
+    bytes32 internal _sukukId;
+    uint256 internal _sukukFace;
+    uint40 internal _sukukMaturity;
+    uint256 internal _sukukMinRaise;
+    uint256 internal _sukukMinSubscription;
+    uint40 internal _sukukSubscriptionPeriod;
 
     function _writeDeployments(Deployment memory d) internal {
         string memory path = "../tawf-finance/src/web3/tokenization.deployments.json";
@@ -314,8 +353,7 @@ contract DeployTokenization is Script {
         vm.serializeUint(obj, "ledgerChainId", d.ledgerChainId);
         vm.serializeAddress(obj, "anchor", d.anchor);
         vm.serializeAddress(obj, "operator", d.operator);
-        vm.serializeAddress(obj, "idrx", d.idrx);
-        vm.serializeAddress(obj, "depositoController", d.depositoController);
+        vm.serializeAddress(obj, "mockUsdc", d.mockUsdc);
         vm.serializeAddress(obj, "identityRegistry", d.shared.identityRegistry);
         vm.serializeAddress(obj, "identityRegistryStorage", d.shared.identityRegistryStorage);
         vm.serializeAddress(obj, "trustedIssuersRegistry", d.shared.trustedIssuersRegistry);
@@ -324,30 +362,27 @@ contract DeployTokenization is Script {
         vm.serializeAddress(obj, "idFactory", d.shared.idFactory);
         vm.serializeAddress(obj, "implementationAuthority", d.shared.implementationAuthority);
         vm.serializeUint(obj, "kycClaimTopic", KYC_TOPIC);
+        vm.serializeUint(obj, "tawfScreenedTopic", 2);
+        vm.serializeUint(obj, "ojkSandboxTopic", 3);
 
-        uint256[] memory tenors = new uint256[](4);
-        address[] memory tokens = new address[](4);
-        address[] memory dists = new address[](4);
-        bytes32[] memory pids = new bytes32[](4);
-        for (uint256 i = 0; i < 4; i++) {
-            tenors[i] = d.tenors[i];
-            tokens[i] = d.depositoTokens[i];
-            dists[i] = d.depositoDistributors[i];
-            pids[i] = d.productIds[i];
-        }
-        vm.serializeUint(obj, "depositoTenors", tenors);
-        vm.serializeAddress(obj, "depositoTokens", tokens);
-        vm.serializeAddress(obj, "depositoDistributors", dists);
-        vm.serializeBytes32(obj, "depositoProductIds", pids);
+        // Tawf deposito series (Model B).
+        vm.serializeAddress(obj, "tawfSeries", d.series);
+        vm.serializeAddress(obj, "tawfSeriesToken", d.seriesToken);
+        vm.serializeBytes32(obj, "tawfSeriesId", d.seriesId);
+        vm.serializeAddress(obj, "sandboxModule", d.sandboxModule);
+        vm.serializeUint(obj, "fxInitialRate", d.fxInitialRate);
 
+        // Sukuk.
         vm.serializeAddress(obj, "sukukToken", d.sukukToken);
         vm.serializeAddress(obj, "sukukDistributor", d.sukukDistributor);
-        vm.serializeBytes32(obj, "sukukId", SUKUK_ID);
+        vm.serializeBytes32(obj, "sukukId", _sukukId);
+        vm.serializeUint(obj, "sukukFace", _sukukFace);
+        vm.serializeUint(obj, "sukukMaturity", uint256(_sukukMaturity));
 
+        // Per-deal product.
         vm.serializeAddress(obj, "dealRegistry", d.dealRegistry);
         vm.serializeAddress(obj, "bondReceiptNft", d.bondReceiptNft);
         vm.serializeAddress(obj, "redemptionVault", d.redemptionVault);
-        vm.serializeAddress(obj, "mockUsdc", d.mockUsdc);
         vm.serializeUint(obj, "deployBlock", d.deployBlock);
         string memory json = vm.serializeBytes(obj, "identityProxyBytecode", proxyCode);
 
@@ -358,9 +393,11 @@ contract DeployTokenization is Script {
         console.log("=== Tawf tokenization demo suite deployed (single operator) ===");
         console.log("chainId:            ", d.chainId);
         console.log("operator:           ", d.operator);
-        console.log("MockIDRX:           ", d.idrx);
-        console.log("DepositoController: ", d.depositoController);
+        console.log("MockUSDC:           ", d.mockUsdc);
         console.log("IdentityRegistry:   ", d.shared.identityRegistry);
+        console.log("TawfSeriesToken:    ", d.seriesToken);
+        console.log("TawfSeries:         ", d.series);
+        console.log("SandboxModule:      ", d.sandboxModule);
         console.log("SukukToken:         ", d.sukukToken);
         console.log("SukukDistributor:   ", d.sukukDistributor);
         console.log("DealRegistry:       ", d.dealRegistry);
@@ -369,7 +406,13 @@ contract DeployTokenization is Script {
     }
 }
 
-// --- Minimal interfaces for the per-deal product (0.8.20 units via deployCode) ---------------
+// --- Minimal interfaces for deployCode-created contracts (0.8.20/0.8.24 units) ---------------
+
+/// @dev TawfDepositoSeries role + rate config, reached via deployCode.
+interface ISeriesConfig {
+    function grantRole(bytes32 role, address account) external;
+    function postRate(uint256 idrPerUsdc) external;
+}
 
 interface IDealRegistry {
     function setVault(address vault_) external;

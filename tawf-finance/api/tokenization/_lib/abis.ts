@@ -1,0 +1,358 @@
+/**
+ * Server-side ABIs for the tokenization serverless functions. Hand-written to
+ * match the deployed contracts (T-REX identity + token, DepositoReserveController,
+ * DepositoDistributor, SukukDistributor, ReserveLedger on the L3, mocks, anchor).
+ */
+
+export const identityRegistryAbi = [
+  { name: 'isVerified', type: 'function', stateMutability: 'view', inputs: [{ name: '_userAddress', type: 'address' }], outputs: [{ name: '', type: 'bool' }] },
+  { name: 'identity', type: 'function', stateMutability: 'view', inputs: [{ name: '_userAddress', type: 'address' }], outputs: [{ name: '', type: 'address' }] },
+  { name: 'registerIdentity', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: '_userAddress', type: 'address' }, { name: '_identity', type: 'address' }, { name: '_country', type: 'uint16' }], outputs: [] },
+] as const
+
+export const identityAbi = [
+  {
+    name: 'addClaim',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: '_topic', type: 'uint256' },
+      { name: '_scheme', type: 'uint256' },
+      { name: '_issuer', type: 'address' },
+      { name: '_signature', type: 'bytes' },
+      { name: '_data', type: 'bytes' },
+      { name: '_uri', type: 'string' },
+    ],
+    outputs: [{ name: 'claimRequestId', type: 'bytes32' }],
+  },
+] as const
+
+// IdentityProxy constructor is (implementationAuthority, initialManagementKey).
+export const identityProxyAbi = [
+  {
+    type: 'constructor',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: '_implementationAuthority', type: 'address' },
+      { name: 'initialManagementKey', type: 'address' },
+    ],
+  },
+] as const
+
+export const mockTokenAbi = [
+  { name: 'faucet', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'amount', type: 'uint256' }], outputs: [] },
+  { name: 'faucetMax', type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },
+  { name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'transfer', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }] },
+] as const
+
+export const trexTokenAbi = [
+  { name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: '_userAddress', type: 'address' }], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'totalSupply', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+] as const
+
+export const depositoControllerAbi = [
+  {
+    name: 'tokenizePlacement',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'productId', type: 'bytes32' },
+      { name: 'placementId', type: 'bytes32' },
+      { name: 'nominal', type: 'uint256' },
+      { name: 'maturity', type: 'uint64' },
+      { name: 'epoch', type: 'uint256' },
+      { name: 'proof', type: 'bytes32[]' },
+      { name: 'investor', type: 'address' },
+    ],
+    outputs: [],
+  },
+  {
+    name: 'updateReserve',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'productId', type: 'bytes32' },
+      { name: 'snapshotAt', type: 'uint64' },
+      { name: 'totalPlaced', type: 'uint256' },
+      { name: 'epoch', type: 'uint256' },
+      { name: 'proof', type: 'bytes32[]' },
+    ],
+    outputs: [],
+  },
+  { name: 'placementUsed', type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'bytes32' }], outputs: [{ name: '', type: 'bool' }] },
+  { name: 'reserveOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'productId', type: 'bytes32' }], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'reserveRatioBps', type: 'function', stateMutability: 'view', inputs: [{ name: 'productId', type: 'bytes32' }], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'isFullyBacked', type: 'function', stateMutability: 'view', inputs: [{ name: 'productId', type: 'bytes32' }], outputs: [{ name: '', type: 'bool' }] },
+  { name: 'reserveSnapshotAt', type: 'function', stateMutability: 'view', inputs: [{ name: 'productId', type: 'bytes32' }], outputs: [{ name: '', type: 'uint64' }] },
+  { type: 'error', name: 'UnknownProduct', inputs: [{ name: 'productId', type: 'bytes32' }] },
+  { type: 'error', name: 'PlacementAlreadyUsed', inputs: [{ name: 'placementId', type: 'bytes32' }] },
+  { type: 'error', name: 'ProofInvalid', inputs: [] },
+  { type: 'error', name: 'StaleReserve', inputs: [{ name: 'latest', type: 'uint64' }, { name: 'got', type: 'uint64' }] },
+  { type: 'error', name: 'ReserveInsufficient', inputs: [{ name: 'supplyAfter', type: 'uint256' }, { name: 'totalPlaced', type: 'uint256' }] },
+] as const
+
+export const tawfSeriesAbi = [
+  // views
+  { name: 'pending', type: 'function', stateMutability: 'view', inputs: [{ name: 'investor', type: 'address' }], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'claimable', type: 'function', stateMutability: 'view', inputs: [{ name: 'investor', type: 'address' }], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'reserve', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'ratioBps', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'isFullyBacked', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'bool' }] },
+  { name: 'reserveSnapshotAt', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint64' }] },
+  { name: 'lastPeriod', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint32' }] },
+  { name: 'redemptionOpen', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'bool' }] },
+  { name: 'idrPerUsdc', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'rateUpdatedAt', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint64' }] },
+  { name: 'maxRateAge', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint64' }] },
+  {
+    name: 'rate',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [
+      { name: 'idrPerUsdc_', type: 'uint256' },
+      { name: 'updatedAt', type: 'uint64' },
+      { name: 'maxAge', type: 'uint64' },
+      { name: 'fresh', type: 'bool' },
+    ],
+  },
+  {
+    name: 'seriesTerms',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [
+      {
+        name: '',
+        type: 'tuple',
+        components: [
+          { name: 'seriesId', type: 'bytes32' },
+          { name: 'tenorMonths', type: 'uint8' },
+          { name: 'nisbahBps', type: 'uint16' },
+        ],
+      },
+    ],
+  },
+  // actions
+  { name: 'postRate', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'idrPerUsdc_', type: 'uint256' }], outputs: [] },
+  { name: 'subscribe', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'usdcAmount', type: 'uint256' }], outputs: [] },
+  { name: 'cancelSubscription', type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },
+  {
+    name: 'allocate',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'investors', type: 'address[]' },
+      { name: 'epoch', type: 'uint256' },
+      { name: 'snapshotAt', type: 'uint64' },
+      { name: 'balance', type: 'uint256' },
+      { name: 'proof', type: 'bytes32[]' },
+    ],
+    outputs: [],
+  },
+  { name: 'distributeProfit', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'period', type: 'uint32' }, { name: 'profitSen', type: 'uint256' }, { name: 'epoch', type: 'uint256' }, { name: 'proof', type: 'bytes32[]' }], outputs: [] },
+  { name: 'settleMaturity', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'at', type: 'uint64' }, { name: 'principalSen', type: 'uint256' }, { name: 'epoch', type: 'uint256' }, { name: 'proof', type: 'bytes32[]' }], outputs: [] },
+  { name: 'claim', type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },
+  { name: 'redeem', type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },
+  { type: 'error', name: 'ProofInvalid', inputs: [] },
+  { type: 'error', name: 'ReserveInsufficient', inputs: [{ name: 'supplyAfter', type: 'uint256' }, { name: 'balance', type: 'uint256' }] },
+  { type: 'error', name: 'ReserveNotNewer', inputs: [{ name: 'stored', type: 'uint64' }, { name: 'got', type: 'uint64' }] },
+  { type: 'error', name: 'RateStale', inputs: [{ name: 'updatedAt', type: 'uint64' }, { name: 'maxAge', type: 'uint64' }] },
+  { type: 'error', name: 'RateUnset', inputs: [] },
+  { type: 'error', name: 'NotEligible', inputs: [{ name: 'investor', type: 'address' }] },
+  { type: 'error', name: 'NoPending', inputs: [] },
+  { type: 'error', name: 'ProfitPeriodNotSequential', inputs: [{ name: 'expected', type: 'uint32' }, { name: 'got', type: 'uint32' }] },
+  { type: 'error', name: 'NothingToClaim', inputs: [] },
+] as const
+
+export const sandboxModuleAbi = [
+  { name: 'isEligible', type: 'function', stateMutability: 'view', inputs: [{ name: 'compliance', type: 'address' }, { name: 'who', type: 'address' }], outputs: [{ name: '', type: 'bool' }] },
+  { name: 'investorCount', type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'address' }], outputs: [{ name: '', type: 'uint256' }] },
+  {
+    name: 'configOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: '', type: 'address' }],
+    outputs: [
+      { name: 'mode', type: 'uint8' },
+      { name: 'treasury', type: 'address' },
+      { name: 'claimIssuer', type: 'address' },
+      { name: 'maxInvestors', type: 'uint256' },
+      { name: 'maxBalancePerInvestor', type: 'uint256' },
+      { name: 'seriesCap', type: 'uint256' },
+      { name: 'seriesEnd', type: 'uint64' },
+      { name: 'configured', type: 'bool' },
+    ],
+  },
+  // onlyComplianceCall setters, invoked via ModularCompliance.callModuleFunction
+  { name: 'setMode', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'mode', type: 'uint8' }], outputs: [] },
+  { name: 'setCaps', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'maxInvestors', type: 'uint256' }, { name: 'maxBalancePerInvestor', type: 'uint256' }, { name: 'seriesCap', type: 'uint256' }], outputs: [] },
+  { name: 'setSeriesEnd', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'seriesEnd', type: 'uint64' }], outputs: [] },
+] as const
+
+/** ModularCompliance owner gateway used to call onlyComplianceCall module setters. */
+export const modularComplianceAbi = [
+  { name: 'callModuleFunction', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'callData', type: 'bytes' }, { name: '_module', type: 'address' }], outputs: [] },
+] as const
+
+/** T-REX token compliance() getter, to reach the series token's ModularCompliance. */
+export const trexComplianceAbi = [
+  { name: 'compliance', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'address' }] },
+] as const
+
+export const depositoDistributorAbi_UNUSED = [
+  { name: 'lastPeriod', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint16' }] },
+] as const
+
+export const sukukDistributorAbi = [
+  { name: 'status', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint8' }] },
+  {
+    name: 'terms',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [
+      { name: 'sukukId', type: 'bytes32' },
+      { name: 'faceValue', type: 'uint256' },
+      { name: 'maturity', type: 'uint40' },
+      { name: 'minRaise', type: 'uint256' },
+      { name: 'minSubscription', type: 'uint256' },
+      { name: 'subscriptionPeriod', type: 'uint40' },
+      { name: 'issuerTreasury', type: 'address' },
+    ],
+  },
+  { name: 'reserveOutstanding', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'reserveSnapshotAt', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint64' }] },
+  { name: 'isFullyBacked', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'bool' }] },
+  { name: 'openSubscription', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'epoch', type: 'uint256' }, { name: 'proof', type: 'bytes32[]' }], outputs: [] },
+  { name: 'closeSubscription', type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },
+  { name: 'distribute', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'period', type: 'uint16' }, { name: 'amount', type: 'uint256' }, { name: 'epoch', type: 'uint256' }, { name: 'proof', type: 'bytes32[]' }], outputs: [] },
+  { name: 'settleMaturity', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'amount', type: 'uint256' }, { name: 'epoch', type: 'uint256' }, { name: 'proof', type: 'bytes32[]' }], outputs: [] },
+  { name: 'updateReserve', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'snapshotAt', type: 'uint64' }, { name: 'outstanding', type: 'uint256' }, { name: 'epoch', type: 'uint256' }, { name: 'proof', type: 'bytes32[]' }], outputs: [] },
+  { type: 'error', name: 'ProofInvalid', inputs: [] },
+  { type: 'error', name: 'WrongStatus', inputs: [{ name: 'current', type: 'uint8' }] },
+  { type: 'error', name: 'ReserveInsufficient', inputs: [{ name: 'supplyAfter', type: 'uint256' }, { name: 'outstanding', type: 'uint256' }] },
+] as const
+
+/** ReserveLedger on the Tawf Network L3 (views used to list placements / reserves). */
+export const reserveLedgerAbi = [
+  {
+    name: 'placementOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'placementId', type: 'bytes32' }],
+    outputs: [
+      {
+        name: '',
+        type: 'tuple',
+        components: [
+          { name: 'institutionId', type: 'bytes32' },
+          { name: 'productId', type: 'bytes32' },
+          { name: 'nominal', type: 'uint256' },
+          { name: 'maturity', type: 'uint64' },
+          { name: 'nisbahBps', type: 'uint16' },
+          { name: 'sourceCommitment', type: 'bytes32' },
+          { name: 'recordedAt', type: 'uint40' },
+          { name: 'recordedBy', type: 'address' },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'productOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'productId', type: 'bytes32' }],
+    outputs: [
+      {
+        name: '',
+        type: 'tuple',
+        components: [
+          { name: 'institutionId', type: 'bytes32' },
+          { name: 'tenorMonths', type: 'uint8' },
+          { name: 'nisbahBps', type: 'uint16' },
+          { name: 'registeredAt', type: 'uint40' },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'latestDepositoReserve',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'productId', type: 'bytes32' }],
+    outputs: [
+      {
+        name: '',
+        type: 'tuple',
+        components: [
+          { name: 'snapshotAt', type: 'uint64' },
+          { name: 'amount', type: 'uint256' },
+          { name: 'sourceCommitment', type: 'bytes32' },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'latestSukukReserve',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'sukukId', type: 'bytes32' }],
+    outputs: [
+      {
+        name: '',
+        type: 'tuple',
+        components: [
+          { name: 'snapshotAt', type: 'uint64' },
+          { name: 'amount', type: 'uint256' },
+          { name: 'sourceCommitment', type: 'bytes32' },
+        ],
+      },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'PlacementRecorded',
+    inputs: [
+      { name: 'placementId', type: 'bytes32', indexed: true },
+      { name: 'institutionId', type: 'bytes32', indexed: true },
+      { name: 'productId', type: 'bytes32', indexed: true },
+      { name: 'nominal', type: 'uint256', indexed: false },
+      { name: 'maturity', type: 'uint64', indexed: false },
+      { name: 'nisbahBps', type: 'uint16', indexed: false },
+      { name: 'sourceCommitment', type: 'bytes32', indexed: false },
+    ],
+  },
+] as const
+
+/** SukukLedger on the Tawf Network L3: markIssued records on the L3 the
+ *  subscription outcome observed on Arbitrum One. Signed by the L3 operator. */
+export const sukukLedgerAbi = [
+  { name: 'markIssued', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'sukukId', type: 'bytes32' }, { name: 'l2Token', type: 'address' }, { name: 'issuedAmount', type: 'uint256' }], outputs: [] },
+  { type: 'error', name: 'WrongStatus', inputs: [{ name: 'sukukId', type: 'bytes32' }, { name: 'current', type: 'uint8' }] },
+  { type: 'error', name: 'InvalidAddress', inputs: [] },
+  { type: 'error', name: 'InvalidTerms', inputs: [] },
+] as const
+
+export const ledgerAnchorAbi = [
+  { name: 'ledgerChainId', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+  {
+    name: 'epochOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'epoch', type: 'uint256' }],
+    outputs: [
+      {
+        name: '',
+        type: 'tuple',
+        components: [
+          { name: 'root', type: 'bytes32' },
+          { name: 'fromIndex', type: 'uint64' },
+          { name: 'toIndex', type: 'uint64' },
+          { name: 'anchoredAt', type: 'uint40' },
+        ],
+      },
+    ],
+  },
+] as const

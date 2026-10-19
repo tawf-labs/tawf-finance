@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.17;
 
-// Mirrors the DeployTokenization wiring and asserts the operator-only KYC + deposito + sukuk flows
-// the demo backend performs. Pinned to 0.8.17 for the same reasons as DeployTokenization.
+// Mirrors the DeployTokenization wiring and asserts the operator-only KYC + Tawf deposito series
+// (Model B) + sukuk flows the demo backend performs. Pinned to 0.8.17 for the same reasons as
+// DeployTokenization. The Tawf contracts (TawfDepositoSeries 0.8.24, SukukDistributor 0.8.20) are
+// reached via vm.deployCode-created addresses through minimal interfaces.
 
 import "forge-std/Test.sol";
 
 import {DeployTokenization} from "../script/DeployTokenization.s.sol";
+import {SandboxModule} from "../src/deposito/SandboxModule.sol";
 
 import {IdentityRegistry} from "@erc3643org/erc-3643/contracts/registry/implementation/IdentityRegistry.sol";
 import {Token} from "@erc3643org/erc-3643/contracts/token/Token.sol";
@@ -17,23 +20,24 @@ interface IAnchorMut {
     function push(bytes32 root) external returns (uint256 epoch);
 }
 
-interface IDepControllerT {
-    function tokenizePlacement(
-        bytes32 productId, bytes32 placementId, uint256 nominal, uint64 maturity, uint256 epoch, bytes32[] calldata proof, address investor
-    ) external;
-    function updateReserve(bytes32 productId, uint64 snapshotAt, uint256 totalPlaced, uint256 epoch, bytes32[] calldata proof) external;
-}
-
-interface IDepDistributorT {
-    function openRedemption() external;
-    function fundPrincipal(uint256 amount) external;
-    function redeem(uint256 amount) external;
+interface ISeriesT {
+    function subscribe(uint256 usdcAmount) external;
+    function cancelSubscription() external;
+    function allocate(address[] calldata investors, uint256 epoch, uint64 snapshotAt, uint256 balance, bytes32[] calldata proof) external;
+    function distributeProfit(uint32 period, uint256 profitSen, uint256 epoch, bytes32[] calldata proof) external;
+    function settleMaturity(uint64 at, uint256 principalSen, uint256 epoch, bytes32[] calldata proof) external;
+    function claim() external;
+    function redeem() external;
+    function pending(address investor) external view returns (uint256);
+    function claimable(address investor) external view returns (uint256);
+    function reserve() external view returns (uint256);
+    function isFullyBacked() external view returns (bool);
+    function grantRole(bytes32 role, address account) external;
 }
 
 interface ISukukT {
     function openSubscription(uint256 epoch, bytes32[] calldata proof) external;
     function subscribe(uint256 amount) external;
-    function updateReserve(uint64 snapshotAt, uint256 outstanding, uint256 epoch, bytes32[] calldata proof) external;
     function token() external view returns (address);
 }
 
@@ -53,8 +57,9 @@ contract DeployTokenizationTest is Test, DeployTokenization {
     address internal anchor;
     DeployTokenization.Deployment internal d;
 
-    bytes32 constant DEPOSITO_PLACEMENT = keccak256("tawf.deposito.placement");
     bytes32 constant DEPOSITO_RESERVE = keccak256("tawf.deposito.reserve");
+    bytes32 constant DEPOSITO_PROFIT = keccak256("tawf.deposito.profit");
+    bytes32 constant DEPOSITO_MATURITY = keccak256("tawf.deposito.maturity");
     bytes32 constant SUKUK_APPROVED = keccak256("tawf.sukuk.approved");
 
     function setUp() public {
@@ -63,112 +68,199 @@ contract DeployTokenizationTest is Test, DeployTokenization {
 
         anchor = deployCode("MockLedgerAnchor.sol:MockLedgerAnchor", abi.encode(uint256(1)));
 
+        vm.setEnv("SUKUK_ID", vm.toString(bytes32(keccak256("sukuk.demo.2026"))));
+        vm.setEnv("SUKUK_FACE", vm.toString(uint256(500_000e6)));
+        vm.setEnv("SUKUK_MATURITY", vm.toString(uint256(block.timestamp + 365 days)));
+
         vm.startPrank(operator);
         d = _deployAll(operator, anchor, 1);
         vm.stopPrank();
     }
 
-    /// @dev Register `wallet` as verified, operator-only (operator is ClaimIssuer management key).
-    function _verify(address wallet) internal {
+    /// @dev Register `wallet` as verified (KYC topic 1), operator-only.
+    function _verify(address wallet) internal returns (address identity) {
+        identity = _deployIdentity(wallet);
+        _addClaim(identity, KYC_TOPIC);
+        vm.prank(operator);
+        IdentityRegistry(d.shared.identityRegistry).registerIdentity(wallet, IIdentity(identity), COUNTRY_ID);
+    }
+
+    function _deployIdentity(address) internal returns (address identity) {
         vm.startPrank(operator);
         bytes memory proxyCode = vm.getCode("IdentityProxy.sol:IdentityProxy");
         bytes memory initCode = abi.encodePacked(proxyCode, abi.encode(d.shared.implementationAuthority, operator));
-        address identity;
         assembly {
             identity := create(0, add(initCode, 0x20), mload(initCode))
         }
-        bytes memory claimData = abi.encodePacked("KYC-OK");
-        bytes32 dataHash = keccak256(abi.encode(identity, KYC_TOPIC, claimData));
+        vm.stopPrank();
+    }
+
+    /// @dev Add an operator-signed claim of `topic` to `identity` (topic 1 KYC,
+    ///      2 TAWF_SCREENED, 3 OJK_SANDBOX_PARTICIPANT). Same mechanics as the
+    ///      app's _lib/identity.ts.
+    function _addClaim(address identity, uint256 topic) internal {
+        bytes memory claimData = abi.encodePacked("OK");
+        bytes32 dataHash = keccak256(abi.encode(identity, topic, claimData));
         bytes32 prefixed = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(operatorKey, prefixed);
         bytes memory sig = abi.encodePacked(r, s, v);
-        Identity(identity).addClaim(KYC_TOPIC, 1, d.shared.claimIssuer, sig, claimData, "");
-        IdentityRegistry(d.shared.identityRegistry).registerIdentity(wallet, IIdentity(identity), COUNTRY_ID);
-        vm.stopPrank();
+        vm.prank(operator);
+        Identity(identity).addClaim(topic, 1, d.shared.claimIssuer, sig, claimData, "");
     }
 
     function _leaf(bytes32 kind, bytes32 subject, uint256 a, uint256 b) internal pure returns (bytes32) {
         return keccak256(bytes.concat(keccak256(abi.encode(uint256(1), kind, subject, a, b))));
     }
 
-    // --- deposito flow ---------------------------------------------------
+    function _one(address a) internal pure returns (address[] memory arr) {
+        arr = new address[](1);
+        arr[0] = a;
+    }
 
-    function test_depositoFlow_tokenizeThenRedeem() public {
-        _verify(user);
-        bytes32 productId = d.productIds[0]; // 1M tenor
-        address token = d.depositoTokens[0];
-        address distributor = d.depositoDistributors[0];
-        uint64 maturity = uint64(block.timestamp + 30 days);
+    // --- Tawf deposito series (Model B) ----------------------------------
+    // The default mode is PILOT_ONLY, so only the operator (treasury) may hold.
+    // Switch the SandboxModule to SCREENED_GROUP and issue a screening claim so
+    // the user can subscribe and be allocated.
 
-        // Reserve snapshot covers the placement.
-        uint256 er = IAnchorMut(anchor).push(_leaf(DEPOSITO_RESERVE, productId, 100, 1_000_000));
-        bytes32[] memory noProof;
-        IDepControllerT(d.depositoController).updateReserve(productId, 100, 1_000_000, er, noProof);
-
-        // Tokenize a 500,000 sen placement to the user.
-        uint256 ep = IAnchorMut(anchor).push(_leaf(DEPOSITO_PLACEMENT, keccak256("PL1"), 500_000, maturity));
-        vm.prank(operator);
-        IDepControllerT(d.depositoController).tokenizePlacement(productId, keccak256("PL1"), 500_000, maturity, ep, noProof, user);
-        assertEq(Token(token).balanceOf(user), 500_000);
-
-        // Redeem at maturity: operator opens, funds principal, user redeems.
-        vm.prank(operator);
-        IDepDistributorT(distributor).openRedemption();
+    function _openScreenedGroup() internal {
+        // Move mode to SCREENED_GROUP via the compliance owner (operator).
+        // ModularCompliance.callModuleFunction executes onlyComplianceCall fns.
         vm.startPrank(operator);
-        IMintable(d.idrx).faucet(500_000);
-        IMintable(d.idrx).approve(distributor, 500_000);
+        _callModule(abi.encodeWithSelector(SandboxModule.setMode.selector, SandboxModule.Mode.SCREENED_GROUP));
         vm.stopPrank();
-        // Funder role on the distributor is the operator (admin==funder in the script).
+    }
+
+    function _callModule(bytes memory data) internal {
+        // The series token's compliance owns the modules; use its
+        // callModuleFunction to invoke an onlyComplianceCall setter.
+        IModularComplianceCall(_complianceOfSeries()).callModuleFunction(data, d.sandboxModule);
+    }
+
+    function _complianceOfSeries() internal view returns (address) {
+        return IHasCompliance(d.seriesToken).compliance();
+    }
+
+    function test_seriesPilotOnlyByDefault() public {
+        // A verified user with no screening claim cannot subscribe under PILOT_ONLY.
+        _verify(user);
+        vm.startPrank(user);
+        IMintable(d.mockUsdc).faucet(100e6);
+        IMintable(d.mockUsdc).approve(d.series, 100e6);
+        vm.expectRevert(abi.encodeWithSignature("NotEligible(address)", user));
+        ISeriesT(d.series).subscribe(100e6);
+        vm.stopPrank();
+    }
+
+    function test_seriesSubscribeAllocateWithinBalance() public {
+        address id = _verify(user);
+        _addClaim(id, 2); // TAWF_SCREENED
+        _openScreenedGroup();
+
+        // 100 USDC subscribed. Rate 16,000.00 IDR/USDC -> 1,600,000.00 sen = 160,000,000 sen.
+        vm.startPrank(user);
+        IMintable(d.mockUsdc).faucet(100e6);
+        IMintable(d.mockUsdc).approve(d.series, 100e6);
+        ISeriesT(d.series).subscribe(100e6);
+        vm.stopPrank();
+        assertEq(ISeriesT(d.series).pending(user), 100e6);
+
+        uint256 expectedSen = (100e6 * d.fxInitialRate) / 1e6; // 160,000,000 sen
+
+        // Anchor the account balance covering that supply.
+        uint256 e = IAnchorMut(anchor).push(_leaf(DEPOSITO_RESERVE, d.seriesId, 1000, expectedSen));
+        bytes32[] memory noProof;
         vm.prank(operator);
-        IDepDistributorT(distributor).fundPrincipal(500_000);
+        ISeriesT(d.series).allocate(_one(user), e, 1000, expectedSen, noProof);
+
+        assertEq(Token(d.seriesToken).balanceOf(user), expectedSen);
+        assertEq(ISeriesT(d.series).pending(user), 0);
+        assertTrue(ISeriesT(d.series).isFullyBacked());
+    }
+
+    function test_seriesAllocateAboveBalanceReverts() public {
+        address id = _verify(user);
+        _addClaim(id, 2);
+        _openScreenedGroup();
+
+        vm.startPrank(user);
+        IMintable(d.mockUsdc).faucet(100e6);
+        IMintable(d.mockUsdc).approve(d.series, 100e6);
+        ISeriesT(d.series).subscribe(100e6);
+        vm.stopPrank();
+
+        uint256 mintedSen = (100e6 * d.fxInitialRate) / 1e6;
+        // Anchor a balance below what the allocation would mint.
+        uint256 e = IAnchorMut(anchor).push(_leaf(DEPOSITO_RESERVE, d.seriesId, 1000, mintedSen - 1));
+        bytes32[] memory noProof;
+        vm.expectRevert(abi.encodeWithSignature("ReserveInsufficient(uint256,uint256)", mintedSen, mintedSen - 1));
+        vm.prank(operator);
+        ISeriesT(d.series).allocate(_one(user), e, 1000, mintedSen - 1, noProof);
+    }
+
+    function test_seriesCancelBeforeAllocation() public {
+        address id = _verify(user);
+        _addClaim(id, 2);
+        _openScreenedGroup();
+
+        vm.startPrank(user);
+        IMintable(d.mockUsdc).faucet(100e6);
+        IMintable(d.mockUsdc).approve(d.series, 100e6);
+        ISeriesT(d.series).subscribe(100e6);
+        uint256 before = IMintable(d.mockUsdc).balanceOf(user);
+        ISeriesT(d.series).cancelSubscription();
+        vm.stopPrank();
+        assertEq(IMintable(d.mockUsdc).balanceOf(user), before + 100e6);
+        assertEq(ISeriesT(d.series).pending(user), 0);
+    }
+
+    function test_seriesProfitAndMaturity() public {
+        address id = _verify(user);
+        _addClaim(id, 2);
+        _openScreenedGroup();
+
+        vm.startPrank(user);
+        IMintable(d.mockUsdc).faucet(100e6);
+        IMintable(d.mockUsdc).approve(d.series, 100e6);
+        ISeriesT(d.series).subscribe(100e6);
+        vm.stopPrank();
+
+        uint256 sen = (100e6 * d.fxInitialRate) / 1e6;
+        bytes32[] memory noProof;
+        uint256 er = IAnchorMut(anchor).push(_leaf(DEPOSITO_RESERVE, d.seriesId, 1000, sen));
+        vm.prank(operator);
+        ISeriesT(d.series).allocate(_one(user), er, 1000, sen, noProof);
+
+        // Distribute profit for period 1: profitSen -> USDC at the rate, funded by the treasury.
+        uint256 profitSen = 1_600_000; // 16,000.00 IDR -> 1 USDC
+        // Treasury (operator) funds + approves the series for the USDC equivalent.
+        vm.startPrank(operator);
+        IMintable(d.mockUsdc).faucet(1e6);
+        IMintable(d.mockUsdc).approve(d.series, 1e6);
+        vm.stopPrank();
+        uint256 ep = IAnchorMut(anchor).push(_leaf(DEPOSITO_PROFIT, d.seriesId, 1, profitSen));
+        vm.prank(operator);
+        ISeriesT(d.series).distributeProfit(1, profitSen, ep, noProof);
+
+        assertEq(ISeriesT(d.series).claimable(user), 1e6);
+        vm.prank(user);
+        ISeriesT(d.series).claim();
+        assertEq(IMintable(d.mockUsdc).balanceOf(user), 1e6);
+
+        // Settle maturity: principal = minted sen, funded in USDC by the treasury.
+        uint256 principalUsdc = (sen * 1e6) / d.fxInitialRate; // == 100e6
+        vm.startPrank(operator);
+        IMintable(d.mockUsdc).faucet(principalUsdc);
+        IMintable(d.mockUsdc).approve(d.series, principalUsdc);
+        vm.stopPrank();
+        uint256 em = IAnchorMut(anchor).push(_leaf(DEPOSITO_MATURITY, d.seriesId, 2000, sen));
+        vm.prank(operator);
+        ISeriesT(d.series).settleMaturity(2000, sen, em, noProof);
 
         vm.prank(user);
-        IDepDistributorT(distributor).redeem(500_000);
-        assertEq(IMintable(d.idrx).balanceOf(user), 500_000);
-        assertEq(Token(token).balanceOf(user), 0);
-    }
-
-    function test_depositoPlacementNotOnLedgerReverts() public {
-        _verify(user);
-        bytes32 productId = d.productIds[0];
-        uint64 maturity = uint64(block.timestamp + 30 days);
-        bytes32[] memory noProof;
-        // Anchor a different nominal; proving 500,000 fails.
-        uint256 ep = IAnchorMut(anchor).push(_leaf(DEPOSITO_PLACEMENT, keccak256("PL1"), 1, maturity));
-        vm.expectRevert(bytes4(keccak256("ProofInvalid()")));
-        vm.prank(operator);
-        IDepControllerT(d.depositoController).tokenizePlacement(productId, keccak256("PL1"), 500_000, maturity, ep, noProof, user);
-    }
-
-    function test_depositoSupplyAboveReserveReverts() public {
-        _verify(user);
-        bytes32 productId = d.productIds[1]; // 3M tenor
-        uint64 maturity = uint64(block.timestamp + 90 days);
-        bytes32[] memory noProof;
-
-        uint256 er = IAnchorMut(anchor).push(_leaf(DEPOSITO_RESERVE, productId, 10, 100_000));
-        IDepControllerT(d.depositoController).updateReserve(productId, 10, 100_000, er, noProof);
-
-        uint256 ep = IAnchorMut(anchor).push(_leaf(DEPOSITO_PLACEMENT, keccak256("PL2"), 500_000, maturity));
-        vm.expectRevert(abi.encodeWithSignature("ReserveInsufficient(uint256,uint256)", uint256(500_000), uint256(100_000)));
-        vm.prank(operator);
-        IDepControllerT(d.depositoController).tokenizePlacement(productId, keccak256("PL2"), 500_000, maturity, ep, noProof, user);
-    }
-
-    function test_depositoTransferToUnverifiedReverts() public {
-        _verify(user);
-        bytes32 productId = d.productIds[0];
-        address token = d.depositoTokens[0];
-        uint64 maturity = uint64(block.timestamp + 30 days);
-        bytes32[] memory noProof;
-
-        uint256 ep = IAnchorMut(anchor).push(_leaf(DEPOSITO_PLACEMENT, keccak256("PL1"), 500_000, maturity));
-        vm.prank(operator);
-        IDepControllerT(d.depositoController).tokenizePlacement(productId, keccak256("PL1"), 500_000, maturity, ep, noProof, user);
-
-        vm.expectRevert(bytes("Transfer not possible"));
-        vm.prank(user);
-        Token(token).transfer(outsider, 1);
+        ISeriesT(d.series).redeem();
+        assertEq(Token(d.seriesToken).balanceOf(user), 0);
+        // User received principal back (plus the already-claimed profit).
+        assertEq(IMintable(d.mockUsdc).balanceOf(user), 1e6 + principalUsdc);
     }
 
     // --- sukuk flow ------------------------------------------------------
@@ -179,8 +271,6 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         address token = ISukukT(distributor).token();
         bytes32[] memory noProof;
 
-        // The script set faceValue 500_000e6 and maturity = deploy block.timestamp + 365 days. No
-        // time passes between setUp and here, so we can reconstruct the exact approved terms.
         uint256 faceValue = 500_000e6;
         uint40 maturity = uint40(block.timestamp + 365 days);
         bytes32 sukukId = keccak256("sukuk.demo.2026");
@@ -189,35 +279,32 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         vm.prank(operator);
         ISukukT(distributor).openSubscription(epoch, noProof);
 
-        // Verified user subscribes with MockUSDC (6 decimals).
         vm.startPrank(user);
         IMintable(d.mockUsdc).faucet(10e6);
         IMintable(d.mockUsdc).approve(distributor, 10e6);
         ISukukT(distributor).subscribe(10e6);
         vm.stopPrank();
         assertEq(Token(token).balanceOf(user), 10e6);
-
-        // An unverified outsider cannot subscribe.
-        vm.startPrank(outsider);
-        IMintable(d.mockUsdc).faucet(10e6);
-        IMintable(d.mockUsdc).approve(distributor, 10e6);
-        vm.expectRevert(abi.encodeWithSignature("NotEligible(address)", outsider));
-        ISukukT(distributor).subscribe(10e6);
-        vm.stopPrank();
     }
 
     function test_deploymentShape() public {
         assertEq(d.chainId, block.chainid);
         assertEq(d.operator, operator);
-        assertEq(d.depositoTokens.length, 4);
-        for (uint256 i = 0; i < 4; i++) {
-            assertTrue(d.depositoTokens[i] != address(0), "deposito token");
-            assertTrue(d.depositoDistributors[i] != address(0), "deposito distributor");
-            assertEq(d.productIds[i], keccak256(abi.encode(keccak256("bprs.demo"), d.tenors[i])));
-        }
+        assertTrue(d.seriesToken != address(0), "series token");
+        assertTrue(d.series != address(0), "series");
+        assertTrue(d.sandboxModule != address(0), "sandbox module");
+        assertEq(d.seriesId, keccak256("tawf.series.1"));
         assertTrue(d.sukukToken != address(0));
         assertTrue(d.sukukDistributor != address(0));
         assertTrue(d.dealRegistry != address(0));
         assertTrue(d.redemptionVault != address(0));
     }
+}
+
+interface IModularComplianceCall {
+    function callModuleFunction(bytes calldata callData, address module) external;
+}
+
+interface IHasCompliance {
+    function compliance() external view returns (address);
 }

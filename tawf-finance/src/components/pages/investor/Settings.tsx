@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
-import { User, Bell, Shield, LogOut, ExternalLink } from 'lucide-react';
+import { User, Bell, Shield, LogOut, ExternalLink, Loader2, CheckCircle2, Droplets } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -10,13 +10,36 @@ import { useAuth } from '@/hooks/useAuth';
 import { ConnectButton } from '@/components/web3/ConnectButton';
 import { GetTestUsdc } from '@/components/web3/GetTestUsdc';
 import { KycStatusCard } from '@/components/kyc/KycStatusCard';
+import { useIsVerified } from '@/web3/tokenizationHooks';
+import { isTokenizationConfigured } from '@/web3/tokenization';
+import { postPublic, type FaucetResult } from '@/lib/tokenization';
 import { shortAddress } from '@/web3/format';
-import { explorerAddressUrl } from '@/web3/constants';
+import { explorerAddressUrl, explorerTxUrl } from '@/web3/constants';
 
 export function Settings() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const { address, isConnected } = useAccount();
+  const { isVerified, refetch: refetchVerified } = useIsVerified(address);
+  const [faucetBusy, setFaucetBusy] = useState(false);
+  const [faucetResult, setFaucetResult] = useState<FaucetResult | null>(null);
+  const [faucetError, setFaucetError] = useState<string | null>(null);
+
+  const runFaucet = async () => {
+    if (!address) return;
+    setFaucetBusy(true);
+    setFaucetError(null);
+    setFaucetResult(null);
+    try {
+      const res = await postPublic<FaucetResult>('faucet', { address });
+      setFaucetResult(res);
+      refetchVerified();
+    } catch (e) {
+      setFaucetError(e instanceof Error ? e.message : 'Faucet failed');
+    } finally {
+      setFaucetBusy(false);
+    }
+  };
 
   const tabs = [
     { id: 'profile', label: 'Profile', content: null, icon: <User className="w-4 h-4" /> },
@@ -226,6 +249,45 @@ export function Settings() {
                   </div>
                 )}
               </div>
+
+              {/* ERC-3643 test funds + identity */}
+              {isTokenizationConfigured && (
+                <div className="p-4 bg-tawf-sand-30 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-tawf-green">Tokenization (ERC-3643)</h3>
+                      <p className="text-sm text-tawf-muted">Test ETH and mUSDC, plus a verified on-chain identity</p>
+                    </div>
+                    <Badge variant={isVerified ? 'success' : 'default'} size="sm">
+                      {isVerified ? 'Verified identity' : 'Not verified'}
+                    </Badge>
+                  </div>
+                  <Button variant="primary" size="md" disabled={!isConnected || faucetBusy} onClick={runFaucet}>
+                    {faucetBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Droplets className="w-4 h-4 mr-2" />}
+                    Get test funds + verify identity
+                  </Button>
+                  {faucetError && <p className="text-xs text-red-600">{faucetError}</p>}
+                  {faucetResult && (
+                    <div className="space-y-2 pt-2 border-t border-tawf-green-10">
+                      {faucetResult.steps.map((s, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          {s.skipped ? (
+                            <span className="w-2 h-2 rounded-full bg-tawf-muted shrink-0" />
+                          ) : (
+                            <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                          )}
+                          <span className="text-tawf-ink">{s.label}</span>
+                          {s.txHash && (
+                            <a href={explorerTxUrl(s.txHash)} target="_blank" rel="noopener noreferrer" className="text-xs text-tawf-green hover:underline inline-flex items-center gap-1">
+                              tx <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Identity Verification */}
               <KycStatusCard key={address} />

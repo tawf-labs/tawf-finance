@@ -24,6 +24,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Wrench,
+  PiggyBank,
+  Landmark,
+  Coins,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/Badge';
@@ -44,6 +47,8 @@ const navConfigs: Record<string, NavItem[]> = {
   investor: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/investor/dashboard' },
     { id: 'pools', label: 'Investment Pools', icon: TrendingUp, href: '/investor/pools' },
+    { id: 'deposito', label: 'Deposito', icon: PiggyBank, href: '/investor/deposito' },
+    { id: 'sukuk', label: 'Sukuk', icon: Coins, href: '/investor/sukuk' },
     { id: 'portfolio', label: 'Portfolio', icon: Briefcase, href: '/investor/portfolio' },
     { id: 'transactions', label: 'Transactions', icon: CreditCard, href: '/investor/transactions' },
     { id: 'impact', label: 'Impact', icon: Heart, href: '/investor/impact' },
@@ -73,6 +78,7 @@ const navConfigs: Record<string, NavItem[]> = {
     { id: 'users', label: 'Users', icon: Users, href: '/admin/users' },
     { id: 'investments', label: 'Investments', icon: TrendingUp, href: '/admin/investments' },
     { id: 'pools', label: 'Pools', icon: Briefcase, href: '/admin/pools' },
+    { id: 'tokenization', label: 'Tokenization', icon: Landmark, href: '/admin/tokenization' },
     { id: 'ops', label: 'Protocol Ops', icon: Wrench, href: '/admin/ops' },
     { id: 'compliance', label: 'Compliance', icon: Shield, href: '/admin/compliance' },
     { id: 'settings', label: 'Settings', icon: Settings, href: '/admin/settings' },

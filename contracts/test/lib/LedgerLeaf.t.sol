@@ -27,6 +27,8 @@ contract LedgerLeafTest is Test {
         assertEq(LedgerLeaf.SUKUK_RESERVE, keccak256("tawf.sukuk.reserve"));
         assertEq(LedgerLeaf.DEPOSITO_PLACEMENT, keccak256("tawf.deposito.placement"));
         assertEq(LedgerLeaf.DEPOSITO_RESERVE, keccak256("tawf.deposito.reserve"));
+        assertEq(LedgerLeaf.DEPOSITO_PROFIT, keccak256("tawf.deposito.profit"));
+        assertEq(LedgerLeaf.DEPOSITO_MATURITY, keccak256("tawf.deposito.maturity"));
     }
 
     // --- encoding --------------------------------------------------------
@@ -56,6 +58,22 @@ contract LedgerLeafTest is Test {
             LedgerLeaf.hash(CHAIN_ID, LedgerLeaf.DEPOSITO_RESERVE, SUBJECT, A, B), _expected(LedgerLeaf.DEPOSITO_RESERVE)
         );
         assertEq(LedgerLeaf.hash(CHAIN_ID, LedgerLeaf.DEPOSITO_RESERVE, SUBJECT, A, B), 0xa997ee7069e0627c8a24ae8aa6108326bb665d49787c886797024981b9176553);
+    }
+
+    /// @dev The two Model B kinds, pinned to the same literals tawf-network's
+    ///      LedgerAnchor.t.sol asserts.
+    function test_depositoProfitEncoding() public pure {
+        assertEq(
+            LedgerLeaf.hash(CHAIN_ID, LedgerLeaf.DEPOSITO_PROFIT, SUBJECT, A, B), _expected(LedgerLeaf.DEPOSITO_PROFIT)
+        );
+    }
+
+    function test_depositoMaturityEncoding() public pure {
+        assertEq(
+            LedgerLeaf.hash(CHAIN_ID, LedgerLeaf.DEPOSITO_MATURITY, SUBJECT, A, B),
+            _expected(LedgerLeaf.DEPOSITO_MATURITY)
+        );
+        assertEq(LedgerLeaf.hash(CHAIN_ID, LedgerLeaf.DEPOSITO_MATURITY, SUBJECT, A, B), 0xe456b809dddeeb012956428aba5e78f076d9bfadaf8d15068698d42738b68b0e);
     }
 
     /// @dev Distinct kinds (all else equal) must produce distinct leaves.
