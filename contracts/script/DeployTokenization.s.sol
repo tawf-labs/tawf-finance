@@ -152,6 +152,8 @@ contract DeployTokenization is Script {
         (d.dealRegistry, d.bondReceiptNft, d.redemptionVault) =
             _deployPerDeal(operator, d.shared.identityRegistry, d.mockUsdc);
 
+        // On Arbitrum, block.number is the Ethereum L1 block number, not the
+        // Arbitrum block, so it must not be used as a getLogs starting point.
         d.deployBlock = block.number;
     }
 
@@ -404,7 +406,7 @@ contract DeployTokenization is Script {
         vm.serializeAddress(obj, "dealRegistry", d.dealRegistry);
         vm.serializeAddress(obj, "bondReceiptNft", d.bondReceiptNft);
         vm.serializeAddress(obj, "redemptionVault", d.redemptionVault);
-        vm.serializeUint(obj, "deployBlock", d.deployBlock);
+        vm.serializeUint(obj, "deployL1Block", d.deployBlock);
         string memory json = vm.serializeBytes(obj, "identityProxyBytecode", proxyCode);
 
         vm.writeJson(json, path);
@@ -424,7 +426,7 @@ contract DeployTokenization is Script {
         console.log("SukukDistributor:   ", d.sukukDistributor);
         console.log("DealRegistry:       ", d.dealRegistry);
         console.log("RedemptionVault:    ", d.redemptionVault);
-        console.log("deployBlock:        ", d.deployBlock);
+        console.log("deployL1Block:      ", d.deployBlock);
     }
 }
 

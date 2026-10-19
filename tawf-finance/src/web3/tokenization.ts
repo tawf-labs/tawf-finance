@@ -100,7 +100,6 @@ export const SUKUK_SYMBOL = 'tSUKUK-DEMO-2026';
 export const LEDGER_CHAIN_ID = Number(raw.ledgerChainId ?? 7142026);
 
 /** Block the suite was deployed at (used to scope event scans). */
-export const TOKENIZATION_DEPLOY_BLOCK = BigInt(raw.deployBlock ?? 0);
 
 /**
  * True once a real tokenization deployment has been wired into the frontend.

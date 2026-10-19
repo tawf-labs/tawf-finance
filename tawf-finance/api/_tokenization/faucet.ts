@@ -98,11 +98,12 @@ async function mintAndTransfer(
     functionName: 'faucetMax',
   })) as Hex
   await publicClient.waitForTransactionReceipt({ hash: faucetHash })
+  // Send exactly what faucetMax just minted. The operator is also the Tawf
+  // treasury, so its balance holds real demo funds that must stay put.
   const minted = (await publicClient.readContract({
     address: token,
     abi: mockTokenAbi,
-    functionName: 'balanceOf',
-    args: [account().address],
+    functionName: 'FAUCET_AMOUNT',
   })) as bigint
   const transferHash = (await wc.writeContract({
     address: token,

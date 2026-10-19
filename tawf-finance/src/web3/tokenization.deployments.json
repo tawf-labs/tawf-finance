@@ -5,7 +5,7 @@
   "claimIssuer": "0xC60Ae875c0CD2a70DDe8E8d1d797C920Bbc4CD7c",
   "claimTopicsRegistry": "0x6dAB56637882Bd4a16c82C62654A9E5D952A1F32",
   "dealRegistry": "0xeF7f6B4D961D7f4d999e50Be594345e2551FB482",
-  "deployBlock": 11949542,
+  "deployL1Block": 11949542,
   "fxInitialRateUsdc": 1625000,
   "fxInitialRateUsdt": 1624000,
   "idFactory": "0x74bD2459803EBfE96e6Ce7a13D0c5c88d5fe4DCc",
