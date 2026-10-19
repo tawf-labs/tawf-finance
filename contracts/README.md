@@ -40,14 +40,14 @@ BondReceiptNFT.sol (soulbound ERC-1155)   owner: repay() → matured
 | `PooledFinancingVault.sol` | ERC-4626 pooled exposure; per-vault transfer policy over the shared identity registry | Yes |
 | `sukuk/SukukDistributor.sol` | Cash side of one sukuk issuance on an ERC-3643 series token (ledger-gated subscribe/distribute/redeem) | Yes |
 | `sukuk/DistributionCheckpointModule.sol` | T-REX compliance module that forwards balance changes to a distributor | No |
-| `deposito/DepositoReserveController.sol` | Tokenizes ledger-proven deposito placements; proof-of-reserve registry | No |
-| `deposito/DepositoDistributor.sol` | Profit distribution + maturity redemption for one deposito product | Yes |
+| `deposito/TawfDepositoSeries.sol` | Cash + supply side of the Tawf deposito series (Model B): multi-stablecoin escrow, per-coin FX, sen accounting, allocate/distribute/redeem | Yes |
+| `deposito/SandboxModule.sol` | T-REX compliance module enforcing the series sandbox mode + caps | No |
 | `interfaces/ITawfIdentityRegistry.sol` | `isVerified` view onto the shared T-REX IdentityRegistry | n/a |
 | `interfaces/ITrexToken.sol` | `mint`/`burn`/`balanceOf`/`totalSupply` view onto a T-REX token | n/a |
 | `lib/LedgerLeaf.sol` | Canonical ledger-leaf encoding + leaf kinds | n/a |
-| `lib/ProfitAccumulator.sol` | Cumulative-profit-per-token accounting shared by both distributors | n/a |
-| `mocks/MockUSDC.sol` | 6-decimal test token with a faucet (demo only) | No |
-| `mocks/MockIDRX.sol` | 2-decimal rupiah-sen test settlement token with a faucet (demo only) | No |
+| `lib/ProfitAccumulator.sol` | Cumulative-profit-per-token accounting shared by SukukDistributor and TawfDepositoSeries | n/a |
+| `mocks/MockUSDC.sol` | 6-decimal test USDC with a faucet (demo only) | No |
+| `mocks/MockUSDT.sol` | 6-decimal test USDT with a faucet (demo only) | No |
 
 ### Identity and tokens (ERC-3643)
 
@@ -96,7 +96,7 @@ principal. Profit is shared pro-rata to receipt holders at redemption.
 
 ```bash
 # Test
-forge test                    # TODO(test-count): unit + integration + reentrancy + ERC-3643 sukuk/deposito/tokenization (paste `forge test` total here)
+forge test                    # 145 tests: unit, integration, reentrancy, ERC-3643 sukuk, Tawf deposito series, sandbox, tokenization
 
 # Deploy to Arbitrum Sepolia (uses MockUSDC)
 forge script script/Deploy.s.sol:Deploy \

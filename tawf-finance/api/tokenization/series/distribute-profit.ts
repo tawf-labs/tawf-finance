@@ -3,7 +3,6 @@ import type { Hex } from 'viem'
 import {
   publicClient,
   walletClient,
-  account,
   addresses,
   isConfigured,
   methodGuard,
@@ -13,15 +12,19 @@ import {
 } from '../_lib/operator.js'
 import { tawfSeriesAbi, mockTokenAbi } from '../_lib/abis.js'
 
-const USDC_ONE = 1_000_000n
+const COIN_ONE = 1_000_000n
 
 /**
  * Distribute the series profit for the next period. The bank credited nisbah
  * into the dedicated account; the connector recorded a DEPOSITO_PROFIT leaf
- * (subject seriesId, a = period, b = profit sen). This proves that leaf, funds
- * the treasury's USDC equivalent at the posted rate, approves the series, then
- * calls distributeProfit. The exact amount the contract pulls is
- * profitSen * 1e6 / idrPerUsdc, so we faucet+approve exactly that.
+ * (subject seriesId, a = period, b = profit sen). This proves that leaf and
+ * calls distributeProfit, which accrues profitSen pro rata IN SEN. No coin is
+ * pulled up front: holders are paid, in the coin they pick, when they claim.
+ *
+ * The treasury funds those future payouts, so as a demo convenience this tops
+ * the treasury (operator) up with the coin-equivalent of profitSen in BOTH
+ * settlement coins (whichever a holder picks, the treasury can pay). The
+ * treasury already pre-approved the series per coin at deploy.
  *
  *   POST /api/tokenization/series/distribute-profit { period, profitSen }
  */
@@ -53,38 +56,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const wc = walletClient()
 
-    // Fund the treasury (operator) with the exact USDC the contract will pull.
+    // Top the treasury up in BOTH coins so it can pay whichever coin holders
+    // pick when they claim. Fund the coin-equivalent of profitSen at each
+    // coin's posted rate; harmless if there is already a buffer.
     if (profitSen > 0n) {
-      const rate = (await publicClient.readContract({
-        address: addresses.tawfSeries,
-        abi: tawfSeriesAbi,
-        functionName: 'idrPerUsdc',
-      })) as bigint
-      if (rate === 0n) {
-        res.status(400).json({ error: 'No FX rate is posted. Post a USDC/IDR rate first.' })
-        return
-      }
-      const usdc = (profitSen * USDC_ONE) / rate
-      if (usdc > 0n) {
-        const faucetHash = (await wc.writeContract({
-          address: addresses.mockUsdc,
-          abi: mockTokenAbi,
-          functionName: 'faucet',
-          args: [usdc],
-        })) as Hex
-        await publicClient.waitForTransactionReceipt({ hash: faucetHash })
-        const { request } = await publicClient.simulateContract({
-          account: account(),
-          address: addresses.mockUsdc,
-          abi: [
-            { name: 'approve', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }] },
-          ],
-          functionName: 'approve',
-          args: [addresses.tawfSeries, usdc],
-        })
-        const apTx = (await wc.writeContract(request)) as Hex
-        await publicClient.waitForTransactionReceipt({ hash: apTx })
-      }
+      await fundTreasuryForSen(profitSen, wc)
     }
 
     const txHash = (await wc.writeContract({
@@ -98,5 +74,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(200).json({ txHash, period: periodNum, profitSen: profitSen.toString(), epoch: proof.epoch })
   } catch (err) {
     res.status(500).json({ error: readableError(err) })
+  }
+}
+
+/**
+ * Faucet the treasury (operator) the coin-equivalent of `sen` in every
+ * allowed settlement coin, so a holder can later be paid in whichever coin
+ * they choose. The treasury pre-approved the series per coin at deploy.
+ */
+export async function fundTreasuryForSen(
+  sen: bigint,
+  wc: ReturnType<typeof walletClient>,
+): Promise<void> {
+  const coins = (await publicClient.readContract({
+    address: addresses.tawfSeries,
+    abi: tawfSeriesAbi,
+    functionName: 'allowedStablecoins',
+  })) as readonly Hex[]
+
+  for (const coin of coins) {
+    const isAllowed = (await publicClient.readContract({
+      address: addresses.tawfSeries,
+      abi: tawfSeriesAbi,
+      functionName: 'isStablecoin',
+      args: [coin],
+    })) as boolean
+    if (!isAllowed) continue
+
+    const rate = (await publicClient.readContract({
+      address: addresses.tawfSeries,
+      abi: tawfSeriesAbi,
+      functionName: 'rateOf',
+      args: [coin],
+    })) as bigint
+    if (rate === 0n) continue
+
+    const coinAmount = (sen * COIN_ONE) / rate
+    if (coinAmount === 0n) continue
+
+    const faucetHash = (await wc.writeContract({
+      address: coin,
+      abi: mockTokenAbi,
+      functionName: 'faucet',
+      args: [coinAmount],
+    })) as Hex
+    await publicClient.waitForTransactionReceipt({ hash: faucetHash })
   }
 }

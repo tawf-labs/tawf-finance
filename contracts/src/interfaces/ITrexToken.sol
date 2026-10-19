@@ -4,9 +4,9 @@ pragma solidity >=0.8.17;
 /**
  * @title ITrexToken
  * @notice The minimal view of an ERC-3643 / T-REX Token that the Tawf
- *         distributors and the deposito controller drive.
+ *         distributor and the deposito series drive.
  *
- * @dev The distributor/controller holds the AGENT role on the token and is,
+ * @dev The distributor/series holds the AGENT role on the token and is,
  *      in practice, its only minter and burner. Talking to the token through
  *      this tiny interface keeps those contracts pragma-flexible
  *      (`>=0.8.17`) so they do not have to import the T-REX concrete Token

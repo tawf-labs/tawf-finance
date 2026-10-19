@@ -54,14 +54,34 @@ export const TAWF_SERIES_TOKEN_ADDRESS = addr(raw.tawfSeriesToken);
 /** The SandboxModule address. */
 export const SANDBOX_MODULE_ADDRESS = addr(raw.sandboxModule);
 
-/** Initial demo FX rate (idrPerUsdc, two-decimal precision). */
-export const FX_INITIAL_RATE = BigInt(raw.fxInitialRate ?? 1_600_000);
+/** Initial demo FX rates (idr per 1 stablecoin, two-decimal precision). */
+export const FX_INITIAL_RATE_USDC = BigInt(raw.fxInitialRateUsdc ?? 1_625_000);
+export const FX_INITIAL_RATE_USDT = BigInt(raw.fxInitialRateUsdt ?? 1_624_000);
 
 /** Shared ERC-3643 IdentityRegistry (isVerified). */
 export const IDENTITY_REGISTRY_ADDRESS = addr(raw.identityRegistry);
 
-/** Settlement token for the series + sukuk + per-deal product (MockUSDC, 6 decimals). */
+/** MockUSDC settlement token (6 decimals). */
 export const TOKENIZATION_USDC_ADDRESS = addr(raw.mockUsdc);
+
+/** MockUSDT settlement token (6 decimals). */
+export const TOKENIZATION_USDT_ADDRESS = addr(raw.mockUsdt);
+
+/**
+ * The settlement stablecoins the series accepts. Both are 6 decimals and each
+ * carries its own posted FX rate (no 1:1 peg). USDC is listed first so it is
+ * the default coin in selectors.
+ */
+export interface StablecoinConfig {
+  key: 'usdc' | 'usdt';
+  symbol: string;
+  address: Hex | undefined;
+}
+
+export const SETTLEMENT_STABLECOINS: StablecoinConfig[] = [
+  { key: 'usdc', symbol: 'USDC', address: TOKENIZATION_USDC_ADDRESS },
+  { key: 'usdt', symbol: 'USDT', address: TOKENIZATION_USDT_ADDRESS },
+];
 
 /** LedgerAnchor on Arbitrum Sepolia that anchors Tawf Network roots. */
 export const LEDGER_ANCHOR_ADDRESS = addr(raw.anchor);

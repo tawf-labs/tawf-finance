@@ -168,16 +168,26 @@ export interface SukukStatus {
   distributions: { period: number; amount: string }[];
 }
 
+/** One settlement coin line in the series status. */
+export interface SeriesCoin {
+  address: `0x${string}`;
+  allowed: boolean;
+  rate: { idrPerToken: string; updatedAt: number; maxAge: number; fresh: boolean };
+  treasuryBalance: string;
+  seriesAllowance: string;
+}
+
 /** The Tawf deposito series snapshot, from GET /api/tokenization/series/status. */
 export interface SeriesStatus {
   series: `0x${string}`;
   token: `0x${string}`;
   sandboxModule: `0x${string}`;
   compliance: `0x${string}`;
+  treasury: `0x${string}`;
   seriesId: `0x${string}`;
   tenorMonths: number;
   nisbahBps: number;
-  rate: { idrPerUsdc: string; updatedAt: number; maxAge: number; fresh: boolean };
+  coins: SeriesCoin[];
   supply: string;
   reserveSen: string;
   ratioBps: number;
@@ -196,13 +206,22 @@ export interface SeriesStatus {
     seriesEnd: number;
     investorCount: string;
   };
-  wallet: { pending: string; holdings: string; claimable: string; eligible: boolean } | null;
+  wallet:
+    | { pending: Record<string, string>; holdings: string; claimableSen: string; eligible: boolean }
+    | null;
 }
 
-/** Demo FX quote, from GET /api/tokenization/fx. */
-export interface FxQuote {
-  idrPerUsdc: number;
+/** One coin's demo FX quote. */
+export interface FxCoinQuote {
+  address: `0x${string}`;
+  idrPerToken: number;
   idr: number;
+}
+
+/** Demo FX quotes per coin, from GET /api/tokenization/fx. */
+export interface FxQuote {
+  usdc: FxCoinQuote;
+  usdt: FxCoinQuote;
   source: string;
   note: string;
   at: string;

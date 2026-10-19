@@ -21,15 +21,15 @@ interface IAnchorMut {
 }
 
 interface ISeriesT {
-    function subscribe(uint256 usdcAmount) external;
-    function cancelSubscription() external;
+    function subscribe(address token, uint256 coinAmount) external;
+    function cancelSubscription(address token) external;
     function allocate(address[] calldata investors, uint256 epoch, uint64 snapshotAt, uint256 balance, bytes32[] calldata proof) external;
     function distributeProfit(uint32 period, uint256 profitSen, uint256 epoch, bytes32[] calldata proof) external;
     function settleMaturity(uint64 at, uint256 principalSen, uint256 epoch, bytes32[] calldata proof) external;
-    function claim() external;
-    function redeem() external;
-    function pending(address investor) external view returns (uint256);
-    function claimable(address investor) external view returns (uint256);
+    function claim(address token) external;
+    function redeem(address token) external;
+    function pending(address investor, address token) external view returns (uint256);
+    function claimableSen(address investor) external view returns (uint256);
     function reserve() external view returns (uint256);
     function isFullyBacked() external view returns (bool);
     function grantRole(bytes32 role, address account) external;
@@ -147,7 +147,7 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         IMintable(d.mockUsdc).faucet(100e6);
         IMintable(d.mockUsdc).approve(d.series, 100e6);
         vm.expectRevert(abi.encodeWithSignature("NotEligible(address)", user));
-        ISeriesT(d.series).subscribe(100e6);
+        ISeriesT(d.series).subscribe(d.mockUsdc, 100e6);
         vm.stopPrank();
     }
 
@@ -156,15 +156,21 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         _addClaim(id, 2); // TAWF_SCREENED
         _openScreenedGroup();
 
-        // 100 USDC subscribed. Rate 16,000.00 IDR/USDC -> 1,600,000.00 sen = 160,000,000 sen.
+        // 60 USDC (rate 16,250.00) + 40 USDT (rate 16,240.00), converted at each
+        // coin's own rate and summed in sen.
         vm.startPrank(user);
-        IMintable(d.mockUsdc).faucet(100e6);
-        IMintable(d.mockUsdc).approve(d.series, 100e6);
-        ISeriesT(d.series).subscribe(100e6);
+        IMintable(d.mockUsdc).faucet(60e6);
+        IMintable(d.mockUsdc).approve(d.series, 60e6);
+        ISeriesT(d.series).subscribe(d.mockUsdc, 60e6);
+        IMintable(d.mockUsdt).faucet(40e6);
+        IMintable(d.mockUsdt).approve(d.series, 40e6);
+        ISeriesT(d.series).subscribe(d.mockUsdt, 40e6);
         vm.stopPrank();
-        assertEq(ISeriesT(d.series).pending(user), 100e6);
+        assertEq(ISeriesT(d.series).pending(user, d.mockUsdc), 60e6);
+        assertEq(ISeriesT(d.series).pending(user, d.mockUsdt), 40e6);
 
-        uint256 expectedSen = (100e6 * d.fxInitialRate) / 1e6; // 160,000,000 sen
+        uint256 expectedSen =
+            (60e6 * d.fxInitialRateUsdc) / 1e6 + (40e6 * d.fxInitialRateUsdt) / 1e6;
 
         // Anchor the account balance covering that supply.
         uint256 e = IAnchorMut(anchor).push(_leaf(DEPOSITO_RESERVE, d.seriesId, 1000, expectedSen));
@@ -173,7 +179,8 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         ISeriesT(d.series).allocate(_one(user), e, 1000, expectedSen, noProof);
 
         assertEq(Token(d.seriesToken).balanceOf(user), expectedSen);
-        assertEq(ISeriesT(d.series).pending(user), 0);
+        assertEq(ISeriesT(d.series).pending(user, d.mockUsdc), 0);
+        assertEq(ISeriesT(d.series).pending(user, d.mockUsdt), 0);
         assertTrue(ISeriesT(d.series).isFullyBacked());
     }
 
@@ -185,10 +192,10 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         vm.startPrank(user);
         IMintable(d.mockUsdc).faucet(100e6);
         IMintable(d.mockUsdc).approve(d.series, 100e6);
-        ISeriesT(d.series).subscribe(100e6);
+        ISeriesT(d.series).subscribe(d.mockUsdc, 100e6);
         vm.stopPrank();
 
-        uint256 mintedSen = (100e6 * d.fxInitialRate) / 1e6;
+        uint256 mintedSen = (100e6 * d.fxInitialRateUsdc) / 1e6;
         // Anchor a balance below what the allocation would mint.
         uint256 e = IAnchorMut(anchor).push(_leaf(DEPOSITO_RESERVE, d.seriesId, 1000, mintedSen - 1));
         bytes32[] memory noProof;
@@ -203,14 +210,14 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         _openScreenedGroup();
 
         vm.startPrank(user);
-        IMintable(d.mockUsdc).faucet(100e6);
-        IMintable(d.mockUsdc).approve(d.series, 100e6);
-        ISeriesT(d.series).subscribe(100e6);
-        uint256 before = IMintable(d.mockUsdc).balanceOf(user);
-        ISeriesT(d.series).cancelSubscription();
+        IMintable(d.mockUsdt).faucet(100e6);
+        IMintable(d.mockUsdt).approve(d.series, 100e6);
+        ISeriesT(d.series).subscribe(d.mockUsdt, 100e6);
+        uint256 before = IMintable(d.mockUsdt).balanceOf(user);
+        ISeriesT(d.series).cancelSubscription(d.mockUsdt);
         vm.stopPrank();
-        assertEq(IMintable(d.mockUsdc).balanceOf(user), before + 100e6);
-        assertEq(ISeriesT(d.series).pending(user), 0);
+        assertEq(IMintable(d.mockUsdt).balanceOf(user), before + 100e6);
+        assertEq(ISeriesT(d.series).pending(user, d.mockUsdt), 0);
     }
 
     function test_seriesProfitAndMaturity() public {
@@ -221,43 +228,40 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         vm.startPrank(user);
         IMintable(d.mockUsdc).faucet(100e6);
         IMintable(d.mockUsdc).approve(d.series, 100e6);
-        ISeriesT(d.series).subscribe(100e6);
+        ISeriesT(d.series).subscribe(d.mockUsdc, 100e6);
         vm.stopPrank();
 
-        uint256 sen = (100e6 * d.fxInitialRate) / 1e6;
+        uint256 sen = (100e6 * d.fxInitialRateUsdc) / 1e6;
         bytes32[] memory noProof;
         uint256 er = IAnchorMut(anchor).push(_leaf(DEPOSITO_RESERVE, d.seriesId, 1000, sen));
         vm.prank(operator);
         ISeriesT(d.series).allocate(_one(user), er, 1000, sen, noProof);
 
-        // Distribute profit for period 1: profitSen -> USDC at the rate, funded by the treasury.
-        uint256 profitSen = 1_600_000; // 16,000.00 IDR -> 1 USDC
-        // Treasury (operator) funds + approves the series for the USDC equivalent.
-        vm.startPrank(operator);
-        IMintable(d.mockUsdc).faucet(1e6);
-        IMintable(d.mockUsdc).approve(d.series, 1e6);
-        vm.stopPrank();
+        // Distribute profit for period 1: accrued in sen, no coin pulled up front.
+        // profitSen chosen as 1 USDC worth at the USDC rate.
+        uint256 profitSen = d.fxInitialRateUsdc; // 1 USDC at the USDC rate
         uint256 ep = IAnchorMut(anchor).push(_leaf(DEPOSITO_PROFIT, d.seriesId, 1, profitSen));
         vm.prank(operator);
         ISeriesT(d.series).distributeProfit(1, profitSen, ep, noProof);
 
-        assertEq(ISeriesT(d.series).claimable(user), 1e6);
+        assertEq(ISeriesT(d.series).claimableSen(user), profitSen);
+        // Fund the treasury (operator) so it can pay the claim; it pre-approved
+        // the series for both coins at deploy.
+        uint256 principalUsdc = (sen * 1e6) / d.fxInitialRateUsdc; // == 100e6
+        vm.prank(operator);
+        IMintable(d.mockUsdc).faucet(1e6 + principalUsdc);
+        // Claim in USDC: the treasury (operator, pre-approved in deploy) pays.
         vm.prank(user);
-        ISeriesT(d.series).claim();
+        ISeriesT(d.series).claim(d.mockUsdc);
         assertEq(IMintable(d.mockUsdc).balanceOf(user), 1e6);
 
-        // Settle maturity: principal = minted sen, funded in USDC by the treasury.
-        uint256 principalUsdc = (sen * 1e6) / d.fxInitialRate; // == 100e6
-        vm.startPrank(operator);
-        IMintable(d.mockUsdc).faucet(principalUsdc);
-        IMintable(d.mockUsdc).approve(d.series, principalUsdc);
-        vm.stopPrank();
+        // Settle maturity: principal = minted sen. Redeem in USDC, pulled from treasury.
         uint256 em = IAnchorMut(anchor).push(_leaf(DEPOSITO_MATURITY, d.seriesId, 2000, sen));
         vm.prank(operator);
         ISeriesT(d.series).settleMaturity(2000, sen, em, noProof);
 
         vm.prank(user);
-        ISeriesT(d.series).redeem();
+        ISeriesT(d.series).redeem(d.mockUsdc);
         assertEq(Token(d.seriesToken).balanceOf(user), 0);
         // User received principal back (plus the already-claimed profit).
         assertEq(IMintable(d.mockUsdc).balanceOf(user), 1e6 + principalUsdc);
@@ -290,6 +294,8 @@ contract DeployTokenizationTest is Test, DeployTokenization {
     function test_deploymentShape() public {
         assertEq(d.chainId, block.chainid);
         assertEq(d.operator, operator);
+        assertTrue(d.mockUsdc != address(0), "mock usdc");
+        assertTrue(d.mockUsdt != address(0), "mock usdt");
         assertTrue(d.seriesToken != address(0), "series token");
         assertTrue(d.series != address(0), "series");
         assertTrue(d.sandboxModule != address(0), "sandbox module");

@@ -2,7 +2,7 @@
 
 > How tawf.finance turns a licensed BPRS time deposit into a verifiable, ERC-3643 token on Arbitrum, with proof of reserve anchored from Tawf Network.
 
-This document explains the tokenized deposito product under **Model B**: Tawf holds one dedicated deposit at the bank and issues a token that is a claim on Tawf, backed by that deposit. It covers the akad, the roles, the FX step, the sandbox modes and caps, the proof-of-reserve path, the transfer limits ERC-3643 enforces, and the regulatory notes that shape the design. It is a demo of a wedge product, not a live offering. Anything not yet validated with a design-partner bank and its DPS, or with OJK, is marked as such.
+This document explains the tokenized deposito product under **Model B**: Tawf holds one dedicated deposit at the bank and issues a token that is a claim on Tawf, backed by that deposit. It covers the akad, the roles, the multi-stablecoin settlement and per-coin FX step, the sandbox modes and caps, the proof-of-reserve path, the transfer limits ERC-3643 enforces, and the regulatory notes that shape the design. It is a demo of a wedge product, not a live offering. Anything not yet validated with a design-partner bank and its DPS, or with OJK, is marked as such.
 
 ## What Model B is
 
@@ -18,11 +18,13 @@ The 2 decimals mean the base unit is one sen (1 IDR = 100 sen). The token is **n
 
 ### The flow
 
-1. **Subscribe (USDC).** Investors subscribe in USDC (6 decimals). Their USDC is escrowed in the series contract.
-2. **Convert and place.** Tawf converts USDC to IDR off chain (IDRX style) and places it in the dedicated account at the BPRS. The USDC/IDR rate is posted on chain by an `FX_ROLE` as `idrPerUsdc` with two-decimal precision (e.g. `1_600_000` means Rp 16,000.00 per USDC), with a timestamp. Rate-using actions reject a rate older than `maxRateAge` (default 1 day).
-3. **Allocate (mint).** Only after the bank confirms the balance does Tawf allocate: it proves the latest anchored `DEPOSITO_RESERVE` for the series (the account balance in sen), converts each subscriber's escrowed USDC to sen at the posted rate, mints the token, and forwards the escrowed USDC to the Tawf treasury (the money Tawf converts and places). Total supply can never exceed the anchored account balance (`ReserveInsufficient`).
-4. **Profit.** The bank credits nisbah into the dedicated account per period. The connector records `DEPOSITO_PROFIT` (subject seriesId, a = period, b = profit sen). Tawf distributes **exactly** that amount, converted to USDC at the posted rate and funded by the Tawf treasury, pro rata to holders via a `ProfitAccumulator` with a `DistributionCheckpointModule` hook so profit follows the holder of record across transfers.
-5. **Maturity.** The bank returns principal. The connector records `DEPOSITO_MATURITY` (subject seriesId, a = maturity ts, b = principal sen). Tawf funds the USDC equivalent at the posted rate and opens redemption; holders burn their tokens and redeem pro rata.
+The internal accounting unit is **IDR sen everywhere** (the token, pending escrow, profit accrual, and principal). Settlement happens in stablecoins. The series accepts an **allowlist of settlement stablecoins**, currently **USDC and USDT** (both 6 decimals). An admin adds a coin with `addStablecoin` (which requires the coin to expose 6 decimals) and can `removeStablecoin` later. Each coin carries **its own posted FX rate**: there is **no 1:1 peg** assumed between USDC and USDT.
+
+1. **Subscribe (USDC or USDT).** Investors pick a settlement coin and call `subscribe(token, amount)`. The coin must be on the allowlist and the wallet must be eligible under the current mode. The coin is escrowed in the series contract, tracked per investor per coin. `cancelSubscription(token)` refunds a coin's escrow before allocation (allowed even if the coin was removed from the allowlist afterward).
+2. **Convert and place.** Tawf converts the escrowed stablecoins to IDR off chain (IDRX style) and places the IDR in the dedicated account at the BPRS. Each coin's rate is posted on chain by an `FX_ROLE` as `postRate(token, idrPerToken)` with two-decimal precision (e.g. `1_625_000` means Rp 16,250.00 per USDC; `1_624_000` means Rp 16,240.00 per USDT), each with its own timestamp. Rate-using actions reject a coin's rate when it is older than `maxRateAge` (default 1 day).
+3. **Allocate (mint).** Only after the bank confirms the balance does Tawf allocate: it proves the latest anchored `DEPOSITO_RESERVE` for the series (the account balance in sen), converts **each investor's escrowed balance in every settlement coin to sen at that coin's current rate**, sums the sen, mints that many tokens, and forwards each escrowed coin to the Tawf treasury (the money Tawf converts and places). Total supply can never exceed the anchored account balance (`ReserveInsufficient`).
+4. **Profit.** The bank credits nisbah into the dedicated account per period. The connector records `DEPOSITO_PROFIT` (subject seriesId, a = period, b = profit sen). `distributeProfit` proves that leaf and **accrues the profit in sen** pro rata via a `ProfitAccumulator` with a `DistributionCheckpointModule` hook so profit follows the holder of record across transfers. No stablecoin is pulled up front. A holder calls `claim(token)` to be paid their accrued sen converted to the coin they pick at that coin's **current** (fresh) rate, transferred **from the Tawf treasury** (which pre-approves the series per coin). The sen entitlement is the anchored profit pro rata, so a payout can never exceed it.
+5. **Maturity.** The bank returns principal. The connector records `DEPOSITO_MATURITY` (subject seriesId, a = maturity ts, b = principal sen). `settleMaturity` proves that leaf and opens redemption, recording the principal sen per token. A holder calls `redeem(token)` to burn their tokens and receive their pro-rata principal (plus any unclaimed profit) in the coin they pick, converted at that coin's current rate and pulled from the treasury.
 
 ## Sandbox modes and caps
 
@@ -44,7 +46,7 @@ The module reads the screening/sandbox claims off each holder's ONCHAINID itself
 ## Roles
 
 - **BPRS (bank).** Originates and services the dedicated deposit, credits nisbah, returns principal, and mirrors its core-banking record to the Tawf Network ledger: the account balance snapshot, each profit credit, and the maturity fact. No personal data goes on chain; the account is Tawf's own.
-- **Tawf (issuer and treasury).** Operates the tokenization layer: posts the FX rate, places converted funds at the bank, allocates against the anchored balance, distributes profit, settles maturity, and screens wallets. Tawf never mints against anything not proven by a Merkle leaf.
+- **Tawf (issuer and treasury).** Operates the tokenization layer: maintains the settlement-coin allowlist, posts each coin's FX rate, places converted funds at the bank, allocates against the anchored balance, distributes profit (accrued in sen), settles maturity, and screens wallets. The treasury funds claim and redeem payouts and pre-approves the series per coin. Tawf never mints against anything not proven by a Merkle leaf.
 - **DPS (Dewan Pengawas Syariah).** Reviews and signs off the akad. For the sukuk this approval is recorded on the ledger and gates subscription. For the deposito series the mudharabah structure is reviewed as part of onboarding. [TBC with the bank's DPS.]
 
 ## Proof of reserve
@@ -59,7 +61,7 @@ BPRS core banking → bprs-connector → Tawf Network ledger → LedgerAnchor on
 2. The **bprs-connector** reads the account each cycle and writes to the `ReserveLedger` on the Tawf Network L3 (chain 7142026): a `DEPOSITO_RESERVE` snapshot on subject = seriesId when the balance changes or on a heartbeat, a `DEPOSITO_PROFIT` leaf per new profit credit, and a `DEPOSITO_MATURITY` leaf once the bank has returned principal. Source commitments carry no personal data.
 3. The **Tawf Network ledger** appends each fact as a leaf in its Merkle log.
 4. The **relayer** anchors the ledger's Merkle root on Arbitrum Sepolia through `LedgerAnchor` and serves proofs over HTTP.
-5. The **allocate gate**: `TawfDepositoSeries.allocate` verifies a `DEPOSITO_RESERVE` leaf (newer than or equal to the stored snapshot) and requires total supply to stay within the anchored balance. `distributeProfit` and `settleMaturity` verify `DEPOSITO_PROFIT` / `DEPOSITO_MATURITY` and pay exactly the anchored amount.
+5. The **allocate gate**: `TawfDepositoSeries.allocate` verifies a `DEPOSITO_RESERVE` leaf (newer than or equal to the stored snapshot) and requires total supply to stay within the anchored balance. `distributeProfit` and `settleMaturity` verify `DEPOSITO_PROFIT` / `DEPOSITO_MATURITY` and accrue exactly the anchored sen amount; payouts (in whichever coin a holder picks) can never exceed that anchored sen.
 
 The public `/proof-of-reserve` page shows, for the series, tokens outstanding on Arbitrum against Tawf's dedicated account balance at the BPRS (from the L3, anchored), profits credited vs distributed, and a "Verify proof" button that fetches the leaf and its proof and calls `LedgerAnchor.verify` client-side. The sukuk section remains; the BPRS-wide placements section stays as "BPRS deposits recorded on Tawf Network".
 
@@ -72,13 +74,13 @@ The token is ERC-3643 (T-REX), not plain ERC-20. Every holder must have a verifi
 - The token is a claim **on Tawf**, backed by Tawf's deposit at the BPRS. It is not a direct deposit account in the investor's name.
 - **LPS (deposit insurance) covers Tawf's deposit at the bank, not each investor individually.**
 - Returns follow the bank's profit share (nisbah) and are **not guaranteed**. A period may pay zero.
-- The investor subscribes in USDC; Tawf converts to IDR off chain. The USDC/IDR conversion means **FX risk**.
+- The holding is valued in **IDR**; that IDR value is what is backed. The investor subscribes, claims and redeems in **USDC or USDT**, and the amount received in a given coin depends on that coin's posted rate at payout. The two coins carry **different rates and FX risk**.
 
 ## Regulatory notes
 
 - **LPS and the claim structure.** In Model B the insured relationship is between the BPRS and Tawf (the named depositor of the dedicated account). The investor holds a claim on Tawf, not an insured deposit. This must be disclosed plainly and is **[TBC with OJK and the bank's DPS]**.
 - **Pre-admission default is safe.** `PILOT_ONLY` keeps the only holder as Tawf itself, so before any investor is admitted the product is just Tawf's own deposit tokenized. Operating `SCREENED_GROUP` (admitting screened investors) before OJK sandbox admission requires a **written legal opinion**; do not enable it on the strength of this document.
-- **FX risk.** The USDC→IDR conversion is a real exposure. Production posts the rate from an IDRX / exchange quote, the same number used for the off-chain conversion.
+- **FX risk.** The stablecoin→IDR conversion is a real exposure, and it differs per coin: USDC and USDT each carry their own posted rate (no 1:1 peg). The IDR value of a holding is what is backed; the amount an investor receives in USDC or USDT at payout depends on that coin's rate at that moment. Production posts each rate from an IDRX / exchange quote, the same number used for the off-chain conversion of that coin.
 - **Why BPRS and not a koperasi/BMT.** POJK 7/2024 Art 35 lets a BPRS raise in the capital market; a koperasi cannot lawfully issue to non-members. A BPRS is OJK-supervised, LPS-insured, audited, and reports into SLIK.
 
 ## Sukuk lifecycle across L2 and L3
@@ -90,4 +92,4 @@ The sukuk series spans both chains, and every money-moving step on Arbitrum One 
 - [`docs/regulation.md`](regulation.md) for the BPRS-versus-BMT reasoning.
 - `contracts/src/deposito/TawfDepositoSeries.sol` and `contracts/src/deposito/SandboxModule.sol`.
 - `contracts/src/lib/LedgerLeaf.sol` for the leaf kinds the gates verify (`DEPOSITO_RESERVE`, `DEPOSITO_PROFIT`, `DEPOSITO_MATURITY`).
-- The investor `Tawf Deposito Series` screen, the admin `Tawf treasury` tab, and the public `Proof of Reserve` page in the web app.
+- The investor `Tawf Deposito Series` screen (USDC/USDT selector for subscribe, claim and redeem), the admin `Tawf treasury` tab (post rate per coin, treasury balances and series allowances per coin), and the public `Proof of Reserve` page in the web app.

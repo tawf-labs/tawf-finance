@@ -6,16 +6,18 @@ import {
   addresses,
   isConfigured,
 } from '../_lib/operator.js'
-import { tawfSeriesAbi, sandboxModuleAbi, trexTokenAbi, trexComplianceAbi, reserveLedgerAbi } from '../_lib/abis.js'
+import { tawfSeriesAbi, sandboxModuleAbi, trexTokenAbi, trexComplianceAbi, reserveLedgerAbi, mockTokenAbi } from '../_lib/abis.js'
 import type { Address, Hex } from 'viem'
 
 const MODES = ['PILOT_ONLY', 'SCREENED_GROUP', 'SANDBOX_ADMITTED'] as const
 
 /**
  * Public, cached snapshot of the Tawf deposito series for the investor and
- * admin pages: terms, posted FX rate, token supply vs anchored account
- * balance, backing ratio, sandbox mode + caps, redemption state, and (when a
- * wallet is given) that wallet's pending escrow, holdings and eligibility.
+ * admin pages: terms, the per-coin posted FX rates, token supply vs anchored
+ * account balance, backing ratio, sandbox mode + caps, redemption state,
+ * treasury balances + series allowances per settlement coin, and (when a
+ * wallet is given) that wallet's per-coin pending escrow, holdings, claimable
+ * profit (sen) and eligibility.
  *
  *   GET /api/tokenization/series/status?wallet=0x..
  */
@@ -40,34 +42,76 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       functionName: 'compliance',
     })) as Address
 
-    const [termsRaw, rateRaw, reserveSen, ratioBps, fullyBacked, lastPeriod, redemptionOpen, supply, cfg, investors, snap] =
+    const coinAddrs = (await publicClient.readContract({
+      address: series,
+      abi: tawfSeriesAbi,
+      functionName: 'allowedStablecoins',
+    })) as readonly Address[]
+
+    const [termsRaw, reserveSen, ratioBps, fullyBacked, lastPeriod, redemptionOpen, supply, treasury, cfg, investors, snap] =
       await Promise.all([
         publicClient.readContract({ address: series, abi: tawfSeriesAbi, functionName: 'seriesTerms' }) as Promise<{ seriesId: Hex; tenorMonths: number; nisbahBps: number }>,
-        publicClient.readContract({ address: series, abi: tawfSeriesAbi, functionName: 'rate' }) as Promise<readonly [bigint, bigint, bigint, boolean]>,
         publicClient.readContract({ address: series, abi: tawfSeriesAbi, functionName: 'reserve' }) as Promise<bigint>,
         publicClient.readContract({ address: series, abi: tawfSeriesAbi, functionName: 'ratioBps' }) as Promise<bigint>,
         publicClient.readContract({ address: series, abi: tawfSeriesAbi, functionName: 'isFullyBacked' }) as Promise<boolean>,
         publicClient.readContract({ address: series, abi: tawfSeriesAbi, functionName: 'lastPeriod' }) as Promise<number>,
         publicClient.readContract({ address: series, abi: tawfSeriesAbi, functionName: 'redemptionOpen' }) as Promise<boolean>,
         publicClient.readContract({ address: token, abi: trexTokenAbi, functionName: 'totalSupply' }) as Promise<bigint>,
+        publicClient.readContract({ address: series, abi: tawfSeriesAbi, functionName: 'treasury' }) as Promise<Address>,
         publicClient.readContract({ address: sandbox, abi: sandboxModuleAbi, functionName: 'configOf', args: [compliance] }) as Promise<readonly [number, Address, Address, bigint, bigint, bigint, bigint, boolean]>,
         publicClient.readContract({ address: sandbox, abi: sandboxModuleAbi, functionName: 'investorCount', args: [compliance] }) as Promise<bigint>,
         ledgerClient().readContract({ address: reserveLedgerAddress(), abi: reserveLedgerAbi, functionName: 'latestDepositoReserve', args: [addresses.tawfSeriesId] }) as Promise<{ snapshotAt: bigint; amount: bigint }>,
       ])
 
+    // Per-coin: posted rate (+ freshness), treasury balance and series allowance.
+    const coins = await Promise.all(
+      coinAddrs.map(async (coin) => {
+        const [rateRaw, allowed, treasuryBal, allowance] = await Promise.all([
+          publicClient.readContract({ address: series, abi: tawfSeriesAbi, functionName: 'rate', args: [coin] }) as Promise<readonly [bigint, bigint, bigint, boolean]>,
+          publicClient.readContract({ address: series, abi: tawfSeriesAbi, functionName: 'isStablecoin', args: [coin] }) as Promise<boolean>,
+          publicClient.readContract({ address: coin, abi: mockTokenAbi, functionName: 'balanceOf', args: [treasury] }) as Promise<bigint>,
+          publicClient.readContract({ address: coin, abi: mockTokenAbi, functionName: 'allowance', args: [treasury, series] }) as Promise<bigint>,
+        ])
+        return {
+          address: coin,
+          allowed,
+          rate: {
+            idrPerToken: rateRaw[0].toString(),
+            updatedAt: Number(rateRaw[1]),
+            maxAge: Number(rateRaw[2]),
+            fresh: rateRaw[3],
+          },
+          treasuryBalance: treasuryBal.toString(),
+          seriesAllowance: allowance.toString(),
+        }
+      }),
+    )
+
     const wallet = typeof req.query.wallet === 'string' ? (req.query.wallet as Address) : null
-    let walletView: { pending: string; holdings: string; claimable: string; eligible: boolean } | null = null
+    let walletView:
+      | { pending: Record<string, string>; holdings: string; claimableSen: string; eligible: boolean }
+      | null = null
     if (wallet) {
-      const [pending, holdings, claimable, eligible] = await Promise.all([
-        publicClient.readContract({ address: series, abi: tawfSeriesAbi, functionName: 'pending', args: [wallet] }) as Promise<bigint>,
+      const [holdings, claimableSen, eligible] = await Promise.all([
         publicClient.readContract({ address: token, abi: trexTokenAbi, functionName: 'balanceOf', args: [wallet] }) as Promise<bigint>,
-        publicClient.readContract({ address: series, abi: tawfSeriesAbi, functionName: 'claimable', args: [wallet] }) as Promise<bigint>,
+        publicClient.readContract({ address: series, abi: tawfSeriesAbi, functionName: 'claimableSen', args: [wallet] }) as Promise<bigint>,
         publicClient.readContract({ address: sandbox, abi: sandboxModuleAbi, functionName: 'isEligible', args: [compliance, wallet] }) as Promise<boolean>,
       ])
+      const pendingEntries = await Promise.all(
+        coinAddrs.map(async (coin) => {
+          const p = (await publicClient.readContract({
+            address: series,
+            abi: tawfSeriesAbi,
+            functionName: 'pending',
+            args: [wallet, coin],
+          })) as bigint
+          return [coin, p.toString()] as const
+        }),
+      )
       walletView = {
-        pending: pending.toString(),
+        pending: Object.fromEntries(pendingEntries),
         holdings: holdings.toString(),
-        claimable: claimable.toString(),
+        claimableSen: claimableSen.toString(),
         eligible,
       }
     }
@@ -78,15 +122,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       token,
       sandboxModule: sandbox,
       compliance,
+      treasury,
       seriesId: termsRaw.seriesId,
       tenorMonths: Number(termsRaw.tenorMonths),
       nisbahBps: Number(termsRaw.nisbahBps),
-      rate: {
-        idrPerUsdc: rateRaw[0].toString(),
-        updatedAt: Number(rateRaw[1]),
-        maxAge: Number(rateRaw[2]),
-        fresh: rateRaw[3],
-      },
+      coins,
       supply: supply.toString(),
       reserveSen: reserveSen.toString(),
       ratioBps: Number(ratioBps),

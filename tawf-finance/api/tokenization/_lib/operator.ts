@@ -110,6 +110,7 @@ export const addresses = {
   anchor: deployments.anchor as Address,
   operator: deployments.operator as Address,
   mockUsdc: deployments.mockUsdc as Address,
+  mockUsdt: (deployments.mockUsdt ?? ZERO) as Address,
   identityRegistry: deployments.identityRegistry as Address,
   claimIssuer: deployments.claimIssuer as Address,
   implementationAuthority: deployments.implementationAuthority as Address,
@@ -122,7 +123,8 @@ export const addresses = {
   tawfSeriesToken: (deployments.tawfSeriesToken ?? ZERO) as Address,
   tawfSeriesId: (deployments.tawfSeriesId ?? ZERO) as Hex,
   sandboxModule: (deployments.sandboxModule ?? ZERO) as Address,
-  fxInitialRate: BigInt(deployments.fxInitialRate ?? 0),
+  fxInitialRateUsdc: BigInt(deployments.fxInitialRateUsdc ?? 0),
+  fxInitialRateUsdt: BigInt(deployments.fxInitialRateUsdt ?? 0),
   // sukuk
   sukukToken: deployments.sukukToken as Address,
   sukukDistributor: deployments.sukukDistributor as Address,
@@ -228,6 +230,10 @@ export function readableError(err: unknown): string {
       return 'This wallet is not eligible: it needs a verified identity (run the faucet), and for the Tawf series it must also pass the series mode (PILOT only / screened group / OJK sandbox).'
     case 'NoPending':
       return 'No pending subscription to cancel.'
+    case 'NotStablecoin':
+      return 'That settlement coin is not on the series allowlist. Add it (USDC/USDT) first.'
+    case 'BadDecimals':
+      return 'A settlement coin must have 6 decimals.'
     case 'ProfitPeriodNotSequential':
       return 'Distribute the next profit period in order.'
     case 'PlacementAlreadyUsed':

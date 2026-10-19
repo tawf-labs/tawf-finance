@@ -55,9 +55,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       steps.push({ label: 'ETH balance sufficient — no top-up needed', skipped: true })
     }
 
-    // 2. Mint test settlement token (MockUSDC). The faucet mints to the
-    //    operator, which then transfers to the user.
+    // 2. Mint test settlement tokens (MockUSDC + MockUSDT). The faucet mints
+    //    to the operator, which then transfers to the user.
     await mintAndTransfer(addresses.mockUsdc, user, steps, 'mUSDC', wc)
+    await mintAndTransfer(addresses.mockUsdt, user, steps, 'mUSDT', wc)
 
     // 3. Ensure the wallet is a verified ERC-3643 holder (idempotent).
     const { steps: idSteps, isVerified } = await ensureVerified(user)

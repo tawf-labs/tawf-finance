@@ -27,7 +27,7 @@ import {
   SANDBOX_MODULE_ADDRESS,
   TAWF_SERIES,
   IDENTITY_REGISTRY_ADDRESS,
-  TOKENIZATION_USDC_ADDRESS,
+  SETTLEMENT_STABLECOINS,
   SUKUK_DISTRIBUTOR_ADDRESS,
   SUKUK_TOKEN_ADDRESS,
 } from './tokenization';
@@ -58,6 +58,17 @@ export const SANDBOX_MODE_LABEL: Record<number, string> = {
   2: 'OJK SANDBOX',
 };
 
+/** Per-settlement-coin view: posted rate, freshness, and the wallet's pending escrow. */
+export interface SeriesCoinView {
+  key: 'usdc' | 'usdt';
+  symbol: string;
+  address: `0x${string}`;
+  idrPerToken: bigint;
+  rateFresh: boolean;
+  rateUpdatedAt: bigint;
+  pending: bigint;
+}
+
 export interface TawfSeriesState {
   seriesId: `0x${string}`;
   tenorMonths: number;
@@ -68,9 +79,8 @@ export interface TawfSeriesState {
   fullyBacked: boolean;
   redemptionOpen: boolean;
   lastPeriod: number;
-  idrPerUsdc: bigint;
-  rateFresh: boolean;
-  rateUpdatedAt: bigint;
+  // per-coin rates + pending
+  coins: SeriesCoinView[];
   // sandbox
   mode: number;
   treasury: `0x${string}`;
@@ -80,16 +90,16 @@ export interface TawfSeriesState {
   seriesEnd: bigint;
   investorCount: bigint;
   // wallet
-  pending: bigint;
   balance: bigint;
-  claimable: bigint;
+  claimableSen: bigint;
   eligible: boolean;
   compliance: `0x${string}`;
 }
 
 /**
- * Read the Tawf deposito series: terms, FX rate, supply vs anchored balance,
- * sandbox mode + caps, and the connected wallet's pending/holdings/eligibility.
+ * Read the Tawf deposito series: terms, each settlement coin's FX rate and the
+ * wallet's pending escrow in it, supply vs anchored balance, sandbox mode +
+ * caps, and the connected wallet's holdings/claimable profit (sen)/eligibility.
  * Resolves the token's ModularCompliance first (the SandboxModule is keyed by
  * it), then batches the rest.
  */
@@ -100,6 +110,9 @@ export function useTawfSeries(address: `0x${string}` | undefined) {
   const sandbox = SANDBOX_MODULE_ADDRESS;
   const configured = Boolean(series && token && sandbox);
 
+  // The coins the app knows about with a configured address.
+  const coinCfgs = SETTLEMENT_STABLECOINS.filter((c) => c.address);
+
   const { data: complianceData, refetch: refetchCompliance } = useReadContract({
     address: token,
     abi: TrexComplianceAbi,
@@ -109,32 +122,53 @@ export function useTawfSeries(address: `0x${string}` | undefined) {
   const compliance = (complianceData as `0x${string}` | undefined) ?? ZERO;
   const who = address ?? ZERO;
 
+  // Fixed-shape batch: 9 series/sandbox/token reads, then per-coin rate + pending.
+  const baseContracts = configured
+    ? [
+        { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'seriesTerms' },
+        { address: token as `0x${string}`, abi: TrexTokenAbi as Abi, functionName: 'totalSupply' },
+        { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'reserve' },
+        { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'ratioBps' },
+        { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'isFullyBacked' },
+        { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'redemptionOpen' },
+        { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'lastPeriod' },
+        { address: sandbox as `0x${string}`, abi: SandboxModuleAbi as Abi, functionName: 'configOf', args: [compliance] },
+        { address: sandbox as `0x${string}`, abi: SandboxModuleAbi as Abi, functionName: 'investorCount', args: [compliance] },
+        { address: token as `0x${string}`, abi: TrexTokenAbi as Abi, functionName: 'balanceOf', args: [who] },
+        { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'claimableSen', args: [who] },
+        { address: sandbox as `0x${string}`, abi: SandboxModuleAbi as Abi, functionName: 'isEligible', args: [compliance, who] },
+      ]
+    : [];
+  const BASE = baseContracts.length;
+  const perCoin = configured
+    ? coinCfgs.flatMap((c) => [
+        { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'rate', args: [c.address as `0x${string}`] },
+        { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'pending', args: [who, c.address as `0x${string}`] },
+      ])
+    : [];
+
   const { data, isLoading, refetch } = useReadContracts({
-    contracts: configured
-      ? [
-          { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'seriesTerms' },
-          { address: token as `0x${string}`, abi: TrexTokenAbi as Abi, functionName: 'totalSupply' },
-          { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'reserve' },
-          { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'ratioBps' },
-          { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'isFullyBacked' },
-          { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'redemptionOpen' },
-          { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'lastPeriod' },
-          { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'rate' },
-          { address: sandbox as `0x${string}`, abi: SandboxModuleAbi as Abi, functionName: 'configOf', args: [compliance] },
-          { address: sandbox as `0x${string}`, abi: SandboxModuleAbi as Abi, functionName: 'investorCount', args: [compliance] },
-          { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'pending', args: [who] },
-          { address: token as `0x${string}`, abi: TrexTokenAbi as Abi, functionName: 'balanceOf', args: [who] },
-          { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'claimable', args: [who] },
-          { address: sandbox as `0x${string}`, abi: SandboxModuleAbi as Abi, functionName: 'isEligible', args: [compliance, who] },
-        ]
-      : [],
+    contracts: [...baseContracts, ...perCoin],
     query: { enabled: configured && compliance !== ZERO },
   });
 
   const read = (i: number) => data?.[i]?.result;
   const terms = read(0) as { tenorMonths?: number; nisbahBps?: number | bigint } | undefined;
-  const rate = read(7) as readonly [bigint, bigint, bigint, boolean] | undefined;
-  const cfg = read(8) as readonly [number, `0x${string}`, `0x${string}`, bigint, bigint, bigint, bigint, boolean] | undefined;
+  const cfg = read(7) as readonly [number, `0x${string}`, `0x${string}`, bigint, bigint, bigint, bigint, boolean] | undefined;
+
+  const coins: SeriesCoinView[] = coinCfgs.map((c, idx) => {
+    const rate = read(BASE + idx * 2) as readonly [bigint, bigint, bigint, boolean] | undefined;
+    const pendingCoin = read(BASE + idx * 2 + 1) as bigint | undefined;
+    return {
+      key: c.key,
+      symbol: c.symbol,
+      address: c.address as `0x${string}`,
+      idrPerToken: BigInt((rate?.[0] as bigint | undefined) ?? 0n),
+      rateUpdatedAt: BigInt((rate?.[1] as bigint | undefined) ?? 0n),
+      rateFresh: Boolean(rate?.[3] ?? false),
+      pending: pendingCoin ?? 0n,
+    };
+  });
 
   const state: TawfSeriesState = {
     seriesId: TAWF_SERIES.seriesId,
@@ -146,20 +180,17 @@ export function useTawfSeries(address: `0x${string}` | undefined) {
     fullyBacked: Boolean(read(4) ?? true),
     redemptionOpen: Boolean(read(5) ?? false),
     lastPeriod: Number((read(6) as number | undefined) ?? 0),
-    idrPerUsdc: BigInt((rate?.[0] as bigint | undefined) ?? 0n),
-    rateUpdatedAt: BigInt((rate?.[1] as bigint | undefined) ?? 0n),
-    rateFresh: Boolean(rate?.[3] ?? false),
+    coins,
     mode: Number(cfg?.[0] ?? 0),
     treasury: (cfg?.[1] as `0x${string}`) ?? ZERO,
     maxInvestors: BigInt((cfg?.[3] as bigint | undefined) ?? 0n),
     maxBalancePerInvestor: BigInt((cfg?.[4] as bigint | undefined) ?? 0n),
     seriesCap: BigInt((cfg?.[5] as bigint | undefined) ?? 0n),
     seriesEnd: BigInt((cfg?.[6] as bigint | undefined) ?? 0n),
-    investorCount: (read(9) as bigint | undefined) ?? 0n,
-    pending: (read(10) as bigint | undefined) ?? 0n,
-    balance: (read(11) as bigint | undefined) ?? 0n,
-    claimable: (read(12) as bigint | undefined) ?? 0n,
-    eligible: Boolean(read(13) ?? false),
+    investorCount: (read(8) as bigint | undefined) ?? 0n,
+    balance: (read(9) as bigint | undefined) ?? 0n,
+    claimableSen: (read(10) as bigint | undefined) ?? 0n,
+    eligible: Boolean(read(11) ?? false),
     compliance,
   };
 
@@ -175,21 +206,21 @@ export function useTawfSeries(address: `0x${string}` | undefined) {
 // Tawf series writes (investor-callable)
 // ---------------------------------------------------------------------------
 
-/** Approve USDC to the series if needed, then subscribe. */
+/** Approve a settlement coin to the series if needed, then subscribe in it. */
 export function useSeriesSubscribe() {
   const { write, isPending } = useContractWrite();
   const subscribe = useCallback(
-    async (amount: bigint, currentAllowance: bigint) => {
-      if (!TAWF_SERIES_ADDRESS || !TOKENIZATION_USDC_ADDRESS) throw new Error('Series not configured');
+    async (coin: `0x${string}`, amount: bigint, currentAllowance: bigint) => {
+      if (!TAWF_SERIES_ADDRESS) throw new Error('Series not configured');
       if (currentAllowance < amount) {
         await write({
-          address: TOKENIZATION_USDC_ADDRESS,
+          address: coin,
           abi: TrexTokenAbi as Abi,
           functionName: 'approve',
           args: [TAWF_SERIES_ADDRESS, amount],
         });
       }
-      return write({ address: TAWF_SERIES_ADDRESS, abi: TawfSeriesAbi as Abi, functionName: 'subscribe', args: [amount] });
+      return write({ address: TAWF_SERIES_ADDRESS, abi: TawfSeriesAbi as Abi, functionName: 'subscribe', args: [coin, amount] });
     },
     [write],
   );
@@ -198,39 +229,48 @@ export function useSeriesSubscribe() {
 
 export function useSeriesCancel() {
   const { write, isPending } = useContractWrite();
-  const cancel = useCallback(() => {
-    if (!TAWF_SERIES_ADDRESS) throw new Error('Series not configured');
-    return write({ address: TAWF_SERIES_ADDRESS, abi: TawfSeriesAbi as Abi, functionName: 'cancelSubscription' });
-  }, [write]);
+  const cancel = useCallback(
+    (coin: `0x${string}`) => {
+      if (!TAWF_SERIES_ADDRESS) throw new Error('Series not configured');
+      return write({ address: TAWF_SERIES_ADDRESS, abi: TawfSeriesAbi as Abi, functionName: 'cancelSubscription', args: [coin] });
+    },
+    [write],
+  );
   return { cancel, isPending };
 }
 
 export function useSeriesClaim() {
   const { write, isPending } = useContractWrite();
-  const claim = useCallback(() => {
-    if (!TAWF_SERIES_ADDRESS) throw new Error('Series not configured');
-    return write({ address: TAWF_SERIES_ADDRESS, abi: TawfSeriesAbi as Abi, functionName: 'claim' });
-  }, [write]);
+  const claim = useCallback(
+    (coin: `0x${string}`) => {
+      if (!TAWF_SERIES_ADDRESS) throw new Error('Series not configured');
+      return write({ address: TAWF_SERIES_ADDRESS, abi: TawfSeriesAbi as Abi, functionName: 'claim', args: [coin] });
+    },
+    [write],
+  );
   return { claim, isPending };
 }
 
 export function useSeriesRedeem() {
   const { write, isPending } = useContractWrite();
-  const redeem = useCallback(() => {
-    if (!TAWF_SERIES_ADDRESS) throw new Error('Series not configured');
-    return write({ address: TAWF_SERIES_ADDRESS, abi: TawfSeriesAbi as Abi, functionName: 'redeem' });
-  }, [write]);
+  const redeem = useCallback(
+    (coin: `0x${string}`) => {
+      if (!TAWF_SERIES_ADDRESS) throw new Error('Series not configured');
+      return write({ address: TAWF_SERIES_ADDRESS, abi: TawfSeriesAbi as Abi, functionName: 'redeem', args: [coin] });
+    },
+    [write],
+  );
   return { redeem, isPending };
 }
 
-/** USDC allowance of `owner` to the series. */
-export function useSeriesAllowance(owner: `0x${string}` | undefined) {
+/** A settlement coin's allowance from `owner` to the series. */
+export function useSeriesAllowance(owner: `0x${string}` | undefined, coin: `0x${string}` | undefined) {
   const { data, refetch } = useReadContract({
-    address: TOKENIZATION_USDC_ADDRESS,
+    address: coin,
     abi: TrexTokenAbi,
     functionName: 'allowance',
     args: owner && TAWF_SERIES_ADDRESS ? [owner, TAWF_SERIES_ADDRESS] : undefined,
-    query: { enabled: Boolean(owner && TOKENIZATION_USDC_ADDRESS && TAWF_SERIES_ADDRESS) },
+    query: { enabled: Boolean(owner && coin && TAWF_SERIES_ADDRESS) },
   });
   return { allowance: (data as bigint | undefined) ?? 0n, refetch };
 }

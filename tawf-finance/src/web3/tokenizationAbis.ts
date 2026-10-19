@@ -4,37 +4,41 @@
  * minimal: only the functions, views and errors the app actually uses.
  *
  * Sources:
- *   - DepositoReserveController.sol  (controller)
- *   - DepositoDistributor.sol        (deposito distributor)
- *   - SukukDistributor.sol           (sukuk distributor)
- *   - T-REX Token                    (ERC-3643 token)
- *   - IdentityRegistry               (isVerified / identity)
- *   - MockIDRX / MockUSDC            (faucet + ERC20)
- *   - LedgerAnchor                   (epochCount / epochOf / verify)
+ *   - TawfDepositoSeries.sol          (deposito series: multi-stablecoin)
+ *   - SandboxModule.sol               (mode + caps + eligibility)
+ *   - SukukDistributor.sol            (sukuk distributor)
+ *   - T-REX Token                     (ERC-3643 token)
+ *   - IdentityRegistry                (isVerified / identity)
+ *   - MockUSDC / MockUSDT             (faucet + ERC20)
+ *   - LedgerAnchor                    (epochCount / epochOf / verify)
  */
 import type { Abi } from 'viem';
 
 export const TawfSeriesAbi = [
-  { name: 'subscribe', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'usdcAmount', type: 'uint256' }], outputs: [] },
-  { name: 'cancelSubscription', type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },
-  { name: 'claim', type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },
-  { name: 'redeem', type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },
-  { name: 'pending', type: 'function', stateMutability: 'view', inputs: [{ name: 'investor', type: 'address' }], outputs: [{ name: '', type: 'uint256' }] },
-  { name: 'claimable', type: 'function', stateMutability: 'view', inputs: [{ name: 'investor', type: 'address' }], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'subscribe', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'token', type: 'address' }, { name: 'coinAmount', type: 'uint256' }], outputs: [] },
+  { name: 'cancelSubscription', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'token', type: 'address' }], outputs: [] },
+  { name: 'claim', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'token', type: 'address' }], outputs: [] },
+  { name: 'redeem', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'token', type: 'address' }], outputs: [] },
+  { name: 'pending', type: 'function', stateMutability: 'view', inputs: [{ name: 'investor', type: 'address' }, { name: 'token', type: 'address' }], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'claimableSen', type: 'function', stateMutability: 'view', inputs: [{ name: 'investor', type: 'address' }], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'quote', type: 'function', stateMutability: 'view', inputs: [{ name: 'token', type: 'address' }, { name: 'sen', type: 'uint256' }], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'allowedStablecoins', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'address[]' }] },
+  { name: 'isStablecoin', type: 'function', stateMutability: 'view', inputs: [{ name: '', type: 'address' }], outputs: [{ name: '', type: 'bool' }] },
+  { name: 'rateOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'token', type: 'address' }], outputs: [{ name: '', type: 'uint256' }] },
   { name: 'reserve', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
   { name: 'ratioBps', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
   { name: 'isFullyBacked', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'bool' }] },
   { name: 'reserveSnapshotAt', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint64' }] },
   { name: 'lastPeriod', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint32' }] },
   { name: 'redemptionOpen', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'bool' }] },
-  { name: 'idrPerUsdc', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'treasury', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'address' }] },
   {
     name: 'rate',
     type: 'function',
     stateMutability: 'view',
-    inputs: [],
+    inputs: [{ name: 'token', type: 'address' }],
     outputs: [
-      { name: 'idrPerUsdc_', type: 'uint256' },
+      { name: 'idrPerToken', type: 'uint256' },
       { name: 'updatedAt', type: 'uint64' },
       { name: 'maxAge', type: 'uint64' },
       { name: 'fresh', type: 'bool' },
@@ -62,6 +66,9 @@ export const TawfSeriesAbi = [
   { type: 'error', name: 'ZeroAmount', inputs: [] },
   { type: 'error', name: 'RedemptionNotOpen', inputs: [] },
   { type: 'error', name: 'NothingToClaim', inputs: [] },
+  { type: 'error', name: 'NotStablecoin', inputs: [{ name: 'token', type: 'address' }] },
+  { type: 'error', name: 'RateStale', inputs: [{ name: 'updatedAt', type: 'uint64' }, { name: 'maxAge', type: 'uint64' }] },
+  { type: 'error', name: 'RateUnset', inputs: [] },
   { type: 'error', name: 'ReserveInsufficient', inputs: [{ name: 'supplyAfter', type: 'uint256' }, { name: 'balance', type: 'uint256' }] },
 ] as const satisfies Abi;
 
@@ -177,7 +184,7 @@ export const IdentityRegistryAbi = [
   { name: 'identity', type: 'function', stateMutability: 'view', inputs: [{ name: '_userAddress', type: 'address' }], outputs: [{ name: '', type: 'address' }] },
 ] as const satisfies Abi;
 
-/** MockIDRX / MockUSDC faucet + ERC20 approve/balance. */
+/** MockUSDC / MockUSDT faucet + ERC20 approve/balance. */
 export const MockTokenAbi = [
   { name: 'faucet', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'amount', type: 'uint256' }], outputs: [] },
   { name: 'faucetMax', type: 'function', stateMutability: 'nonpayable', inputs: [], outputs: [] },

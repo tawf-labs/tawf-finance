@@ -18,6 +18,7 @@ import {
   useSeriesRedeem,
   useSeriesAllowance,
   SANDBOX_MODE_LABEL,
+  type SeriesCoinView,
 } from '@/web3/tokenizationHooks';
 import { formatIdr, formatUsdc, formatBps, getRevertReason } from '@/web3/format';
 import { isTokenizationConfigured, TAWF_SERIES } from '@/web3/tokenization';
@@ -28,7 +29,7 @@ const DISCLOSURES = [
   'The token is a claim ON TAWF, backed by Tawf\u2019s own deposit at the BPRS (BPRS Demo Syariah). It is not a direct deposit account in your name.',
   'LPS (deposit insurance) covers Tawf\u2019s deposit at the bank, not each investor individually.',
   'Returns follow the bank\u2019s profit share (nisbah) and are not guaranteed. A period may pay zero.',
-  'You subscribe in USDC; Tawf converts to IDR off chain. The USDC/IDR rate carries FX risk.',
+  'Your holding is valued in IDR; that IDR value is what is backed. You subscribe, claim and redeem in USDC or USDT, and the amount you receive in a coin depends on that coin\u2019s posted rate at payout. The two coins carry different rates and FX risk.',
 ];
 
 function NotConfigured() {
@@ -44,24 +45,32 @@ function NotConfigured() {
   );
 }
 
-function usdcApprox(senBaseUnits: bigint, idrPerUsdc: bigint): bigint {
-  // sen -> USDC base units (6dp): sen * 1e6 / idrPerUsdc. Returns 0 if no rate.
-  if (idrPerUsdc === 0n) return 0n;
-  return (senBaseUnits * 1_000_000n) / idrPerUsdc;
+/** sen -> coin base units (6dp) at a coin's rate: sen * 1e6 / idrPerToken. */
+function coinApprox(senBaseUnits: bigint, idrPerToken: bigint): bigint {
+  if (idrPerToken === 0n) return 0n;
+  return (senBaseUnits * 1_000_000n) / idrPerToken;
 }
 
 export function InvestorDeposito() {
   const { address, isConnected } = useAccount();
   const { state, isLoading, refetch, configured } = useTawfSeries(address);
   const { isVerified } = useIsVerified(address);
-  const { allowance, refetch: refetchAllowance } = useSeriesAllowance(address);
   const { subscribe, isPending: subscribing } = useSeriesSubscribe();
   const { cancel, isPending: cancelling } = useSeriesCancel();
   const { claim, isPending: claiming } = useSeriesClaim();
   const { redeem, isPending: redeeming } = useSeriesRedeem();
 
+  const coins = state.coins;
+
+  // Selected coin for subscribe / claim / redeem (default: first coin).
+  const [coinKey, setCoinKey] = useState<'usdc' | 'usdt'>('usdc');
+  const selectedCoin: SeriesCoinView | undefined =
+    coins.find((c) => c.key === coinKey) ?? coins[0];
+
+  const { allowance, refetch: refetchAllowance } = useSeriesAllowance(address, selectedCoin?.address);
+
   const [subOpen, setSubOpen] = useState(false);
-  const [usdcAmount, setUsdcAmount] = useState(100);
+  const [coinAmount, setCoinAmount] = useState(100);
   const [acknowledged, setAcknowledged] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
@@ -72,26 +81,32 @@ export function InvestorDeposito() {
   };
 
   const modeLabel = SANDBOX_MODE_LABEL[state.mode] ?? 'UNKNOWN';
-  const rateIdr = state.idrPerUsdc > 0n ? Number(state.idrPerUsdc) / 100 : 0;
+  const selectedRateIdr = selectedCoin && selectedCoin.idrPerToken > 0n ? Number(selectedCoin.idrPerToken) / 100 : 0;
 
-  const holdingsUsdc = useMemo(
-    () => usdcApprox(state.balance, state.idrPerUsdc),
-    [state.balance, state.idrPerUsdc],
+  // Holdings valued back into the selected coin at its current rate.
+  const holdingsCoin = useMemo(
+    () => coinApprox(state.balance, selectedCoin?.idrPerToken ?? 0n),
+    [state.balance, selectedCoin?.idrPerToken],
+  );
+  const claimableCoin = useMemo(
+    () => coinApprox(state.claimableSen, selectedCoin?.idrPerToken ?? 0n),
+    [state.claimableSen, selectedCoin?.idrPerToken],
   );
 
   const runSubscribe = async () => {
     reset();
+    if (!selectedCoin) return;
     if (!acknowledged) {
       setError('Please acknowledge the disclosures first.');
       return;
     }
-    const amount = BigInt(Math.round(usdcAmount * 1e6));
+    const amount = BigInt(Math.round(coinAmount * 1e6));
     if (amount <= 0n) {
-      setError('Enter a USDC amount greater than zero.');
+      setError('Enter an amount greater than zero.');
       return;
     }
     try {
-      const { hash } = await subscribe(amount, allowance);
+      const { hash } = await subscribe(selectedCoin.address, amount, allowance);
       setTxHash(hash);
       refetch();
       refetchAllowance();
@@ -100,10 +115,10 @@ export function InvestorDeposito() {
     }
   };
 
-  const runCancel = async () => {
+  const runCancel = async (coin: SeriesCoinView) => {
     reset();
     try {
-      const { hash } = await cancel();
+      const { hash } = await cancel(coin.address);
       setTxHash(hash);
       refetch();
     } catch (e) {
@@ -113,8 +128,9 @@ export function InvestorDeposito() {
 
   const runClaim = async () => {
     reset();
+    if (!selectedCoin) return;
     try {
-      const { hash } = await claim();
+      const { hash } = await claim(selectedCoin.address);
       setTxHash(hash);
       refetch();
     } catch (e) {
@@ -124,14 +140,17 @@ export function InvestorDeposito() {
 
   const runRedeem = async () => {
     reset();
+    if (!selectedCoin) return;
     try {
-      const { hash } = await redeem();
+      const { hash } = await redeem(selectedCoin.address);
       setTxHash(hash);
       refetch();
     } catch (e) {
       setError(getRevertReason(e));
     }
   };
+
+  const pendingCoins = coins.filter((c) => c.pending > 0n);
 
   return (
     <div className="space-y-8">
@@ -140,7 +159,7 @@ export function InvestorDeposito() {
           <h1 className="font-serif text-3xl text-tawf-green mb-2">Tawf Deposito Series</h1>
           <p className="text-tawf-muted">
             A wrapped Tawf deposit (Model B). 1 token = IDR 1 claim on Tawf, backed by Tawf&apos;s dedicated
-            account at the BPRS.
+            account at the BPRS. Settle in USDC or USDT.
           </p>
         </div>
         <ConnectButton variant="primary" size="md" />
@@ -199,23 +218,45 @@ export function InvestorDeposito() {
             </div>
             <h3 className="font-serif text-xl text-tawf-green mb-1">{TAWF_SERIES.name}</h3>
             <p className="text-tawf-muted text-sm leading-relaxed mb-4">
-              BPRS Demo Syariah · dedicated account TAWF-S1. Subscribe in USDC; Tawf converts to IDR and places
-              the funds in the account.
+              BPRS Demo Syariah · dedicated account TAWF-S1. Subscribe in USDC or USDT; Tawf converts to IDR
+              and places the funds in the account.
             </p>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
               <Metric icon={<Clock className="w-4 h-4 text-tawf-gold" />} label="Tenor" value={`${state.tenorMonths} months`} />
               <Metric icon={<PiggyBank className="w-4 h-4 text-tawf-gold" />} label="Investor nisbah" value={formatBps(state.nisbahBps)} />
               <Metric
-                icon={<Wallet className="w-4 h-4 text-tawf-gold" />}
-                label="USDC/IDR rate"
-                value={rateIdr > 0 ? `Rp ${rateIdr.toLocaleString('id-ID')}` : 'not posted'}
-              />
-              <Metric
                 icon={<ShieldCheck className="w-4 h-4 text-tawf-gold" />}
                 label="Investors"
                 value={`${state.investorCount} / ${state.maxInvestors}`}
               />
+              <Metric
+                icon={<ShieldCheck className="w-4 h-4 text-tawf-gold" />}
+                label="Backing"
+                value={`${Number(state.ratioBps) / 100}%`}
+              />
+            </div>
+
+            {/* Per-coin posted rates */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {coins.map((c) => {
+                const idr = c.idrPerToken > 0n ? Number(c.idrPerToken) / 100 : 0;
+                return (
+                  <div key={c.key} className="p-3 rounded-xl bg-tawf-sand-30">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-tawf-muted">{c.symbol}/IDR rate</span>
+                      {c.idrPerToken > 0n && (
+                        <Badge variant={c.rateFresh ? 'success' : 'warning'} size="sm">
+                          {c.rateFresh ? 'fresh' : 'stale'}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="font-medium text-tawf-green">
+                      {idr > 0 ? `Rp ${idr.toLocaleString('id-ID')}` : 'not posted'}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
 
             <ProgressBar
@@ -240,11 +281,51 @@ export function InvestorDeposito() {
           {/* Actions + holdings */}
           <Card className="p-6 flex flex-col">
             <p className="font-medium text-tawf-green mb-3">Your position</p>
-            <div className="p-3 rounded-xl bg-tawf-sand-30 space-y-2 mb-4">
-              <Row label="Holdings" value={`${formatIdr(state.balance)} (~${formatUsdc(holdingsUsdc)})`} />
-              <Row label="Pending (escrowed)" value={formatUsdc(state.pending)} />
-              <Row label="Claimable profit" value={formatUsdc(state.claimable)} gold />
+
+            {/* Settlement coin selector drives the quotes + claim/redeem coin. */}
+            <div className="mb-4">
+              <label className="block text-xs text-tawf-muted mb-1">Settlement coin</label>
+              <div className="flex gap-2">
+                {coins.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => setCoinKey(c.key)}
+                    className={`flex-1 px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                      coinKey === c.key
+                        ? 'bg-tawf-green text-white border-tawf-green'
+                        : 'bg-white text-tawf-green border-tawf-green-10'
+                    }`}
+                  >
+                    {c.symbol}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            <div className="p-3 rounded-xl bg-tawf-sand-30 space-y-2 mb-4">
+              <Row label="Holdings (IDR)" value={formatIdr(state.balance)} />
+              <Row label={`Holdings (~${selectedCoin?.symbol ?? ''})`} value={formatUsdc(holdingsCoin)} />
+              <Row label="Claimable profit (IDR)" value={formatIdr(state.claimableSen)} gold />
+              <Row label={`Claimable (~${selectedCoin?.symbol ?? ''})`} value={formatUsdc(claimableCoin)} gold />
+            </div>
+
+            {/* Pending escrow, per coin, each cancellable. */}
+            {pendingCoins.length > 0 && (
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 space-y-2 mb-4">
+                <p className="text-xs font-medium text-blue-800">Pending (escrowed)</p>
+                {pendingCoins.map((c) => (
+                  <div key={c.key} className="flex items-center justify-between gap-2">
+                    <span className="text-sm text-tawf-green">
+                      {formatUsdc(c.pending)} {c.symbol}
+                    </span>
+                    <Button size="sm" variant="secondary" disabled={cancelling} onClick={() => runCancel(c)}>
+                      {cancelling ? 'Cancelling…' : 'Cancel'}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {isConnected && !state.eligible && (
               <div className="bg-blue-50 rounded-xl border border-blue-200 p-3 mb-4">
@@ -259,19 +340,16 @@ export function InvestorDeposito() {
               <Button
                 size="sm"
                 className="w-full"
-                disabled={!isVerified || !state.eligible}
+                disabled={!isVerified || !state.eligible || !selectedCoin}
                 onClick={() => { setSubOpen(true); setAcknowledged(false); reset(); }}
               >
-                Subscribe (USDC)
+                Subscribe ({selectedCoin?.symbol ?? 'USDC'})
               </Button>
-              <Button size="sm" variant="secondary" className="w-full" disabled={state.pending === 0n || cancelling} onClick={runCancel}>
-                {cancelling ? 'Cancelling…' : 'Cancel pending'}
-              </Button>
-              <Button size="sm" variant="ghost" className="w-full" disabled={state.claimable === 0n || claiming} onClick={runClaim}>
-                {claiming ? 'Claiming…' : 'Claim profit'}
+              <Button size="sm" variant="ghost" className="w-full" disabled={state.claimableSen === 0n || claiming} onClick={runClaim}>
+                {claiming ? 'Claiming…' : `Claim profit in ${selectedCoin?.symbol ?? ''}`}
               </Button>
               <Button size="sm" variant="ghost" className="w-full" disabled={state.balance === 0n || !state.redemptionOpen || redeeming} onClick={runRedeem}>
-                {state.redemptionOpen ? (redeeming ? 'Redeeming…' : 'Redeem (matured)') : 'Redeem at maturity'}
+                {state.redemptionOpen ? (redeeming ? 'Redeeming…' : `Redeem in ${selectedCoin?.symbol ?? ''}`) : 'Redeem at maturity'}
               </Button>
               {error && <p className="text-xs text-red-600">{error}</p>}
             </div>
@@ -280,21 +358,39 @@ export function InvestorDeposito() {
       )}
 
       {/* Subscribe modal with disclosures */}
-      {subOpen && (
+      {subOpen && selectedCoin && (
         <Modal isOpen onClose={() => setSubOpen(false)} title="Subscribe to the Tawf Deposito Series" size="md">
           <div className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-tawf-ink mb-2">Amount (USDC)</label>
+              <label className="block text-sm font-medium text-tawf-ink mb-2">Settlement coin</label>
+              <div className="flex gap-2 mb-3">
+                {coins.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => setCoinKey(c.key)}
+                    disabled={c.idrPerToken === 0n}
+                    className={`flex-1 px-3 py-2 rounded-xl text-sm font-medium border transition-colors disabled:opacity-40 ${
+                      coinKey === c.key
+                        ? 'bg-tawf-green text-white border-tawf-green'
+                        : 'bg-white text-tawf-green border-tawf-green-10'
+                    }`}
+                  >
+                    {c.symbol}
+                  </button>
+                ))}
+              </div>
+              <label className="block text-sm font-medium text-tawf-ink mb-2">Amount ({selectedCoin.symbol})</label>
               <input
                 type="number"
                 min={1}
-                value={usdcAmount}
-                onChange={(e) => setUsdcAmount(Number(e.target.value))}
+                value={coinAmount}
+                onChange={(e) => setCoinAmount(Number(e.target.value))}
                 className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
               />
-              {rateIdr > 0 && (
+              {selectedRateIdr > 0 && (
                 <p className="text-xs text-tawf-muted mt-1">
-                  ≈ {formatIdr(BigInt(Math.round(usdcAmount * rateIdr * 100)))} at the posted rate
+                  ≈ {formatIdr(BigInt(Math.round(coinAmount * selectedRateIdr * 100)))} at the posted {selectedCoin.symbol} rate
                 </p>
               )}
             </div>
@@ -306,17 +402,18 @@ export function InvestorDeposito() {
               </ul>
               <label className="flex items-start gap-2 mt-3 text-sm text-tawf-ink">
                 <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} className="mt-1" />
-                <span>I understand this is a claim on Tawf with FX risk and non-guaranteed returns.</span>
+                <span>I understand this is a claim on Tawf valued in IDR, and the coin amount I receive depends on that coin&apos;s posted rate (FX risk), with non-guaranteed returns.</span>
               </label>
             </div>
 
             {error && <div className="bg-red-50 rounded-xl p-3 border border-red-200"><p className="text-sm text-red-600">{error}</p></div>}
 
             <Button size="lg" className="w-full" disabled={!acknowledged || subscribing} onClick={runSubscribe}>
-              {subscribing ? <><Loader2 className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" /> Confirming…</> : 'Approve + Subscribe'}
+              {subscribing ? <><Loader2 className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" /> Confirming…</> : `Approve + Subscribe (${selectedCoin.symbol})`}
             </Button>
             <p className="text-xs text-tawf-muted">
-              Your USDC is escrowed until Tawf allocates against the anchored account balance. You can cancel before allocation.
+              Your {selectedCoin.symbol} is escrowed until Tawf allocates against the anchored account balance. You can
+              cancel this coin&apos;s pending escrow before allocation.
             </p>
           </div>
         </Modal>

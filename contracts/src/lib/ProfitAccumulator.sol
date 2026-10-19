@@ -4,7 +4,7 @@ pragma solidity >=0.8.17;
 /**
  * @title ProfitAccumulator
  * @notice Cumulative-profit-per-token accounting shared by SukukDistributor
- *         and DepositoDistributor.
+ *         and TawfDepositoSeries.
  *
  * @dev Classic "masterchef" style accumulator: a single global
  *      `profitPerToken` grows as profit is funded, and each account's debt

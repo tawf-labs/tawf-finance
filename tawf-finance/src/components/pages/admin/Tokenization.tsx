@@ -185,55 +185,121 @@ function TreasuryTab({ busy, run, passcode, series, tawf }: {
   series: SeriesStatus | null;
   tawf: TawfAccountStatus | null;
 }) {
-  const [rate, setRate] = useState<number>(16000);
+  // Per-coin rate inputs (IDR per coin), keyed by coin address.
+  const [rates, setRates] = useState<Record<string, number>>({});
   const [depositIdr, setDepositIdr] = useState<number>(0);
   const [screenWallet, setScreenWallet] = useState('');
   const [screenNote, setScreenNote] = useState('');
   const [screenTopic, setScreenTopic] = useState('2');
   const [allocateList, setAllocateList] = useState('');
 
-  const postedRateIdr = series && series.rate.idrPerUsdc !== '0' ? Number(series.rate.idrPerUsdc) / 100 : 0;
   const nextProfitPeriod = series ? series.lastPeriod + 1 : 1;
   // The next credited profit from the bank (in sen) the series can distribute.
   const nextCredit = tawf?.account.profitCredits.find((c) => c.period === nextProfitPeriod);
   const nextProfitSen = nextCredit ? nextCredit.amountIdr * 100 : 0;
   const maturity = tawf?.account.maturity;
 
-  const useQuote = async () => {
+  const coinLabel = (addr: string): string => {
+    if (series?.coins[0]?.address.toLowerCase() === addr.toLowerCase()) return 'USDC';
+    if (series?.coins[1]?.address.toLowerCase() === addr.toLowerCase()) return 'USDT';
+    return 'COIN';
+  };
+
+  const rateFor = (addr: string): number => rates[addr.toLowerCase()] ?? 16000;
+  const setRateFor = (addr: string, v: number) =>
+    setRates((prev) => ({ ...prev, [addr.toLowerCase()]: v }));
+
+  const applyQuote = async (addr: string) => {
     const q = await getJson<FxQuote>('fx');
-    setRate(q.idr);
+    const label = coinLabel(addr);
+    const coin = label === 'USDT' ? q.usdt : q.usdc;
+    setRateFor(addr, coin.idr);
   };
 
   return (
     <div className="space-y-6">
-      {/* FX rate */}
+      {/* FX rate, per coin */}
       <Card className="p-6 space-y-3">
-        <p className="font-medium text-tawf-green">Post FX rate (USDC/IDR)</p>
+        <p className="font-medium text-tawf-green">Post FX rate (per settlement coin)</p>
         <p className="text-xs text-tawf-muted">
-          Production uses an IDRX / exchange quote (the number Tawf uses when it converts USDC to IDR off chain).
-          Currently posted: {postedRateIdr > 0 ? `Rp ${postedRateIdr.toLocaleString('id-ID')}` : 'none'}{' '}
-          {series && (series.rate.fresh ? '(fresh)' : '(stale)')}
+          Each coin carries its own IDR rate (no 1:1 peg). Production uses an IDRX / exchange quote per coin (the
+          number Tawf uses when it converts that coin to IDR off chain).
         </p>
-        <div className="flex flex-wrap gap-2 items-center">
-          <input type="number" value={rate} min={1} onChange={(e) => setRate(Number(e.target.value))} className="px-4 py-3 border border-tawf-green-10 rounded-xl w-40" />
-          <span className="text-sm text-tawf-muted">IDR per USDC</span>
-          <Button size="sm" variant="ghost" onClick={useQuote}>Use market quote</Button>
-          <Button size="sm" disabled={busy !== null} onClick={() => run('Post FX rate', () => postAdmin('series/post-rate', { idrPerUsdc: Math.round(rate * 100) }, passcode))}>
-            Post rate
-          </Button>
+        <div className="space-y-3">
+          {(series?.coins ?? []).map((c) => {
+            const idr = c.rate.idrPerToken !== '0' ? Number(c.rate.idrPerToken) / 100 : 0;
+            return (
+              <div key={c.address} className="flex flex-wrap gap-2 items-center">
+                <span className="w-14 text-sm font-medium text-tawf-green">{coinLabel(c.address)}</span>
+                <input
+                  type="number"
+                  value={rateFor(c.address)}
+                  min={1}
+                  onChange={(e) => setRateFor(c.address, Number(e.target.value))}
+                  className="px-4 py-3 border border-tawf-green-10 rounded-xl w-40"
+                />
+                <span className="text-sm text-tawf-muted">IDR / {coinLabel(c.address)}</span>
+                <Button size="sm" variant="ghost" onClick={() => applyQuote(c.address)}>Use market quote</Button>
+                <Button
+                  size="sm"
+                  disabled={busy !== null}
+                  onClick={() => run(`Post ${coinLabel(c.address)} rate`, () => postAdmin('series/post-rate', { token: c.address, idrPerToken: Math.round(rateFor(c.address) * 100) }, passcode))}
+                >
+                  Post rate
+                </Button>
+                <span className="text-xs text-tawf-muted">
+                  posted: {idr > 0 ? `Rp ${idr.toLocaleString('id-ID')}` : 'none'} {idr > 0 && (c.rate.fresh ? '(fresh)' : '(stale)')}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Treasury balances + series allowance per coin */}
+      <Card className="p-6 space-y-3">
+        <p className="font-medium text-tawf-green">Treasury balances &amp; series allowances</p>
+        <p className="text-xs text-tawf-muted">
+          Profit and principal payouts transfer from the treasury at claim/redeem. The treasury must approve the
+          series per coin. Treasury: <span className="font-mono">{series?.treasury ?? '—'}</span>
+        </p>
+        <div className="space-y-2">
+          {(series?.coins ?? []).map((c) => {
+            const approved = c.seriesAllowance !== '0';
+            return (
+              <div key={c.address} className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm">
+                  <span className="w-14 inline-block font-medium text-tawf-green">{coinLabel(c.address)}</span>
+                  <span className="text-tawf-muted">balance </span>
+                  <span className="text-tawf-green">{formatUsdc(BigInt(c.treasuryBalance))}</span>
+                  <span className="text-tawf-muted"> · allowance </span>
+                  <Badge variant={approved ? 'success' : 'warning'} size="sm">{approved ? 'approved' : 'not approved'}</Badge>
+                </div>
+                <Button size="sm" variant="secondary" disabled={busy !== null} onClick={() => run(`Approve series (${coinLabel(c.address)})`, () => postAdmin('series/approve-treasury', { token: c.address }, passcode))}>
+                  Approve series
+                </Button>
+              </div>
+            );
+          })}
         </div>
       </Card>
 
       {/* Pending subscriptions + allocate */}
       <Card className="p-6 space-y-3">
         <p className="font-medium text-tawf-green">Pending subscriptions &amp; allocation</p>
-        {series?.wallet && series.wallet.pending !== '0' && (
-          <p className="text-sm text-tawf-ink">Connected wallet pending: {formatUsdc(BigInt(series.wallet.pending))}</p>
+        {series?.wallet && series.coins.some((c) => (series.wallet?.pending?.[c.address] ?? '0') !== '0') && (
+          <div className="text-sm text-tawf-ink space-y-1">
+            {series.coins.map((c) => {
+              const p = series.wallet?.pending?.[c.address] ?? '0';
+              if (p === '0') return null;
+              return <p key={c.address}>Connected wallet pending: {formatUsdc(BigInt(p))} {coinLabel(c.address)}</p>;
+            })}
+          </div>
         )}
         <p className="text-xs text-tawf-muted">
-          Enter the investor wallets to allocate (comma or newline separated). Allocation converts their escrowed
-          USDC to sen at the posted rate, mints the series token, and forwards the USDC to the treasury. It proves
-          the latest anchored account balance; place funds at the BPRS first.
+          Enter the investor wallets to allocate (comma or newline separated). Allocation converts each investor&apos;s
+          escrowed USDC and USDT to sen at each coin&apos;s posted rate, mints the series token, and forwards the coins
+          to the treasury. It proves the latest anchored account balance; place funds at the BPRS first.
         </p>
         <textarea
           value={allocateList}
@@ -258,8 +324,8 @@ function TreasuryTab({ busy, run, passcode, series, tawf }: {
       <Card className="p-6 space-y-3">
         <p className="font-medium text-tawf-green">Place converted funds at the BPRS</p>
         <p className="text-xs text-tawf-muted">
-          Simulates Tawf converting USDC to IDR (IDRX style) and placing it in the dedicated account TAWF-S1. This
-          raises the anchored account balance that backs the token. Account balance:{' '}
+          Simulates Tawf converting USDC/USDT to IDR (IDRX style) and placing it in the dedicated account TAWF-S1.
+          This raises the anchored account balance that backs the token. Account balance:{' '}
           {tawf ? `Rp ${tawf.account.balanceIdr.toLocaleString('id-ID')}` : '—'}
         </p>
         <div className="flex flex-wrap gap-2 items-center">

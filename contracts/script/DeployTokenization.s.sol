@@ -58,8 +58,11 @@ contract DeployTokenization is Script {
     // Series terms (match the ReserveLedger registration in tawf-network's SetupTawfSeries).
     uint8 internal constant SERIES_TENOR = 3;
     uint16 internal constant SERIES_NISBAH = 6000;
-    // Demo FX: 1 USDC = 16,000.00 IDR -> idrPerUsdc = 1_600_000 (two-decimal precision).
-    uint256 internal constant FX_INITIAL_RATE = 1_600_000;
+    // Demo FX (two-decimal precision, idr per 1 stablecoin). USDC and USDT
+    // carry their own posted rates: no 1:1 peg is assumed between them.
+    // 1 USDC = 16,250.00 IDR -> 1_625_000; 1 USDT = 16,240.00 IDR -> 1_624_000.
+    uint256 internal constant FX_INITIAL_RATE_USDC = 1_625_000;
+    uint256 internal constant FX_INITIAL_RATE_USDT = 1_624_000;
     uint64 internal constant SERIES_END_OFFSET = 90 days;
 
     struct Shared {
@@ -78,13 +81,15 @@ contract DeployTokenization is Script {
         address anchor;
         address operator;
         address mockUsdc;
+        address mockUsdt;
         Shared shared;
         // Tawf deposito series (Model B)
         bytes32 seriesId;
         address seriesToken;
         address series; // TawfDepositoSeries
         address sandboxModule;
-        uint256 fxInitialRate;
+        uint256 fxInitialRateUsdc;
+        uint256 fxInitialRateUsdt;
         // sukuk
         address sukukToken;
         address sukukDistributor;
@@ -120,7 +125,8 @@ contract DeployTokenization is Script {
         d.anchor = anchor;
         d.operator = operator;
         d.seriesId = vm.envOr("TAWF_SERIES_ID", DEFAULT_SERIES_ID);
-        d.fxInitialRate = FX_INITIAL_RATE;
+        d.fxInitialRateUsdc = FX_INITIAL_RATE_USDC;
+        d.fxInitialRateUsdt = FX_INITIAL_RATE_USDT;
 
         _loadSukukTerms();
 
@@ -129,12 +135,15 @@ contract DeployTokenization is Script {
         _sharedIdentityRegistry = d.shared.identityRegistry;
         _sharedClaimIssuer = d.shared.claimIssuer;
 
-        // 2. MockUSDC settlement token (6 decimals) for the series and the sukuk.
+        // 2. MockUSDC + MockUSDT settlement tokens (both 6 decimals) for the
+        //    series; the sukuk + per-deal product settle in MockUSDC.
         d.mockUsdc = deployCode("MockUSDC.sol:MockUSDC");
+        d.mockUsdt = deployCode("MockUSDT.sol:MockUSDT");
         _sukukUsdc = d.mockUsdc;
 
         // 3. Tawf deposito series token + compliance + modules + series contract.
-        (d.seriesToken, d.series, d.sandboxModule) = _deployTawfSeries(operator, d.mockUsdc, anchor, d.seriesId);
+        (d.seriesToken, d.series, d.sandboxModule) =
+            _deployTawfSeries(operator, d.mockUsdc, d.mockUsdt, anchor, d.seriesId);
 
         // 4. Sukuk series token + compliance + module + distributor.
         (d.sukukToken, d.sukukDistributor) = _deploySukuk(operator, anchor);
@@ -187,7 +196,7 @@ contract DeployTokenization is Script {
         });
     }
 
-    function _deployTawfSeries(address operator, address usdc, address anchor, bytes32 seriesId)
+    function _deployTawfSeries(address operator, address usdc, address usdt, address anchor, bytes32 seriesId)
         internal
         returns (address tokenAddr, address series, address sandboxAddr)
     {
@@ -206,12 +215,12 @@ contract DeployTokenization is Script {
         DistributionCheckpointModule checkpoint = new DistributionCheckpointModule();
         SandboxModule sandbox = new SandboxModule();
 
-        // TawfDepositoSeries: (usdc, anchor, token, checkpointModule, sandbox, compliance,
+        // TawfDepositoSeries: (anchor, token, checkpointModule, sandbox, compliance,
         // Terms{seriesId, tenorMonths, nisbahBps}, treasury, admin, operator, maxRateAge).
+        // Settlement stablecoins are added after construction via addStablecoin.
         series = deployCode(
             "TawfDepositoSeries.sol:TawfDepositoSeries",
             abi.encode(
-                usdc,
                 anchor,
                 address(token),
                 address(checkpoint),
@@ -249,10 +258,20 @@ contract DeployTokenization is Script {
         token.addAgent(operator);
         token.unpause();
 
+        // Allowlist both settlement stablecoins (USDC + USDT, both 6 decimals).
+        ISeriesConfig(series).addStablecoin(usdc);
+        ISeriesConfig(series).addStablecoin(usdt);
+
         // Grant FX_ROLE to the operator so the demo backend can post rates, and
-        // post the initial demo rate.
+        // post the initial demo rate for each coin (no 1:1 peg assumed).
         ISeriesConfig(series).grantRole(keccak256("FX_ROLE"), operator);
-        ISeriesConfig(series).postRate(FX_INITIAL_RATE);
+        ISeriesConfig(series).postRate(usdc, FX_INITIAL_RATE_USDC);
+        ISeriesConfig(series).postRate(usdt, FX_INITIAL_RATE_USDT);
+
+        // The treasury (operator) pre-approves the series to pull both coins
+        // for profit and principal payouts at claim/redeem time.
+        IApprove(usdc).approve(series, type(uint256).max);
+        IApprove(usdt).approve(series, type(uint256).max);
 
         tokenAddr = address(token);
         sandboxAddr = address(sandbox);
@@ -354,6 +373,7 @@ contract DeployTokenization is Script {
         vm.serializeAddress(obj, "anchor", d.anchor);
         vm.serializeAddress(obj, "operator", d.operator);
         vm.serializeAddress(obj, "mockUsdc", d.mockUsdc);
+        vm.serializeAddress(obj, "mockUsdt", d.mockUsdt);
         vm.serializeAddress(obj, "identityRegistry", d.shared.identityRegistry);
         vm.serializeAddress(obj, "identityRegistryStorage", d.shared.identityRegistryStorage);
         vm.serializeAddress(obj, "trustedIssuersRegistry", d.shared.trustedIssuersRegistry);
@@ -370,7 +390,8 @@ contract DeployTokenization is Script {
         vm.serializeAddress(obj, "tawfSeriesToken", d.seriesToken);
         vm.serializeBytes32(obj, "tawfSeriesId", d.seriesId);
         vm.serializeAddress(obj, "sandboxModule", d.sandboxModule);
-        vm.serializeUint(obj, "fxInitialRate", d.fxInitialRate);
+        vm.serializeUint(obj, "fxInitialRateUsdc", d.fxInitialRateUsdc);
+        vm.serializeUint(obj, "fxInitialRateUsdt", d.fxInitialRateUsdt);
 
         // Sukuk.
         vm.serializeAddress(obj, "sukukToken", d.sukukToken);
@@ -394,6 +415,7 @@ contract DeployTokenization is Script {
         console.log("chainId:            ", d.chainId);
         console.log("operator:           ", d.operator);
         console.log("MockUSDC:           ", d.mockUsdc);
+        console.log("MockUSDT:           ", d.mockUsdt);
         console.log("IdentityRegistry:   ", d.shared.identityRegistry);
         console.log("TawfSeriesToken:    ", d.seriesToken);
         console.log("TawfSeries:         ", d.series);
@@ -408,10 +430,16 @@ contract DeployTokenization is Script {
 
 // --- Minimal interfaces for deployCode-created contracts (0.8.20/0.8.24 units) ---------------
 
-/// @dev TawfDepositoSeries role + rate config, reached via deployCode.
+/// @dev TawfDepositoSeries role + stablecoin + rate config, reached via deployCode.
 interface ISeriesConfig {
     function grantRole(bytes32 role, address account) external;
-    function postRate(uint256 idrPerUsdc) external;
+    function addStablecoin(address token) external;
+    function postRate(address token, uint256 idrPerToken) external;
+}
+
+/// @dev Minimal ERC20 approve, used so the treasury pre-approves the series per coin.
+interface IApprove {
+    function approve(address spender, uint256 amount) external returns (bool);
 }
 
 interface IDealRegistry {

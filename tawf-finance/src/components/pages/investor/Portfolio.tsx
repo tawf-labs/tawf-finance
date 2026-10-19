@@ -113,7 +113,8 @@ export function Portfolio() {
   const { state: sukukState } = useSukuk(address);
   const [action, setAction] = useState<{ deal: Deal; mode: 'redeem' | 'claim' } | null>(null);
 
-  const hasSeries = seriesState.balance > 0n || seriesState.pending > 0n;
+  const seriesPending = seriesState.coins.reduce((s, c) => s + c.pending, 0n);
+  const hasSeries = seriesState.balance > 0n || seriesPending > 0n;
   const hasSukuk = sukukState.balance > 0n;
 
   const totalInvested = positions.reduce((s, p) => s + p.meta.principal, 0n);
@@ -277,7 +278,7 @@ export function Portfolio() {
                 </div>
                 <div className="flex md:flex-col items-center md:items-end gap-1 shrink-0">
                   <p className="text-sm text-tawf-muted">Claimable profit</p>
-                  <p className="font-semibold text-tawf-gold">{formatUsdc(seriesState.claimable)}</p>
+                  <p className="font-semibold text-tawf-gold">{formatIdr(seriesState.claimableSen)}</p>
                 </div>
               </div>
             )}

@@ -2,8 +2,8 @@
 pragma solidity 0.8.17;
 
 // Pinned to 0.8.17 because it imports the concrete T-REX and onchain-id contracts (both 0.8.17).
-// Tawf contracts under test (SukukDistributor ^0.8.20, DepositoDistributor/Controller ^0.8.24,
-// MockUSDC/MockIDRX ^0.8.20) are reached only via vm.deployCode and minimal interfaces.
+// Tawf contracts under test (SukukDistributor ^0.8.20, TawfDepositoSeries ^0.8.24,
+// MockUSDC/MockUSDT ^0.8.20) are reached only via vm.deployCode and minimal interfaces.
 
 import "forge-std/Test.sol";
 
