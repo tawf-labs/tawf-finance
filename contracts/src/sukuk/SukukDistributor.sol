@@ -5,47 +5,53 @@ import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessCon
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
-import { Compliance } from "../Compliance.sol";
-import { IdentityRegistry } from "../IdentityRegistry.sol";
+import { ITawfIdentityRegistry } from "../interfaces/ITawfIdentityRegistry.sol";
+import { ITrexToken } from "../interfaces/ITrexToken.sol";
 import { ILedgerAnchor } from "./ILedgerAnchor.sol";
-import { SukukToken, ISukukBalanceHook } from "./SukukToken.sol";
+import { IBalanceCheckpoint } from "./IBalanceCheckpoint.sol";
+import { LedgerLeaf } from "../lib/LedgerLeaf.sol";
+import { ProfitAccumulator } from "../lib/ProfitAccumulator.sol";
 
 /**
  * @title SukukDistributor
- * @notice Cash side of one sukuk issuance on Arbitrum: primary
- *         subscription, periodic profit distribution, and redemption at
- *         maturity or after a default. Deploys the issuance's SukukToken.
+ * @notice Cash side of one sukuk issuance on Arbitrum: primary subscription,
+ *         periodic profit distribution, and redemption at maturity or after a
+ *         default. Drives an externally deployed T-REX sukuk series token as
+ *         its AGENT (mint on subscription, burn on redemption/refund).
  *
- * @dev Every step that opens the sale or pays holders needs a Merkle proof
- *      that the matching fact is recorded in the SukukLedger on Tawf
- *      Network (the private ledger) and anchored on this chain through
- *      LedgerAnchor. This contract cannot be told an amount, it can only be
- *      shown one.
+ * @dev Uses OZ v5 (`openzeppelin-contracts/`) and pragma ^0.8.20, with the
+ *      sukuk token reached only through ITrexToken, so this contract
+ *      interoperates with the 0.8.17-pinned T-REX Token without importing it.
+ *      A `DistributionCheckpointModule` (0.8.17) bound to the token's
+ *      compliance calls this contract's afterBalanceChange across the pragma
+ *      boundary through the IBalanceCheckpoint interface.
  *
- *      Shariah / profit-and-loss-sharing constraint, load-bearing, the same
- *      one PooledFinancingVault documents: holders are paid only from USDC
- *      that has actually arrived here against a declared, realized amount.
- *      There is no rate, no accrual and no promised return in this
- *      contract. A period can be declared at zero, and redemption pays
- *      whatever the issuer declared and funded, pro rata, which may be
- *      below par.
+ *      Every step that opens the sale or pays holders needs a Merkle proof
+ *      that the matching fact is recorded in the SukukLedger on Tawf Network
+ *      and anchored on this chain through LedgerAnchor. This contract cannot
+ *      be told an amount, it can only be shown one.
  *
- *      Profit is tracked per token (cumulative profit per unit), so it
- *      follows the holder of record across secondary transfers without
- *      snapshots: SukukToken calls beforeBalanceChange on every mint, burn
- *      and transfer.
+ *      Shariah / profit-and-loss-sharing constraint, load-bearing: holders
+ *      are paid only from USDC that has actually arrived here against a
+ *      declared, realized amount. There is no rate, no accrual and no promised
+ *      return. A period can be declared at zero, and redemption pays whatever
+ *      the issuer declared and funded, pro rata, which may be below par.
+ *
+ *      Profit is tracked per token (ProfitAccumulator: cumulative profit per
+ *      unit), so it follows the holder of record across secondary transfers
+ *      without snapshots. T-REX calls modules AFTER the balance has changed,
+ *      so afterBalanceChange reconstructs the pre-change balances to settle
+ *      each side correctly.
+ *
+ *      Reserve gating (SUKUK_RESERVE): the latest verified `outstanding` from
+ *      the ledger caps how much may ever be minted. closeSubscription and
+ *      subscription both enforce totalSupply <= latest verified outstanding.
  */
-contract SukukDistributor is AccessControl, ReentrancyGuard, ISukukBalanceHook {
+contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint {
     using SafeERC20 for IERC20;
+    using ProfitAccumulator for ProfitAccumulator.State;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-
-    // Leaf kinds. Copied from tawf-network/contracts/src/common/LedgerLeaf.sol,
-    // both repos assert the same golden vector in their tests.
-    bytes32 internal constant SUKUK_APPROVED = keccak256("tawf.sukuk.approved");
-    bytes32 internal constant SUKUK_DISTRIBUTION = keccak256("tawf.sukuk.distribution");
-    bytes32 internal constant SUKUK_REDEMPTION = keccak256("tawf.sukuk.redemption");
-    bytes32 internal constant SUKUK_DEFAULT = keccak256("tawf.sukuk.default");
 
     uint256 private constant PRECISION = 1e18;
 
@@ -76,8 +82,8 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, ISukukBalanceHook {
 
     IERC20 public immutable usdc;
     ILedgerAnchor public immutable anchor;
-    IdentityRegistry public immutable identityRegistry;
-    SukukToken public immutable token;
+    ITawfIdentityRegistry public immutable identityRegistry;
+    ITrexToken public immutable token;
     uint256 public immutable ledgerChainId;
 
     Terms public terms;
@@ -85,13 +91,15 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, ISukukBalanceHook {
     uint40 public subscriptionDeadline;
     uint16 public lastPeriod;
 
-    /// @notice Cumulative profit per token unit, scaled by 1e18.
-    uint256 public profitPerToken;
     /// @notice USDC per token unit paid at redemption, scaled by 1e18.
     uint256 public redemptionPerToken;
 
-    mapping(address => uint256) private _profitPerTokenPaid;
-    mapping(address => uint256) private _owed;
+    /// @notice Latest verified reserve snapshot timestamp (SUKUK_RESERVE a).
+    uint64 public reserveSnapshotAt;
+    /// @notice Latest verified outstanding reserve cap (SUKUK_RESERVE b).
+    uint256 public reserveOutstanding;
+
+    ProfitAccumulator.State private _profit;
 
     error InvalidAddress();
     error InvalidTerms();
@@ -103,8 +111,13 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, ISukukBalanceHook {
     error SubscriptionClosed();
     error SubscriptionStillOpen();
     error PeriodNotSequential(uint16 expected, uint16 got);
-    error OnlyToken();
+    error OnlyModule();
     error NothingToClaim();
+    error StaleReserve(uint64 latest, uint64 got);
+    error ReserveInsufficient(uint256 supplyAfter, uint256 outstanding);
+
+    /// @notice The compliance module authorized to report balance changes.
+    address public immutable module;
 
     event SubscriptionOpened(uint40 deadline);
     event Subscribed(address indexed investor, uint256 amount);
@@ -116,20 +129,29 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, ISukukBalanceHook {
     event MaturitySettled(uint256 amount);
     event DefaultSettled(uint256 recovery);
     event Redeemed(address indexed investor, uint256 units, uint256 principalPaid, uint256 profitPaid);
+    event ReserveUpdated(uint64 snapshotAt, uint256 outstanding, uint16 epoch);
 
-    /// @param admin Address (an EOA for local dev, a Safe multisig in
-    ///        production) granted DEFAULT_ADMIN_ROLE and ADMIN_ROLE.
+    /// @param usdc_ Settlement token (USDC/MockUSDC).
+    /// @param anchor_ LedgerAnchor the ledger roots are anchored on.
+    /// @param identityRegistry_ Shared T-REX IdentityRegistry (isVerified).
+    /// @param token_ The externally deployed T-REX sukuk series token; this
+    ///        distributor must be one of its AGENTs.
+    /// @param module_ The DistributionCheckpointModule bound to the token's
+    ///        compliance; the only address allowed to call afterBalanceChange.
+    /// @param terms_ Issuance terms; must match the ledger record.
+    /// @param admin Address granted DEFAULT_ADMIN_ROLE and ADMIN_ROLE.
     constructor(
         IERC20 usdc_,
         ILedgerAnchor anchor_,
-        Compliance compliance_,
+        ITawfIdentityRegistry identityRegistry_,
+        ITrexToken token_,
+        address module_,
         Terms memory terms_,
-        string memory name_,
-        string memory symbol_,
         address admin
     ) {
         if (
-            address(usdc_) == address(0) || address(anchor_) == address(0) || address(compliance_) == address(0)
+            address(usdc_) == address(0) || address(anchor_) == address(0)
+                || address(identityRegistry_) == address(0) || address(token_) == address(0) || module_ == address(0)
                 || terms_.issuerTreasury == address(0) || admin == address(0)
         ) revert InvalidAddress();
         if (
@@ -140,12 +162,43 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, ISukukBalanceHook {
 
         usdc = usdc_;
         anchor = anchor_;
-        identityRegistry = compliance_.identityRegistry();
+        identityRegistry = identityRegistry_;
+        token = token_;
+        module = module_;
         ledgerChainId = anchor_.ledgerChainId();
         terms = terms_;
-        token = new SukukToken(name_, symbol_, compliance_);
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
+    }
+
+    // ---------------------------------------------------------------
+    // Reserve
+    // ---------------------------------------------------------------
+
+    /// @notice Record a reserve snapshot proven on the ledger. The snapshot
+    ///         timestamp must be strictly newer than the stored one, and the
+    ///         `outstanding` figure becomes the mint cap enforced on
+    ///         subscription and close.
+    function updateReserve(uint64 snapshotAt, uint256 outstanding, uint256 epoch, bytes32[] calldata proof)
+        external
+    {
+        if (snapshotAt == 0 || (reserveSnapshotAt != 0 && snapshotAt <= reserveSnapshotAt)) {
+            revert StaleReserve(reserveSnapshotAt, snapshotAt);
+        }
+        _requireFact(LedgerLeaf.SUKUK_RESERVE, snapshotAt, outstanding, epoch, proof);
+        reserveSnapshotAt = snapshotAt;
+        reserveOutstanding = outstanding;
+        emit ReserveUpdated(snapshotAt, outstanding, uint16(epoch));
+    }
+
+    /// @notice Latest verified outstanding reserve figure (the mint cap).
+    function reserveOf() external view returns (uint256) {
+        return reserveOutstanding;
+    }
+
+    /// @notice Whether the live supply is within the latest verified reserve.
+    function isFullyBacked() external view returns (bool) {
+        return token.totalSupply() <= reserveOutstanding;
     }
 
     // ---------------------------------------------------------------
@@ -156,28 +209,35 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, ISukukBalanceHook {
     ///         approved this issuance, with these exact terms, on the ledger.
     function openSubscription(uint256 epoch, bytes32[] calldata proof) external onlyRole(ADMIN_ROLE) {
         if (status != Status.Pending) revert WrongStatus(status);
-        _requireFact(SUKUK_APPROVED, terms.faceValue, terms.maturity, epoch, proof);
+        _requireFact(LedgerLeaf.SUKUK_APPROVED, terms.faceValue, terms.maturity, epoch, proof);
         status = Status.Subscription;
         subscriptionDeadline = uint40(block.timestamp) + terms.subscriptionPeriod;
         emit SubscriptionOpened(subscriptionDeadline);
     }
 
     /// @notice Subscribe `amount` USDC for the same number of token units.
+    /// @dev The T-REX token enforces holder verification on mint; the explicit
+    ///      isVerified check here fails fast with a clear error before cash
+    ///      moves. A non-zero reserve cap is enforced against supply after mint.
     function subscribe(uint256 amount) external nonReentrant {
         if (status != Status.Subscription) revert WrongStatus(status);
         if (block.timestamp >= subscriptionDeadline) revert SubscriptionClosed();
-        if (!identityRegistry.isEligible(msg.sender)) revert NotEligible(msg.sender);
+        if (!identityRegistry.isVerified(msg.sender)) revert NotEligible(msg.sender);
         if (amount < terms.minSubscription) revert BelowMinimum();
-        if (token.totalSupply() + amount > terms.faceValue) revert ExceedsFaceValue();
+        uint256 supplyAfter = token.totalSupply() + amount;
+        if (supplyAfter > terms.faceValue) revert ExceedsFaceValue();
+        if (reserveSnapshotAt != 0 && supplyAfter > reserveOutstanding) {
+            revert ReserveInsufficient(supplyAfter, reserveOutstanding);
+        }
 
         usdc.safeTransferFrom(msg.sender, address(this), amount);
         token.mint(msg.sender, amount);
         emit Subscribed(msg.sender, amount);
     }
 
-    /// @notice Close the sale once the window has ended or the issue is
-    ///         fully subscribed. Releases proceeds to the issuer, or cancels
-    ///         the issuance for refund if the minimum raise was missed.
+    /// @notice Close the sale once the window has ended or the issue is fully
+    ///         subscribed. Releases proceeds to the issuer, or cancels for
+    ///         refund if the minimum raise was missed.
     function closeSubscription() external onlyRole(ADMIN_ROLE) nonReentrant {
         if (status != Status.Subscription) revert WrongStatus(status);
         uint256 raised = token.totalSupply();
@@ -187,6 +247,9 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, ISukukBalanceHook {
             status = Status.Cancelled;
             emit SubscriptionCancelled(raised);
             return;
+        }
+        if (reserveSnapshotAt != 0 && raised > reserveOutstanding) {
+            revert ReserveInsufficient(raised, reserveOutstanding);
         }
         status = Status.Active;
         usdc.safeTransfer(terms.issuerTreasury, raised);
@@ -215,30 +278,34 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, ISukukBalanceHook {
     {
         if (status != Status.Active) revert WrongStatus(status);
         if (period != lastPeriod + 1) revert PeriodNotSequential(lastPeriod + 1, period);
-        _requireFact(SUKUK_DISTRIBUTION, period, amount, epoch, proof);
+        _requireFact(LedgerLeaf.SUKUK_DISTRIBUTION, period, amount, epoch, proof);
 
         lastPeriod = period;
         if (amount != 0) {
             usdc.safeTransferFrom(msg.sender, address(this), amount);
-            profitPerToken += (amount * PRECISION) / token.totalSupply();
+            _profit.fund(amount, token.totalSupply());
         }
         emit ProfitDistributed(period, amount);
     }
 
     /// @notice Withdraw the caller's distributed profit.
     function claim() external nonReentrant {
-        _settle(msg.sender);
-        uint256 amount = _owed[msg.sender];
+        _profit.settle(msg.sender, token.balanceOf(msg.sender));
+        uint256 amount = _profit.take(msg.sender);
         if (amount == 0) revert NothingToClaim();
-        _owed[msg.sender] = 0;
         usdc.safeTransfer(msg.sender, amount);
         emit ProfitClaimed(msg.sender, amount);
     }
 
     /// @notice Profit `investor` could claim right now.
     function claimable(address investor) external view returns (uint256) {
-        return _owed[investor]
-            + (token.balanceOf(investor) * (profitPerToken - _profitPerTokenPaid[investor])) / PRECISION;
+        return _profit.claimable(investor, token.balanceOf(investor));
+    }
+
+    /// @notice Cumulative profit per token unit, scaled by 1e18 (for parity
+    ///         with the previous public view).
+    function profitPerToken() external view returns (uint256) {
+        return _profit.profitPerToken;
     }
 
     // ---------------------------------------------------------------
@@ -248,7 +315,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, ISukukBalanceHook {
     /// @notice Fund redemption at maturity with the amount declared on the ledger.
     function settleMaturity(uint256 amount, uint256 epoch, bytes32[] calldata proof) external nonReentrant {
         if (status != Status.Active) revert WrongStatus(status);
-        _requireFact(SUKUK_REDEMPTION, amount, 0, epoch, proof);
+        _requireFact(LedgerLeaf.SUKUK_REDEMPTION, amount, 0, epoch, proof);
         status = Status.Matured;
         _fundRedemption(amount);
         emit MaturitySettled(amount);
@@ -257,23 +324,22 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, ISukukBalanceHook {
     /// @notice Fund the recovery after a default declared on the ledger.
     function settleDefault(uint256 recovery, uint256 epoch, bytes32[] calldata proof) external nonReentrant {
         if (status != Status.Active) revert WrongStatus(status);
-        _requireFact(SUKUK_DEFAULT, recovery, 0, epoch, proof);
+        _requireFact(LedgerLeaf.SUKUK_DEFAULT, recovery, 0, epoch, proof);
         status = Status.Defaulted;
         _fundRedemption(recovery);
         emit DefaultSettled(recovery);
     }
 
-    /// @notice Burn the caller's tokens for their share of the redemption
-    ///         (or recovery) amount, plus any unclaimed profit.
+    /// @notice Burn the caller's tokens for their share of the redemption (or
+    ///         recovery) amount, plus any unclaimed profit.
     function redeem() external nonReentrant {
         if (status != Status.Matured && status != Status.Defaulted) revert WrongStatus(status);
         uint256 units = token.balanceOf(msg.sender);
         if (units == 0) revert NothingToClaim();
 
-        // Burning settles profit at the pre-burn balance through the hook.
+        // Burning settles profit at the pre-burn balance through the module hook.
         token.burn(msg.sender, units);
-        uint256 profit = _owed[msg.sender];
-        _owed[msg.sender] = 0;
+        uint256 profit = _profit.take(msg.sender);
         uint256 principal = (units * redemptionPerToken) / PRECISION;
 
         usdc.safeTransfer(msg.sender, principal + profit);
@@ -281,27 +347,28 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, ISukukBalanceHook {
     }
 
     // ---------------------------------------------------------------
-    // Token hook
+    // Module hook
     // ---------------------------------------------------------------
 
-    /// @inheritdoc ISukukBalanceHook
-    function beforeBalanceChange(address from, address to) external {
-        if (msg.sender != address(token)) revert OnlyToken();
-        if (from != address(0)) _settle(from);
-        if (to != address(0)) _settle(to);
+    /// @inheritdoc IBalanceCheckpoint
+    /// @dev Called by the bound DistributionCheckpointModule AFTER balances
+    ///      moved. Reconstruct pre-change balances and settle each side there:
+    ///      the sender held `current + amount`, the receiver held
+    ///      `current - amount`. Mint has from == 0, burn has to == 0.
+    function afterBalanceChange(address from, address to, uint256 amount) external {
+        if (msg.sender != module) revert OnlyModule();
+        if (from != address(0)) {
+            _profit.settle(from, token.balanceOf(from) + amount);
+        }
+        if (to != address(0)) {
+            uint256 current = token.balanceOf(to);
+            _profit.settle(to, current >= amount ? current - amount : 0);
+        }
     }
 
     // ---------------------------------------------------------------
     // Internals
     // ---------------------------------------------------------------
-
-    function _settle(address account) private {
-        uint256 delta = profitPerToken - _profitPerTokenPaid[account];
-        if (delta != 0) {
-            _owed[account] += (token.balanceOf(account) * delta) / PRECISION;
-            _profitPerTokenPaid[account] = profitPerToken;
-        }
-    }
 
     function _fundRedemption(uint256 amount) private {
         if (amount != 0) {
@@ -311,15 +378,19 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, ISukukBalanceHook {
     }
 
     function _requireFact(bytes32 kind, uint256 a, uint256 b, uint256 epoch, bytes32[] calldata proof) private view {
-        if (!anchor.verify(epoch, leafHash(ledgerChainId, kind, terms.sukukId, a, b), proof)) revert ProofInvalid();
+        if (!anchor.verify(epoch, LedgerLeaf.hash(ledgerChainId, kind, terms.sukukId, a, b), proof)) {
+            revert ProofInvalid();
+        }
     }
 
     /// @notice Ledger leaf encoding, identical to tawf-network's LedgerLeaf.hash.
+    /// @dev Thin wrapper over the LedgerLeaf library so tests can assert the
+    ///      golden vector against this contract exactly as before.
     function leafHash(uint256 ledgerChainId_, bytes32 kind, bytes32 subjectId, uint256 a, uint256 b)
         public
         pure
         returns (bytes32)
     {
-        return keccak256(bytes.concat(keccak256(abi.encode(ledgerChainId_, kind, subjectId, a, b))));
+        return LedgerLeaf.hash(ledgerChainId_, kind, subjectId, a, b);
     }
 }

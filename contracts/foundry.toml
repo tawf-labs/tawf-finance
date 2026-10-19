@@ -4,12 +4,13 @@ out = "out"
 libs = ["lib"]
 test = "test"
 script = "script"
-solc = "0.8.24"
 optimizer = true
 optimizer_runs = 200
 via_ir = true
 evm_version = "cancun"
 fuzz = { runs = 256 }
+# DeployTokenization.s.sol writes the tokenization deployment addresses into the frontend.
+fs_permissions = [{ access = "read-write", path = "../tawf-finance/src/web3" }]
 # The synthetic evaluation needs write access and raised limits, so it runs under
 # its own profile (FOUNDRY_PROFILE=eval). It still compiles with everything else.
 no_match_path = "test/eval/*"

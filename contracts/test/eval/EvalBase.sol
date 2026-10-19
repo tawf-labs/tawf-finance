@@ -8,8 +8,6 @@ import { MockUSDC } from "../../src/mocks/MockUSDC.sol";
 import { DealRegistry } from "../../src/DealRegistry.sol";
 import { BondReceiptNFT } from "../../src/BondReceiptNFT.sol";
 import { RedemptionVault } from "../../src/RedemptionVault.sol";
-import { IdentityRegistry } from "../../src/IdentityRegistry.sol";
-import { Compliance } from "../../src/Compliance.sol";
 
 /// @notice Role-separated deployment for the synthetic evaluation. Unlike
 ///         test/Base.t.sol, every role sits on its own key, so the tests
@@ -19,8 +17,6 @@ abstract contract EvalBase is Test {
     BondReceiptNFT internal nft;
     DealRegistry internal registry;
     RedemptionVault internal vault;
-    IdentityRegistry internal identityRegistry;
-    Compliance internal compliance;
 
     address internal admin = makeAddr("admin");
     address internal originator = makeAddr("bprs_officer"); // ORIGINATOR_ROLE
@@ -33,8 +29,8 @@ abstract contract EvalBase is Test {
     uint96 internal constant MIN_INVEST = 10e6;
     uint96 internal constant TICKET = 100e6;
 
-    uint256[6] internal deployGas; // usdc, nft, registry, vault, identity, compliance
-    string[6] internal deployNames = ["MockUSDC", "BondReceiptNFT", "DealRegistry", "RedemptionVault", "IdentityRegistry", "Compliance"];
+    uint256[4] internal deployGas; // usdc, nft, registry, vault
+    string[4] internal deployNames = ["MockUSDC", "BondReceiptNFT", "DealRegistry", "RedemptionVault"];
 
     function _deployAll() internal {
         uint256 g = gasleft();
@@ -49,18 +45,11 @@ abstract contract EvalBase is Test {
         g = gasleft();
         vault = new RedemptionVault(admin);
         deployGas[3] = g - gasleft();
-        g = gasleft();
-        identityRegistry = new IdentityRegistry(admin);
-        deployGas[4] = g - gasleft();
-        g = gasleft();
-        compliance = new Compliance(identityRegistry, admin);
-        deployGas[5] = g - gasleft();
 
         vm.startPrank(admin);
         registry.setVault(address(vault));
         nft.setVault(address(vault));
         vault.configure(IERC20(address(usdc)), registry, nft);
-        nft.setCompliance(compliance);
         registry.grantRole(registry.ORIGINATOR_ROLE(), originator);
         registry.grantRole(registry.SHARIAH_ROLE(), shariah);
         registry.grantRole(registry.OPS_ROLE(), agent);

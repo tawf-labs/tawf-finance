@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import { ERC1155 } from "openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
 import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 import { Strings } from "openzeppelin-contracts/contracts/utils/Strings.sol";
-import { Compliance } from "./Compliance.sol";
+import { ITawfIdentityRegistry } from "./interfaces/ITawfIdentityRegistry.sol";
 
 /**
  * @title BondReceiptNFT
@@ -20,14 +20,25 @@ import { Compliance } from "./Compliance.sol";
  *      one receipt per real invoice (no gharar), returns from real trade
  *      only (no riba).
  *
- *      Transfer policy: soulbound is the default and, with no Compliance
- *      module wired, the only possible state (see `_update`). Once a
- *      Compliance module is set, whether a given dealId may transfer is
- *      delegated to it (secondary-market.md phase 2/3), so flipping a pool's
- *      policy never requires a redeploy of this contract.
+ *      Transfer policy: Soulbound is the default for every dealId. Mint
+ *      (from == address(0)) and burn (to == address(0)) are always allowed.
+ *      A holder-to-holder transfer only succeeds when an admin has set that
+ *      dealId's policy to VerifiedOnly AND an identity registry is wired AND
+ *      both parties are currently verified there. This replaces the former
+ *      external Compliance module with a local per-id policy plus the shared
+ *      T-REX IdentityRegistry, read through ITawfIdentityRegistry.isVerified,
+ *      so flipping a pool's policy never requires a redeploy.
  */
 contract BondReceiptNFT is ERC1155, AccessControl {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+
+    /// @notice Per-dealId transfer policy. Soulbound (default) blocks every
+    ///         holder-to-holder move; VerifiedOnly permits it between two
+    ///         currently verified holders.
+    enum TransferPolicy {
+        Soulbound,   // 0 — non-transferable (default)
+        VerifiedOnly // 1 — transferable only between verified holders
+    }
     enum ReceiptStatus {
         Active,      // 0 — minted and live (default)
         Matured,     // 1 — deal repaid; derived from deal snapshot
@@ -54,10 +65,15 @@ contract BondReceiptNFT is ERC1155, AccessControl {
     /// @notice The vault authorized to mint, mature, and burn receipts.
     address public vault;
 
-    /// @notice Optional ERC-3643-style compliance module. Unset (address(0))
-    ///         means every non-mint/burn transfer reverts, the original
-    ///         hardcoded soulbound behavior.
-    Compliance public compliance;
+    /// @notice Shared identity registry (T-REX IdentityRegistry in
+    ///         production) consulted for VerifiedOnly transfers. Unset
+    ///         (address(0)) means no transfer can clear the verification
+    ///         check, so every dealId stays effectively soulbound regardless
+    ///         of its policy.
+    ITawfIdentityRegistry public identityRegistry;
+
+    /// @notice Per-dealId transfer policy. Defaults to Soulbound (0).
+    mapping(uint256 => TransferPolicy) public transferPolicy;
 
     mapping(uint256 => mapping(address => ReceiptMeta)) private _receipts;
     mapping(uint256 => DealSnapshot) private _dealSnapshots;
@@ -71,6 +87,7 @@ contract BondReceiptNFT is ERC1155, AccessControl {
     error NotInvestor(uint256 dealId, address investor);
     error AlreadyRedeemed(uint256 dealId, address investor);
     error Soulbound();
+    error TransferBlocked();
     error DealAlreadyMatured(uint256 dealId);
     error ZeroTotalFunded(uint256 dealId);
 
@@ -78,6 +95,8 @@ contract BondReceiptNFT is ERC1155, AccessControl {
     event ReceiptBurned(uint256 indexed dealId, address indexed investor);
     event DealMatured(uint256 indexed dealId, uint96 yieldPool, uint96 totalFunded);
     event DealDefaulted(uint256 indexed dealId);
+    event IdentityRegistrySet(address identityRegistry);
+    event TransferPolicySet(uint256 indexed dealId, TransferPolicy policy);
 
     modifier onlyVault() {
         if (msg.sender != vault) revert NotVault();
@@ -98,10 +117,21 @@ contract BondReceiptNFT is ERC1155, AccessControl {
         vault = vault_;
     }
 
-    /// @notice Wire (or unwire, via address(0)) the compliance module that
-    ///         gates non-mint/burn transfers. See `_update`.
-    function setCompliance(Compliance compliance_) external onlyRole(ADMIN_ROLE) {
-        compliance = compliance_;
+    /// @notice Wire (or unwire, via address(0)) the identity registry that
+    ///         VerifiedOnly transfers consult. See `_update`.
+    function setIdentityRegistry(ITawfIdentityRegistry identityRegistry_) external onlyRole(ADMIN_ROLE) {
+        identityRegistry = identityRegistry_;
+        emit IdentityRegistrySet(address(identityRegistry_));
+    }
+
+    /// @notice Set the transfer policy for one dealId. Soulbound (default)
+    ///         blocks every holder-to-holder transfer; VerifiedOnly permits
+    ///         it between two currently verified holders. Held by whoever is
+    ///         authorized to flip a pool's status per its akad, not by the
+    ///         investors.
+    function setTransferPolicy(uint256 dealId, TransferPolicy policy) external onlyRole(ADMIN_ROLE) {
+        transferPolicy[dealId] = policy;
+        emit TransferPolicySet(dealId, policy);
     }
 
     // ---------------------------------------------------------------------
@@ -282,9 +312,12 @@ contract BondReceiptNFT is ERC1155, AccessControl {
     /**
      * @notice Minting (from == address(0)) and burning (to == address(0))
      *         are always allowed. Any other transfer is soulbound by
-     *         default; if a Compliance module is wired, each token id in
-     *         the batch is checked against that dealId's transfer policy
-     *         instead of an unconditional revert.
+     *         default; it clears only when the dealId's policy is
+     *         VerifiedOnly, an identity registry is wired, and both `from`
+     *         and `to` are currently verified there. A blocked transfer
+     *         reverts Soulbound when the policy itself forbids it (default),
+     *         and TransferBlocked when the policy allows transfers in
+     *         principle but a party is not verified.
      */
     function _update(
         address from,
@@ -293,20 +326,19 @@ contract BondReceiptNFT is ERC1155, AccessControl {
         uint256[] memory values
     ) internal virtual override {
         if (from != address(0) && to != address(0)) {
-            if (address(compliance) == address(0)) revert Soulbound();
+            ITawfIdentityRegistry registry = identityRegistry;
             for (uint256 i = 0; i < ids.length; i++) {
-                if (!compliance.canTransfer(address(this), ids[i], from, to)) {
-                    revert Soulbound();
-                }
+                if (transferPolicy[ids[i]] != TransferPolicy.VerifiedOnly) revert Soulbound();
+                if (address(registry) == address(0)) revert TransferBlocked();
+                if (!registry.isVerified(from) || !registry.isVerified(to)) revert TransferBlocked();
             }
         }
         super._update(from, to, ids, values);
     }
 
     /// @notice No operator approvals. Direct owner-initiated transfers are
-    ///         the only path a Transferable/Conditional policy opens up
-    ///         (see `_update`); operator-based marketplace settlement is
-    ///         secondary-market.md phase 2/3, out of scope here.
+    ///         the only path a VerifiedOnly policy opens up (see `_update`);
+    ///         operator-based marketplace settlement is out of scope here.
     function setApprovalForAll(address, bool) public pure override {
         revert Soulbound();
     }

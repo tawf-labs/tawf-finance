@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import { EvalBase } from "./EvalBase.sol";
 import { DealRegistry } from "../../src/DealRegistry.sol";
-import { Compliance } from "../../src/Compliance.sol";
+import { BondReceiptNFT } from "../../src/BondReceiptNFT.sol";
 
 /// @notice Adversarial scenarios against the deployed contracts. Each row is
 ///         attack, expected (blocked or allowed), observed, mechanism. Rows
@@ -32,7 +32,6 @@ contract AdversarialEval is EvalBase {
         if (a == address(registry)) return "DealRegistry";
         if (a == address(vault)) return "RedemptionVault";
         if (a == address(nft)) return "BondReceiptNFT";
-        if (a == address(compliance)) return "Compliance";
         return "other";
     }
 
@@ -138,7 +137,7 @@ contract AdversarialEval is EvalBase {
         _try("Agent grants itself admin role", true, agent, address(registry), abi.encodeCall(registry.grantRole, (ADM, agent)));
         _try("Non-admin repoints registry vault", true, stranger, address(registry), abi.encodeCall(registry.setVault, (stranger)));
         _try("Admin re-configures vault after go-live", true, admin, address(vault), abi.encodeCall(vault.configure, (usdc, registry, nft)));
-        _try("Non-admin sets transfer policy", true, stranger, address(compliance), abi.encodeCall(compliance.setPolicy, (address(nft), d3, Compliance.TransferPolicy.Transferable)));
+        _try("Non-admin sets transfer policy", true, stranger, address(nft), abi.encodeCall(nft.setTransferPolicy, (d3, BondReceiptNFT.TransferPolicy.VerifiedOnly)));
         _try("Direct fundDeal call bypassing vault", true, stranger, address(registry), abi.encodeCall(registry.fundDeal, (d2, stranger, TICKET)));
         _try("Direct receipt mint bypassing vault", true, stranger, address(nft), abi.encodeWithSignature("mint(address,uint256,uint96,uint96,uint32,string,string)", stranger, d2, uint96(TICKET), uint96(1200), uint32(30), "a", "b"));
         _try("Stranger completes a deal", true, stranger, address(registry), abi.encodeCall(registry.completeDeal, (d3)));

@@ -16,7 +16,7 @@ contract LifecycleEval is EvalBase {
 
     function test_lifecycle_gas() public {
         _deployAll();
-        for (uint256 i = 0; i < 6; i++) {
+        for (uint256 i = 0; i < 4; i++) {
             csv = string.concat(csv, "deploy,", deployNames[i], ",", vm.toString(deployGas[i]), "\n");
         }
 

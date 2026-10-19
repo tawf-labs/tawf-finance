@@ -7,15 +7,12 @@ import { MockUSDC } from "../src/mocks/MockUSDC.sol";
 import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT } from "../src/BondReceiptNFT.sol";
 import { RedemptionVault } from "../src/RedemptionVault.sol";
-import { IdentityRegistry } from "../src/IdentityRegistry.sol";
-import { Compliance } from "../src/Compliance.sol";
 import { PooledFinancingVault } from "../src/PooledFinancingVault.sol";
 
 /**
- * @notice Deploys the full Tawf stack to the broadcast chain (Arbitrum
- *         Sepolia for the buildathon) and wires the contracts, including
- *         the AccessControl role split, the shared identity/compliance
- *         layer, and the pooled ERC-4626 vault.
+ * @notice Deploys the per-deal Tawf stack (DealRegistry, BondReceiptNFT,
+ *         RedemptionVault) plus the pooled ERC-4626 vault to the broadcast
+ *         chain and wires the AccessControl role split.
  *
  * @dev Usage:
  *      forge script script/Deploy.s.sol:Deploy --rpc-url arbitrum_sepolia \
@@ -24,17 +21,17 @@ import { PooledFinancingVault } from "../src/PooledFinancingVault.sol";
  *      To use real test USDC instead of MockUSDC, pass the USDC address as
  *      the first script argument: --sig "run(address)" $TEST_USDC.
  *
- *      Every role (ORIGINATOR_ROLE, SHARIAH_ROLE, OPS_ROLE, ADMIN_ROLE,
- *      REGISTRAR_ROLE, POLICY_ROLE) is granted to the single broadcaster
- *      here, matching the previous single-owner testnet posture so the
- *      existing SeedDemo.s.sol script (which calls createDeal, approveDeal,
- *      and markMintable back to back) keeps working without changes. This
- *      is a deliberate testnet simplification, not a recommendation:
- *      production deployment should grant each role to its own Safe
- *      multisig per regulation.md §1.1 and the plan this deploy script was
- *      built against, splitting a single key into per-role multisigs is a
- *      later config change, not a redeploy, since AccessControl roles are
- *      grantable/revocable independently of the constructor.
+ *      Identity model (post ERC-3643 migration): receipts and pooled shares
+ *      are soulbound by default, so the base per-deal product needs no
+ *      identity registry wired. A secondary market is opened later, per akad,
+ *      by an admin calling `setIdentityRegistry` + `setTransferPolicy` with the
+ *      shared T-REX IdentityRegistry (deployed by DeployTokenization.s.sol).
+ *
+ *      Every role (ORIGINATOR_ROLE, SHARIAH_ROLE, OPS_ROLE, ADMIN_ROLE) is
+ *      granted to the single broadcaster here, matching the previous
+ *      single-owner testnet posture so SeedDemo.s.sol keeps working. This is a
+ *      deliberate testnet simplification: production should grant each role to
+ *      its own Safe multisig, a later config change, not a redeploy.
  */
 contract Deploy is Script {
     function run()
@@ -44,12 +41,10 @@ contract Deploy is Script {
             BondReceiptNFT nft,
             DealRegistry registry,
             RedemptionVault vault,
-            IdentityRegistry identityRegistry,
-            Compliance compliance,
             PooledFinancingVault pooledVault
         )
     {
-        (usdc, nft, registry, vault, identityRegistry, compliance, pooledVault) = _run(address(0));
+        (usdc, nft, registry, vault, pooledVault) = _run(address(0));
     }
 
     function run(address usdcAddress)
@@ -59,12 +54,10 @@ contract Deploy is Script {
             BondReceiptNFT nft,
             DealRegistry registry,
             RedemptionVault vault,
-            IdentityRegistry identityRegistry,
-            Compliance compliance,
             PooledFinancingVault pooledVault
         )
     {
-        (usdc, nft, registry, vault, identityRegistry, compliance, pooledVault) = _run(usdcAddress);
+        (usdc, nft, registry, vault, pooledVault) = _run(usdcAddress);
     }
 
     function _run(address usdcAddress)
@@ -74,8 +67,6 @@ contract Deploy is Script {
             BondReceiptNFT nft,
             DealRegistry registry,
             RedemptionVault vault,
-            IdentityRegistry identityRegistry,
-            Compliance compliance,
             PooledFinancingVault pooledVault
         )
     {
@@ -91,27 +82,19 @@ contract Deploy is Script {
         nft = new BondReceiptNFT(admin);
         registry = new DealRegistry(admin);
         vault = new RedemptionVault(admin);
-        identityRegistry = new IdentityRegistry(admin);
-        compliance = new Compliance(identityRegistry, admin);
         pooledVault = new PooledFinancingVault(IERC20(address(usdc)), admin);
 
         // Per-deal product wiring (unchanged shape from the original deploy).
         registry.setVault(address(vault));
         nft.setVault(address(vault));
         vault.configure(IERC20(address(usdc)), registry, nft);
-        nft.setCompliance(compliance);
-        pooledVault.setCompliance(compliance);
 
-        // Testnet role grants: one broadcaster holds every role. See the
-        // contract-level note above before treating this as a production
-        // pattern.
+        // Testnet role grants: one broadcaster holds every role.
         registry.grantRole(registry.ORIGINATOR_ROLE(), admin);
         registry.grantRole(registry.SHARIAH_ROLE(), admin);
         registry.grantRole(registry.OPS_ROLE(), admin);
         vault.grantRole(vault.OPS_ROLE(), admin);
         pooledVault.grantRole(pooledVault.OPS_ROLE(), admin);
-        identityRegistry.grantRole(identityRegistry.REGISTRAR_ROLE(), admin);
-        compliance.grantRole(compliance.POLICY_ROLE(), admin);
 
         vm.stopBroadcast();
 
@@ -119,8 +102,6 @@ contract Deploy is Script {
         console2.log("BondReceiptNFT:      ", address(nft));
         console2.log("DealRegistry:        ", address(registry));
         console2.log("RedemptionVault:     ", address(vault));
-        console2.log("IdentityRegistry:    ", address(identityRegistry));
-        console2.log("Compliance:          ", address(compliance));
         console2.log("PooledFinancingVault:", address(pooledVault));
         console2.log("Admin (all roles):   ", admin);
     }

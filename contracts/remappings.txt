@@ -1,2 +1,6 @@
 forge-std/=lib/forge-std/src/
 openzeppelin-contracts/=lib/openzeppelin-contracts/
+@erc3643org/erc-3643/=lib/ERC-3643/
+@onchain-id/solidity/=lib/solidity/
+@openzeppelin/contracts/=lib/oz-v4/contracts/
+@openzeppelin/contracts-upgradeable/=lib/oz-upgradeable-v4/contracts/

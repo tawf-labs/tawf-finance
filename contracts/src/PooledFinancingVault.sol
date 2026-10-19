@@ -7,7 +7,7 @@ import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol"
 import { SafeERC20 } from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 import { ReentrancyGuard } from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
-import { Compliance } from "./Compliance.sol";
+import { ITawfIdentityRegistry } from "./interfaces/ITawfIdentityRegistry.sol";
 
 /**
  * @title PooledFinancingVault
@@ -36,10 +36,12 @@ import { Compliance } from "./Compliance.sol";
  *      this contract was built against; that allocation design needs its
  *      own follow-up spec, improvising it here was explicitly out of scope.
  *
- *      Shares are non-transferable via the same Compliance module
- *      BondReceiptNFT uses (shared IdentityRegistry, one whitelist across
- *      both products), for the same reason BondReceiptNFT is soulbound,
- *      not because ERC-4626 requires fungible shares to be transferable.
+ *      Shares are non-transferable by default, the same soulbound posture as
+ *      BondReceiptNFT and for the same reason, not because ERC-4626 requires
+ *      fungible shares to be transferable. An admin can open holder-to-holder
+ *      transfers by setting the vault's transfer policy to VerifiedOnly, after
+ *      which a transfer clears only between two currently verified holders in
+ *      the wired identity registry (T-REX IdentityRegistry in production).
  */
 contract PooledFinancingVault is ERC4626, AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -47,18 +49,25 @@ contract PooledFinancingVault is ERC4626, AccessControl, ReentrancyGuard {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant OPS_ROLE = keccak256("OPS_ROLE");
 
-    /// @notice Fixed instrument id this vault's shares are checked against
-    ///         in Compliance, a vault has one share class, unlike
-    ///         BondReceiptNFT's per-dealId instruments.
-    uint256 public constant INSTRUMENT_ID = 0;
+    /// @notice Per-vault transfer policy. Soulbound (default) blocks every
+    ///         holder-to-holder share move; VerifiedOnly permits it between
+    ///         two verified holders.
+    enum TransferPolicy {
+        Soulbound,   // 0 — non-transferable (default)
+        VerifiedOnly // 1 — transferable only between verified holders
+    }
 
-    Compliance public compliance;
+    ITawfIdentityRegistry public identityRegistry;
+
+    /// @notice This vault's share transfer policy. Defaults to Soulbound (0).
+    TransferPolicy public transferPolicy;
 
     error InvalidAddress();
     error ZeroAmount();
     error TransferBlocked();
 
-    event ComplianceSet(address compliance);
+    event IdentityRegistrySet(address identityRegistry);
+    event TransferPolicySet(TransferPolicy policy);
     event RepaymentRecorded(address indexed from, uint256 amount);
 
     /// @param asset_ The pooled underlying, USDC in production.
@@ -77,12 +86,19 @@ contract PooledFinancingVault is ERC4626, AccessControl, ReentrancyGuard {
     // Admin configuration
     // ---------------------------------------------------------------------
 
-    /// @notice Wire (or unwire, via address(0)) the compliance module that
-    ///         gates share transfers. Unset means every transfer reverts,
-    ///         the same soulbound-by-default posture as BondReceiptNFT.
-    function setCompliance(Compliance compliance_) external onlyRole(ADMIN_ROLE) {
-        compliance = compliance_;
-        emit ComplianceSet(address(compliance_));
+    /// @notice Wire (or unwire, via address(0)) the identity registry that
+    ///         VerifiedOnly share transfers consult.
+    function setIdentityRegistry(ITawfIdentityRegistry identityRegistry_) external onlyRole(ADMIN_ROLE) {
+        identityRegistry = identityRegistry_;
+        emit IdentityRegistrySet(address(identityRegistry_));
+    }
+
+    /// @notice Set this vault's share transfer policy. Soulbound (default)
+    ///         blocks every holder-to-holder transfer; VerifiedOnly permits
+    ///         it between two currently verified holders.
+    function setTransferPolicy(TransferPolicy policy) external onlyRole(ADMIN_ROLE) {
+        transferPolicy = policy;
+        emit TransferPolicySet(policy);
     }
 
     // ---------------------------------------------------------------------
@@ -111,17 +127,18 @@ contract PooledFinancingVault is ERC4626, AccessControl, ReentrancyGuard {
     // ---------------------------------------------------------------------
 
     /// @dev Routes every non-mint/burn ERC20 transfer of shares through the
-    ///      same Compliance check BondReceiptNFT uses, keyed on this
-    ///      vault's address and the fixed INSTRUMENT_ID. ERC4626's own
-    ///      deposit/mint/withdraw/redeem all call _update with from or to
-    ///      == address(0) internally, so normal vault operations are never
-    ///      blocked by this, only a direct share-to-share transfer is.
+    ///      local transfer policy plus the wired identity registry, mirroring
+    ///      BondReceiptNFT. ERC4626's own deposit/mint/withdraw/redeem all
+    ///      call _update with from or to == address(0) internally, so normal
+    ///      vault operations are never blocked, only a direct share-to-share
+    ///      transfer is. Soulbound (default) always reverts; VerifiedOnly
+    ///      requires a wired registry and both parties verified.
     function _update(address from, address to, uint256 value) internal virtual override(ERC20) {
         if (from != address(0) && to != address(0)) {
-            if (address(compliance) == address(0)) revert TransferBlocked();
-            if (!compliance.canTransfer(address(this), INSTRUMENT_ID, from, to)) {
-                revert TransferBlocked();
-            }
+            if (transferPolicy != TransferPolicy.VerifiedOnly) revert TransferBlocked();
+            ITawfIdentityRegistry registry = identityRegistry;
+            if (address(registry) == address(0)) revert TransferBlocked();
+            if (!registry.isVerified(from) || !registry.isVerified(to)) revert TransferBlocked();
         }
         super._update(from, to, value);
     }

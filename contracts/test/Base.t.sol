@@ -7,29 +7,46 @@ import { MockUSDC } from "../src/mocks/MockUSDC.sol";
 import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT } from "../src/BondReceiptNFT.sol";
 import { RedemptionVault } from "../src/RedemptionVault.sol";
-import { IdentityRegistry } from "../src/IdentityRegistry.sol";
-import { Compliance } from "../src/Compliance.sol";
 import { PooledFinancingVault } from "../src/PooledFinancingVault.sol";
+import { ITawfIdentityRegistry } from "../src/interfaces/ITawfIdentityRegistry.sol";
+
+/// @notice An in-memory stand-in for the shared T-REX IdentityRegistry's
+///         verification view. The production registry answers isVerified by
+///         inspecting ONCHAINID KYC claims (exercised directly in the sukuk,
+///         deposito, and DeployTokenization suites); here the per-deal and
+///         pooled products only need a controllable isVerified to drive their
+///         VerifiedOnly transfer policy, so a settable whitelist is both
+///         sufficient and faster. Satisfies ITawfIdentityRegistry exactly.
+contract MockIdentityRegistry is ITawfIdentityRegistry {
+    mapping(address => bool) public verified;
+
+    function setVerified(address account, bool v) external {
+        verified[account] = v;
+    }
+
+    function isVerified(address account) external view override returns (bool) {
+        return verified[account];
+    }
+}
 
 /**
  * @notice Shared deployment + helpers for the Tawf contract test suite.
  *
  * @dev The whole stack is deployed under a dedicated owner EOA holding
  *      every AccessControl role (ORIGINATOR_ROLE, SHARIAH_ROLE, OPS_ROLE,
- *      ADMIN_ROLE, REGISTRAR_ROLE, POLICY_ROLE), the same single-key
- *      testnet posture Deploy.s.sol uses, so role-gated behavior is tested
- *      against a real external caller and investors are distinct EOAs.
- *      Individual test files still assert which specific role a given
- *      function actually requires (see the onlyRole revert-reason tests),
- *      this shared setup existing on one key does not hide that.
+ *      ADMIN_ROLE), the same single-key testnet posture Deploy.s.sol uses,
+ *      so role-gated behavior is tested against a real external caller and
+ *      investors are distinct EOAs. Identity now lives in a shared registry
+ *      (T-REX IdentityRegistry in production, MockIdentityRegistry here); the
+ *      per-deal receipts and pooled shares are soulbound by default and open
+ *      to verified holders only when an admin sets a VerifiedOnly policy.
  */
 abstract contract BaseSetup is Test {
     MockUSDC public usdc;
     BondReceiptNFT public nft;
     DealRegistry public registry;
     RedemptionVault public vault;
-    IdentityRegistry public identityRegistry;
-    Compliance public compliance;
+    MockIdentityRegistry public identityRegistry;
     PooledFinancingVault public pooledVault;
 
     address public owner = makeAddr("owner");
@@ -48,23 +65,20 @@ abstract contract BaseSetup is Test {
         nft = new BondReceiptNFT(owner);
         registry = new DealRegistry(owner);
         vault = new RedemptionVault(owner);
-        identityRegistry = new IdentityRegistry(owner);
-        compliance = new Compliance(identityRegistry, owner);
+        identityRegistry = new MockIdentityRegistry();
         pooledVault = new PooledFinancingVault(IERC20(address(usdc)), owner);
 
         registry.setVault(address(vault));
         nft.setVault(address(vault));
         vault.configure(IERC20(address(usdc)), registry, nft);
-        nft.setCompliance(compliance);
-        pooledVault.setCompliance(compliance);
+        nft.setIdentityRegistry(identityRegistry);
+        pooledVault.setIdentityRegistry(identityRegistry);
 
         registry.grantRole(registry.ORIGINATOR_ROLE(), owner);
         registry.grantRole(registry.SHARIAH_ROLE(), owner);
         registry.grantRole(registry.OPS_ROLE(), owner);
         vault.grantRole(vault.OPS_ROLE(), owner);
         pooledVault.grantRole(pooledVault.OPS_ROLE(), owner);
-        identityRegistry.grantRole(identityRegistry.REGISTRAR_ROLE(), owner);
-        compliance.grantRole(compliance.POLICY_ROLE(), owner);
         vm.stopPrank();
     }
 

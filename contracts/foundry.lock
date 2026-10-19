@@ -1,8 +1,26 @@
 {
+  "lib/ERC-3643": {
+    "rev": "b6c5fabf86e733ede017fef754d59eeb8f80e3f4"
+  },
   "lib/openzeppelin-contracts": {
     "rev": "5037e348c5206f2706b0de6c49698cece43aec0c"
   },
   "lib/openzeppelin-contracts-upgradeable": {
     "rev": "2c686d705067f17c6f0a7cde36903c63b8b517fc"
+  },
+  "lib/oz-upgradeable-v4": {
+    "tag": {
+      "name": "v4.8.3",
+      "rev": "58fa0f81c4036f1a3b616fdffad2fd27e5d5ce21"
+    }
+  },
+  "lib/oz-v4": {
+    "tag": {
+      "name": "v4.8.3",
+      "rev": "0a25c1940ca220686588c4af3ec526f725fe2582"
+    }
+  },
+  "lib/solidity": {
+    "rev": "a407555dc0c1e5a329463b04b29e0bed51df5010"
   }
 }

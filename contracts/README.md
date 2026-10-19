@@ -35,9 +35,37 @@ BondReceiptNFT.sol (soulbound ERC-1155)   owner: repay() → matured
 | Contract | Role | Holds funds? |
 |---|---|---|
 | `DealRegistry.sol` | Deal ledger + lifecycle state machine | No |
-| `BondReceiptNFT.sol` | Soulbound ERC-1155 receipt (on-chain metadata) | No |
-| `RedemptionVault.sol` | The only money-moving contract (USDC) | Yes |
+| `BondReceiptNFT.sol` | Soulbound ERC-1155 receipt (on-chain metadata); per-id transfer policy over the shared T-REX identity registry | No |
+| `RedemptionVault.sol` | The only money-moving contract for the per-deal product (USDC) | Yes |
+| `PooledFinancingVault.sol` | ERC-4626 pooled exposure; per-vault transfer policy over the shared identity registry | Yes |
+| `sukuk/SukukDistributor.sol` | Cash side of one sukuk issuance on an ERC-3643 series token (ledger-gated subscribe/distribute/redeem) | Yes |
+| `sukuk/DistributionCheckpointModule.sol` | T-REX compliance module that forwards balance changes to a distributor | No |
+| `deposito/DepositoReserveController.sol` | Tokenizes ledger-proven deposito placements; proof-of-reserve registry | No |
+| `deposito/DepositoDistributor.sol` | Profit distribution + maturity redemption for one deposito product | Yes |
+| `interfaces/ITawfIdentityRegistry.sol` | `isVerified` view onto the shared T-REX IdentityRegistry | n/a |
+| `interfaces/ITrexToken.sol` | `mint`/`burn`/`balanceOf`/`totalSupply` view onto a T-REX token | n/a |
+| `lib/LedgerLeaf.sol` | Canonical ledger-leaf encoding + leaf kinds | n/a |
+| `lib/ProfitAccumulator.sol` | Cumulative-profit-per-token accounting shared by both distributors | n/a |
 | `mocks/MockUSDC.sol` | 6-decimal test token with a faucet (demo only) | No |
+| `mocks/MockIDRX.sol` | 2-decimal rupiah-sen test settlement token with a faucet (demo only) | No |
+
+### Identity and tokens (ERC-3643)
+
+Sukuk and deposito series are **T-REX (ERC-3643) tokens** sharing one on-chain
+**IdentityRegistry**. A holder is verified through an ONCHAINID identity
+carrying a KYC claim signed by a trusted ClaimIssuer; the token enforces that
+on every mint and transfer. Per-deal receipts and pooled shares keep their own
+local transfer policy (`Soulbound` by default, `VerifiedOnly` once an admin
+opens a secondary market) read against the same registry. The T-REX/onchain-id
+contracts are pinned to `pragma solidity 0.8.17`, so any file importing them
+(`DistributionCheckpointModule`, the deploy scripts, and the 0.8.17 test
+suites) is pinned to 0.8.17 and reaches the 0.8.20/0.8.24 Tawf contracts
+through interfaces or `vm.deployCode`.
+
+Ledger facts (sukuk approval/distribution/redemption/default/reserve, deposito
+placement/reserve) are proven with Merkle proofs against the tawf-network
+`LedgerAnchor`; the leaf encoding and kind strings live in `lib/LedgerLeaf.sol`
+and must match tawf-network exactly.
 
 ## Financing-pool lifecycle
 
@@ -68,7 +96,7 @@ principal. Profit is shared pro-rata to receipt holders at redemption.
 
 ```bash
 # Test
-forge test                    # 66 tests: unit + integration + reentrancy
+forge test                    # TODO(test-count): unit + integration + reentrancy + ERC-3643 sukuk/deposito/tokenization (paste `forge test` total here)
 
 # Deploy to Arbitrum Sepolia (uses MockUSDC)
 forge script script/Deploy.s.sol:Deploy \
