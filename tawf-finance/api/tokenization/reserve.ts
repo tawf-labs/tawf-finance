@@ -8,8 +8,7 @@ import {
   isConfigured,
   CONNECTOR_URL,
   CONNECTOR_API_KEY,
-  fetchLeafProof,
-} from './_lib/operator.js'
+  fetchLeafProof, fetchWithTimeout } from './_lib/operator.js'
 import { reserveLedgerAbi, sukukDistributorAbi, trexTokenAbi, tawfSeriesAbi } from './_lib/abis.js'
 
 /**
@@ -56,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let profitsCredited: { period: number; amountIdr: number }[] = []
     if (CONNECTOR_URL) {
       try {
-        const r = await fetch(`${CONNECTOR_URL}/tawf/status`, { headers: { 'x-api-key': CONNECTOR_API_KEY } })
+        const r = await fetchWithTimeout(`${CONNECTOR_URL}/tawf/status`, { headers: { 'x-api-key': CONNECTOR_API_KEY } })
         if (r.ok) {
           const s = (await r.json()) as { account?: { profitCredits?: { period: number; amountIdr: number }[] } }
           profitsCredited = s.account?.profitCredits ?? []
@@ -116,7 +115,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let lastSyncAt: string | null = null
     if (CONNECTOR_URL) {
       try {
-        const r = await fetch(`${CONNECTOR_URL}/status`, { headers: { 'x-api-key': CONNECTOR_API_KEY } })
+        const r = await fetchWithTimeout(`${CONNECTOR_URL}/status`, { headers: { 'x-api-key': CONNECTOR_API_KEY } })
         if (r.ok) {
           const s = (await r.json()) as { lastRunAt?: string | null }
           lastSyncAt = s.lastRunAt ?? null

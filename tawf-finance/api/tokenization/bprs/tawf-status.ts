@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { CONNECTOR_URL, CONNECTOR_API_KEY } from '../_lib/operator.js'
+import { CONNECTOR_URL, CONNECTOR_API_KEY, fetchWithTimeout } from '../_lib/operator.js'
 
 /**
  * The Tawf dedicated account (balance, profit credits, maturity) plus the
@@ -19,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
   try {
-    const response = await fetch(`${CONNECTOR_URL}/tawf/status`, {
+    const response = await fetchWithTimeout(`${CONNECTOR_URL}/tawf/status`, {
       headers: { 'x-api-key': CONNECTOR_API_KEY },
     })
     const data = await response.json().catch(() => ({}))

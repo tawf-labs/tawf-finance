@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { CONNECTOR_URL, CONNECTOR_API_KEY, methodGuard, requirePasscode } from '../_lib/operator.js'
+import { CONNECTOR_URL, CONNECTOR_API_KEY, methodGuard, requirePasscode, fetchWithTimeout } from '../_lib/operator.js'
 
 /**
  * Simulate the bank returning principal at maturity for the Tawf dedicated
@@ -17,10 +17,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
   try {
-    const response = await fetch(`${CONNECTOR_URL}/tawf/mature`, {
+    const response = await fetchWithTimeout(`${CONNECTOR_URL}/tawf/mature`, {
       method: 'POST',
       headers: { 'x-api-key': CONNECTOR_API_KEY },
-    })
+    }, 60_000)
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {
       res.status(response.status).json({ error: (data as { error?: string }).error ?? 'Mature failed' })

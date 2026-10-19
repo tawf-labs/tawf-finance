@@ -46,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const proof = await fetchLeafProof('tawf.deposito.maturity', addresses.tawfSeriesId, at, principalSen)
     if (!proof) {
-      res.status(409).json({ error: 'Maturity not anchored yet, try again in a minute (run a BPRS mature first).' })
+      res.status(409).json({ error: 'No anchored maturity matches this date and amount. Use the principal the bank returned (BPRS tab), or wait a minute for it to be anchored.' })
       return
     }
 

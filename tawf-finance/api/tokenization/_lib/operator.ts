@@ -31,6 +31,16 @@ const ARB_RPC_URL = process.env.ARB_SEPOLIA_RPC_URL ?? 'https://sepolia-rollup.a
 
 export const RELAYER_URL = (process.env.RELAYER_URL ?? '').replace(/\/$/, '')
 export const CONNECTOR_URL = (process.env.CONNECTOR_URL ?? '').replace(/\/$/, '')
+
+/**
+ * fetch with a deadline. The relayer and connector run on the Tawf Network
+ * host; if it is unreachable a plain fetch hangs until the platform kills the
+ * function, so reads give up after 10s and connector writes (which wait for
+ * L3 receipts) after 60s.
+ */
+export function fetchWithTimeout(url: string, init: RequestInit = {}, ms = 10_000): Promise<Response> {
+  return fetch(url, { ...init, signal: AbortSignal.timeout(ms) })
+}
 export const CONNECTOR_API_KEY = process.env.CONNECTOR_API_KEY ?? ''
 
 const ZERO = '0x0000000000000000000000000000000000000000'
@@ -193,7 +203,7 @@ export async function fetchLeafProof(
 ): Promise<RelayerProof | null> {
   if (!RELAYER_URL) throw new Error('RELAYER_URL is not set')
   const params = new URLSearchParams({ kind: kindName, subject, a: a.toString(), b: b.toString() })
-  const res = await fetch(`${RELAYER_URL}/leaf?${params.toString()}`)
+  const res = await fetchWithTimeout(`${RELAYER_URL}/leaf?${params.toString()}`)
   if (res.status === 400 || res.status === 404) return null
   if (!res.ok) throw new Error(`Relayer error (${res.status})`)
   return (await res.json()) as RelayerProof
@@ -202,7 +212,7 @@ export async function fetchLeafProof(
 /** Prove an already-computed leaf hash. Returns null if not anchored yet. */
 export async function fetchProofForLeaf(leaf: Hex): Promise<RelayerProof | null> {
   if (!RELAYER_URL) throw new Error('RELAYER_URL is not set')
-  const res = await fetch(`${RELAYER_URL}/proof?leaf=${leaf}`)
+  const res = await fetchWithTimeout(`${RELAYER_URL}/proof?leaf=${leaf}`)
   if (res.status === 400 || res.status === 404) return null
   if (!res.ok) throw new Error(`Relayer error (${res.status})`)
   return (await res.json()) as RelayerProof

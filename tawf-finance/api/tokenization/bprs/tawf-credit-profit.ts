@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { CONNECTOR_URL, CONNECTOR_API_KEY, methodGuard, requirePasscode } from '../_lib/operator.js'
+import { CONNECTOR_URL, CONNECTOR_API_KEY, methodGuard, requirePasscode, fetchWithTimeout } from '../_lib/operator.js'
 
 /**
  * Simulate the bank crediting nisbah for the next period into the Tawf
@@ -22,11 +22,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(400).json({ error: 'amountIdr must be a positive number.' })
       return
     }
-    const response = await fetch(`${CONNECTOR_URL}/tawf/credit-profit`, {
+    const response = await fetchWithTimeout(`${CONNECTOR_URL}/tawf/credit-profit`, {
       method: 'POST',
       headers: { 'x-api-key': CONNECTOR_API_KEY, 'content-type': 'application/json' },
       body: JSON.stringify({ amountIdr }),
-    })
+    }, 60_000)
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {
       res.status(response.status).json({ error: (data as { error?: string }).error ?? 'Credit profit failed' })

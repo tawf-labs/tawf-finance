@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { CONNECTOR_URL, CONNECTOR_API_KEY, requirePasscode } from '../_lib/operator.js'
+import { CONNECTOR_URL, CONNECTOR_API_KEY, requirePasscode, fetchWithTimeout } from '../_lib/operator.js'
 
 /**
  * Read the sukuk's state on the Tawf Network L3 (status, periods,
@@ -19,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const response = await fetch(`${CONNECTOR_URL}/sukuk/status`, {
+    const response = await fetchWithTimeout(`${CONNECTOR_URL}/sukuk/status`, {
       headers: { 'x-api-key': CONNECTOR_API_KEY },
     })
     const data = await response.json().catch(() => ({}))

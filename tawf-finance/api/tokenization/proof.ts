@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { RELAYER_URL } from './_lib/operator.js'
+import { RELAYER_URL, fetchWithTimeout } from './_lib/operator.js'
 
 /**
  * Public proxy to the relayer's GET /leaf. Lets the browser fetch a Merkle
@@ -27,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const params = new URLSearchParams({ kind, subject, a, b })
-    const response = await fetch(`${RELAYER_URL}/leaf?${params.toString()}`)
+    const response = await fetchWithTimeout(`${RELAYER_URL}/leaf?${params.toString()}`)
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {
       res.status(response.status).json({ error: (data as { error?: string }).error ?? 'Relayer error' })

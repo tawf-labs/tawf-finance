@@ -385,6 +385,40 @@ contract TawfDepositoSeriesTest is TrexFixture {
         assertEq(IMintableCoin(usdt).balanceOf(alice) - before, (sen * 1e6) / RATE_USDT);
     }
 
+    /// @dev The bank returning more than face (e.g. nisbah left in the account)
+    ///      must not pay holders more than face: profit is paid once, by
+    ///      distributeProfit, never again inside principal.
+    function test_maturityPrincipalCappedAtFace() public {
+        uint256 sen = _allocate(alice, usdc, 100e6);
+        uint256 returned = sen + 40_600_00; // face plus IDR 40,600 of nisbah
+        uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, 2000, returned));
+        vm.prank(operator);
+        ISeries(series).settleMaturity(2000, returned, e, noProof);
+
+        _fundTreasury(200e6);
+        uint256 before = IMintableCoin(usdc).balanceOf(alice);
+        vm.prank(alice);
+        ISeries(series).redeem(usdc);
+        assertEq(IMintableCoin(usdc).balanceOf(alice) - before, (sen * 1e6) / RATE_USDC);
+    }
+
+    /// @dev Below face, holders share the shortfall pro rata.
+    function test_maturityShortfallSharedProRata() public {
+        uint256 sen = _allocate(alice, usdc, 100e6);
+        uint256 returned = sen / 2;
+        uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, 2000, returned));
+        vm.prank(operator);
+        ISeries(series).settleMaturity(2000, returned, e, noProof);
+
+        _fundTreasury(200e6);
+        uint256 before = IMintableCoin(usdc).balanceOf(alice);
+        vm.prank(alice);
+        ISeries(series).redeem(usdc);
+        uint256 paid = IMintableCoin(usdc).balanceOf(alice) - before;
+        assertLe(paid, (returned * 1e6) / RATE_USDC);
+        assertGe(paid + 1, (returned * 1e6) / RATE_USDC);
+    }
+
     // --- fuzz ------------------------------------------------------------
 
     /// @dev Across subscribe/allocate/profit/maturity, the total paid out,

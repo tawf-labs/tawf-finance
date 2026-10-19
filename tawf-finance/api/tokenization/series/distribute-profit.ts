@@ -50,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const proof = await fetchLeafProof('tawf.deposito.profit', addresses.tawfSeriesId, BigInt(periodNum), profitSen)
     if (!proof) {
-      res.status(409).json({ error: 'Profit credit not anchored yet, try again in a minute (run a BPRS credit-profit first).' })
+      res.status(409).json({ error: 'No anchored profit credit matches this period and amount. Use the exact amount the bank credited (BPRS tab), or wait a minute for it to be anchored.' })
       return
     }
 

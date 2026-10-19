@@ -418,7 +418,8 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
 
     /// @notice Settle the series at maturity. Requires a DEPOSITO_MATURITY
     ///         proof (a = maturity ts, b = principal sen) and opens redemption
-    ///         recording the principal sen per token unit. No stablecoin is
+    ///         recording the principal sen per token unit, capped at face
+    ///         value (one token = IDR 1). No stablecoin is
     ///         pulled up front: holders are paid their pro-rata principal, in
     ///         their chosen coin, when they redeem.
     function settleMaturity(uint64 at, uint256 principalSen, uint256 epoch, bytes32[] calldata proof)
@@ -431,8 +432,13 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
         redemptionOpen = true;
 
         uint256 supply = token.totalSupply();
-        if (principalSen != 0 && supply != 0) {
-            principalSenPerToken = (principalSen * PRECISION) / supply;
+        // One token is IDR 1 of face value, so principal is capped at face.
+        // Anything the bank returns above face (for example nisbah left in the
+        // account) is not principal and must not be paid out twice. Below
+        // face, holders share the shortfall pro rata, as mudharabah requires.
+        uint256 payable_ = principalSen > supply ? supply : principalSen;
+        if (payable_ != 0 && supply != 0) {
+            principalSenPerToken = (payable_ * PRECISION) / supply;
         }
         emit MaturitySettled(at, principalSen);
     }
