@@ -59,8 +59,13 @@ const routes: Record<string, Handler> = {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Read the route from the URL: outside Next.js the catch-all segment is not
+  // reliably passed in req.query.
+  const pathname = new URL(req.url ?? '/', 'http://localhost').pathname
+  const fromUrl = pathname.replace(/^\/api\/tokenization\/?/, '')
   const raw = req.query.path
-  const route = (Array.isArray(raw) ? raw.join('/') : (raw ?? '')).replace(/\/+$/, '')
+  const fromQuery = Array.isArray(raw) ? raw.join('/') : (raw ?? '')
+  const route = (fromUrl || fromQuery).replace(/\/+$/, '')
   const target = routes[route]
   if (!target) {
     res.status(404).json({ error: `Unknown tokenization endpoint: ${route || '(none)'}` })
