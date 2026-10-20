@@ -1,7 +1,7 @@
 {
   "Supply never exceeds faceValue": ["supplyNeverExceedsFaceValue"],
   "A posted reserve caps minting and the live supply": ["reserveCapsMintWhenPosted"],
-  "Reserve gate is conditional on a posted snapshot": ["subscribeWithoutReserveSnapshot"],
+  "Subscription mints only against a recent reserve snapshot that covers supply": ["subscribeRequiresFreshCoveringReserve"],
   "updateReserve requires a strictly newer anchored snapshot": ["updateReserveStrictlyNewer"],
   "Every money-declaring step requires an anchored ledger fact": [
     "openSubscriptionNeedsAnchoredFact",

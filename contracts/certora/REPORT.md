@@ -13,7 +13,7 @@ Logs: `certora/out/<spec>.log`, which is gitignored. Rerun with `./certora/run.s
 | `autospec_pool_Registry` | DealRegistry | 249 | none | All 13 rules proven: funding ≤ target, principal sum = totalFunded, legal status edges only, terminal states, immutable terms, role gating, `moveInvestorPrincipal` |
 | `autospec_pool_Vault` | RedemptionVault (+ registry, receipt, MockUSDC) | 146 | none | receipt/registry principal stay equal (incl. across transfers), exact invest/repay/redeem/claimDefault amounts, no double redeem, yield floor bound, vault USDC moves only through the vault, MockUSDC supply = Σ balances |
 | `autospec_pool_Receipt` | BondReceiptNFT | 286 | 4 | Proven: KYC gate on mint, soulbound unless VerifiedOnly + both verified, receipt follows token, vault-only mutators, write-once maturity snapshot, burned receipt stays Redeemed, counts monotonic. **Open:** the receipt counting invariants (`redeemedHasPrincipal`, `redeemedCountEqualsBurned`, `liveAndRedeemedEqualMinted`, `burnedNeverExceedsMinted`) are not yet inductive. Bookkeeping only; the money properties around them are proven in the Vault spec |
-| `autospec_sukuk_Distributor` | SukukDistributor | 43 | 1 (documented) | All 25 rules proven. `subscribeWithoutReserveSnapshot` is a **documented hardening gap**, see below |
+| `autospec_sukuk_Distributor` | SukukDistributor | 45 | none | All rules proven, including `subscribeRequiresFreshCoveringReserve` (owner decision, see below) |
 | `autospec_sukuk_ProfitAccumulator` | ProfitAccumulator (sukuk) | 4 | none | floor bounds of the nonlinear profit math, isolated per the Certora guide |
 | `autospec_deposito_Accumulator` | ProfitAccumulator (deposito) | 5 | none | same, deposito usage |
 | `autospec_deposito_Series` | TawfDepositoSeries | 42 | none | supply ≤ anchored reserve, allocation needs a verified unused leaf, exact anchored profit only, principal capped at face, **no profit after maturity, maturity only after every profit period** |
@@ -28,9 +28,10 @@ Logs: `certora/out/<spec>.log`, which is gitignored. Rerun with `./certora/run.s
 | 3 | `TawfDepositoSeries` | `distributeProfit` still worked after `settleMaturity` opened redemption | A late profit period went only to holders who had not redeemed yet | `distributeProfit` reverts after maturity; `settleMaturity` requires every profit period the bank recorded (now carried in the DEPOSITO_MATURITY leaf) to be distributed first |
 | 4 | `BondReceiptNFT.mint` (hardening) | A top-up could land on a Redeemed receipt if the vault ever allowed it | Defence in depth | `ReceiptAlreadyRedeemed` revert |
 
-## Hardening gaps documented (not changed, need a decision)
+## Owner decisions implemented
 
-- **Sukuk reserve gate is conditional.** `subscribe`/`closeSubscription` enforce supply ≤ the anchored SUKUK_RESERVE only after `updateReserve` has been called once. The prover shows `subscribe` minting with no reserve snapshot. Fix if wanted: require `reserveSnapshotAt != 0` in `subscribe`.
+- **Sukuk reserve gate.** `subscribe` and `closeSubscription` require a verified SUKUK_RESERVE snapshot that exists, is no older than `maxReserveAge` (admin-configurable, default 3 days), and covers the supply. Cancel-and-refund does not depend on the reserve, so investors are never trapped. This was previously a gap: the cap only applied once a snapshot had been posted.
+- tBSI attestation freshness and the two L3 Shariah policies are in tawf-gold-bsi and tawf-network; see their commits.
 
 ## Assumptions (summaries)
 

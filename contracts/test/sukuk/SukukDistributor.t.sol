@@ -51,6 +51,9 @@ interface ISukukDistributor {
     function settleDefault(uint256 recovery, uint256 epoch, bytes32[] calldata proof) external;
     function redeem() external;
     function updateReserve(uint64 snapshotAt, uint256 outstanding, uint256 epoch, bytes32[] calldata proof) external;
+    function reserveSnapshotAt() external view returns (uint64);
+    function maxReserveAge() external view returns (uint64);
+    function setMaxReserveAge(uint64 maxAge) external;
     function reserveOf() external view returns (uint256);
     function isFullyBacked() external view returns (bool);
 }
@@ -135,6 +138,16 @@ contract SukukDistributorTest is TrexFixture {
         uint256 epoch = _anchor(APPROVED, FACE, maturity);
         vm.prank(deployer);
         dist.openSubscription(epoch, noProof);
+        _postReserve(FACE);
+    }
+
+    /// @dev Post a verified reserve snapshot taken now (subscription and
+    ///      close require a recent snapshot that covers the supply).
+    function _postReserve(uint256 outstanding) internal {
+        uint64 at = uint64(block.timestamp);
+        if (at <= dist.reserveSnapshotAt()) at = dist.reserveSnapshotAt() + 1;
+        uint256 epoch = _anchor(RESERVE, at, outstanding);
+        dist.updateReserve(at, outstanding, epoch, noProof);
     }
 
     function _subscribe(address investor, uint256 amount) internal {
@@ -150,6 +163,7 @@ contract SukukDistributorTest is TrexFixture {
         _subscribe(alice, 300_000e6);
         _subscribe(bob, 100_000e6);
         vm.warp(block.timestamp + WINDOW);
+        _postReserve(FACE);
         vm.prank(deployer);
         dist.closeSubscription();
     }
@@ -296,6 +310,81 @@ contract SukukDistributorTest is TrexFixture {
         dist.updateReserve(200, 300_000e6, epochNew, noProof);
         assertEq(dist.reserveOf(), 300_000e6);
         assertTrue(dist.isFullyBacked());
+    }
+
+
+    // --- reserve freshness ------------------------------------------------
+
+    function _openWithoutReserve() internal {
+        uint256 epoch = _anchor(APPROVED, FACE, maturity);
+        vm.prank(deployer);
+        dist.openSubscription(epoch, noProof);
+    }
+
+    function _fundAndApprove(address investor, uint256 amount) internal {
+        vm.startPrank(investor);
+        IMockUSDC(usdc).faucet(amount);
+        IMockUSDC(usdc).approve(address(dist), amount);
+        vm.stopPrank();
+    }
+
+    function test_subscribeRequiresAReserveSnapshot() public {
+        _openWithoutReserve();
+        _fundAndApprove(alice, MIN_SUB);
+        vm.expectRevert(abi.encodeWithSignature("NoReserveSnapshot()"));
+        vm.prank(alice);
+        dist.subscribe(MIN_SUB);
+    }
+
+    function test_subscribeRejectsAStaleSnapshot() public {
+        _open(); // posts a snapshot taken now
+        vm.warp(block.timestamp + 3 days + 1);
+        _fundAndApprove(alice, 2 * MIN_SUB);
+        uint64 at = dist.reserveSnapshotAt();
+        vm.expectRevert(abi.encodeWithSignature("ReserveTooOld(uint64,uint64)", at, uint64(3 days)));
+        vm.prank(alice);
+        dist.subscribe(MIN_SUB);
+
+        // A fresh snapshot lets subscriptions continue.
+        _postReserve(FACE);
+        vm.prank(alice);
+        dist.subscribe(MIN_SUB);
+    }
+
+    function test_maxReserveAgeIsAdminConfigurable() public {
+        vm.expectRevert();
+        vm.prank(alice);
+        dist.setMaxReserveAge(1 days);
+
+        vm.prank(deployer);
+        dist.setMaxReserveAge(1 days);
+        assertEq(dist.maxReserveAge(), 1 days);
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidMaxAge()"));
+        vm.prank(deployer);
+        dist.setMaxReserveAge(0);
+    }
+
+    function test_closeRejectsAStaleSnapshotButCancelStillRefunds() public {
+        _open();
+        _subscribe(alice, 300_000e6);
+        _subscribe(bob, 100_000e6);
+        vm.warp(block.timestamp + WINDOW);
+        // The snapshot from opening is now older than maxReserveAge.
+        vm.expectRevert();
+        vm.prank(deployer);
+        dist.closeSubscription();
+    }
+
+    function test_cancelBelowMinRaiseNeedsNoReserve() public {
+        _open();
+        _subscribe(alice, MIN_SUB); // below MIN_RAISE
+        vm.warp(block.timestamp + WINDOW + 30 days); // reserve long stale
+        vm.prank(deployer);
+        dist.closeSubscription(); // cancels; refunds must not depend on the reserve
+        vm.prank(alice);
+        dist.refund();
+        assertEq(IMockUSDC(usdc).balanceOf(alice), MIN_SUB);
     }
 
     // --- transfers (T-REX verification) ---------------------------------
@@ -574,6 +663,10 @@ contract SukukReentrancyTest is TrexFixture {
         );
         vm.prank(deployer);
         dist.openSubscription(e0, noProof);
+        uint256 eR = IMockLedgerAnchor(anchor).push(
+            dist.leafHash(1, keccak256("tawf.sukuk.reserve"), keccak256("S"), block.timestamp, 100e6)
+        );
+        dist.updateReserve(uint64(block.timestamp), 100e6, eR, noProof);
 
         vm.startPrank(alice);
         IReentrantUSDC(usdc).faucet(100e6);

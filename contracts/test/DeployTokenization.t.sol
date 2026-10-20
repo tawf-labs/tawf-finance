@@ -37,6 +37,7 @@ interface ISeriesT {
 
 interface ISukukT {
     function openSubscription(uint256 epoch, bytes32[] calldata proof) external;
+    function updateReserve(uint64 snapshotAt, uint256 outstanding, uint256 epoch, bytes32[] calldata proof) external;
     function subscribe(uint256 amount) external;
     function token() external view returns (address);
 }
@@ -61,6 +62,7 @@ contract DeployTokenizationTest is Test, DeployTokenization {
     bytes32 constant DEPOSITO_PROFIT = keccak256("tawf.deposito.profit");
     bytes32 constant DEPOSITO_MATURITY = keccak256("tawf.deposito.maturity");
     bytes32 constant SUKUK_APPROVED = keccak256("tawf.sukuk.approved");
+    bytes32 constant SUKUK_RESERVE = keccak256("tawf.sukuk.reserve");
 
     function setUp() public {
         operator = vm.addr(operatorKey);
@@ -283,6 +285,10 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         uint256 epoch = IAnchorMut(anchor).push(_leaf(SUKUK_APPROVED, sukukId, faceValue, maturity));
         vm.prank(operator);
         ISukukT(distributor).openSubscription(epoch, noProof);
+
+        // Subscription needs a recent verified reserve snapshot covering supply.
+        uint256 eR = IAnchorMut(anchor).push(_leaf(SUKUK_RESERVE, sukukId, block.timestamp, faceValue));
+        ISukukT(distributor).updateReserve(uint64(block.timestamp), faceValue, eR, noProof);
 
         vm.startPrank(user);
         IMintable(d.mockUsdc).faucet(10e6);

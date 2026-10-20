@@ -32,6 +32,7 @@ methods {
     function redemptionPerToken() external returns (uint256) envfree;
     function reserveSnapshotAt() external returns (uint64) envfree;
     function reserveOutstanding() external returns (uint256) envfree;
+    function maxReserveAge() external returns (uint64) envfree;
     function subscriptionDeadline() external returns (uint40) envfree;
     function module() external returns (address) envfree;
     function reserveOf() external returns (uint256) envfree;
@@ -80,21 +81,20 @@ rule reserveCapsMintWhenPosted(uint256 amount) {
         "supply exceeded the posted reserve after subscribe";
 }
 
-/// @title Reserve gate is conditional on a posted snapshot
-// MUST-HAVE: documents the hardening gap. subscribe succeeds with
-// reserveSnapshotAt == 0 even when the chosen amount would blow a (not yet
-// posted) reserve. Written as an assertion that a reserve is REQUIRED, so it is
-// EXPECTED TO BE VIOLATED — that violation confirms the gap flagged in
-// sukuk.system.md (§Suspicious #1).
-rule subscribeWithoutReserveSnapshot(uint256 amount) {
+/// @title Subscription mints only against a recent reserve snapshot that covers supply
+// Fixed: subscribe requires a verified SUKUK_RESERVE snapshot that exists, is
+// no older than maxReserveAge, and covers the supply after the mint.
+rule subscribeRequiresFreshCoveringReserve(uint256 amount) {
     env e;
-    require reserveSnapshotAt() == 0;
+    uint64 snapAt = reserveSnapshotAt();
+    uint64 maxAge = maxReserveAge();
+    mathint supplyAfter = ghostSupply + amount;
     subscribe(e, amount);
-    // We assert the opposite of what the code does: that a reserve snapshot was
-    // required for the mint to succeed. The prover should report a counterexample
-    // where subscribe succeeded with reserveSnapshotAt == 0.
-    assert reserveSnapshotAt() != 0,
-        "HARDENING GAP: subscribe minted with no SUKUK_RESERVE snapshot posted";
+    assert snapAt != 0, "subscribe minted with no SUKUK_RESERVE snapshot";
+    assert to_mathint(e.block.timestamp) <= to_mathint(snapAt) + to_mathint(maxAge),
+        "subscribe minted against a stale reserve snapshot";
+    assert supplyAfter <= to_mathint(reserveOutstanding()),
+        "subscribe minted beyond the latest reserve snapshot";
 }
 
 /// @title updateReserve requires a strictly newer anchored snapshot

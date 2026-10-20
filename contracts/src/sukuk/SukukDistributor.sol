@@ -98,6 +98,9 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     uint64 public reserveSnapshotAt;
     /// @notice Latest verified outstanding reserve cap (SUKUK_RESERVE b).
     uint256 public reserveOutstanding;
+    /// @notice Oldest reserve snapshot (seconds before now) that subscription
+    ///         and close will accept. Admin-configurable.
+    uint64 public maxReserveAge = 3 days;
 
     ProfitAccumulator.State private _profit;
 
@@ -115,6 +118,9 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     error NothingToClaim();
     error StaleReserve(uint64 latest, uint64 got);
     error ReserveInsufficient(uint256 supplyAfter, uint256 outstanding);
+    error NoReserveSnapshot();
+    error ReserveTooOld(uint64 snapshotAt, uint64 maxAge);
+    error InvalidMaxAge();
 
     /// @notice The compliance module authorized to report balance changes.
     address public immutable module;
@@ -130,6 +136,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     event DefaultSettled(uint256 recovery);
     event Redeemed(address indexed investor, uint256 units, uint256 principalPaid, uint256 profitPaid);
     event ReserveUpdated(uint64 snapshotAt, uint256 outstanding, uint16 epoch);
+    event MaxReserveAgeSet(uint64 maxAge);
 
     /// @param usdc_ Settlement token (USDC/MockUSDC).
     /// @param anchor_ LedgerAnchor the ledger roots are anchored on.
@@ -191,6 +198,24 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         emit ReserveUpdated(snapshotAt, outstanding, uint16(epoch));
     }
 
+    /// @notice Set the oldest reserve snapshot subscription and close accept.
+    function setMaxReserveAge(uint64 maxAge) external onlyRole(ADMIN_ROLE) {
+        if (maxAge == 0) revert InvalidMaxAge();
+        maxReserveAge = maxAge;
+        emit MaxReserveAgeSet(maxAge);
+    }
+
+    /// @dev A verified reserve snapshot must exist and be recent, and it must
+    ///      cover `supply`. Subscriptions never mint beyond what the latest
+    ///      snapshot covers, and proceeds are never released against a stale one.
+    function _requireReserveCovers(uint256 supply) private view {
+        if (reserveSnapshotAt == 0) revert NoReserveSnapshot();
+        if (block.timestamp > uint256(reserveSnapshotAt) + maxReserveAge) {
+            revert ReserveTooOld(reserveSnapshotAt, maxReserveAge);
+        }
+        if (supply > reserveOutstanding) revert ReserveInsufficient(supply, reserveOutstanding);
+    }
+
     /// @notice Latest verified outstanding reserve figure (the mint cap).
     function reserveOf() external view returns (uint256) {
         return reserveOutstanding;
@@ -218,7 +243,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     /// @notice Subscribe `amount` USDC for the same number of token units.
     /// @dev The T-REX token enforces holder verification on mint; the explicit
     ///      isVerified check here fails fast with a clear error before cash
-    ///      moves. A non-zero reserve cap is enforced against supply after mint.
+    ///      moves. A recent verified reserve snapshot must cover supply after mint.
     function subscribe(uint256 amount) external nonReentrant {
         if (status != Status.Subscription) revert WrongStatus(status);
         if (block.timestamp >= subscriptionDeadline) revert SubscriptionClosed();
@@ -226,9 +251,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         if (amount < terms.minSubscription) revert BelowMinimum();
         uint256 supplyAfter = token.totalSupply() + amount;
         if (supplyAfter > terms.faceValue) revert ExceedsFaceValue();
-        if (reserveSnapshotAt != 0 && supplyAfter > reserveOutstanding) {
-            revert ReserveInsufficient(supplyAfter, reserveOutstanding);
-        }
+        _requireReserveCovers(supplyAfter);
 
         usdc.safeTransferFrom(msg.sender, address(this), amount);
         token.mint(msg.sender, amount);
@@ -248,9 +271,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
             emit SubscriptionCancelled(raised);
             return;
         }
-        if (reserveSnapshotAt != 0 && raised > reserveOutstanding) {
-            revert ReserveInsufficient(raised, reserveOutstanding);
-        }
+        _requireReserveCovers(raised);
         status = Status.Active;
         usdc.safeTransfer(terms.issuerTreasury, raised);
         emit Issued(raised, terms.issuerTreasury);
