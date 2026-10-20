@@ -7,7 +7,7 @@ import {
   useReadContracts,
   useWalletClient,
 } from 'wagmi';
-import type { Abi } from 'viem';
+import { keccak256, toHex, type Abi } from 'viem';
 import { DealRegistryAbi, BondReceiptNFTAbi, RedemptionVaultAbi, MockUsdcAbi } from './abis';
 import {
   DEAL_REGISTRY_ADDRESS,
@@ -235,14 +235,18 @@ export function useClaimDefault() {
   return { claim, isPending };
 }
 
-/** The protocol owner address (deployer wallet). */
-export function useOwner() {
+const OPS_ROLE = keccak256(toHex('OPS_ROLE'));
+
+/** Whether `account` holds the registry's OPS_ROLE (runs the deal lifecycle). */
+export function useIsOperator(account: `0x${string}` | undefined) {
   const { data } = useReadContract({
     address: DEAL_REGISTRY_ADDRESS,
     abi: DealRegistryAbi,
-    functionName: 'owner',
+    functionName: 'hasRole',
+    args: account ? [OPS_ROLE, account] : undefined,
+    query: { enabled: Boolean(account && DEAL_REGISTRY_ADDRESS) },
   });
-  return { owner: data as `0x${string}` | undefined };
+  return { isOperator: data === true };
 }
 
 /** Cooperative underwriting approval (Submitted to BmtApproved). */

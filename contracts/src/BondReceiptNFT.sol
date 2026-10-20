@@ -88,6 +88,7 @@ contract BondReceiptNFT is ERC1155, AccessControl {
     error AlreadyRedeemed(uint256 dealId, address investor);
     error Soulbound();
     error TransferBlocked();
+    error NotVerified(address investor);
     error DealAlreadyMatured(uint256 dealId);
     error ZeroTotalFunded(uint256 dealId);
 
@@ -318,6 +319,10 @@ contract BondReceiptNFT is ERC1155, AccessControl {
      *         reverts Soulbound when the policy itself forbids it (default),
      *         and TransferBlocked when the policy allows transfers in
      *         principle but a party is not verified.
+     *
+     *         Once an identity registry is wired, a mint also requires the
+     *         recipient to be verified there, so only KYC'd investors can
+     *         fund a pool. With no registry wired, minting is open.
      */
     function _update(
         address from,
@@ -325,7 +330,10 @@ contract BondReceiptNFT is ERC1155, AccessControl {
         uint256[] memory ids,
         uint256[] memory values
     ) internal virtual override {
-        if (from != address(0) && to != address(0)) {
+        if (from == address(0)) {
+            ITawfIdentityRegistry registry = identityRegistry;
+            if (address(registry) != address(0) && !registry.isVerified(to)) revert NotVerified(to);
+        } else if (to != address(0)) {
             ITawfIdentityRegistry registry = identityRegistry;
             for (uint256 i = 0; i < ids.length; i++) {
                 if (transferPolicy[ids[i]] != TransferPolicy.VerifiedOnly) revert Soulbound();

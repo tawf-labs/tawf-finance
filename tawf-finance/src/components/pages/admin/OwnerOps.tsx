@@ -9,7 +9,7 @@ import { ConnectButton } from '@/components/web3/ConnectButton';
 import { GetTestUsdc } from '@/components/web3/GetTestUsdc';
 import {
   useDeals,
-  useOwner,
+  useIsOperator,
   useAllowance,
   useUsdcBalance,
   useApproveDeal,
@@ -38,7 +38,7 @@ function projectedYield(deal: Deal): number {
 
 export function OwnerOps() {
   const { address, isConnected } = useAccount();
-  const { owner } = useOwner();
+  const { isOperator } = useIsOperator(address);
   const { deals, isLoading, refetch } = useDeals();
   const { allowance, refetch: refetchAllowance } = useAllowance(address);
   const { balance, refetch: refetchBalance } = useUsdcBalance(address);
@@ -54,7 +54,7 @@ export function OwnerOps() {
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
 
-  const isOwner = isConnected && owner !== undefined && address === owner;
+  const isOwner = isConnected && isOperator;
 
   const handle = async (fn: () => Promise<{ hash: `0x${string}` }>): Promise<boolean> => {
     setError(null);
@@ -153,9 +153,8 @@ export function OwnerOps() {
       ) : !isOwner ? (
         <Card className="p-10 text-center">
           <ShieldCheck className="w-16 h-16 text-tawf-muted mx-auto mb-4" />
-          <h3 className="font-serif text-xl text-tawf-green mb-2">Not the protocol owner</h3>
-          <p className="text-tawf-muted mb-2">Connected wallet is not the contract owner.</p>
-          {owner && <p className="font-mono text-xs text-tawf-muted break-all">Owner: {owner}</p>}
+          <h3 className="font-serif text-xl text-tawf-green mb-2">Not a pool operator</h3>
+          <p className="text-tawf-muted mb-2">Connected wallet does not hold OPS_ROLE on the deal registry.</p>
         </Card>
       ) : (
         <>

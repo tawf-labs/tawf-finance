@@ -176,10 +176,8 @@ export function InvestorPools() {
         <div className="bg-amber-50 rounded-2xl border border-amber-200 p-6">
           <p className="font-medium text-amber-800 mb-1">Contracts not configured</p>
           <p className="text-sm text-amber-700">
-            Set <code className="font-mono">VITE_DEAL_REGISTRY</code>,{' '}
-            <code className="font-mono">VITE_RECEIPT_NFT</code>, <code className="font-mono">VITE_VAULT</code> and{' '}
-            <code className="font-mono">VITE_USDC</code> in <code className="font-mono">.env</code> to load live
-            Arbitrum Sepolia deals.
+            Run <code className="font-mono">contracts/script/DeployPool.s.sol</code> to write the pool addresses
+            into <code className="font-mono">tokenization.deployments.json</code> and load live Arbitrum Sepolia deals.
           </p>
         </div>
       )}
