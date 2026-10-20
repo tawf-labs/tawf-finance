@@ -39,7 +39,7 @@ interface ISeries {
     function cancelSubscription(address token) external;
     function allocate(address[] calldata investors, uint256 epoch, uint64 snapshotAt, uint256 balance, bytes32[] calldata proof) external;
     function distributeProfit(uint32 period, uint256 profitSen, uint256 epoch, bytes32[] calldata proof) external;
-    function settleMaturity(uint64 at, uint256 principalSen, uint256 epoch, bytes32[] calldata proof) external;
+    function settleMaturity(uint64 at, uint32 finalPeriod, uint256 principalSen, uint256 epoch, bytes32[] calldata proof) external;
     function claim(address token) external;
     function redeem(address token) external;
     function addStablecoin(address token) external;
@@ -357,9 +357,9 @@ contract TawfDepositoSeriesTest is TrexFixture {
 
     function test_maturityAndRedeemInUsdc() public {
         uint256 sen = _allocate(alice, usdc, 100e6);
-        uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, 2000, sen));
+        uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, 0), sen));
         vm.prank(operator);
-        ISeries(series).settleMaturity(2000, sen, e, noProof);
+        ISeries(series).settleMaturity(2000, 0, sen, e, noProof);
 
         _fundTreasury(200e6);
         uint256 before = IMintableCoin(usdc).balanceOf(alice);
@@ -372,9 +372,9 @@ contract TawfDepositoSeriesTest is TrexFixture {
 
     function test_maturityAndRedeemInUsdt() public {
         uint256 sen = _allocate(alice, usdc, 100e6);
-        uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, 2000, sen));
+        uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, 0), sen));
         vm.prank(operator);
-        ISeries(series).settleMaturity(2000, sen, e, noProof);
+        ISeries(series).settleMaturity(2000, 0, sen, e, noProof);
 
         _fundTreasury(200e6);
         uint256 before = IMintableCoin(usdt).balanceOf(alice);
@@ -391,9 +391,9 @@ contract TawfDepositoSeriesTest is TrexFixture {
     function test_maturityPrincipalCappedAtFace() public {
         uint256 sen = _allocate(alice, usdc, 100e6);
         uint256 returned = sen + 40_600_00; // face plus IDR 40,600 of nisbah
-        uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, 2000, returned));
+        uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, 0), returned));
         vm.prank(operator);
-        ISeries(series).settleMaturity(2000, returned, e, noProof);
+        ISeries(series).settleMaturity(2000, 0, returned, e, noProof);
 
         _fundTreasury(200e6);
         uint256 before = IMintableCoin(usdc).balanceOf(alice);
@@ -406,9 +406,9 @@ contract TawfDepositoSeriesTest is TrexFixture {
     function test_maturityShortfallSharedProRata() public {
         uint256 sen = _allocate(alice, usdc, 100e6);
         uint256 returned = sen / 2;
-        uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, 2000, returned));
+        uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, 0), returned));
         vm.prank(operator);
-        ISeries(series).settleMaturity(2000, returned, e, noProof);
+        ISeries(series).settleMaturity(2000, 0, returned, e, noProof);
 
         _fundTreasury(200e6);
         uint256 before = IMintableCoin(usdc).balanceOf(alice);
@@ -450,9 +450,10 @@ contract TawfDepositoSeriesTest is TrexFixture {
         }
 
         // Settle maturity at the anchored principal (the minted sen).
-        uint256 em = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, 2000, sen));
+        uint32 finalPeriod = profitUsdc > 0 ? 1 : 0;
+        uint256 em = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, finalPeriod), sen));
         vm.prank(operator);
-        ISeries(series).settleMaturity(2000, sen, em, noProof);
+        ISeries(series).settleMaturity(2000, finalPeriod, sen, em, noProof);
 
         _fundTreasury(type(uint96).max);
 
@@ -474,5 +475,43 @@ contract TawfDepositoSeriesTest is TrexFixture {
         uint256 paidSen = (usdtPaid * RATE_USDT) / 1e6 + (usdcPaid * RATE_USDC) / 1e6;
         // Rounding may only lose base units; never pays more than anchored.
         assertLe(paidSen, profitSen + sen);
+    }
+
+    function _packMaturity(uint64 at, uint32 finalPeriod) internal pure returns (uint256) {
+        return (uint256(finalPeriod) << 64) | uint256(at);
+    }
+
+    /// Maturity cannot open while an anchored profit period is undistributed.
+    function test_maturityRequiresAllProfitDistributed() public {
+        // The bank recorded one profit period before maturity, so the maturity
+        // fact carries finalPeriod 1; it is not distributed here yet.
+        uint256 sen = _allocate(alice, usdc, 100e6);
+        uint256 em = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, 1), sen));
+        vm.prank(operator);
+        vm.expectRevert(abi.encodeWithSignature("ProfitPeriodsOutstanding(uint32,uint32)", uint32(0), uint32(1)));
+        ISeries(series).settleMaturity(2000, 1, sen, em, noProof);
+    }
+
+    /// A finalPeriod that the anchored fact does not carry is refused.
+    function test_maturityFinalPeriodMustMatchAnchoredFact() public {
+        uint256 sen = _allocate(alice, usdc, 100e6);
+        // Anchored with finalPeriod 1, but the operator claims 0.
+        uint256 em = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, 1), sen));
+        vm.prank(operator);
+        vm.expectRevert(abi.encodeWithSignature("ProofInvalid()"));
+        ISeries(series).settleMaturity(2000, 0, sen, em, noProof);
+    }
+
+    /// No profit can be distributed once redemption is open.
+    function test_noProfitAfterMaturity() public {
+        uint256 sen = _allocate(alice, usdc, 100e6);
+        uint256 em = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, 0), sen));
+        vm.prank(operator);
+        ISeries(series).settleMaturity(2000, 0, sen, em, noProof);
+
+        uint256 ep = IAnchor(anchor).push(_leaf(DEPOSITO_PROFIT, 1, 100));
+        vm.prank(operator);
+        vm.expectRevert(abi.encodeWithSignature("ProfitAfterMaturity()"));
+        ISeries(series).distributeProfit(1, 100, ep, noProof);
     }
 }

@@ -52,8 +52,15 @@ library LedgerLeaf {
     ///         seriesId, a = period, b = profit sen.
     bytes32 internal constant DEPOSITO_PROFIT = keccak256("tawf.deposito.profit");
     /// @notice Series maturity: principal returned. subject seriesId,
-    ///         a = maturity ts, b = principal sen.
+    ///         a = packMaturity(maturity ts, last profit period), b = principal sen.
     bytes32 internal constant DEPOSITO_MATURITY = keccak256("tawf.deposito.maturity");
+
+    /// @notice `a` of a DEPOSITO_MATURITY leaf, identical to tawf-network's
+    ///         LedgerLeaf.packMaturity: the last profit period above bit 64,
+    ///         the maturity timestamp in the low 64 bits.
+    function packMaturity(uint64 at, uint32 finalPeriod) internal pure returns (uint256) {
+        return (uint256(finalPeriod) << 64) | uint256(at);
+    }
 
     /**
      * @notice Encode a ledger leaf exactly as tawf-network's LedgerLeaf.hash.

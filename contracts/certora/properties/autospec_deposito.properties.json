@@ -1,0 +1,198 @@
+[
+  {
+    "title": "Supply never exceeds the anchored deposito balance",
+    "sort": "invariant",
+    "component": "Series",
+    "methods": ["allocate", "distributeProfit", "settleMaturity", "redeem"],
+    "description": "In every reachable state token.totalSupply() <= reserveBalance, the anchored DEPOSITO_RESERVE account balance in sen. allocate is the only minter and reverts ReserveInsufficient when token.totalSupply() > balance after minting, while setting reserveBalance = balance; burns (redeem) only shrink supply, so the bound is preserved."
+  },
+  {
+    "title": "Allocate requires a fresh, verified, non-stale reserve proof",
+    "sort": "access-control",
+    "component": "Series",
+    "methods": ["allocate"],
+    "description": "allocate reverts unless anchor.verify succeeds for a DEPOSITO_RESERVE leaf (kind=DEPOSITO_RESERVE, subject=seriesId, a=snapshotAt, b=balance) at the given epoch, and reverts ReserveNotNewer when snapshotAt < reserveSnapshotAt. It requires OPERATOR_ROLE. Without a valid anchored leaf no tokens are minted and no escrow is forwarded."
+  },
+  {
+    "title": "Allocation consumes each pending escrow exactly once (no replay)",
+    "sort": "integrity",
+    "component": "Series",
+    "methods": ["allocate", "subscribe", "cancelSubscription"],
+    "description": "For every (investor, coin), allocate zeroes pendingOf[investor][coin] before minting/transferring, so the same escrow can never be converted to sen twice. Re-running allocate on an already-allocated investor mints nothing for that coin because pendingCoin == 0 is skipped. pendingOf only ever increases in subscribe and only ever drops to 0 in cancelSubscription or allocate."
+  },
+  {
+    "title": "Minted sen per investor equals floored conversion of their escrow",
+    "sort": "integrity",
+    "component": "Series",
+    "methods": ["allocate"],
+    "description": "A successful allocate mints exactly sum over coins of floor(pendingCoin * rate_coin / COIN_ONE) sen to each investor, forwards exactly pendingCoin of each coin to the treasury, and emits one Allocated per non-zero coin. No sen is minted beyond the floored conversion, so rounding can only reduce minted supply."
+  },
+  {
+    "title": "Profit distribution accrues exactly the anchored profit sen",
+    "sort": "integrity",
+    "component": "Series",
+    "methods": ["distributeProfit"],
+    "description": "distributeProfit reverts unless anchor.verify succeeds for a DEPOSITO_PROFIT leaf (a=period, b=profitSen) and period == lastPeriod + 1; on success it funds the accumulator with exactly profitSen over the current supply and sets lastPeriod = period. It never accrues a different amount than the anchored b, and an empty (profitSen==0) period moves the accumulator by nothing."
+  },
+  {
+    "title": "Profit periods are strictly sequential",
+    "sort": "state-transition",
+    "component": "Series",
+    "methods": ["distributeProfit"],
+    "description": "distributeProfit only accepts period == lastPeriod + 1 (reverts ProfitPeriodNotSequential otherwise), so periods are consumed 1,2,3,... with no gaps and no repeats, and lastPeriod is monotonically increasing by exactly one per successful call."
+  },
+  {
+    "title": "Sum of claims paid never exceeds distributed profit",
+    "sort": "solvency",
+    "component": "Series",
+    "methods": ["distributeProfit", "claim", "redeem", "afterBalanceChange"],
+    "description": "Because fund, settle, claimable and take all round the pro-rata share down (floor division by PRECISION), the sum over all holders of claimed-plus-claimable profit sen is <= the total profit sen ever funded. No sequence of claims, redeems, or balance-change settlements can pay out more profit sen than was distributed."
+  },
+  {
+    "title": "No double claim of profit",
+    "sort": "integrity",
+    "component": "Series",
+    "methods": ["claim", "redeem", "afterBalanceChange"],
+    "description": "take zeroes owed[account] atomically, and settle advances perTokenPaid[account] to the current accumulator, so once a holder's accrued profit is withdrawn (claim or redeem) the same sen can never be withdrawn again until new profit is funded. claim reverts NothingToClaim when the settled owed is zero."
+  },
+  {
+    "title": "Checkpoint before balance change preserves accrued profit",
+    "sort": "integrity",
+    "component": "Series",
+    "methods": ["afterBalanceChange", "claim", "redeem"],
+    "description": "afterBalanceChange (callable only by module) settles sender and receiver at their pre-change balances (balanceOf(from)+amount for from, balanceOf(to)-amount for to), so profit accrued before a transfer stays with the holder of record and is not transferred along with the tokens. The settlement is exact at the reconstructed pre-move balance."
+  },
+  {
+    "title": "afterBalanceChange is module-only",
+    "sort": "access-control",
+    "component": "Series",
+    "methods": ["afterBalanceChange"],
+    "description": "afterBalanceChange reverts OnlyModule unless msg.sender == module. No other caller can move profit entitlements between accounts or desynchronise the accumulator markers from token balances."
+  },
+  {
+    "title": "Principal per token is capped at face (settleMaturity cap)",
+    "sort": "invariant",
+    "component": "Series",
+    "methods": ["settleMaturity"],
+    "description": "settleMaturity sets principalSenPerToken = floor(min(principalSen, supply) * PRECISION / supply), so the per-token principal never exceeds PRECISION (one token = IDR 1 of face). Anything the bank returns above face is not treated as principal, and below face holders share the shortfall pro rata."
+  },
+  {
+    "title": "Maturity settlement is one-shot",
+    "sort": "state-transition",
+    "component": "Series",
+    "methods": ["settleMaturity"],
+    "description": "settleMaturity reverts RedemptionAlreadyOpen when redemptionOpen is already true, so redemptionOpen flips false->true exactly once and principalSenPerToken is written once; the maturity snapshot and per-token principal can never be overwritten by a later call."
+  },
+  {
+    "title": "Settlement requires a verified maturity proof",
+    "sort": "access-control",
+    "component": "Series",
+    "methods": ["settleMaturity"],
+    "description": "settleMaturity requires OPERATOR_ROLE and reverts ProofInvalid unless anchor.verify succeeds for a DEPOSITO_MATURITY leaf (a=at, b=principalSen); redemption can never open without an anchored maturity fact."
+  },
+  {
+    "title": "Redeem requires open redemption and burns exactly the holder balance",
+    "sort": "state-transition",
+    "component": "Series",
+    "methods": ["redeem"],
+    "description": "redeem reverts RedemptionNotOpen until settleMaturity has run and NothingToClaim when the caller holds zero tokens; on success it burns exactly token.balanceOf(msg.sender) units and pays floor(units * principalSenPerToken / PRECISION) principal sen plus the holder's settled profit sen, each converted to the chosen coin at that coin's fresh rate."
+  },
+  {
+    "title": "Value conservation in subscribe, allocate and redeem (sen)",
+    "sort": "solvency",
+    "component": "Series",
+    "methods": ["subscribe", "cancelSubscription", "allocate", "redeem"],
+    "description": "Escrowed coin is conserved: subscribe increases pendingOf and the contract's coin balance by the same amount; cancelSubscription refunds exactly pendingOf at par; allocate forwards exactly the escrow to the treasury while minting the floored sen equivalent. In sen terms minted supply never exceeds the anchored reserve and redeemed principal never exceeds supply. (Per-coin conservation is not claimed: FX differs per coin and per time.)"
+  },
+  {
+    "title": "Rate-using actions reject unset or stale FX rates",
+    "sort": "integrity",
+    "component": "Series",
+    "methods": ["allocate", "claim", "redeem", "postRate", "setMaxRateAge"],
+    "description": "Every conversion goes through _freshRate, which reverts RateUnset when no rate is posted for the coin and RateStale when block.timestamp > updatedAt + maxRateAge. So allocate, claim and redeem can never convert at a zero or expired rate; only FX_ROLE can postRate and only ADMIN_ROLE can setMaxRateAge."
+  },
+  {
+    "title": "Conversions round down (floor) in both directions",
+    "sort": "integrity",
+    "component": "Series",
+    "methods": ["allocate", "claim", "redeem"],
+    "description": "_coinToSen(coin,r) = floor(coin*r/COIN_ONE) and _senToCoin(sen,r) = floor(sen*COIN_ONE/r). Minted sen, claimed coin and redeemed coin are each the floor of the exact rational, so the contract never over-mints or over-pays by rounding; claim reverts ConversionZero when a positive sen entitlement floors to zero coin."
+  },
+  {
+    "title": "Only allowlisted settlement stablecoins are accepted",
+    "sort": "access-control",
+    "component": "Series",
+    "methods": ["subscribe", "claim", "redeem", "addStablecoin", "postRate"],
+    "description": "subscribe, claim and redeem revert NotStablecoin unless isStablecoin[coin]; addStablecoin requires ADMIN_ROLE and reverts BadDecimals unless the coin reports 6 decimals; postRate reverts NotStablecoin for a non-allowlisted coin. cancelSubscription is deliberately allowed after removal so escrow is never trapped."
+  },
+  {
+    "title": "Treasury and config setters are role gated",
+    "sort": "access-control",
+    "component": "Series",
+    "methods": ["setTreasury", "addStablecoin", "removeStablecoin", "setMaxRateAge", "postRate", "allocate", "distributeProfit", "settleMaturity"],
+    "description": "setTreasury/addStablecoin/removeStablecoin/setMaxRateAge require ADMIN_ROLE, postRate requires FX_ROLE, and allocate/distributeProfit/settleMaturity require OPERATOR_ROLE; a caller lacking the role reverts. setTreasury rejects the zero address."
+  },
+  {
+    "title": "PILOT_ONLY admits only the treasury as holder",
+    "sort": "access-control",
+    "component": "Sandbox",
+    "methods": ["moduleCheck", "isEligible"],
+    "description": "When mode == PILOT_ONLY, _modeAllows returns true only for c.treasury, so moduleCheck (and the series' isEligible fail-fast) permits a mint/transfer receiver only if it is the treasury; every other wallet is rejected regardless of claims."
+  },
+  {
+    "title": "SCREENED_GROUP and SANDBOX_ADMITTED require the right claim topics",
+    "sort": "access-control",
+    "component": "Sandbox",
+    "methods": ["moduleCheck", "isEligible"],
+    "description": "In SCREENED_GROUP a non-treasury receiver is allowed only with a valid ClaimIssuer claim of topic TAWF_SCREENED (2); in SANDBOX_ADMITTED a valid topic 2 OR topic 3 (OJK_SANDBOX_PARTICIPANT) claim is required. A zero claimIssuer, missing ONCHAINID, or invalid claim makes the wallet ineligible."
+  },
+  {
+    "title": "Series cap bounds total supply",
+    "sort": "invariant",
+    "component": "Sandbox",
+    "methods": ["moduleCheck"],
+    "description": "On a mint, moduleCheck rejects when totalSupply + value > seriesCap (default Rp500,000,000 = 50,000,000,000 sen). Transfers do not change supply and are not series-cap checked, so total supply can never exceed the configured seriesCap."
+  },
+  {
+    "title": "Per-investor balance cap (Rp10 juta) excludes the treasury",
+    "sort": "invariant",
+    "component": "Sandbox",
+    "methods": ["moduleCheck"],
+    "description": "For a non-treasury receiver moduleCheck rejects when balanceOf(to) + value > maxBalancePerInvestor (default 1,000,000,000 sen = Rp10,000,000). The treasury is exempt, so no counted investor's balance can exceed the per-investor cap after an allowed move."
+  },
+  {
+    "title": "Investor count cap (50) and count integrity",
+    "sort": "invariant",
+    "component": "Sandbox",
+    "methods": ["moduleCheck", "moduleMintAction", "moduleTransferAction", "moduleBurnAction"],
+    "description": "moduleCheck rejects a move that would make the count of distinct non-treasury holders exceed maxInvestors (default 50). The action hooks maintain investorCount: +1 the first time a non-treasury address holds a positive balance, -1 when its balance returns to zero, so investorCount equals the number of distinct non-treasury holders with positive balance."
+  },
+  {
+    "title": "Transfers freeze after seriesEnd, mint and burn stay open",
+    "sort": "state-transition",
+    "component": "Sandbox",
+    "methods": ["moduleCheck"],
+    "description": "Once block.timestamp >= seriesEnd, moduleCheck returns false for a holder-to-holder transfer (from != 0 and to != 0) but still allows mint (from == 0) and burn (to == 0), so maturity settlement and redemption are never blocked by the series end."
+  },
+  {
+    "title": "Sandbox config is gated and one binding requires configuration",
+    "sort": "access-control",
+    "component": "Sandbox",
+    "methods": ["initConfig", "setMode", "setTreasury", "setClaimIssuer", "setCaps", "setSeriesEnd", "canComplianceBind"],
+    "description": "initConfig reverts OnlyOwner unless msg.sender == owner and ZeroTreasury on a zero treasury; setMode/setTreasury/setClaimIssuer/setCaps/setSeriesEnd are onlyComplianceCall and revert NotConfigured before initConfig; canComplianceBind returns true only when configured, so an unconfigured compliance can never bind the module."
+  },
+  {
+    "title": "ProfitAccumulator floor bounds and monotonicity",
+    "sort": "invariant",
+    "component": "Lib",
+    "methods": ["fund", "settle", "take", "claimable"],
+    "description": "profitPerToken is monotonically non-decreasing (fund only adds floor(amount*PRECISION/totalSupply), zero on empty supply/amount). For every account, claimable == owed + floor(balance*(profitPerToken - perTokenPaid)/PRECISION) and take returns and zeroes owed; the floor guarantees the summed entitlement never exceeds total funded profit."
+  },
+  {
+    "title": "Leaf hash matches the canonical tawf-network encoding",
+    "sort": "integrity",
+    "component": "Lib",
+    "methods": ["leafHash"],
+    "description": "leafHash(ledgerChainId, kind, subjectId, a, b) equals keccak256(bytes.concat(keccak256(abi.encode(ledgerChainId, kind, subjectId, a, b)))), the exact double-keccak used by tawf-network's LedgerLeaf.hash, so an off-chain anchored root verifies on chain without re-derivation and _requireFact always queries the right leaf for subject == seriesId."
+  }
+]

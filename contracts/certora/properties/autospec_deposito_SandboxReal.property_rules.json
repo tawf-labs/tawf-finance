@@ -1,0 +1,9 @@
+{
+  "PILOT_ONLY admits only the treasury as holder": ["pilotOnlyTreasuryOnly"],
+  "SCREENED_GROUP and SANDBOX_ADMITTED require the right claim topics": ["screenedNeedsClaimTopic", "noIssuerNoClaim"],
+  "Series cap bounds total supply": ["seriesCapBoundsSupply"],
+  "Per-investor balance cap (Rp10 juta) excludes the treasury": ["perInvestorCap"],
+  "Investor count cap (50) and count integrity": ["investorCountCap", "mintActionCountDelta", "burnActionCountDelta"],
+  "Transfers freeze after seriesEnd, mint and burn stay open": ["freezeAfterSeriesEnd"],
+  "Sandbox config is gated and binding requires configuration": ["settersRequireBoundCompliance", "initConfigOwnerGated", "bindOnlyWhenConfigured"]
+}

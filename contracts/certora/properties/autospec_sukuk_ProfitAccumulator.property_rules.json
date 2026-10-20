@@ -1,0 +1,6 @@
+{
+  "ProfitAccumulator.fund floor bounds and monotonicity": ["fundFloorBound"],
+  "ProfitAccumulator.settle floor bounds and no underflow": ["settleFloorBound"],
+  "ProfitAccumulator.take zeroes and returns owed": ["takeZeroesOwed"],
+  "Claiming never pays more profit than entitlement": ["claimableMatchesFormula"]
+}

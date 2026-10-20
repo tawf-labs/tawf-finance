@@ -341,6 +341,8 @@ contract DeployTokenization is Script {
 
         IDealRegistry(dealRegistry).setVault(redemptionVault);
         IBondReceiptNFT(bondReceiptNft).setVault(redemptionVault);
+        IBondReceiptNFT(bondReceiptNft).setDealRegistry(dealRegistry);
+        IDealRegistry(dealRegistry).setReceiptNft(bondReceiptNft);
         IBondReceiptNFT(bondReceiptNft).setIdentityRegistry(identityRegistry);
         IRedemptionVault(redemptionVault).configure(mockUsdc, dealRegistry, bondReceiptNft);
 
@@ -446,12 +448,14 @@ interface IApprove {
 
 interface IDealRegistry {
     function setVault(address vault_) external;
+    function setReceiptNft(address receiptNft_) external;
     function grantRole(bytes32 role, address account) external;
 }
 
 interface IBondReceiptNFT {
     function setVault(address vault_) external;
     function setIdentityRegistry(address identityRegistry_) external;
+    function setDealRegistry(address dealRegistry_) external;
 }
 
 interface IRedemptionVault {

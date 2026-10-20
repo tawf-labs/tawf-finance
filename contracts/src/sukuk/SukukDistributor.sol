@@ -308,6 +308,16 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         return _profit.profitPerToken;
     }
 
+    /// @notice `account`'s accumulator marker at its last settlement.
+    function perTokenPaidOf(address account) external view returns (uint256) {
+        return _profit.perTokenPaid[account];
+    }
+
+    /// @notice Profit settled to `account` but not yet withdrawn.
+    function owedOf(address account) external view returns (uint256) {
+        return _profit.owed[account];
+    }
+
     // ---------------------------------------------------------------
     // Maturity and default
     // ---------------------------------------------------------------

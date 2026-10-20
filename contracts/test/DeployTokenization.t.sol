@@ -25,7 +25,7 @@ interface ISeriesT {
     function cancelSubscription(address token) external;
     function allocate(address[] calldata investors, uint256 epoch, uint64 snapshotAt, uint256 balance, bytes32[] calldata proof) external;
     function distributeProfit(uint32 period, uint256 profitSen, uint256 epoch, bytes32[] calldata proof) external;
-    function settleMaturity(uint64 at, uint256 principalSen, uint256 epoch, bytes32[] calldata proof) external;
+    function settleMaturity(uint64 at, uint32 finalPeriod, uint256 principalSen, uint256 epoch, bytes32[] calldata proof) external;
     function claim(address token) external;
     function redeem(address token) external;
     function pending(address investor, address token) external view returns (uint256);
@@ -256,9 +256,10 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         assertEq(IMintable(d.mockUsdc).balanceOf(user), 1e6);
 
         // Settle maturity: principal = minted sen. Redeem in USDC, pulled from treasury.
-        uint256 em = IAnchorMut(anchor).push(_leaf(DEPOSITO_MATURITY, d.seriesId, 2000, sen));
+        // Period 1 was distributed above, so the bank's maturity fact carries finalPeriod 1.
+        uint256 em = IAnchorMut(anchor).push(_leaf(DEPOSITO_MATURITY, d.seriesId, (uint256(1) << 64) | 2000, sen));
         vm.prank(operator);
-        ISeriesT(d.series).settleMaturity(2000, sen, em, noProof);
+        ISeriesT(d.series).settleMaturity(2000, 1, sen, em, noProof);
 
         vm.prank(user);
         ISeriesT(d.series).redeem(d.mockUsdc);

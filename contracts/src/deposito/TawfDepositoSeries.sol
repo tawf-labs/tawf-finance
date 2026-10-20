@@ -130,6 +130,8 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
     error NotEligible(address investor);
     error NoPending();
     error RedemptionAlreadyOpen();
+    error ProfitAfterMaturity();
+    error ProfitPeriodsOutstanding(uint32 distributed, uint32 finalPeriod);
     error RedemptionNotOpen();
     error RateUnset();
     error RateStale(uint64 updatedAt, uint64 maxAge);
@@ -386,6 +388,9 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
         nonReentrant
         onlyRole(OPERATOR_ROLE)
     {
+        // Every profit period is paid out before maturity opens redemption, so
+        // no holder who redeems early can miss a period.
+        if (redemptionOpen) revert ProfitAfterMaturity();
         if (period != lastPeriod + 1) revert ProfitPeriodNotSequential(lastPeriod + 1, period);
         _requireFact(LedgerLeaf.DEPOSITO_PROFIT, period, profitSen, epoch, proof);
         lastPeriod = period;
@@ -417,18 +422,21 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
     // ---------------------------------------------------------------
 
     /// @notice Settle the series at maturity. Requires a DEPOSITO_MATURITY
-    ///         proof (a = maturity ts, b = principal sen) and opens redemption
+    ///         proof (a = maturity ts packed with the bank's last profit
+    ///         period, b = principal sen), and that every one of those profit
+    ///         periods has already been distributed here. Opens redemption
     ///         recording the principal sen per token unit, capped at face
     ///         value (one token = IDR 1). No stablecoin is
     ///         pulled up front: holders are paid their pro-rata principal, in
     ///         their chosen coin, when they redeem.
-    function settleMaturity(uint64 at, uint256 principalSen, uint256 epoch, bytes32[] calldata proof)
+    function settleMaturity(uint64 at, uint32 finalPeriod, uint256 principalSen, uint256 epoch, bytes32[] calldata proof)
         external
         nonReentrant
         onlyRole(OPERATOR_ROLE)
     {
         if (redemptionOpen) revert RedemptionAlreadyOpen();
-        _requireFact(LedgerLeaf.DEPOSITO_MATURITY, at, principalSen, epoch, proof);
+        if (lastPeriod != finalPeriod) revert ProfitPeriodsOutstanding(lastPeriod, finalPeriod);
+        _requireFact(LedgerLeaf.DEPOSITO_MATURITY, LedgerLeaf.packMaturity(at, finalPeriod), principalSen, epoch, proof);
         redemptionOpen = true;
 
         uint256 supply = token.totalSupply();
@@ -546,12 +554,12 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
     }
 
     /// @notice Profit `investor` could claim right now, in sen.
-    function claimableSen(address investor) external view returns (uint256) {
+    function claimableSen(address investor) public view returns (uint256) {
         return _profit.claimable(investor, token.balanceOf(investor));
     }
 
     /// @notice Cumulative profit per token unit, scaled by 1e18.
-    function profitPerToken() external view returns (uint256) {
+    function profitPerToken() public view returns (uint256) {
         return _profit.profitPerToken;
     }
 

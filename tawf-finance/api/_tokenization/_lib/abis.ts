@@ -121,7 +121,7 @@ export const tawfSeriesAbi = [
     outputs: [],
   },
   { name: 'distributeProfit', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'period', type: 'uint32' }, { name: 'profitSen', type: 'uint256' }, { name: 'epoch', type: 'uint256' }, { name: 'proof', type: 'bytes32[]' }], outputs: [] },
-  { name: 'settleMaturity', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'at', type: 'uint64' }, { name: 'principalSen', type: 'uint256' }, { name: 'epoch', type: 'uint256' }, { name: 'proof', type: 'bytes32[]' }], outputs: [] },
+  { name: 'settleMaturity', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'at', type: 'uint64' }, { name: 'finalPeriod', type: 'uint32' }, { name: 'principalSen', type: 'uint256' }, { name: 'epoch', type: 'uint256' }, { name: 'proof', type: 'bytes32[]' }], outputs: [] },
   { name: 'claim', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'token', type: 'address' }], outputs: [] },
   { name: 'redeem', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'token', type: 'address' }], outputs: [] },
   { type: 'error', name: 'ProofInvalid', inputs: [] },

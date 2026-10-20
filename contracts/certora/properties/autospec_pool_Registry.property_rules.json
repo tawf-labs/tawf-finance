@@ -1,0 +1,17 @@
+{
+  "Funding never exceeds the target": ["fundingWithinTarget"],
+  "Sum of investor principals equals totalFunded": ["principalSumEqualsTotalFunded"],
+  "Only legal status transitions occur": ["statusTransitionsAreLegal"],
+  "Completed is terminal": ["completedIsTerminal"],
+  "Defaulted only moves to Completed": ["defaultedOnlyToCompleted"],
+  "Deal immutable terms are fixed at creation": ["immutableTermsUnchanged"],
+  "fundDeal is callable only by the vault": ["fundDealOnlyVault"],
+  "Role gating on registry lifecycle functions": [
+    "createDealRequiresOriginator",
+    "approveDealRequiresShariah",
+    "markMintableRequiresOps",
+    "defaultDealRequiresOps",
+    "setVaultRequiresAdmin"
+  ],
+  "Early maturation is privileged; late maturation is open": ["earlyMaturationIsPrivileged"]
+}

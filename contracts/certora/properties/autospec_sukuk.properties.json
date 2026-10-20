@@ -1,0 +1,205 @@
+[
+  {
+    "title": "Total claimable profit never exceeds funded minus claimed",
+    "sort": "solvency",
+    "component": "Distributor",
+    "methods": ["distribute", "claim", "redeem", "afterBalanceChange"],
+    "description": "At every reachable state, the sum over all holders of claimable(h) is <= (total profit funded via distribute) - (total profit already paid out by claim/redeem). Each distribute floors profitPerToken += amount*1e18/totalSupply and each settle floors the per-account share, so the distributor never owes more profit than has arrived; dust from flooring stays as an un-owed residue."
+  },
+  {
+    "title": "Claiming never pays more profit than entitlement",
+    "sort": "integrity",
+    "component": "Distributor",
+    "methods": ["claim"],
+    "description": "A successful claim() transfers exactly the amount returned by _profit.take after settling the caller at its current token balance, which equals owed[caller] + floor(balanceOf(caller)*(profitPerToken - perTokenPaid[caller])/1e18) measured before the call, and reverts NothingToClaim when that is zero; it moves no principal and burns no tokens."
+  },
+  {
+    "title": "Checkpoint before balance change preserves accrued profit",
+    "sort": "integrity",
+    "component": "Distributor",
+    "methods": ["afterBalanceChange", "subscribe", "redeem", "claim"],
+    "description": "afterBalanceChange settles each non-zero party at its reconstructed pre-change balance: the sender is settled at balanceOf(from)+amount and the receiver at balanceOf(to)-amount (clamped at 0). So a transfer, mint, or burn never changes the sum of settled owed+live entitlement across the two parties; profit accrued before the move stays with the holder of record and is not transferred to the counterparty."
+  },
+  {
+    "title": "Profit entitlement follows the holder of record across transfers",
+    "sort": "integrity",
+    "component": "Distributor",
+    "methods": ["afterBalanceChange"],
+    "description": "After a transfer of amount from A to B, A's claimable reflects its profit accrued up to the transfer at its old balance and B accrues future profit on the received units only from profitPerToken forward; neither party gains nor loses profit that was funded while the units were held by the other."
+  },
+  {
+    "title": "afterBalanceChange is callable only by the bound module",
+    "sort": "access-control",
+    "component": "Distributor",
+    "methods": ["afterBalanceChange"],
+    "description": "afterBalanceChange reverts OnlyModule unless msg.sender == module (the immutable DistributionCheckpointModule address). No other caller can settle or shift profit markers."
+  },
+  {
+    "title": "No double claim of profit",
+    "sort": "integrity",
+    "component": "Distributor",
+    "methods": ["claim", "redeem"],
+    "description": "take zeroes owed[account] on withdrawal, so two consecutive claim() calls with no intervening distribute pay out on the second call only the profit accrued since the first settlement (zero if none), and can never pay the same funded profit twice."
+  },
+  {
+    "title": "Subscription mints exactly amount units against amount USDC",
+    "sort": "integrity",
+    "component": "Distributor",
+    "methods": ["subscribe"],
+    "description": "A successful subscribe(amount) pulls exactly amount USDC from msg.sender into the distributor and mints exactly amount token units to msg.sender (1:1), increasing token.totalSupply by amount; it requires status == Subscription, block.timestamp < subscriptionDeadline, isVerified(sender), and amount >= minSubscription."
+  },
+  {
+    "title": "Supply never exceeds faceValue",
+    "sort": "invariant",
+    "component": "Distributor",
+    "methods": ["subscribe", "closeSubscription"],
+    "description": "In every reachable state token.totalSupply() <= terms.faceValue. subscribe reverts ExceedsFaceValue when totalSupply + amount > faceValue, and it is the only function that mints, so the cap is preserved by its only writer."
+  },
+  {
+    "title": "A posted reserve caps minting and the live supply",
+    "sort": "invariant",
+    "component": "Distributor",
+    "methods": ["subscribe", "closeSubscription", "updateReserve"],
+    "description": "Whenever reserveSnapshotAt != 0, subscribe reverts ReserveInsufficient if totalSupply + amount > reserveOutstanding and closeSubscription reverts if raised > reserveOutstanding, so any supply minted while a reserve snapshot is in force is <= the anchored outstanding figure that was current at mint time."
+  },
+  {
+    "title": "Reserve gate is conditional on a posted snapshot",
+    "sort": "invariant",
+    "component": "Distributor",
+    "methods": ["subscribe", "closeSubscription"],
+    "description": "When reserveSnapshotAt == 0 the reserve checks in subscribe and closeSubscription are skipped, so before any updateReserve the only mint cap is terms.faceValue. This documents the intended (and test-covered) behavior that proof-of-reserve backing is enforced only once a SUKUK_RESERVE leaf has been anchored via updateReserve."
+  },
+  {
+    "title": "updateReserve requires a strictly newer anchored snapshot",
+    "sort": "state-transition",
+    "component": "Distributor",
+    "methods": ["updateReserve"],
+    "description": "updateReserve reverts StaleReserve when snapshotAt == 0 or (reserveSnapshotAt != 0 and snapshotAt <= reserveSnapshotAt), and otherwise requires a valid SUKUK_RESERVE(snapshotAt, outstanding) proof via anchor.verify before storing the new snapshot; reserveSnapshotAt is therefore strictly increasing across successful calls."
+  },
+  {
+    "title": "Every money-declaring step requires an anchored ledger fact",
+    "sort": "access-control",
+    "component": "Distributor",
+    "methods": ["openSubscription", "updateReserve", "distribute", "settleMaturity", "settleDefault"],
+    "description": "openSubscription (SUKUK_APPROVED), updateReserve (SUKUK_RESERVE), distribute (SUKUK_DISTRIBUTION), settleMaturity (SUKUK_REDEMPTION), and settleDefault (SUKUK_DEFAULT) each call _requireFact, which reverts ProofInvalid unless anchor.verify returns true for the leaf hashing (ledgerChainId, kind, terms.sukukId, a, b, proof). The contract can never act on an amount that is not proven on the ledger."
+  },
+  {
+    "title": "Distribution pays only the exact declared amount per period",
+    "sort": "integrity",
+    "component": "Distributor",
+    "methods": ["distribute"],
+    "description": "distribute(period, amount, ...) requires status == Active, period == lastPeriod + 1, and a valid SUKUK_DISTRIBUTION(period, amount) proof; it pulls exactly amount USDC (nothing when amount == 0) and funds profitPerToken by amount*1e18/totalSupply. An amount that does not match the anchored leaf reverts ProofInvalid and moves no funds."
+  },
+  {
+    "title": "Distribution periods are strictly sequential",
+    "sort": "state-transition",
+    "component": "Distributor",
+    "methods": ["distribute"],
+    "description": "distribute reverts PeriodNotSequential unless period == lastPeriod + 1, and sets lastPeriod = period on success, so periods are funded exactly once, in order, with no gaps or replays of an earlier period."
+  },
+  {
+    "title": "Sukuk lifecycle follows the legal status order",
+    "sort": "state-transition",
+    "component": "Distributor",
+    "methods": ["openSubscription", "closeSubscription", "settleMaturity", "settleDefault"],
+    "description": "status moves only along Pending->Subscription (openSubscription), Subscription->Active or Subscription->Cancelled (closeSubscription), Active->Matured (settleMaturity), Active->Defaulted (settleDefault). No other (from,to) pair occurs; Matured, Defaulted, and Cancelled are terminal and the status never returns to a live earlier stage."
+  },
+  {
+    "title": "Each function is gated to its status",
+    "sort": "state-transition",
+    "component": "Distributor",
+    "methods": ["subscribe", "distribute", "claim", "redeem", "refund", "settleMaturity", "settleDefault"],
+    "description": "subscribe and distribute/settleMaturity/settleDefault require Subscription / Active respectively, redeem requires Matured or Defaulted, refund requires Cancelled; calling any of them in the wrong status reverts WrongStatus and has no effect."
+  },
+  {
+    "title": "Lifecycle transitions are ADMIN-gated",
+    "sort": "access-control",
+    "component": "Distributor",
+    "methods": ["openSubscription", "closeSubscription"],
+    "description": "openSubscription and closeSubscription revert unless msg.sender holds ADMIN_ROLE. A non-admin can neither open the sale nor release proceeds / cancel; the money-declaring functions are instead gated by the ledger proof rather than by a role."
+  },
+  {
+    "title": "closeSubscription releases the full raise or cancels for refund",
+    "sort": "integrity",
+    "component": "Distributor",
+    "methods": ["closeSubscription"],
+    "description": "closeSubscription requires Subscription and (window ended or raised == faceValue). If raised < minRaise it sets Cancelled and moves no cash. Otherwise, with reserve ok, it sets Active and transfers exactly raised = token.totalSupply() USDC to terms.issuerTreasury, leaving the distributor holding zero subscription cash."
+  },
+  {
+    "title": "Refund returns a cancelled subscription at par",
+    "sort": "integrity",
+    "component": "Distributor",
+    "methods": ["refund"],
+    "description": "refund succeeds only in Cancelled; it burns all of the caller's token units and transfers exactly that many USDC base units back (1 unit = 1 USDC), reverting NothingToClaim when the caller holds no units. Summed over holders, refunds pay out exactly the raised amount still held."
+  },
+  {
+    "title": "Redemption pays floored principal plus unclaimed profit then burns",
+    "sort": "integrity",
+    "component": "Distributor",
+    "methods": ["redeem", "settleMaturity", "settleDefault"],
+    "description": "redeem (Matured or Defaulted) burns the caller's full balance units, settling profit at the pre-burn balance via the module hook, and pays floor(units*redemptionPerToken/1e18) principal plus the taken profit. redemptionPerToken is fixed once in _fundRedemption as floor(declaredAmount*1e18/totalSupplyAtSettle), so principal per unit never exceeds the declared recovery/redemption share."
+  },
+  {
+    "title": "Total principal paid at redemption is bounded by the funded amount",
+    "sort": "solvency",
+    "component": "Distributor",
+    "methods": ["redeem", "settleMaturity", "settleDefault"],
+    "description": "Because redemptionPerToken = floor(amount*1e18/totalSupplyAtSettle) and each redeem pays floor(units*redemptionPerToken/1e18), the sum over all holders of principal paid is <= amount; the distributor never pays out more redemption principal than the issuer funded, and dust from flooring remains."
+  },
+  {
+    "title": "No double redemption",
+    "sort": "integrity",
+    "component": "Distributor",
+    "methods": ["redeem"],
+    "description": "redeem burns the caller's entire token balance, so a second redeem by the same holder reads balanceOf == 0 and reverts NothingToClaim; a holder can redeem at most once and cannot be paid principal twice."
+  },
+  {
+    "title": "ProfitAccumulator.fund floor bounds and monotonicity",
+    "sort": "integrity",
+    "component": "ProfitAccumulator",
+    "methods": ["fund"],
+    "description": "fund(amount, totalSupply) is a no-op when amount == 0 or totalSupply == 0, and otherwise increases profitPerToken by exactly floor(amount*1e18/totalSupply), which satisfies increment*totalSupply <= amount*1e18 < (increment+1)*totalSupply; profitPerToken is therefore non-decreasing across all calls."
+  },
+  {
+    "title": "ProfitAccumulator.settle floor bounds and no underflow",
+    "sort": "integrity",
+    "component": "ProfitAccumulator",
+    "methods": ["settle", "claimable"],
+    "description": "Since profitPerToken only increases and perTokenPaid[account] is set to profitPerToken at each settle, delta = profitPerToken - perTokenPaid[account] >= 0 (no underflow). settle adds exactly floor(balance*delta/1e18) to owed[account] and advances the marker to profitPerToken, and claimable returns owed[account] + that same floored term without mutating state."
+  },
+  {
+    "title": "ProfitAccumulator.take zeroes and returns owed",
+    "sort": "integrity",
+    "component": "ProfitAccumulator",
+    "methods": ["take"],
+    "description": "take returns the current owed[account] and, when non-zero, sets owed[account] to 0, so a value is returned at most once and cannot be withdrawn twice without an intervening settle that accrues new profit."
+  },
+  {
+    "title": "LedgerLeaf hash is deterministic and distinguishing",
+    "sort": "integrity",
+    "component": "LedgerLeaf",
+    "methods": ["hash", "leafHash"],
+    "description": "LedgerLeaf.hash(ledgerChainId, kind, subjectId, a, b) = keccak256(keccak256(abi.encode(...))) is a pure function of its inputs, so leafHash is deterministic and (modeled as an injective ghost) distinct fact tuples yield distinct leaves; this is what makes a proof for one (kind, a, b) unusable to authorize a different amount or kind."
+  },
+  {
+    "title": "Immutable terms and wiring are never reassigned",
+    "sort": "invariant",
+    "component": "Distributor",
+    "methods": ["openSubscription", "closeSubscription", "distribute", "settleMaturity", "settleDefault", "updateReserve", "subscribe", "redeem"],
+    "description": "usdc, anchor, identityRegistry, token, ledgerChainId, module, and terms are set once in the constructor and never written by any later function; only status, subscriptionDeadline, lastPeriod, redemptionPerToken, the reserve snapshot pair, and the profit accumulator ever change."
+  },
+  {
+    "title": "Subscription requires a verified holder",
+    "sort": "access-control",
+    "component": "Distributor",
+    "methods": ["subscribe"],
+    "description": "subscribe reverts NotEligible unless identityRegistry.isVerified(msg.sender) is true, failing fast before any USDC moves; this is in addition to the T-REX token's own holder-verification check enforced inside mint."
+  },
+  {
+    "title": "Module forwards balance changes only from its compliance",
+    "sort": "access-control",
+    "component": "Module",
+    "methods": ["moduleTransferAction", "moduleMintAction", "moduleBurnAction", "setHook"],
+    "description": "moduleTransferAction/moduleMintAction/moduleBurnAction are onlyComplianceCall and forward (from,to,amount) to hookOf[msg.sender].afterBalanceChange, mapping mint to (0,to,amount) and burn to (from,0,amount). setHook is restricted to owner and rejects a zero hook, and canComplianceBind requires a hook to be configured first."
+  }
+]

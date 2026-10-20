@@ -5,7 +5,7 @@ import { Script, console2 } from "forge-std/Script.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { MockUSDC } from "../src/mocks/MockUSDC.sol";
 import { DealRegistry } from "../src/DealRegistry.sol";
-import { BondReceiptNFT } from "../src/BondReceiptNFT.sol";
+import { BondReceiptNFT, IDealPrincipalLedger } from "../src/BondReceiptNFT.sol";
 import { RedemptionVault } from "../src/RedemptionVault.sol";
 import { PooledFinancingVault } from "../src/PooledFinancingVault.sol";
 
@@ -87,6 +87,8 @@ contract Deploy is Script {
         // Per-deal product wiring (unchanged shape from the original deploy).
         registry.setVault(address(vault));
         nft.setVault(address(vault));
+        nft.setDealRegistry(IDealPrincipalLedger(address(registry)));
+        registry.setReceiptNft(address(nft));
         vault.configure(IERC20(address(usdc)), registry, nft);
 
         // Testnet role grants: one broadcaster holds every role.

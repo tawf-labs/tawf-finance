@@ -70,12 +70,18 @@ contract DealRegistry is AccessControl {
     ///         fundDeal / completeDeal).
     address public vault;
 
+    /// @notice The receipt contract, the only caller of moveInvestorPrincipal
+    ///         (a receipt changing hands under its VerifiedOnly policy).
+    address public receiptNft;
+
     Deal[] private _deals;
     uint256 private _nextId = 1;
 
     mapping(uint256 => mapping(address => uint96)) public investorPrincipal;
 
     error NotVault();
+    error NotReceiptNft();
+    error PrincipalMoveInvalid(uint256 id, address from, address to);
     error InvalidVaultAddress();
     error InvalidDealParams();
     error DealDoesNotExist(uint256 id);
@@ -87,6 +93,8 @@ contract DealRegistry is AccessControl {
     event DealStatusChanged(uint256 indexed id, DealStatus from, DealStatus to);
     event DealFunded(uint256 indexed id, address indexed investor, uint96 amount, uint96 totalFunded);
     event VaultSet(address vault);
+    event ReceiptNftSet(address receiptNft);
+    event InvestorPrincipalMoved(uint256 indexed id, address indexed from, address indexed to, uint96 amount);
 
     modifier onlyVault() {
         if (msg.sender != vault) revert NotVault();
@@ -110,6 +118,31 @@ contract DealRegistry is AccessControl {
         if (vault_ == address(0)) revert InvalidVaultAddress();
         vault = vault_;
         emit VaultSet(vault_);
+    }
+
+    /// @notice Set the BondReceiptNFT that may move principal between holders.
+    function setReceiptNft(address receiptNft_) external onlyRole(ADMIN_ROLE) {
+        if (receiptNft_ == address(0)) revert InvalidVaultAddress();
+        receiptNft = receiptNft_;
+        emit ReceiptNftSet(receiptNft_);
+    }
+
+    /**
+     * @notice Move an investor's whole principal to a new holder when their
+     *         receipt changes hands. Keeps investorPrincipal in step with the
+     *         receipt record. The recipient must hold no principal in the deal,
+     *         so investorCount and totalFunded are unchanged.
+     */
+    function moveInvestorPrincipal(uint256 id, address from, address to) external {
+        if (msg.sender != receiptNft || receiptNft == address(0)) revert NotReceiptNft();
+        _requireExists(id);
+        uint96 amount = investorPrincipal[id][from];
+        if (amount == 0 || to == address(0) || to == from || investorPrincipal[id][to] != 0) {
+            revert PrincipalMoveInvalid(id, from, to);
+        }
+        investorPrincipal[id][from] = 0;
+        investorPrincipal[id][to] = amount;
+        emit InvestorPrincipalMoved(id, from, to, amount);
     }
 
     // ---------------------------------------------------------------------
@@ -259,11 +292,11 @@ contract DealRegistry is AccessControl {
     // Views
     // ---------------------------------------------------------------------
 
-    function dealCount() external view returns (uint256) {
+    function dealCount() public view returns (uint256) {
         return _deals.length;
     }
 
-    function getDeal(uint256 id) external view returns (Deal memory) {
+    function getDeal(uint256 id) public view returns (Deal memory) {
         _requireExists(id);
         return _deals[id - 1];
     }

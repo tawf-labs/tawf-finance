@@ -1,0 +1,13 @@
+{
+  "Supply never exceeds the anchored deposito balance": ["supplyWithinReserve", "allocateKeepsSupplyWithinBalance"],
+  "Allocate requires a fresh, verified, non-stale reserve proof": ["allocateRequiresProof"],
+  "Profit periods are strictly sequential": ["profitPeriodsSequential"],
+  "noProfitAfterRedemptionOpen (expected VIOLATED — hardening gap)": ["noProfitAfterRedemptionOpen"],
+  "Maturity settlement is one-shot": ["settleMaturityOneShot", "settleMaturityOpensRedemption"],
+  "Principal per token is capped at face (settleMaturity cap)": ["principalCappedAtFace"],
+  "Redeem requires open redemption and a live receipt": ["redeemRequiresOpen"],
+  "Only allowlisted settlement stablecoins are accepted": ["onlyAllowlistedCoins", "claimOnlyAllowlistedCoin"],
+  "Value conservation in subscribe, allocate and redeem (sen)": ["subscribeEscrowsExactly", "cancelRefundsAtPar"],
+  "Treasury and config setters are role gated": ["rolesGateConfig"],
+  "Conversions round down (floor) in both directions": ["conversionsFloor"]
+}
