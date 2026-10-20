@@ -16,6 +16,8 @@ bytes32 constant DISTRIBUTION = keccak256("tawf.sukuk.distribution");
 bytes32 constant REDEMPTION = keccak256("tawf.sukuk.redemption");
 bytes32 constant DEFAULT = keccak256("tawf.sukuk.default");
 bytes32 constant RESERVE = keccak256("tawf.sukuk.reserve");
+bytes32 constant RESOLUTION = keccak256("tawf.sukuk.profit-resolution");
+bytes32 constant SWEEP_DEST = keccak256("tawf.sukuk.sweep-destination");
 
 uint256 constant LEDGER_CHAIN_ID = 99_999;
 uint256 constant FACE = 500_000e6;
@@ -48,6 +50,19 @@ interface ISukukDistributor {
     function profitPerToken() external view returns (uint256);
     function lastPeriod() external view returns (uint16);
     function settleMaturity(uint256 amount, uint256 epoch, bytes32[] calldata proof) external;
+    function releaseHeldProfit(uint16 index, uint256 amount, uint256 epoch, bytes32[] calldata proof) external;
+    function claimProfit() external;
+    function claimableHeldProfit(address holder) external view returns (uint256);
+    function entitledUnits(address holder) external view returns (uint256);
+    function totalUnitsAtMaturity() external view returns (uint256);
+    function totalHeldReleased() external view returns (uint256);
+    function totalHeldClaimed() external view returns (uint256);
+    function totalHeldSwept() external view returns (uint256);
+    function heldBalance() external view returns (uint256);
+    function setSweepDestination(address destination, uint256 epoch, bytes32[] calldata proof) external;
+    function sweepUnclaimed() external;
+    function sweepDestination() external view returns (address);
+    function setClaimWindow(uint256 window) external;
     function settleDefault(uint256 recovery, uint256 epoch, bytes32[] calldata proof) external;
     function redeem() external;
     function updateReserve(uint64 snapshotAt, uint256 outstanding, uint256 epoch, bytes32[] calldata proof) external;
@@ -385,6 +400,160 @@ contract SukukDistributorTest is TrexFixture {
         vm.prank(alice);
         dist.refund();
         assertEq(IMockUSDC(usdc).balanceOf(alice), MIN_SUB);
+    }
+
+
+    // --- profit held at a flagged maturity --------------------------------
+
+    function _mature() internal {
+        uint256 epoch = _anchor(REDEMPTION, 400_000e6, 0);
+        vm.startPrank(bank);
+        IMockUSDC(usdc).faucet(400_000e6);
+        dist.settleMaturity(400_000e6, epoch, noProof);
+        vm.stopPrank();
+    }
+
+    function _release(uint16 index, uint256 amount) internal {
+        uint256 epoch = _anchor(RESOLUTION, amount, index);
+        vm.startPrank(bank);
+        IMockUSDC(usdc).faucet(amount);
+        dist.releaseHeldProfit(index, amount, epoch, noProof);
+        vm.stopPrank();
+    }
+
+    function _claim(address who) internal returns (uint256 paid) {
+        uint256 before = IMockUSDC(usdc).balanceOf(who);
+        vm.prank(who);
+        dist.claimProfit();
+        paid = IMockUSDC(usdc).balanceOf(who) - before;
+    }
+
+    function test_transfersFreezeAtMaturity() public {
+        _issue();
+        _mature();
+        assertEq(dist.totalUnitsAtMaturity(), 400_000e6);
+        vm.expectRevert();
+        vm.prank(alice);
+        token.transfer(bob, 1e6);
+    }
+
+    function test_heldProfitIsProRataAndSurvivesRedemption() public {
+        _issue();
+        _mature();
+        // Alice redeems before any release; her entitlement survives the burn.
+        vm.prank(alice);
+        dist.redeem();
+        assertEq(token.balanceOf(alice), 0);
+        assertEq(dist.entitledUnits(alice), 300_000e6);
+
+        _release(1, 4_000e6);
+        assertEq(_claim(alice), 3_000e6);
+        assertEq(_claim(bob), 1_000e6);
+
+        // A second, partial release adds to the accumulator.
+        _release(2, 2_000e6);
+        assertEq(_claim(alice), 1_500e6);
+        assertEq(_claim(bob), 500e6);
+
+        // Nobody can claim more than their pro-rata share.
+        vm.expectRevert(bytes4(keccak256("NothingToClaim()")));
+        vm.prank(alice);
+        dist.claimProfit();
+
+        assertEq(dist.totalHeldReleased(), dist.totalHeldClaimed() + dist.heldBalance() + dist.totalHeldSwept());
+    }
+
+    function test_releaseIsSequentialAndProven() public {
+        _issue();
+        _mature();
+        uint256 epoch = _anchor(RESOLUTION, 1_000e6, 2);
+        vm.startPrank(bank);
+        IMockUSDC(usdc).faucet(1_000e6);
+        vm.expectRevert(abi.encodeWithSignature("ReleaseNotSequential(uint16,uint16)", uint16(1), uint16(2)));
+        dist.releaseHeldProfit(2, 1_000e6, epoch, noProof);
+        // Index 1 with an amount the ledger did not record fails the proof.
+        vm.expectRevert(abi.encodeWithSignature("ProofInvalid()"));
+        dist.releaseHeldProfit(1, 1_000e6, epoch, noProof);
+        vm.stopPrank();
+    }
+
+    function test_sweepOnlyAfterWindowAndOnlyToApprovedDestination() public {
+        _issue();
+        _mature();
+        _release(1, 4_000e6);
+        assertEq(_claim(alice), 3_000e6); // bob leaves his 1,000 unclaimed
+
+        address waqf = makeAddr("waqf");
+        // The issuer treasury is never an acceptable destination.
+        uint256 eT = _anchor(SWEEP_DEST, uint256(uint160(treasury)), 0);
+        vm.expectRevert(abi.encodeWithSignature("InvalidSweepDestination(address)", treasury));
+        dist.setSweepDestination(treasury, eT, noProof);
+        // A destination the board did not approve fails the proof.
+        uint256 eW = _anchor(SWEEP_DEST, uint256(uint160(waqf)), 0);
+        vm.expectRevert(abi.encodeWithSignature("ProofInvalid()"));
+        dist.setSweepDestination(makeAddr("not-approved"), eW, noProof);
+        dist.setSweepDestination(waqf, eW, noProof);
+
+        vm.expectRevert();
+        dist.sweepUnclaimed(); // window still open
+
+        vm.warp(block.timestamp + 365 days);
+        dist.sweepUnclaimed();
+        assertEq(IMockUSDC(usdc).balanceOf(waqf), 1_000e6);
+        assertEq(dist.heldBalance(), 0);
+
+        // Swept profit is no longer claimable.
+        vm.expectRevert(bytes4(keccak256("NothingToClaim()")));
+        vm.prank(bob);
+        dist.claimProfit();
+        assertEq(dist.totalHeldReleased(), dist.totalHeldClaimed() + dist.heldBalance() + dist.totalHeldSwept());
+    }
+
+
+    function testFuzz_heldClaimsNeverExceedReleased(uint96 a, uint96 b, uint96 r1, uint96 r2) public {
+        uint256 aliceAmt = bound(uint256(a), MIN_SUB, 300_000e6);
+        uint256 bobAmt = bound(uint256(b), MIN_SUB, 100_000e6);
+        if (aliceAmt + bobAmt < MIN_RAISE) aliceAmt = MIN_RAISE;
+        uint256 rel1 = bound(uint256(r1), 1, 50_000e6);
+        uint256 rel2 = bound(uint256(r2), 1, 50_000e6);
+
+        _open();
+        _subscribe(alice, aliceAmt);
+        _subscribe(bob, bobAmt);
+        vm.warp(block.timestamp + WINDOW);
+        _postReserve(FACE);
+        vm.prank(deployer);
+        dist.closeSubscription();
+
+        uint256 total = aliceAmt + bobAmt;
+        uint256 epoch = _anchor(REDEMPTION, total, 0);
+        vm.startPrank(bank);
+        IMockUSDC(usdc).faucet(total);
+        dist.settleMaturity(total, epoch, noProof);
+        vm.stopPrank();
+
+        _release(1, rel1);
+        vm.prank(bob);
+        dist.redeem();
+        _release(2, rel2);
+
+        uint256 paid;
+        if (dist.claimableHeldProfit(alice) > 0) paid += _claim(alice);
+        if (dist.claimableHeldProfit(bob) > 0) paid += _claim(bob);
+
+        assertLe(paid, rel1 + rel2, "claims exceeded releases");
+        // Rounding dust is at most one unit per holder per release.
+        assertLe(rel1 + rel2 - paid, 4, "more than rounding dust left unpaid");
+        assertEq(dist.totalHeldReleased(), dist.totalHeldClaimed() + dist.heldBalance() + dist.totalHeldSwept());
+    }
+
+    function test_sweepNeedsADestination() public {
+        _issue();
+        _mature();
+        _release(1, 4_000e6);
+        vm.warp(block.timestamp + 365 days);
+        vm.expectRevert(abi.encodeWithSignature("SweepDestinationNotSet()"));
+        dist.sweepUnclaimed();
     }
 
     // --- transfers (T-REX verification) ---------------------------------

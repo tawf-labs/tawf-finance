@@ -94,6 +94,37 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     /// @notice USDC per token unit paid at redemption, scaled by 1e18.
     uint256 public redemptionPerToken;
 
+    // --- Profit held at a Shariah-flagged maturity --------------------
+    // Transfers freeze at maturity, so the holders at maturity and their units
+    // are fixed. A holder's entitled units are what they redeemed plus what
+    // they still hold. Each board release adds to a per-unit accumulator over
+    // totalUnitsAtMaturity; holders pull their share with claimProfit.
+
+    /// @notice Token supply when maturity was settled (the entitled units).
+    uint256 public totalUnitsAtMaturity;
+    /// @notice Units each holder redeemed after maturity (entitlement survives the burn).
+    mapping(address => uint256) public redeemedUnits;
+    /// @notice Cumulative released profit per entitled unit, scaled by 1e18.
+    uint256 public heldProfitPerUnit;
+    /// @notice Each holder's accumulator mark at their last claim.
+    mapping(address => uint256) public heldProfitPaidPerUnit;
+    /// @notice Accumulator mark at the last sweep: profit up to it is no
+    ///         longer claimable (it was swept to the approved destination).
+    uint256 public sweptPerUnitMark;
+    /// @notice Board releases accepted so far (release indexes are sequential).
+    uint16 public heldReleases;
+    uint256 public totalHeldReleased;
+    uint256 public totalHeldClaimed;
+    uint256 public totalHeldSwept;
+    /// @notice Released profit still held by this contract for claims.
+    uint256 public heldBalance;
+    uint256 public lastReleaseAt;
+    /// @notice How long after the last release holders can claim before the
+    ///         remainder may be swept. Admin-configurable.
+    uint256 public claimWindow = 365 days;
+    /// @notice Shariah-board-approved destination for unclaimed profit.
+    address public sweepDestination;
+
     /// @notice Latest verified reserve snapshot timestamp (SUKUK_RESERVE a).
     uint64 public reserveSnapshotAt;
     /// @notice Latest verified outstanding reserve cap (SUKUK_RESERVE b).
@@ -121,6 +152,14 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     error NoReserveSnapshot();
     error ReserveTooOld(uint64 snapshotAt, uint64 maxAge);
     error InvalidMaxAge();
+    error TransfersFrozen();
+    error ReleaseNotSequential(uint16 expected, uint16 got);
+    error ZeroRelease();
+    error SweepDestinationNotSet();
+    error SweepDestinationAlreadySet();
+    error InvalidSweepDestination(address destination);
+    error ClaimWindowOpen(uint256 opensAt);
+    error InvalidClaimWindow();
 
     /// @notice The compliance module authorized to report balance changes.
     address public immutable module;
@@ -137,6 +176,11 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     event Redeemed(address indexed investor, uint256 units, uint256 principalPaid, uint256 profitPaid);
     event ReserveUpdated(uint64 snapshotAt, uint256 outstanding, uint16 epoch);
     event MaxReserveAgeSet(uint64 maxAge);
+    event HeldProfitReleased(uint16 indexed index, uint256 amount, uint256 profitPerUnit);
+    event HeldProfitClaimed(address indexed holder, uint256 entitledUnits, uint256 amount);
+    event HeldProfitSwept(address indexed destination, uint256 amount);
+    event SweepDestinationSet(address indexed destination);
+    event ClaimWindowSet(uint256 window);
 
     /// @param usdc_ Settlement token (USDC/MockUSDC).
     /// @param anchor_ LedgerAnchor the ledger roots are anchored on.
@@ -348,6 +392,8 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         if (status != Status.Active) revert WrongStatus(status);
         _requireFact(LedgerLeaf.SUKUK_REDEMPTION, amount, 0, epoch, proof);
         status = Status.Matured;
+        // Freeze the entitled set: transfers stop from here (afterBalanceChange).
+        totalUnitsAtMaturity = token.totalSupply();
         _fundRedemption(amount);
         emit MaturitySettled(amount);
     }
@@ -368,6 +414,8 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         uint256 units = token.balanceOf(msg.sender);
         if (units == 0) revert NothingToClaim();
 
+        // Entitlement to profit held at maturity survives the burn.
+        redeemedUnits[msg.sender] += units;
         // Burning settles profit at the pre-burn balance through the module hook.
         token.burn(msg.sender, units);
         uint256 profit = _profit.take(msg.sender);
@@ -375,6 +423,92 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
 
         usdc.safeTransfer(msg.sender, principal + profit);
         emit Redeemed(msg.sender, units, principal, profit);
+    }
+
+    // ---------------------------------------------------------------
+    // Profit held at a Shariah-flagged maturity
+    // ---------------------------------------------------------------
+
+    /// @notice Fund one Shariah-board release of held profit, proven on the
+    ///         ledger (a = amount, b = release index). The caller (the issuer)
+    ///         pays exactly that amount; holders at maturity claim it pro rata.
+    function releaseHeldProfit(uint16 index, uint256 amount, uint256 epoch, bytes32[] calldata proof)
+        external
+        nonReentrant
+    {
+        if (status != Status.Matured) revert WrongStatus(status);
+        if (index != heldReleases + 1) revert ReleaseNotSequential(heldReleases + 1, index);
+        if (amount == 0) revert ZeroRelease();
+        _requireFact(LedgerLeaf.SUKUK_PROFIT_RESOLUTION, amount, index, epoch, proof);
+
+        heldReleases = index;
+        usdc.safeTransferFrom(msg.sender, address(this), amount);
+        heldProfitPerUnit += (amount * PRECISION) / totalUnitsAtMaturity;
+        totalHeldReleased += amount;
+        heldBalance += amount;
+        lastReleaseAt = block.timestamp;
+        emit HeldProfitReleased(index, amount, heldProfitPerUnit);
+    }
+
+    /// @notice Units `holder` is entitled to: what they redeemed after
+    ///         maturity plus what they still hold (transfers are frozen).
+    function entitledUnits(address holder) public view returns (uint256) {
+        return redeemedUnits[holder] + token.balanceOf(holder);
+    }
+
+    /// @notice Released profit `holder` can claim now.
+    function claimableHeldProfit(address holder) public view returns (uint256) {
+        uint256 mark = heldProfitPaidPerUnit[holder];
+        if (sweptPerUnitMark > mark) mark = sweptPerUnitMark;
+        return (entitledUnits(holder) * (heldProfitPerUnit - mark)) / PRECISION;
+    }
+
+    /// @notice Pull the caller's share of released profit.
+    function claimProfit() external nonReentrant {
+        if (status != Status.Matured) revert WrongStatus(status);
+        uint256 amount = claimableHeldProfit(msg.sender);
+        heldProfitPaidPerUnit[msg.sender] = heldProfitPerUnit;
+        if (amount == 0) revert NothingToClaim();
+        heldBalance -= amount;
+        totalHeldClaimed += amount;
+        usdc.safeTransfer(msg.sender, amount);
+        emit HeldProfitClaimed(msg.sender, entitledUnits(msg.sender), amount);
+    }
+
+    /// @notice Record the Shariah board's approved sweep destination, proven on
+    ///         the ledger. Never the issuer, an admin, or this contract.
+    function setSweepDestination(address destination, uint256 epoch, bytes32[] calldata proof) external {
+        if (sweepDestination != address(0)) revert SweepDestinationAlreadySet();
+        if (
+            destination == address(0) || destination == address(this) || destination == terms.issuerTreasury
+                || hasRole(ADMIN_ROLE, destination) || hasRole(DEFAULT_ADMIN_ROLE, destination)
+        ) revert InvalidSweepDestination(destination);
+        _requireFact(LedgerLeaf.SUKUK_SWEEP_DESTINATION, uint256(uint160(destination)), 0, epoch, proof);
+        sweepDestination = destination;
+        emit SweepDestinationSet(destination);
+    }
+
+    /// @notice After the claim window (from the last release), send unclaimed
+    ///         released profit to the board-approved destination. Profit swept
+    ///         is no longer claimable.
+    function sweepUnclaimed() external nonReentrant {
+        if (sweepDestination == address(0)) revert SweepDestinationNotSet();
+        if (lastReleaseAt == 0 || block.timestamp < lastReleaseAt + claimWindow) {
+            revert ClaimWindowOpen(lastReleaseAt + claimWindow);
+        }
+        uint256 amount = heldBalance;
+        heldBalance = 0;
+        sweptPerUnitMark = heldProfitPerUnit;
+        totalHeldSwept += amount;
+        if (amount != 0) usdc.safeTransfer(sweepDestination, amount);
+        emit HeldProfitSwept(sweepDestination, amount);
+    }
+
+    /// @notice Set how long holders can claim after the last release.
+    function setClaimWindow(uint256 window) external onlyRole(ADMIN_ROLE) {
+        if (window == 0) revert InvalidClaimWindow();
+        claimWindow = window;
+        emit ClaimWindowSet(window);
     }
 
     // ---------------------------------------------------------------
@@ -388,6 +522,9 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     ///      `current - amount`. Mint has from == 0, burn has to == 0.
     function afterBalanceChange(address from, address to, uint256 amount) external {
         if (msg.sender != module) revert OnlyModule();
+        // Holder-to-holder transfers are frozen once matured, so the holders at
+        // maturity and their units stay fixed. Burns (redemption) still work.
+        if (status == Status.Matured && from != address(0) && to != address(0)) revert TransfersFrozen();
         if (from != address(0)) {
             _profit.settle(from, token.balanceOf(from) + amount);
         }

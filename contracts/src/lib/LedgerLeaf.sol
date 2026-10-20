@@ -37,6 +37,12 @@ library LedgerLeaf {
     /// @notice Reserve snapshot. subject sukukId, a = snapshot ts,
     ///         b = outstanding.
     bytes32 internal constant SUKUK_RESERVE = keccak256("tawf.sukuk.reserve");
+    /// @notice A Shariah-board release of profit held at a flagged maturity.
+    ///         subject sukukId, a = amount released, b = release index (1, 2, ...).
+    bytes32 internal constant SUKUK_PROFIT_RESOLUTION = keccak256("tawf.sukuk.profit-resolution");
+    /// @notice The Shariah board's approved destination for released profit
+    ///         left unclaimed. subject sukukId, a = uint160(destination), b = 0.
+    bytes32 internal constant SUKUK_SWEEP_DESTINATION = keccak256("tawf.sukuk.sweep-destination");
 
     // ---------------------------------------------------------------------
     // Deposito leaf kinds
