@@ -33,7 +33,7 @@ Read first: `certora/REPORT.md` (results, bugs found, assumptions) and `certora/
 | tawf-finance mutants `certora/mutants/M1–M9` | written before the contract fixes; regenerate from current `src/`, then `./certora/mutate.sh` |
 | tawf-gold-bsi tBSI Controller | proven except the documented attestation-freshness gap |
 | tawf-network l2 LeafLog | proven (12 checks): append-only, leafCount monotonic, writer-only |
-| tawf-network l2 LedgerAnchor | summary fix (`bytes32[] calldata`) done, rerun |
+| tawf-network l2 LedgerAnchor | proven (40 checks): epochs and nextIndex monotonic, roots never overwritten, relayer-only anchoring, verify stable once true (Merkle soundness assumed) |
 | tawf-network l3 ReserveLedger | 29 proven; `maturedSeriesStaysMatured` needs an invariant `matured ⇒ registeredAt != 0` (unreachable pre-state) |
 | tawf-network l3 SukukLedger, PoolLedger | CVL compile errors, listed in `certora/out/*.errors.txt` (gitignored; rerun to regenerate) |
 | tawf-network l3 ServicingLedger, InstitutionRegistry, DocumentRegistry, ShariahAttestations | specs not written yet; harnesses exist |
