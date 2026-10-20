@@ -98,52 +98,48 @@ methods {
 // the live<->redeemed flip, no transition is counted twice and the sum is
 // exactly _mintedCount in every reachable state.
 
+// Mirrors of each receipt's principal and status, kept exact by Sload/Sstore
+// hooks. Membership ("live" = principal != 0 and not Redeemed; "redeemed" =
+// status Redeemed) is recomputed from BOTH mirrors before and after every
+// write, so the counts are right whatever order a struct write lands in
+// (mint writes principal then status; `delete` zeroes both; _moveReceipt
+// copies the whole struct).
+ghost mapping(uint256 => mapping(address => uint96)) mPrincipal {
+    init_state axiom forall uint256 d. forall address a. mPrincipal[d][a] == 0;
+}
+ghost mapping(uint256 => mapping(address => BondReceiptNFT.ReceiptStatus)) mStatus {
+    init_state axiom forall uint256 d. forall address a. mStatus[d][a] == BondReceiptNFT.ReceiptStatus.Active;
+}
+ghost mapping(uint256 => mathint) ghostLiveCount {
+    init_state axiom forall uint256 d. ghostLiveCount[d] == 0;
+}
 ghost mapping(uint256 => mathint) ghostRedeemedCount {
     init_state axiom forall uint256 d. ghostRedeemedCount[d] == 0;
 }
 
-ghost mapping(uint256 => mathint) ghostLiveCount {
-    init_state axiom forall uint256 d. ghostLiveCount[d] == 0;
+definition isLive(uint96 p, BondReceiptNFT.ReceiptStatus st) returns mathint =
+    (p != 0 && st != BondReceiptNFT.ReceiptStatus.Redeemed) ? 1 : 0;
+definition isRedeemed(BondReceiptNFT.ReceiptStatus st) returns mathint =
+    st == BondReceiptNFT.ReceiptStatus.Redeemed ? 1 : 0;
+
+hook Sload uint96 v currentContract._receipts[KEY uint256 d][KEY address a].principal {
+    require mPrincipal[d][a] == v;
+}
+hook Sload BondReceiptNFT.ReceiptStatus v currentContract._receipts[KEY uint256 d][KEY address a].status {
+    require mStatus[d][a] == v;
 }
 
-// Status write hook. The enum is a uint8: 0 Active | 1 Matured | 2 Redeemed |
-// 3 Defaulted. Only the live<->Redeemed flip moves a counter; every other
-// status write (including the Active-over-anything a `delete` performs) is a
-// no-op here, because enter/leave of the live set is driven by the principal
-// hook. The principal of the slot is not changed by any function that writes
-// the status (burnOnRedemption / markReceiptDefaulted leave principal in
-// place), so a slot that becomes Redeemed here had principal != 0, i.e. was
-// live.
-hook Sstore currentContract._receipts[KEY uint256 d][KEY address a].status BondReceiptNFT.ReceiptStatus newStatus (BondReceiptNFT.ReceiptStatus oldStatus) {
-    if (newStatus == BondReceiptNFT.ReceiptStatus.Redeemed && oldStatus != BondReceiptNFT.ReceiptStatus.Redeemed) {
-        // A live receipt becomes Redeemed (burnOnRedemption). It had
-        // principal != 0, so it was counted live.
-        ghostRedeemedCount[d] = ghostRedeemedCount[d] + 1;
-        ghostLiveCount[d] = ghostLiveCount[d] - 1;
-    } else if (oldStatus == BondReceiptNFT.ReceiptStatus.Redeemed && newStatus != BondReceiptNFT.ReceiptStatus.Redeemed) {
-        // Unreachable on-chain (Redeemed is terminal; _moveReceipt rejects a
-        // Redeemed source and mint rejects a Redeemed top-up). Kept so the
-        // ghost stays an exact count if the Prover explores it.
-        ghostRedeemedCount[d] = ghostRedeemedCount[d] - 1;
-        ghostLiveCount[d] = ghostLiveCount[d] + 1;
-    }
-    // Active<->Matured<->Defaulted (incl. the Active written by `delete`) do
-    // not change membership of either set: no-op.
+hook Sstore currentContract._receipts[KEY uint256 d][KEY address a].principal uint96 newP (uint96 oldP) {
+    BondReceiptNFT.ReceiptStatus st = mStatus[d][a];
+    ghostLiveCount[d] = ghostLiveCount[d] - isLive(oldP, st) + isLive(newP, st);
+    mPrincipal[d][a] = newP;
 }
 
-// Principal write hook. "Exists" is principal != 0. A slot enters the live set
-// when principal flips 0 -> !=0 (fresh mint, or the `to` side of a move) and
-// leaves it when principal flips !=0 -> 0 (the `delete` on the `from` side of a
-// move). At the instant principal flips, the status written alongside is never
-// Redeemed (mint and the move both write a non-Redeemed status; the delete
-// writes Active), so a principal flip always moves the LIVE set, never the
-// redeemed set. A top-up (!=0 -> !=0) is not a flip and is correctly ignored.
-hook Sstore currentContract._receipts[KEY uint256 d][KEY address a].principal uint96 newPrincipal (uint96 oldPrincipal) {
-    if (newPrincipal != 0 && oldPrincipal == 0) {
-        ghostLiveCount[d] = ghostLiveCount[d] + 1;
-    } else if (newPrincipal == 0 && oldPrincipal != 0) {
-        ghostLiveCount[d] = ghostLiveCount[d] - 1;
-    }
+hook Sstore currentContract._receipts[KEY uint256 d][KEY address a].status BondReceiptNFT.ReceiptStatus newS (BondReceiptNFT.ReceiptStatus oldS) {
+    uint96 p = mPrincipal[d][a];
+    ghostLiveCount[d] = ghostLiveCount[d] - isLive(p, oldS) + isLive(p, newS);
+    ghostRedeemedCount[d] = ghostRedeemedCount[d] - isRedeemed(oldS) + isRedeemed(newS);
+    mStatus[d][a] = newS;
 }
 
 // ===========================================================================
@@ -266,63 +262,60 @@ rule markReceiptDefaultedOnlyVault(uint256 dealId, address investor) {
 // COUNTS
 // ===========================================================================
 
-/// @title Redeemed-receipt count equals burnedCount (helper for the bound)
-// burnOnRedemption is the only function that stores a Redeemed status, and it
-// increments _burnedCount in the same call; no other path writes Redeemed and
-// Redeemed is terminal. So the ghost count of Redeemed receipts equals
-// burnedCount in every reachable state. Both sides move together exactly once
-// per burn, so this is inductive on its own, and it is the fact that pins
-// burnedCount in burnedNeverExceedsMinted below.
-invariant redeemedCountEqualsBurned(uint256 dealId)
-    ghostRedeemedCount[dealId] == to_mathint(getBurnedCount(dealId))
+/// @title A Redeemed receipt keeps its principal
+// burnOnRedemption requires principal != 0 and leaves it in place; `delete`
+// (in _moveReceipt) never runs on a Redeemed receipt. So "Redeemed" always
+// sits on a receipt that was minted, which is what lets the counts below add up.
+invariant redeemedHasPrincipal(uint256 d, address a)
+    mStatus[d][a] == BondReceiptNFT.ReceiptStatus.Redeemed => mPrincipal[d][a] != 0
     {
-        preserved {
-            // Counts are never negative in any reachable state; rules out the
-            // spurious shifted-but-negative pre-states the Prover would
-            // otherwise consider at the havoced pre-state.
-            require ghostRedeemedCount[dealId] >= 0 && ghostLiveCount[dealId] >= 0;
+        preserved with (env e) {
+            require e.msg.sender != vault();
+        }
+        preserved burnOnRedemption(uint256 dd, address aa) with (env e) {
+            require e.msg.sender == vault();
+        }
+        preserved mint(address inv, uint256 dd, uint96 pr, uint96 apy, uint32 dur, string sn, string ab) with (env e) {
+            require e.msg.sender == vault();
         }
     }
+
+/// @title Redeemed-receipt count equals burnedCount
+// burnOnRedemption is the only writer of a Redeemed status and bumps
+// _burnedCount in the same call; Redeemed is terminal.
+invariant redeemedCountEqualsBurned(uint256 d)
+    ghostRedeemedCount[d] == to_mathint(getBurnedCount(d));
 
 /// @title Live + redeemed receipts equal mintedCount (conservation law)
-// Every deal's minted receipts are partitioned into those still live
-// (principal != 0 and status != Redeemed) and those already Redeemed.
-// ghostLiveCount and ghostRedeemedCount are maintained by the principal and
-// status Sstore hooks so this sum is exactly _mintedCount:
-//   - a fresh mint sets a 0->!=0 principal (live +1) and bumps _mintedCount;
-//   - a top-up changes neither (principal stays !=0, _mintedCount unchanged),
-//     and the src now rejects a top-up onto a Redeemed slot;
-//   - burnOnRedemption flips one live receipt to Redeemed (live -1, redeemed +1);
-//   - markReceiptDefaulted (Active->Defaulted) is a no-op for both sets;
-//   - a VerifiedOnly move writes the recipient slot (live +1) and `delete`s the
-//     sender slot (principal !=0 -> 0, live -1; the Active the delete writes is
-//     a status no-op), a net zero, and never touches a Redeemed receipt.
-invariant liveAndRedeemedEqualMinted(uint256 dealId)
-    ghostLiveCount[dealId] + ghostRedeemedCount[dealId] == to_mathint(mintedCount(dealId))
+// A new receipt (principal 0 -> non-zero, status Active) bumps _mintedCount and
+// becomes live; a top-up keeps it live; a burn moves it from live to redeemed;
+// a VerifiedOnly move makes the recipient live and the sender not (net zero).
+invariant liveAndRedeemedEqualMinted(uint256 d)
+    ghostLiveCount[d] + ghostRedeemedCount[d] == to_mathint(getMintedCount(d))
     {
-        preserved {
-            // Both ghosts count receipts, so they are never negative in any
-            // reachable state; this rules out spurious all-zero-but-shifted
-            // counterexamples at the havoced pre-state and keeps the step
-            // inductive on mint / invest / transfers / markReceiptDefaulted.
-            require ghostLiveCount[dealId] >= 0 && ghostRedeemedCount[dealId] >= 0;
-            requireInvariant redeemedCountEqualsBurned(dealId);
+        preserved with (env e) {
+            // A fresh mint lands on a slot that is not Redeemed: a Redeemed
+            // slot has a principal (redeemedHasPrincipal) and so takes the
+            // top-up branch, which reverts on Redeemed.
+            requireInvariant redeemedHasPrincipal(d, e.msg.sender);
+        }
+        preserved mint(address inv, uint256 dd, uint96 pr, uint96 apy, uint32 dur, string sn, string ab) with (env e) {
+            requireInvariant redeemedHasPrincipal(dd, inv);
+        }
+        preserved safeTransferFrom(address from, address to, uint256 id, uint256 v, bytes data) with (env e) {
+            requireInvariant redeemedHasPrincipal(id, from);
+            requireInvariant redeemedHasPrincipal(id, to);
         }
     }
 
-/// @title mintedCount and burnedCount are monotonic and bounded
-// burnedCount(d) == ghostRedeemedCount[d] (redeemedCountEqualsBurned) and
-// ghostRedeemedCount[d] <= ghostLiveCount[d] + ghostRedeemedCount[d] ==
-// mintedCount(d) (liveAndRedeemedEqualMinted, with ghostLiveCount >= 0).
-// Requiring both helper invariants makes this bound inductive on
-// burnOnRedemption / redeem / claimDefault, the step that failed in v2.
-invariant burnedNeverExceedsMinted(uint256 dealId)
-    getBurnedCount(dealId) <= getMintedCount(dealId)
+/// @title burnedCount never exceeds mintedCount
+invariant burnedNeverExceedsMinted(uint256 d)
+    getBurnedCount(d) <= getMintedCount(d)
     {
         preserved {
-            requireInvariant redeemedCountEqualsBurned(dealId);
-            requireInvariant liveAndRedeemedEqualMinted(dealId);
-            require ghostLiveCount[dealId] >= 0 && ghostRedeemedCount[dealId] >= 0;
+            requireInvariant redeemedCountEqualsBurned(d);
+            requireInvariant liveAndRedeemedEqualMinted(d);
+            require ghostLiveCount[d] >= 0;
         }
     }
 

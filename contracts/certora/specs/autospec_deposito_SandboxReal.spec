@@ -208,6 +208,8 @@ rule seriesCapBoundsSupply(address c, address to, uint256 value) {
     env e;
     require cfgConfigured(c);
     require ghostTokenAddr != 0;
+    // to == 0 is the burn branch (always allowed); a mint never targets 0.
+    require to != 0;
     bool ok = m.moduleCheck(e, 0, to, value, c); // _from == 0 => mint
     assert ok => ghostSupply + to_mathint(value) <= to_mathint(cfgSeriesCap(c)),
         "a mint passed moduleCheck above the series cap";
@@ -223,6 +225,7 @@ rule perInvestorCap(address c, address to, uint256 value) {
     require cfgConfigured(c);
     require ghostTokenAddr != 0;
     require to != cfgTreasury(c);
+    require to != 0; // to == 0 is the burn branch; a mint never targets 0
     // Admissible receiver so the mode gate does not mask the caps check.
     requireIssuerConsistent(c);
     bool ok = m.moduleCheck(e, 0, to, value, c);
