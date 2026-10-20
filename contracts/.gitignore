@@ -3,3 +3,10 @@ cache/
 broadcast/
 .env
 .env.local
+
+# Certora local runs
+.certora_internal/
+emv-*/
+certora/munged/
+certora/out/
+certora/mutants/_work/

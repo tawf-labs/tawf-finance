@@ -37,6 +37,12 @@ library LedgerLeaf {
     /// @notice Reserve snapshot. subject sukukId, a = snapshot ts,
     ///         b = outstanding.
     bytes32 internal constant SUKUK_RESERVE = keccak256("tawf.sukuk.reserve");
+    /// @notice A Shariah-board release of profit held at a flagged maturity.
+    ///         subject sukukId, a = amount released, b = release index (1, 2, ...).
+    bytes32 internal constant SUKUK_PROFIT_RESOLUTION = keccak256("tawf.sukuk.profit-resolution");
+    /// @notice The Shariah board's approved destination for released profit
+    ///         left unclaimed. subject sukukId, a = uint160(destination), b = 0.
+    bytes32 internal constant SUKUK_SWEEP_DESTINATION = keccak256("tawf.sukuk.sweep-destination");
 
     // ---------------------------------------------------------------------
     // Deposito leaf kinds
@@ -52,8 +58,15 @@ library LedgerLeaf {
     ///         seriesId, a = period, b = profit sen.
     bytes32 internal constant DEPOSITO_PROFIT = keccak256("tawf.deposito.profit");
     /// @notice Series maturity: principal returned. subject seriesId,
-    ///         a = maturity ts, b = principal sen.
+    ///         a = packMaturity(maturity ts, last profit period), b = principal sen.
     bytes32 internal constant DEPOSITO_MATURITY = keccak256("tawf.deposito.maturity");
+
+    /// @notice `a` of a DEPOSITO_MATURITY leaf, identical to tawf-network's
+    ///         LedgerLeaf.packMaturity: the last profit period above bit 64,
+    ///         the maturity timestamp in the low 64 bits.
+    function packMaturity(uint64 at, uint32 finalPeriod) internal pure returns (uint256) {
+        return (uint256(finalPeriod) << 64) | uint256(at);
+    }
 
     /**
      * @notice Encode a ledger leaf exactly as tawf-network's LedgerLeaf.hash.

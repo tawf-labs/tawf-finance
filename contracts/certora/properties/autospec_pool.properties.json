@@ -1,0 +1,191 @@
+[
+  {
+    "title": "Funding never exceeds the target",
+    "sort": "invariant",
+    "component": "Registry",
+    "methods": ["fundDeal", "createDeal"],
+    "description": "For every deal id, deal.totalFunded <= deal.fundingTarget holds in every reachable state. createDeal sets totalFunded = 0 <= fundingTarget (> 0), and fundDeal reverts when amount > fundingTarget - totalFunded, so the invariant is preserved by the only writer of totalFunded."
+  },
+  {
+    "title": "Sum of investor principals equals totalFunded",
+    "sort": "integrity",
+    "component": "Registry",
+    "methods": ["fundDeal"],
+    "description": "For every deal id, the sum over all investors of investorPrincipal[dealId][investor] equals deal.totalFunded. fundDeal is the only writer and increments both the per-investor principal and totalFunded by the same amount, so the equality is maintained for all deals and all investors."
+  },
+  {
+    "title": "investorCount equals number of distinct investors",
+    "sort": "integrity",
+    "component": "Registry",
+    "methods": ["fundDeal"],
+    "description": "For every deal id, deal.investorCount equals the number of distinct addresses with investorPrincipal[dealId][addr] > 0. investorCount is incremented exactly once, on the first time an investor's principal transitions from 0 to non-zero in fundDeal, and principal never decreases in the registry."
+  },
+  {
+    "title": "Only legal status transitions occur",
+    "sort": "state-transition",
+    "component": "Registry",
+    "methods": ["approveDeal", "markMintable", "fundDeal", "markMatured", "completeDeal", "defaultDeal"],
+    "description": "Across any single function call, a deal's status may only change along the allowed edges: Submitted->BmtApproved, BmtApproved->Mintable, Mintable->Active, Mintable->Matured, Active->Matured, Active->Defaulted, Matured->Completed, Defaulted->Completed. No other (from,to) pair is reachable, and status never moves to a lower lifecycle stage."
+  },
+  {
+    "title": "Completed is terminal",
+    "sort": "state-transition",
+    "component": "Registry",
+    "methods": ["approveDeal", "markMintable", "markMatured", "completeDeal", "defaultDeal", "fundDeal"],
+    "description": "Once a deal reaches Completed its status can never change again: no registry function accepts Completed as a valid source status, so for every deal, status == Completed in one state implies status == Completed in every subsequent state."
+  },
+  {
+    "title": "Defaulted only moves to Completed",
+    "sort": "state-transition",
+    "component": "Registry",
+    "methods": ["completeDeal", "markMatured", "defaultDeal", "approveDeal", "markMintable"],
+    "description": "A deal in Defaulted can only transition to Completed (via completeDeal) and to no other status; in particular it can never return to Active, Matured, or any funding state."
+  },
+  {
+    "title": "Deal immutable terms are fixed at creation",
+    "sort": "invariant",
+    "component": "Registry",
+    "methods": ["createDeal", "fundDeal", "markMatured", "completeDeal", "defaultDeal"],
+    "description": "For every deal, the fields id, invoiceHash, supplierName, anchorBuyer, bmtOriginator, apyBps, durationDays, minInvestment, fundingTarget, createdAt, and maturesAt are written once in createDeal and are never modified by any later function; only status, totalFunded, and investorCount ever change."
+  },
+  {
+    "title": "fundDeal is callable only by the vault",
+    "sort": "access-control",
+    "component": "Registry",
+    "methods": ["fundDeal"],
+    "description": "fundDeal reverts with NotVault unless msg.sender == registry.vault. No other caller can change totalFunded, investorPrincipal, investorCount, or flip a deal to Active."
+  },
+  {
+    "title": "Role gating on registry lifecycle functions",
+    "sort": "access-control",
+    "component": "Registry",
+    "methods": ["createDeal", "approveDeal", "markMintable", "defaultDeal", "setVault"],
+    "description": "createDeal requires ORIGINATOR_ROLE, approveDeal requires SHARIAH_ROLE, markMintable and defaultDeal require OPS_ROLE, and setVault requires ADMIN_ROLE; a caller lacking the required role causes a revert for every such call."
+  },
+  {
+    "title": "Early maturation is privileged; late maturation is open",
+    "sort": "access-control",
+    "component": "Registry",
+    "methods": ["markMatured"],
+    "description": "markMatured succeeds only from Mintable or Active, and before block.timestamp reaches maturesAt it requires the caller to hold OPS_ROLE or be the vault; after maturesAt any caller may mature it. completeDeal requires OPS_ROLE or the vault."
+  },
+  {
+    "title": "Vault configuration is one-shot and non-zero",
+    "sort": "access-control",
+    "component": "Vault",
+    "methods": ["configure"],
+    "description": "configure requires ADMIN_ROLE, reverts AlreadyConfigured if already configured, and reverts InvalidAddress on any zero address; after the first successful call usdc, registry, and nft are set once and can never be repointed."
+  },
+  {
+    "title": "repay is gated by OPS_ROLE",
+    "sort": "access-control",
+    "component": "Vault",
+    "methods": ["repay"],
+    "description": "repay reverts unless msg.sender holds OPS_ROLE. A non-OPS caller can never mature a deal or pull in the yield pool."
+  },
+  {
+    "title": "invest pulls exactly amount USDC and mints one receipt entry",
+    "sort": "integrity",
+    "component": "Vault",
+    "methods": ["invest"],
+    "description": "A successful invest(dealId, amount) transfers exactly amount USDC from msg.sender into the vault, increases the vault's USDC balance by exactly amount (standard non-fee ERC-20), increases deal.totalFunded by amount, and mints exactly one receipt record / ERC-1155 unit to msg.sender for dealId."
+  },
+  {
+    "title": "invest only on Mintable deals above the minimum and within capacity",
+    "sort": "state-transition",
+    "component": "Vault",
+    "methods": ["invest"],
+    "description": "invest succeeds only when deal.status == Mintable, amount >= deal.minInvestment, and amount <= fundingTarget - totalFunded; otherwise it reverts (FundingClosed / AmountBelowMinimum) and moves no funds and mints no receipt."
+  },
+  {
+    "title": "repay records yield and matures without touching principal custody",
+    "sort": "integrity",
+    "component": "Vault",
+    "methods": ["repay"],
+    "description": "A successful repay(dealId, totalRepayment) requires totalFunded > 0, status in {Mintable, Active}, and totalRepayment >= totalFunded; it pulls exactly totalRepayment - totalFunded USDC from the caller, snapshots yieldPool and totalFunded into the deal snapshot, and sets status to Matured. The already-held principal is never moved out by repay."
+  },
+  {
+    "title": "payoutFor is bounded by principal plus floored yield share",
+    "sort": "integrity",
+    "component": "Vault",
+    "methods": ["payoutFor", "accruedYield"],
+    "description": "For every matured deal and investor, payoutFor == principal + floor(principal * yieldPool / totalFunded), which is <= principal + principal-share of yieldPool. Because the division rounds down, the sum over all investors of accruedYield is <= yieldPool, so the vault never owes more yield than was deposited."
+  },
+  {
+    "title": "Vault solvency over open deals",
+    "sort": "solvency",
+    "component": "Vault",
+    "methods": ["invest", "repay", "redeem", "claimDefault"],
+    "description": "At every reachable state the vault's USDC balance is >= the sum over all not-yet-fully-redeemed deals of the outstanding obligations (principal for funded-but-unmatured and defaulted deals, principal + floored yield share for matured deals). redeem and claimDefault each additionally re-check balanceOf(vault) >= payout and revert InsufficientVaultBalance otherwise."
+  },
+  {
+    "title": "Each investor redeems or claims default at most once per deal",
+    "sort": "integrity",
+    "component": "Vault",
+    "methods": ["redeem", "claimDefault", "burnOnRedemption"],
+    "description": "For every deal and investor, the combined number of successful redeem + claimDefault calls is at most one. The first successful call sets the receipt status to Redeemed and burns the token; any further redeem or claimDefault reverts AlreadyRedeemed, so double payout is impossible."
+  },
+  {
+    "title": "redeem requires a matured deal and a live receipt",
+    "sort": "state-transition",
+    "component": "Vault",
+    "methods": ["redeem"],
+    "description": "redeem succeeds only when deal.status == Matured, the caller owns a receipt (meta.principal != 0), and the receipt is not already Redeemed; otherwise it reverts (NotMatured / NotInvestor / AlreadyRedeemed) and pays out nothing."
+  },
+  {
+    "title": "claimDefault returns exactly principal on a defaulted deal",
+    "sort": "integrity",
+    "component": "Vault",
+    "methods": ["claimDefault"],
+    "description": "claimDefault succeeds only when deal.status == Defaulted and the caller owns a non-redeemed receipt; it transfers exactly meta.principal USDC (no yield) to the caller and then burns the receipt."
+  },
+  {
+    "title": "Receipt mint requires isVerified(to) when a registry is wired",
+    "sort": "access-control",
+    "component": "Receipt",
+    "methods": ["mint", "invest"],
+    "description": "When identityRegistry != address(0), minting a receipt (from == address(0) path in _update) reverts NotVerified unless identityRegistry.isVerified(to) is true at mint time; when no registry is wired, minting is unrestricted."
+  },
+  {
+    "title": "Receipts are soulbound unless VerifiedOnly and both parties verified",
+    "sort": "access-control",
+    "component": "Receipt",
+    "methods": ["_update", "setApprovalForAll", "setTransferPolicy"],
+    "description": "Any holder-to-holder transfer (from != 0 and to != 0) reverts Soulbound when transferPolicy[dealId] != VerifiedOnly, and reverts TransferBlocked when the policy is VerifiedOnly but no registry is wired or either party is not verified. Mint (from == 0) and burn (to == 0) are always permitted, and setApprovalForAll always reverts Soulbound."
+  },
+  {
+    "title": "Mutating receipt functions are vault-only",
+    "sort": "access-control",
+    "component": "Receipt",
+    "methods": ["mint", "markDealMatured", "markDealDefaulted", "burnOnRedemption", "markReceiptDefaulted"],
+    "description": "mint, markDealMatured, markDealDefaulted, burnOnRedemption, and markReceiptDefaulted all revert NotVault unless msg.sender == nft.vault; admin-only setVault, setIdentityRegistry, and setTransferPolicy require ADMIN_ROLE."
+  },
+  {
+    "title": "mintedCount and burnedCount are monotonic and bounded",
+    "sort": "invariant",
+    "component": "Receipt",
+    "methods": ["mint", "burnOnRedemption", "isFullyRedeemed"],
+    "description": "For every deal, _mintedCount and _burnedCount never decrease, _burnedCount <= _mintedCount always holds, and isFullyRedeemed(dealId) is true exactly when _mintedCount > 0 and _mintedCount == _burnedCount."
+  },
+  {
+    "title": "Deal maturity snapshot is write-once",
+    "sort": "state-transition",
+    "component": "Receipt",
+    "methods": ["markDealMatured"],
+    "description": "markDealMatured reverts ZeroTotalFunded when totalFunded == 0 and reverts DealAlreadyMatured if the snapshot is already matured; once set, snap.matured, snap.yieldPool, and snap.totalFunded for a deal are never overwritten."
+  },
+  {
+    "title": "A burned receipt stays Redeemed and non-reusable",
+    "sort": "state-transition",
+    "component": "Receipt",
+    "methods": ["burnOnRedemption", "getReceiptMeta"],
+    "description": "Once burnOnRedemption sets a receipt's status to Redeemed, getReceiptMeta keeps returning Redeemed (the terminal status is never re-derived from the snapshot), the ERC-1155 balance for that investor/deal is 0, and no further burn can succeed."
+  },
+  {
+    "title": "Completion requires all receipts burned when vault-driven",
+    "sort": "integrity",
+    "component": "Vault",
+    "methods": ["redeem", "claimDefault", "completeDeal", "isFullyRedeemed"],
+    "description": "The vault calls registry.completeDeal only inside redeem / claimDefault and only when nft.isFullyRedeemed(dealId) is true, so a deal driven to Completed by the vault has every minted receipt burned (burnedCount == mintedCount > 0)."
+  }
+]

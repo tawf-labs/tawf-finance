@@ -1,0 +1,9 @@
+{
+  "ProfitAccumulator floor bounds and monotonicity": [
+    "claimableIsFlooredShare",
+    "fundMonotonic",
+    "fundEmptyIsNoop",
+    "takeZeroesOwed",
+    "settleAdvancesMarker"
+  ]
+}

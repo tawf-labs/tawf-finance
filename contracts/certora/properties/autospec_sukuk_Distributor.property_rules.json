@@ -1,0 +1,29 @@
+{
+  "Supply never exceeds faceValue": ["supplyNeverExceedsFaceValue"],
+  "A posted reserve caps minting and the live supply": ["reserveCapsMintWhenPosted"],
+  "Subscription mints only against a recent reserve snapshot that covers supply": ["subscribeRequiresFreshCoveringReserve"],
+  "updateReserve requires a strictly newer anchored snapshot": ["updateReserveStrictlyNewer"],
+  "Every money-declaring step requires an anchored ledger fact": [
+    "openSubscriptionNeedsAnchoredFact",
+    "distributeNeedsAnchoredFact",
+    "settleMaturityNeedsAnchoredFact",
+    "settleDefaultNeedsAnchoredFact",
+    "updateReserveNeedsAnchoredFact"
+  ],
+  "Distribution pays only the exact declared amount per period": ["distributeZeroMovesNoCash"],
+  "Distribution periods are strictly sequential": ["distributeSequential"],
+  "Sukuk lifecycle follows the legal status order": ["lifecycleLegal"],
+  "Each function is gated to its status": ["statusGating"],
+  "Lifecycle transitions are ADMIN-gated": ["openSubscriptionAdminOnly", "closeSubscriptionAdminOnly"],
+  "afterBalanceChange is callable only by the bound module": ["afterBalanceChangeOnlyModule"],
+  "Subscription requires a verified holder": ["subscribeRequiresVerified"],
+  "Subscription mints exactly amount units against amount USDC": ["subscribeMovesExactAmount"],
+  "closeSubscription releases the full raise or cancels for refund": ["closeReleasesOrCancels"],
+  "Refund returns a cancelled subscription at par": ["refundAtPar"],
+  "Redemption pays floored principal plus unclaimed profit then burns": ["redeemBurnsAndPays"],
+  "Total principal paid at redemption is bounded by the funded amount": ["principalPerHolderBounded"],
+  "No double redemption": ["noDoubleRedeem"],
+  "No double claim of profit": ["claimNoDoubleSpend"],
+  "Claiming never pays more profit than entitlement": ["claimPaysEntitlement"],
+  "Checkpoint before balance change preserves accrued profit": ["checkpointPreservesProfit"]
+}

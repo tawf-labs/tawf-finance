@@ -1,0 +1,11 @@
+{
+  "receiptMatchesRegistry": ["receiptMatchesRegistry"],
+  "investMovesExactAmount": ["investMovesExactAmount"],
+  "investRequiresVerified": ["investRequiresVerified"],
+  "redeemPaysPayoutFor": ["redeemPaysPayoutFor"],
+  "noDoubleRedeem": ["noDoubleRedeem"],
+  "claimDefaultPaysPrincipal": ["claimDefaultPaysPrincipal"],
+  "repayOnlyOps + repayPullsExactYield": ["repayOnlyOps", "repayPullsExactYield"],
+  "accruedYieldFloor": ["accruedYieldFloor"],
+  "vaultUsdcOnlyMovesThroughVault": ["vaultUsdcOnlyMovesThroughVault"]
+}

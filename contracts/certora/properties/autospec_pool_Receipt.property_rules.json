@@ -1,0 +1,34 @@
+{
+  "Receipt mint requires isVerified(to) when a registry is wired": ["mintRequiresVerifiedWhenRegistryWired"],
+  "Receipts are soulbound unless VerifiedOnly and both parties verified": [
+    "soulboundUnlessVerifiedOnly",
+    "transferOnlyWhenVerifiedOnlyAndBothVerified",
+    "setApprovalForAllAlwaysReverts"
+  ],
+  "Mutating receipt functions are vault-only": [
+    "mintOnlyVault",
+    "markDealMaturedOnlyVault",
+    "markDealDefaultedOnlyVault",
+    "burnOnRedemptionOnlyVault",
+    "markReceiptDefaultedOnlyVault"
+  ],
+  "mintedCount and burnedCount are monotonic and bounded": [
+    "burnedNeverExceedsMinted",
+    "redeemedCountEqualsBurned",
+    "liveAndRedeemedEqualMinted",
+    "countsAreMonotonic"
+  ],
+  "Deal maturity snapshot is write-once": [
+    "maturitySnapshotWriteOnce",
+    "markDealMaturedRejectsZeroAndRemature"
+  ],
+  "A burned receipt stays Redeemed and non-reusable": [
+    "burnedReceiptStaysRedeemed",
+    "cannotBurnTwice"
+  ],
+  "VerifiedOnly transfers move the whole receipt and its registry principal": [
+    "receiptFollowsToken",
+    "transferToExistingHolderReverts",
+    "noTransferOfRedeemedReceipt"
+  ]
+}

@@ -6,6 +6,11 @@ import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessCon
 import { Strings } from "openzeppelin-contracts/contracts/utils/Strings.sol";
 import { ITawfIdentityRegistry } from "./interfaces/ITawfIdentityRegistry.sol";
 
+/// @notice The slice of DealRegistry a receipt transfer needs.
+interface IDealPrincipalLedger {
+    function moveInvestorPrincipal(uint256 id, address from, address to) external;
+}
+
 /**
  * @title BondReceiptNFT
  * @notice Soulbound ERC-1155 receipts for BPRS financing sell-down pools.
@@ -72,6 +77,11 @@ contract BondReceiptNFT is ERC1155, AccessControl {
     ///         of its policy.
     ITawfIdentityRegistry public identityRegistry;
 
+    /// @notice DealRegistry, told when a receipt changes hands so its
+    ///         per-investor principal follows the receipt. A VerifiedOnly
+    ///         transfer is blocked until this is set.
+    IDealPrincipalLedger public dealRegistry;
+
     /// @notice Per-dealId transfer policy. Defaults to Soulbound (0).
     mapping(uint256 => TransferPolicy) public transferPolicy;
 
@@ -88,6 +98,8 @@ contract BondReceiptNFT is ERC1155, AccessControl {
     error AlreadyRedeemed(uint256 dealId, address investor);
     error Soulbound();
     error TransferBlocked();
+    error ReceiptTransferInvalid(uint256 dealId, address from, address to);
+    error ReceiptAlreadyRedeemed(uint256 dealId, address investor);
     error NotVerified(address investor);
     error DealAlreadyMatured(uint256 dealId);
     error ZeroTotalFunded(uint256 dealId);
@@ -98,6 +110,8 @@ contract BondReceiptNFT is ERC1155, AccessControl {
     event DealDefaulted(uint256 indexed dealId);
     event IdentityRegistrySet(address identityRegistry);
     event TransferPolicySet(uint256 indexed dealId, TransferPolicy policy);
+    event DealRegistrySet(address dealRegistry);
+    event ReceiptMoved(uint256 indexed dealId, address indexed from, address indexed to, uint96 principal);
 
     modifier onlyVault() {
         if (msg.sender != vault) revert NotVault();
@@ -120,6 +134,12 @@ contract BondReceiptNFT is ERC1155, AccessControl {
 
     /// @notice Wire (or unwire, via address(0)) the identity registry that
     ///         VerifiedOnly transfers consult. See `_update`.
+    /// @notice Wire the DealRegistry that VerifiedOnly transfers keep in step.
+    function setDealRegistry(IDealPrincipalLedger dealRegistry_) external onlyRole(ADMIN_ROLE) {
+        dealRegistry = dealRegistry_;
+        emit DealRegistrySet(address(dealRegistry_));
+    }
+
     function setIdentityRegistry(ITawfIdentityRegistry identityRegistry_) external onlyRole(ADMIN_ROLE) {
         identityRegistry = identityRegistry_;
         emit IdentityRegistrySet(address(identityRegistry_));
@@ -152,10 +172,25 @@ contract BondReceiptNFT is ERC1155, AccessControl {
         string calldata supplierName,
         string calldata anchorBuyer
     ) external onlyVault {
-        if (_receipts[dealId][investor].principal == 0) {
-            _mintedCount[dealId] += 1;
+        // KYC gate for every investment, including a top-up (which mints no
+        // token and so never reaches the check in `_update`).
+        ITawfIdentityRegistry registry = identityRegistry;
+        if (address(registry) != address(0) && !registry.isVerified(investor)) revert NotVerified(investor);
+
+        ReceiptMeta storage receipt = _receipts[dealId][investor];
+
+        // A repeat investment in the same deal tops up the existing receipt:
+        // the principal accumulates (matching DealRegistry.investorPrincipal)
+        // and no second token is minted, so one burn retires the receipt.
+        if (receipt.principal != 0) {
+            // A redeemed receipt is closed; topping it up would strand the money.
+            if (receipt.status == ReceiptStatus.Redeemed) revert ReceiptAlreadyRedeemed(dealId, investor);
+            receipt.principal += principal;
+            emit ReceiptMinted(dealId, investor, principal);
+            return;
         }
 
+        _mintedCount[dealId] += 1;
         _receipts[dealId][investor] = ReceiptMeta({
             principal: principal,
             apyBps: apyBps,
@@ -247,7 +282,7 @@ contract BondReceiptNFT is ERC1155, AccessControl {
     function getReceiptMeta(
         uint256 dealId,
         address investor
-    ) external view returns (ReceiptMeta memory meta) {
+    ) public view returns (ReceiptMeta memory meta) {
         meta = _receipts[dealId][investor];
         if (meta.principal == 0) return meta;
         // Derive non-terminal status from the deal snapshot.
@@ -260,15 +295,15 @@ contract BondReceiptNFT is ERC1155, AccessControl {
         return meta;
     }
 
-    function getDealSnapshot(uint256 dealId) external view returns (DealSnapshot memory) {
+    function getDealSnapshot(uint256 dealId) public view returns (DealSnapshot memory) {
         return _dealSnapshots[dealId];
     }
 
-    function mintedCount(uint256 dealId) external view returns (uint256) {
+    function mintedCount(uint256 dealId) public view returns (uint256) {
         return _mintedCount[dealId];
     }
 
-    function burnedCount(uint256 dealId) external view returns (uint256) {
+    function burnedCount(uint256 dealId) public view returns (uint256) {
         return _burnedCount[dealId];
     }
 
@@ -320,6 +355,11 @@ contract BondReceiptNFT is ERC1155, AccessControl {
      *         and TransferBlocked when the policy allows transfers in
      *         principle but a party is not verified.
      *
+     *         A cleared transfer moves the whole receipt: exactly one token,
+     *         to a holder with no receipt in that deal, carrying principal and
+     *         status, and DealRegistry's investorPrincipal moves with it. So
+     *         whoever holds the token is the one who can redeem.
+     *
      *         Once an identity registry is wired, a mint also requires the
      *         recipient to be verified there, so only KYC'd investors can
      *         fund a pool. With no registry wired, minting is open.
@@ -339,9 +379,23 @@ contract BondReceiptNFT is ERC1155, AccessControl {
                 if (transferPolicy[ids[i]] != TransferPolicy.VerifiedOnly) revert Soulbound();
                 if (address(registry) == address(0)) revert TransferBlocked();
                 if (!registry.isVerified(from) || !registry.isVerified(to)) revert TransferBlocked();
+                _moveReceipt(ids[i], values[i], from, to);
             }
         }
         super._update(from, to, ids, values);
+    }
+
+    function _moveReceipt(uint256 dealId, uint256 value, address from, address to) private {
+        ReceiptMeta memory receipt = _receipts[dealId][from];
+        if (
+            value != 1 || address(dealRegistry) == address(0) || receipt.principal == 0
+                || receipt.status == ReceiptStatus.Redeemed || _receipts[dealId][to].principal != 0
+        ) revert ReceiptTransferInvalid(dealId, from, to);
+
+        _receipts[dealId][to] = receipt;
+        delete _receipts[dealId][from];
+        dealRegistry.moveInvestorPrincipal(dealId, from, to);
+        emit ReceiptMoved(dealId, from, to, receipt.principal);
     }
 
     /// @notice No operator approvals. Direct owner-initiated transfers are

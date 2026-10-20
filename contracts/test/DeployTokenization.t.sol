@@ -25,7 +25,7 @@ interface ISeriesT {
     function cancelSubscription(address token) external;
     function allocate(address[] calldata investors, uint256 epoch, uint64 snapshotAt, uint256 balance, bytes32[] calldata proof) external;
     function distributeProfit(uint32 period, uint256 profitSen, uint256 epoch, bytes32[] calldata proof) external;
-    function settleMaturity(uint64 at, uint256 principalSen, uint256 epoch, bytes32[] calldata proof) external;
+    function settleMaturity(uint64 at, uint32 finalPeriod, uint256 principalSen, uint256 epoch, bytes32[] calldata proof) external;
     function claim(address token) external;
     function redeem(address token) external;
     function pending(address investor, address token) external view returns (uint256);
@@ -37,6 +37,7 @@ interface ISeriesT {
 
 interface ISukukT {
     function openSubscription(uint256 epoch, bytes32[] calldata proof) external;
+    function updateReserve(uint64 snapshotAt, uint256 outstanding, uint256 epoch, bytes32[] calldata proof) external;
     function subscribe(uint256 amount) external;
     function token() external view returns (address);
 }
@@ -61,6 +62,7 @@ contract DeployTokenizationTest is Test, DeployTokenization {
     bytes32 constant DEPOSITO_PROFIT = keccak256("tawf.deposito.profit");
     bytes32 constant DEPOSITO_MATURITY = keccak256("tawf.deposito.maturity");
     bytes32 constant SUKUK_APPROVED = keccak256("tawf.sukuk.approved");
+    bytes32 constant SUKUK_RESERVE = keccak256("tawf.sukuk.reserve");
 
     function setUp() public {
         operator = vm.addr(operatorKey);
@@ -256,9 +258,10 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         assertEq(IMintable(d.mockUsdc).balanceOf(user), 1e6);
 
         // Settle maturity: principal = minted sen. Redeem in USDC, pulled from treasury.
-        uint256 em = IAnchorMut(anchor).push(_leaf(DEPOSITO_MATURITY, d.seriesId, 2000, sen));
+        // Period 1 was distributed above, so the bank's maturity fact carries finalPeriod 1.
+        uint256 em = IAnchorMut(anchor).push(_leaf(DEPOSITO_MATURITY, d.seriesId, (uint256(1) << 64) | 2000, sen));
         vm.prank(operator);
-        ISeriesT(d.series).settleMaturity(2000, sen, em, noProof);
+        ISeriesT(d.series).settleMaturity(2000, 1, sen, em, noProof);
 
         vm.prank(user);
         ISeriesT(d.series).redeem(d.mockUsdc);
@@ -282,6 +285,10 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         uint256 epoch = IAnchorMut(anchor).push(_leaf(SUKUK_APPROVED, sukukId, faceValue, maturity));
         vm.prank(operator);
         ISukukT(distributor).openSubscription(epoch, noProof);
+
+        // Subscription needs a recent verified reserve snapshot covering supply.
+        uint256 eR = IAnchorMut(anchor).push(_leaf(SUKUK_RESERVE, sukukId, block.timestamp, faceValue));
+        ISukukT(distributor).updateReserve(uint64(block.timestamp), faceValue, eR, noProof);
 
         vm.startPrank(user);
         IMintable(d.mockUsdc).faucet(10e6);
