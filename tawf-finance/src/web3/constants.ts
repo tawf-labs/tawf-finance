@@ -1,22 +1,27 @@
 /**
- * Arbitrum Sepolia deployment configuration.
+ * Arbitrum Sepolia deployment configuration for the per-deal financing pool.
  *
- * All addresses are injected at build time via Vite env vars (see .env.example).
- * When they are absent the app renders a graceful "not configured" state rather
- * than crashing, so the demo can be previewed without a deployment.
+ * Addresses come from `tokenization.deployments.json`, written by
+ * `contracts/script/DeployPool.s.sol`. The pool shares the ERC-3643 identity
+ * registry and MockUSDC with deposito and sukuk, so one faucet + KYC covers
+ * every product. When an address is missing the app renders a graceful
+ * "not configured" state rather than crashing.
  */
+import deployments from './tokenization.deployments.json';
 
-function envAddress(value: string | undefined): `0x${string}` | undefined {
-  if (value && /^0x[0-9a-fA-F]{40}$/.test(value)) {
+const ZERO = '0x0000000000000000000000000000000000000000';
+
+function address(value: string | undefined): `0x${string}` | undefined {
+  if (value && /^0x[0-9a-fA-F]{40}$/.test(value) && value !== ZERO) {
     return value as `0x${string}`;
   }
   return undefined;
 }
 
-export const DEAL_REGISTRY_ADDRESS = envAddress(import.meta.env.VITE_DEAL_REGISTRY);
-export const RECEIPT_NFT_ADDRESS = envAddress(import.meta.env.VITE_RECEIPT_NFT);
-export const VAULT_ADDRESS = envAddress(import.meta.env.VITE_VAULT);
-export const USDC_ADDRESS = envAddress(import.meta.env.VITE_USDC);
+export const DEAL_REGISTRY_ADDRESS = address(deployments.dealRegistry);
+export const RECEIPT_NFT_ADDRESS = address(deployments.bondReceiptNft);
+export const VAULT_ADDRESS = address(deployments.redemptionVault);
+export const USDC_ADDRESS = address(deployments.mockUsdc);
 
 export const RPC_URL =
   import.meta.env.VITE_RPC_URL ?? 'https://sepolia-rollup.arbitrum.io/rpc';

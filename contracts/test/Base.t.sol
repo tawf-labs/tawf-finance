@@ -80,6 +80,11 @@ abstract contract BaseSetup is Test {
         vault.grantRole(vault.OPS_ROLE(), owner);
         pooledVault.grantRole(pooledVault.OPS_ROLE(), owner);
         vm.stopPrank();
+
+        // The named investors passed KYC; `stranger` did not.
+        identityRegistry.setVerified(alice, true);
+        identityRegistry.setVerified(bob, true);
+        identityRegistry.setVerified(carol, true);
     }
 
     /// @dev Create a deal and drive it to Mintable (as owner).

@@ -7,6 +7,7 @@ import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol"
 import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT } from "../src/BondReceiptNFT.sol";
 import { RedemptionVault } from "../src/RedemptionVault.sol";
+import { ITawfIdentityRegistry } from "../src/interfaces/ITawfIdentityRegistry.sol";
 
 contract RedemptionVaultTest is BaseSetup {
     uint96 public constant HUNDRED = 100 * 10 ** 6;
@@ -24,6 +25,41 @@ contract RedemptionVaultTest is BaseSetup {
         assertEq(nft.balanceOf(alice, id), 1, "receipt minted");
         assertEq(registry.getDeal(id).totalFunded, HUNDRED);
         assertEq(registry.getDeal(id).investorCount, 1);
+    }
+
+    function test_Invest_unverifiedInvestor_reverts() public {
+        uint256 id = _mintableDeal();
+
+        vm.startPrank(stranger);
+        usdc.faucet(HUNDRED);
+        usdc.approve(address(vault), HUNDRED);
+        vm.expectRevert(abi.encodeWithSelector(BondReceiptNFT.NotVerified.selector, stranger));
+        vault.invest(id, HUNDRED);
+        vm.stopPrank();
+
+        assertEq(usdc.balanceOf(stranger), HUNDRED, "USDC stays with the investor");
+        assertEq(registry.getDeal(id).totalFunded, 0);
+    }
+
+    function test_Invest_kycRevoked_reverts() public {
+        uint256 id = _mintableDeal();
+        identityRegistry.setVerified(alice, false);
+
+        vm.startPrank(alice);
+        usdc.faucet(HUNDRED);
+        usdc.approve(address(vault), HUNDRED);
+        vm.expectRevert(abi.encodeWithSelector(BondReceiptNFT.NotVerified.selector, alice));
+        vault.invest(id, HUNDRED);
+        vm.stopPrank();
+    }
+
+    function test_Invest_noIdentityRegistry_isOpen() public {
+        uint256 id = _mintableDeal();
+        vm.prank(owner);
+        nft.setIdentityRegistry(ITawfIdentityRegistry(address(0)));
+
+        _fund(id, stranger, HUNDRED);
+        assertEq(nft.balanceOf(stranger, id), 1, "receipt minted without a registry");
     }
 
     function test_Invest_requiresApproval() public {

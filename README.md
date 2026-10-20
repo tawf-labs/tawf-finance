@@ -184,27 +184,23 @@ npm run build   # tsc + vite build
 
 ## Deployment
 
-### 1. Deploy contracts to Arbitrum Sepolia
+### 1. Deploy the shared ERC-3643 stack, deposito and sukuk
+
+`script/DeployTokenization.s.sol` deploys the T-REX identity registry, MockUSDC/MockUSDT, the Tawf deposito series and the sukuk, and writes every address to `tawf-finance/src/web3/tokenization.deployments.json`. See [docs/tokenized-deposito.md](docs/tokenized-deposito.md).
+
+### 2. Deploy the financing pool
 
 ```bash
 cd contracts
-forge script script/Deploy.s.sol:Deploy \
-  --rpc-url arbitrum_sepolia \
-  --private-key $PRIVATE_KEY \
-  --broadcast --verify
+forge script script/DeployPool.s.sol:DeployPool \
+  --rpc-url arbitrum_sepolia --private-key $OPERATOR_KEY --broadcast
 ```
 
-### 2. Seed demo deals
+It deploys DealRegistry, BondReceiptNFT and RedemptionVault on the identity registry and MockUSDC from that file, opens the three demo BPRS pools, and writes the new addresses back. Only wallets with a verified KYC claim can invest; the faucet verifies demo wallets.
 
-```bash
-forge script script/SeedDemo.s.sol:SeedDemo \
-  --sig "run(address)" $DEAL_REGISTRY_ADDRESS \
-  --rpc-url arbitrum_sepolia --private-key $PRIVATE_KEY --broadcast
-```
+### 3. Deploy the app
 
-### 3. Wire the frontend
-
-Paste the four deployed addresses into `tawf-finance/.env` (`VITE_DEAL_REGISTRY`, `VITE_RECEIPT_NFT`, `VITE_VAULT`, `VITE_USDC`) and deploy the app to Vercel (`vercel --prod`).
+The app reads every contract address from `tokenization.deployments.json`, so there are no address env vars. Deploy to Vercel (`vercel --prod`).
 
 RPC: `https://sepolia-rollup.arbitrum.io/rpc` · Chain ID `421614` · Explorer `https://sepolia.arbiscan.io`.
 
