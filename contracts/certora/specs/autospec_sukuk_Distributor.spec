@@ -26,6 +26,7 @@ import "summaries/sukuk_summaries.spec";
 using MockUSDC as usdcToken;
 
 methods {
+    function usdcToken.totalSupply() external returns (uint256) envfree;
     // ---- SukukDistributor / harness envfree views ----
     function statusU8() external returns (uint8) envfree;
     function lastPeriod() external returns (uint16) envfree;
@@ -545,12 +546,15 @@ rule heldEntitlementSumMatchesMaturityUnits(method f) filtered {
 /// @title The sum of all entitlements equals totalUnitsAtMaturity
 // No function mints once Matured (only subscribe mints, and it needs
 // Subscription; Matured is terminal). No exclusions beyond views.
+// Stated as an implication on the pre-state rather than `require matured`, so
+// functions that cannot run once matured (subscribe, close, ...) still count
+// as non-vacuous instances instead of tripping the vacuity check.
 rule noMintAfterMaturity(method f) filtered { f -> !f.isView } {
-    require statusU8() == 3;
+    bool matured = statusU8() == 3;
     uint256 supply0 = ghostSupply;
     env e; calldataarg args;
     f(e, args);
-    assert ghostSupply <= supply0, "units were minted after maturity";
+    assert matured => ghostSupply <= supply0, "units were minted after maturity";
 }
 
 /// @title The sum of all entitlements equals totalUnitsAtMaturity
@@ -655,6 +659,16 @@ rule claimableHeldProfitFloorBound(address h) {
         "claimableHeldProfit is not the floor of ent*(hppu-mark)/1e18";
 }
 
+
+// MockUSDC is OpenZeppelin ERC20, which adds to balances unchecked because the
+// sum of balances never exceeds totalSupply. Two distinct accounts therefore
+// hold at most the supply together. Proven for this MockUSDC as the rule
+// usdcSupplyIsSum in autospec_pool_Vault.spec; assumed here so a recipient
+// balance near 2^256 (unreachable) cannot wrap in a counterexample.
+function requireUsdcSane(address a, address b) {
+    require a != b => to_mathint(usdcToken.balanceOf(a)) + to_mathint(usdcToken.balanceOf(b)) <= to_mathint(usdcToken.totalSupply());
+}
+
 /// @title Nobody can claim more than their pro rata share
 // Per call: what claimProfit pays the caller (== the totalHeldClaimed
 // increase, and == the caller's USDC increase when the caller is not the
@@ -667,6 +681,7 @@ rule claimProfitWithinProRataShare() {
     mathint eff = effMark(s);
     uint256 ent = entitledUnits(s);
     uint256 claimed0 = totalHeldClaimed();
+    requireUsdcSane(s, currentContract);
     uint256 usdc0 = usdcToken.balanceOf(s);
 
     claimProfit(e);
@@ -780,6 +795,8 @@ rule sweepPaysOnlyDestination(address other) {
     uint256 held = heldBalance();
     require dest != currentContract;
     require other != dest && other != currentContract;
+    requireUsdcSane(dest, currentContract);
+    requireUsdcSane(other, currentContract);
     uint256 dest0 = usdcToken.balanceOf(dest);
     uint256 dist0 = distUsdc();
     uint256 other0 = usdcToken.balanceOf(other);
@@ -837,10 +854,9 @@ rule setSweepDestinationValidAddress(address destination, uint256 epoch, bytes32
 // (cannot write); afterBalanceChange and MockUSDC functions stay in range.
 rule sweepDestinationWriteOnce(method f) filtered { f -> !f.isView } {
     address dest0 = sweepDestination();
-    require dest0 != 0;
     env e; calldataarg args;
     f(e, args);
-    assert sweepDestination() == dest0, "a set sweep destination changed";
+    assert dest0 != 0 => sweepDestination() == dest0, "a set sweep destination changed";
 }
 
 // ===========================================================================
@@ -852,13 +868,13 @@ rule sweepDestinationWriteOnce(method f) filtered { f -> !f.isView } {
 // no function moves units from one non-zero address to another. Only views
 // excluded (cannot write).
 rule transfersFrozenAfterMaturity(method f, address a, address b) filtered { f -> !f.isView } {
-    require statusU8() == 3;
+    bool matured = statusU8() == 3;
     require a != 0 && b != 0 && a != b;
     uint256 a0 = ghostTokenBal[a];
     uint256 b0 = ghostTokenBal[b];
     env e; calldataarg args;
     f(e, args);
-    assert !(ghostTokenBal[a] > a0 && ghostTokenBal[b] < b0),
+    assert matured => !(ghostTokenBal[a] > a0 && ghostTokenBal[b] < b0),
         "units moved between two holders after maturity";
 }
 
