@@ -12,8 +12,8 @@ Logs: `certora/out/<spec>.log`, which is gitignored. Rerun with `./certora/run.s
 |---|---|---|---|---|
 | `autospec_pool_Registry` | DealRegistry | 249 | none | All 13 rules proven: funding ≤ target, principal sum = totalFunded, legal status edges only, terminal states, immutable terms, role gating, `moveInvestorPrincipal` |
 | `autospec_pool_Vault` | RedemptionVault (+ registry, receipt, MockUSDC) | 146 | none | receipt/registry principal stay equal (incl. across transfers), exact invest/repay/redeem/claimDefault amounts, no double redeem, yield floor bound, vault USDC moves only through the vault, MockUSDC supply = Σ balances |
-| `autospec_pool_Receipt` | BondReceiptNFT | 286 | 4 | Proven: KYC gate on mint, soulbound unless VerifiedOnly + both verified, receipt follows token, vault-only mutators, write-once maturity snapshot, burned receipt stays Redeemed, counts monotonic. **Open:** the receipt counting invariants (`redeemedHasPrincipal`, `redeemedCountEqualsBurned`, `liveAndRedeemedEqualMinted`, `burnedNeverExceedsMinted`) are not yet inductive. Bookkeeping only; the money properties around them are proven in the Vault spec |
-| `autospec_sukuk_Distributor` | SukukDistributor | 45 | none | All rules proven, including `subscribeRequiresFreshCoveringReserve` (owner decision, see below) |
+| `autospec_pool_Receipt` | BondReceiptNFT (+ vault, registry) | 317 | none | KYC gate on mint, soulbound unless VerifiedOnly + both verified, receipt follows token, vault-only mutators, write-once maturity snapshot, burned receipt stays Redeemed, counts monotonic, and the counting invariants: reachable receipt shapes, Redeemed count = burnedCount, live + redeemed = mintedCount, burned ≤ minted |
+| `autospec_sukuk_Distributor` | SukukDistributor | 232 | none | All rules proven, including the reserve gate and the held-profit design (frozen transfers at maturity, entitlement = redeemed + balance, pro-rata claims, sweep only after the claim window to the board-approved destination) |
 | `autospec_sukuk_ProfitAccumulator` | ProfitAccumulator (sukuk) | 4 | none | floor bounds of the nonlinear profit math, isolated per the Certora guide |
 | `autospec_deposito_Accumulator` | ProfitAccumulator (deposito) | 5 | none | same, deposito usage |
 | `autospec_deposito_Series` | TawfDepositoSeries | 42 | none | supply ≤ anchored reserve, allocation needs a verified unused leaf, exact anchored profit only, principal capped at face, **no profit after maturity, maturity only after every profit period** |
@@ -27,6 +27,8 @@ Logs: `certora/out/<spec>.log`, which is gitignored. Rerun with `./certora/run.s
 | 2 | `BondReceiptNFT._update` (VerifiedOnly policy) | A transfer moved the ERC-1155 token but not the receipt record | Neither holder could redeem; funds locked once secondary trading is enabled (latent; every deal is Soulbound today) | `_moveReceipt` moves the record with the token, refuses Redeemed sources and recipients that already hold a receipt; `DealRegistry.moveInvestorPrincipal` keeps the registry in step; `test/ReceiptTransfer.t.sol` |
 | 3 | `TawfDepositoSeries` | `distributeProfit` still worked after `settleMaturity` opened redemption | A late profit period went only to holders who had not redeemed yet | `distributeProfit` reverts after maturity; `settleMaturity` requires every profit period the bank recorded (now carried in the DEPOSITO_MATURITY leaf) to be distributed first |
 | 4 | `BondReceiptNFT.mint` (hardening) | A top-up could land on a Redeemed receipt if the vault ever allowed it | Defence in depth | `ReceiptAlreadyRedeemed` revert |
+| 5 | `BondReceiptNFT.mint` (hardening, found by the counter invariants) | A zero-principal mint created a token that `redeem` refuses (it needs principal ≠ 0), so it could never be burned and `isFullyRedeemed` never became true; a later real investment would mint a second token | Not reachable today: `createDeal` requires `minInvestment > 0`. The receipt now enforces it itself | `ZeroPrincipal` revert; `test_Mint_zeroPrincipalReverts` |
+| 6 | `BondReceiptNFT.markReceiptDefaulted` (hardening) | Did not refuse a Redeemed receipt, so it could flip Redeemed back to Defaulted (un-redeem) | Not reachable today: `claimDefault` checks Redeemed first | `AlreadyRedeemed` revert; `test_MarkDefaulted_redeemedReverts` |
 
 ## Owner decisions implemented
 
@@ -41,8 +43,22 @@ Logs: `certora/out/<spec>.log`, which is gitignored. Rerun with `./certora/run.s
 - LedgerAnchor `verify` → ghost "anchored leaves" set (Merkle soundness is trusted, see tawf-network).
 - T-REX token mint/burn/balanceOf/totalSupply → ghost ledger; the 0.8.17 T-REX code is kept out of the scene, except in `SandboxReal`.
 - Calls whose `msg.sender` is a scene contract (vault-only, registry-only) are excluded from parametric rules. Contracts don't send their own transactions, and their behaviour is covered through their public functions.
+- Receipt counts: `ghostLiveCount[d]` is maintained by hooks as the sum over holders of a 0/1 live flag. The redeem/claimDefault cases of `burnedNeverExceedsMinted` assume that sum is at least the caller's own flag (sum ≥ element). This follows from how the ghost is built but is not proven by the prover.
+- Receipt mirrors: the vault entry points read the caller's receipt before the call (Sload hooks pin the mirrors to storage). Sound because the mirrors equal storage by construction.
 - Cross-contract consistency is stated as preservation rules. Every contract starts empty on deployment, so the base case is trivial.
 
 ## Spec-strength check
 
-`certora/mutants/M1–M9` each hold one deliberate bug, and `certora/mutate.sh` checks that the matching rule turns Violated. Status: pending; the mutants are being regenerated against the fixed contracts.
+`certora/mutants/M1–M9` each hold one deliberate bug, and `certora/mutate.sh` checks that the matching rule turns Violated.
+
+| Mutant | Bug | Verdict |
+|---|---|---|
+| M1 | funding cap removed | KILLED (`fundingWithinTarget`) |
+| M2 | illegal Active → Completed | KILLED (`statusTransitionsAreLegal`) |
+| M3 | totalFunded counted twice | KILLED (`principalSumEqualsTotalFunded`) |
+| M4 | createDeal role check removed | KILLED (`createDealRequiresOriginator`) |
+| M5 | top-up overwrites principal (the original bug) | KILLED (`receiptMatchesRegistry`) |
+| M6 | KYC check on mint removed | KILLED (`mintRequiresVerifiedWhenRegistryWired`) |
+| M7 | soulbound check broken | KILLED (`soulboundUnlessVerifiedOnly`) |
+| M8 | vault `redeem` drops its AlreadyRedeemed check | SURVIVED, **equivalent**: `burnOnRedemption` still reverts, so the whole transaction (payout included) rolls back. No double redeem is possible |
+| M9 | transfer moves the token but not the receipt (bug #2) | KILLED (`receiptFollowsToken`, `receiptMatchesRegistryOnTransfer`) |

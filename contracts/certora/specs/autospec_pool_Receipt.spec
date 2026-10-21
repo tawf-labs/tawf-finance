@@ -129,16 +129,20 @@ hook Sload BondReceiptNFT.ReceiptStatus v currentContract._receipts[KEY uint256 
     require mStatus[d][a] == v;
 }
 
+// Counts move by the change in the *mirrors* (not the raw old storage value),
+// so they are always exactly the sums over the mirrors; the Sload hooks tie a
+// mirror to storage whenever the contract reads that slot.
 hook Sstore currentContract._receipts[KEY uint256 d][KEY address a].principal uint96 newP (uint96 oldP) {
     BondReceiptNFT.ReceiptStatus st = mStatus[d][a];
-    ghostLiveCount[d] = ghostLiveCount[d] - isLive(oldP, st) + isLive(newP, st);
+    ghostLiveCount[d] = ghostLiveCount[d] - isLive(mPrincipal[d][a], st) + isLive(newP, st);
     mPrincipal[d][a] = newP;
 }
 
 hook Sstore currentContract._receipts[KEY uint256 d][KEY address a].status BondReceiptNFT.ReceiptStatus newS (BondReceiptNFT.ReceiptStatus oldS) {
     uint96 p = mPrincipal[d][a];
-    ghostLiveCount[d] = ghostLiveCount[d] - isLive(p, oldS) + isLive(p, newS);
-    ghostRedeemedCount[d] = ghostRedeemedCount[d] - isRedeemed(oldS) + isRedeemed(newS);
+    BondReceiptNFT.ReceiptStatus was = mStatus[d][a];
+    ghostLiveCount[d] = ghostLiveCount[d] - isLive(p, was) + isLive(p, newS);
+    ghostRedeemedCount[d] = ghostRedeemedCount[d] - isRedeemed(was) + isRedeemed(newS);
     mStatus[d][a] = newS;
 }
 
@@ -262,21 +266,44 @@ rule markReceiptDefaultedOnlyVault(uint256 dealId, address investor) {
 // COUNTS
 // ===========================================================================
 
-/// @title A Redeemed receipt keeps its principal
+/// @title A Redeemed receipt keeps its principal (every receipt slot)
 // burnOnRedemption requires principal != 0 and leaves it in place; `delete`
-// (in _moveReceipt) never runs on a Redeemed receipt. So "Redeemed" always
-// sits on a receipt that was minted, which is what lets the counts below add up.
-invariant redeemedHasPrincipal(uint256 d, address a)
-    mStatus[d][a] == BondReceiptNFT.ReceiptStatus.Redeemed => mPrincipal[d][a] != 0
+// (in _moveReceipt) never runs on a Redeemed receipt; a top-up of a Redeemed
+// receipt reverts. Stated over every (deal, holder) slot at once, so the count
+// invariants below can rely on it for whichever slot a call writes, including
+// every slot of a batch transfer.
+// Reading a receipt through the harness fires the Sload hooks, which pin both
+// mirrors of that (deal, holder) slot to storage. Sound: the mirrors equal
+// storage by construction (every store updates them; both start at zero). The
+// vault entry points touch exactly the caller's receipt, so pinning that slot
+// before the call removes unreachable "stale mirror" pre-states.
+function syncReceipt(uint256 d, address a) {
+    uint96 p = getPrincipal(d, a);
+    uint8 st = getRawReceiptStatus(d, a);
+}
+
+// Reachable receipt shapes, over every (deal, holder) slot: an empty slot is
+// Active; a stored status is Active or Redeemed between transactions (Matured
+// is never stored; Defaulted is stored only inside claimDefault, which then
+// burns the receipt); a Redeemed receipt keeps its principal.
+invariant redeemedHasPrincipalAll()
+    forall uint256 d. forall address a.
+        (mStatus[d][a] == BondReceiptNFT.ReceiptStatus.Redeemed => mPrincipal[d][a] != 0)
+        && (mPrincipal[d][a] == 0 => mStatus[d][a] == BondReceiptNFT.ReceiptStatus.Active)
+        && (mStatus[d][a] == BondReceiptNFT.ReceiptStatus.Active || mStatus[d][a] == BondReceiptNFT.ReceiptStatus.Redeemed)
     {
-        preserved with (env e) {
-            require e.msg.sender != vault();
+        // The vault is a contract: it reaches the NFT only through
+        // RedemptionVault.invest / redeem / claimDefault (which stay in), never
+        // as the sender of its own transaction.
+        preserved with (env e) { require e.msg.sender != vault(); }
+        preserved RedemptionVault.invest(uint256 dealId, uint96 amount) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
         }
-        preserved burnOnRedemption(uint256 dd, address aa) with (env e) {
-            require e.msg.sender == vault();
+        preserved RedemptionVault.redeem(uint256 dealId) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
         }
-        preserved mint(address inv, uint256 dd, uint96 pr, uint96 apy, uint32 dur, string sn, string ab) with (env e) {
-            require e.msg.sender == vault();
+        preserved RedemptionVault.claimDefault(uint256 dealId) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
         }
     }
 
@@ -284,7 +311,25 @@ invariant redeemedHasPrincipal(uint256 d, address a)
 // burnOnRedemption is the only writer of a Redeemed status and bumps
 // _burnedCount in the same call; Redeemed is terminal.
 invariant redeemedCountEqualsBurned(uint256 d)
-    ghostRedeemedCount[d] == to_mathint(getBurnedCount(d));
+    ghostRedeemedCount[d] == to_mathint(getBurnedCount(d))
+    {
+        preserved with (env e) {
+            require e.msg.sender != vault();
+            requireInvariant redeemedHasPrincipalAll();
+        }
+        preserved RedemptionVault.invest(uint256 dealId, uint96 amount) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
+            requireInvariant redeemedHasPrincipalAll();
+        }
+        preserved RedemptionVault.redeem(uint256 dealId) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
+            requireInvariant redeemedHasPrincipalAll();
+        }
+        preserved RedemptionVault.claimDefault(uint256 dealId) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
+            requireInvariant redeemedHasPrincipalAll();
+        }
+    }
 
 /// @title Live + redeemed receipts equal mintedCount (conservation law)
 // A new receipt (principal 0 -> non-zero, status Active) bumps _mintedCount and
@@ -294,17 +339,20 @@ invariant liveAndRedeemedEqualMinted(uint256 d)
     ghostLiveCount[d] + ghostRedeemedCount[d] == to_mathint(getMintedCount(d))
     {
         preserved with (env e) {
-            // A fresh mint lands on a slot that is not Redeemed: a Redeemed
-            // slot has a principal (redeemedHasPrincipal) and so takes the
-            // top-up branch, which reverts on Redeemed.
-            requireInvariant redeemedHasPrincipal(d, e.msg.sender);
+            require e.msg.sender != vault();
+            requireInvariant redeemedHasPrincipalAll();
         }
-        preserved mint(address inv, uint256 dd, uint96 pr, uint96 apy, uint32 dur, string sn, string ab) with (env e) {
-            requireInvariant redeemedHasPrincipal(dd, inv);
+        preserved RedemptionVault.invest(uint256 dealId, uint96 amount) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
+            requireInvariant redeemedHasPrincipalAll();
         }
-        preserved safeTransferFrom(address from, address to, uint256 id, uint256 v, bytes data) with (env e) {
-            requireInvariant redeemedHasPrincipal(id, from);
-            requireInvariant redeemedHasPrincipal(id, to);
+        preserved RedemptionVault.redeem(uint256 dealId) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
+            requireInvariant redeemedHasPrincipalAll();
+        }
+        preserved RedemptionVault.claimDefault(uint256 dealId) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
+            requireInvariant redeemedHasPrincipalAll();
         }
     }
 
@@ -312,7 +360,38 @@ invariant liveAndRedeemedEqualMinted(uint256 d)
 invariant burnedNeverExceedsMinted(uint256 d)
     getBurnedCount(d) <= getMintedCount(d)
     {
-        preserved {
+        preserved with (env e) {
+            require e.msg.sender != vault();
+            requireInvariant redeemedHasPrincipalAll();
+            requireInvariant redeemedCountEqualsBurned(d);
+            requireInvariant liveAndRedeemedEqualMinted(d);
+            require ghostLiveCount[d] >= 0;
+        }
+        preserved RedemptionVault.invest(uint256 dealId, uint96 amount) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
+            requireInvariant redeemedHasPrincipalAll();
+            requireInvariant redeemedCountEqualsBurned(d);
+            requireInvariant liveAndRedeemedEqualMinted(d);
+            require ghostLiveCount[d] >= 0;
+        }
+        preserved RedemptionVault.redeem(uint256 dealId) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
+            // ASSUMPTION (sum >= element): ghostLiveCount is maintained as the
+            // sum over holders of isLive(slot), each term 0 or 1, so it is at
+            // least the caller's term. Not derivable from a per-slot invariant.
+            require ghostLiveCount[dealId] >= isLive(mPrincipal[dealId][e.msg.sender], mStatus[dealId][e.msg.sender]);
+            requireInvariant redeemedHasPrincipalAll();
+            requireInvariant redeemedCountEqualsBurned(d);
+            requireInvariant liveAndRedeemedEqualMinted(d);
+            require ghostLiveCount[d] >= 0;
+        }
+        preserved RedemptionVault.claimDefault(uint256 dealId) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
+            // ASSUMPTION (sum >= element): ghostLiveCount is maintained as the
+            // sum over holders of isLive(slot), each term 0 or 1, so it is at
+            // least the caller's term. Not derivable from a per-slot invariant.
+            require ghostLiveCount[dealId] >= isLive(mPrincipal[dealId][e.msg.sender], mStatus[dealId][e.msg.sender]);
+            requireInvariant redeemedHasPrincipalAll();
             requireInvariant redeemedCountEqualsBurned(d);
             requireInvariant liveAndRedeemedEqualMinted(d);
             require ghostLiveCount[d] >= 0;

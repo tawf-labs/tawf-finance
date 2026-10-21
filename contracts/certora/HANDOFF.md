@@ -1,6 +1,6 @@
-# Hand-off: formal verification work in progress
+# Hand-off: formal verification
 
-Branch `feat/formal-verification` in **tawf-finance**, **tawf-network** and **tawf-gold-bsi**. Nothing is merged to `main` yet.
+Branch `feat/formal-verification` in **tawf-finance**, **tawf-network** and **tawf-gold-bsi**. Merged to `main` in each repo.
 
 Read first: `certora/REPORT.md` (results, bugs found, assumptions) and `certora/LESSONS.md` (13 pitfalls we hit; read before editing any spec). Copies of `LESSONS.md` live in each repo's `certora/`.
 
@@ -22,37 +22,53 @@ Read first: `certora/REPORT.md` (results, bugs found, assumptions) and `certora/
 
 **Run a spec:** `cd contracts && ~/tools/bin/prove certora/confs/<name>.conf`. Real failures are `Failed on <rule>:` lines, excluding `rule_not_vacuous`.
 
-## Status
+## Status (2026-10-21): everything proven
 
-| Repo / spec | State |
+| Repo / spec | Checks verified |
 |---|---|
-| tawf-finance pool Registry, Vault | proven |
-| tawf-finance pool Receipt | proven except 4 counting invariants (`redeemedHasPrincipal`, `redeemedCountEqualsBurned`, `liveAndRedeemedEqualMinted`, `burnedNeverExceedsMinted`); the ghosts mirror principal + status but the induction still fails on mint / transfer / burn. Next step: read the counterexample in the run's `Reports/` |
-| tawf-finance sukuk Distributor, both ProfitAccumulators, deposito Series | proven (sukuk now requires a fresh reserve snapshot) |
-| tawf-finance deposito SandboxReal (real 0.8.17 module) | proven (12 checks) |
-| tawf-finance mutants `certora/mutants/M1–M9` | written before the contract fixes; regenerate from current `src/`, then `./certora/mutate.sh` |
-| tawf-gold-bsi tBSI Controller | proven (69 checks), including the fresh-attestation requirement |
-| tawf-network l2 LeafLog | proven (12 checks): append-only, leafCount monotonic, writer-only |
-| tawf-network l2 LedgerAnchor | proven (40 checks): epochs and nextIndex monotonic, roots never overwritten, relayer-only anchoring, verify stable once true (Merkle soundness assumed) |
-| tawf-network l3 ReserveLedger | 29 proven; `maturedSeriesStaysMatured` needs an invariant `matured ⇒ registeredAt != 0` (unreachable pre-state) |
-| tawf-network l3 SukukLedger, PoolLedger | CVL compile errors, listed in `certora/out/*.errors.txt` (gitignored; rerun to regenerate) |
-| tawf-network l3 ServicingLedger, InstitutionRegistry, DocumentRegistry, ShariahAttestations | specs not written yet; harnesses exist |
+| tawf-finance pool Registry / Vault / Receipt | 249 / 146 / 317 |
+| tawf-finance sukuk Distributor (incl. held profit) / ProfitAccumulator | 232 / 4 |
+| tawf-finance deposito Accumulator / Series / SandboxReal | 5 / 42 / 12 |
+| tawf-finance mutants M1–M9 | 8 killed; M8 equivalent (see REPORT) |
+| tawf-gold-bsi tBSI Controller | 69 |
+| tawf-network l2 LeafLog / LedgerAnchor | 12 / 40 |
+| tawf-network l3 SukukLedger / ReserveLedger / InstitutionRegistry | 127 / 42 / 33 |
+| tawf-network l3 PoolLedger / ServicingLedger / DocumentRegistry / ShariahAttestations | 8 / 7 / 7 / 6 |
 
-## Contract changes on this branch (all tests pass: tawf-finance 160, tawf-network 65)
+Real failures are `Failed on <rule>:` lines whose sub-check is not a sanity check. A "Violated" `rule_not_vacuous` / `invariant_not_trivial_postcondition` is the healthy outcome: the rule is reachable and the invariant is not trivially true.
 
-- BondReceiptNFT: repeat-invest top-up fix, receipt moves with the token under VerifiedOnly, no top-up of a Redeemed receipt.
-- DealRegistry: `setReceiptNft` and `moveInvestorPrincipal`.
-- TawfDepositoSeries: no profit after maturity; `settleMaturity(at, finalPeriod, …)` requires every profit period to be distributed. The maturity leaf `a` = `(finalPeriod << 64) | at` in both repos (`LedgerLeaf.packMaturity`).
-- ReserveLedger: a placement must reference a registered product of the same institution.
-- Several `external view` getters made `public`, for harnesses. No behaviour change.
+## Contract changes (tests: tawf-finance 173, tawf-network 76)
 
-**Not redeployed.** The testnet pool, deposito series and VPS L3 still run the old code. Redeploy only with the owner's go-ahead.
+- **BondReceiptNFT:**
+  - repeat-invest top-up fix
+  - the receipt moves with the token under VerifiedOnly
+  - no top-up of a Redeemed receipt
+  - `ZeroPrincipal` on mint
+  - `markReceiptDefaulted` refuses a Redeemed receipt
+- **DealRegistry:** `setReceiptNft` and `moveInvestorPrincipal`.
+- **TawfDepositoSeries:** no profit after maturity; `settleMaturity(at, finalPeriod, …)` requires every profit period to be distributed. The maturity leaf `a` = `(finalPeriod << 64) | at` (`LedgerLeaf.packMaturity`).
+- **SukukDistributor:**
+  - fresh reserve gate
+  - held profit: snapshot at maturity, pay by claim
+    - `releaseHeldProfit`, `claimProfit`
+    - `setSweepDestination` (board-proven), `sweepUnclaimed` after `claimWindow`
+    - transfers frozen after maturity
+- **tawf-network:**
+  - `SukukLedger`: flag-and-hold maturity; repeatable board releases; sweep-destination approval
+  - `ShariahAttestations.migrateInstitution`
+  - `ReserveLedger` checks the placement's product
+- **tawf-gold-bsi:** fresh attestation covering supply on `tokenizeBar`.
+
+All of this is deployed on testnet (redeploy of 2026-10-20/21; addresses in `src/web3/tokenization.deployments.json` and tawf-network `contracts/deployments/ledger.7142026.json`). The two latest receipt hardenings (`ZeroPrincipal`, `markReceiptDefaulted`) are not deployed. Both are unreachable through the live vault, so they need no redeploy until the next pool deploy.
 
 ## Owner decisions (implemented)
 
 - Sukuk: `subscribe`/close need a fresh (≤ `maxReserveAge`) reserve snapshot covering supply.
 - tBSI: `tokenizeBar` needs a fresh (≤ `maxAttestationAge`) attestation covering supply after the mint.
-- L3 `declareMaturity` re-checks the attestation. If it's invalid, the sukuk is flagged, principal is still declared, and profit is held for the Shariah board (`resolveHeldProfit`).
+- L3 `declareMaturity` re-checks the attestation. If it's invalid, the sukuk is flagged, principal is still declared, and profit is held for the Shariah board, which releases it in parts. Holders claim it on L2, and anything unclaimed is swept after the claim window to a board-approved destination (never Tawf).
 - L3 attestations stay with their institution; switching needs the admin-only `migrateInstitution`.
 
-**Follow-up:** the L2 SukukDistributor does not yet pay a profit the board releases (the SUKUK_PROFIT_RESOLUTION leaf). It needs a `distributeReleasedProfit` gated on that leaf.
+## Open notes
+
+- L3 `releaseHeldProfit` does not cap the total released at `heldAmount`. The board can release more than was held (e.g. a later true-up). Add a cap if that is not intended.
+- L2 `setSweepDestination` can be called by anyone, but only with a board-approved ledger proof, and only once.

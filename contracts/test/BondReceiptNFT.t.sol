@@ -35,6 +35,22 @@ contract BondReceiptNFTTest is Test {
     // Minting
     // ------------------------------------------------------------------
 
+    function test_Mint_zeroPrincipalReverts() public {
+        vm.prank(vault);
+        vm.expectRevert(BondReceiptNFT.ZeroPrincipal.selector);
+        nft.mint(alice, DEAL_ID, 0, 1200, 30, "Warung", "Indomaret");
+        assertEq(nft.mintedCount(DEAL_ID), 0);
+    }
+
+    function test_MarkDefaulted_redeemedReverts() public {
+        _mint(alice);
+        vm.prank(vault);
+        nft.burnOnRedemption(DEAL_ID, alice);
+        vm.prank(vault);
+        vm.expectRevert(abi.encodeWithSelector(BondReceiptNFT.AlreadyRedeemed.selector, DEAL_ID, alice));
+        nft.markReceiptDefaulted(DEAL_ID, alice);
+    }
+
     function test_Mint_createsReceipt() public {
         _mint(alice);
 

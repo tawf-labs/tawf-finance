@@ -101,6 +101,7 @@ contract BondReceiptNFT is ERC1155, AccessControl {
     error ReceiptTransferInvalid(uint256 dealId, address from, address to);
     error ReceiptAlreadyRedeemed(uint256 dealId, address investor);
     error NotVerified(address investor);
+    error ZeroPrincipal();
     error DealAlreadyMatured(uint256 dealId);
     error ZeroTotalFunded(uint256 dealId);
 
@@ -176,6 +177,12 @@ contract BondReceiptNFT is ERC1155, AccessControl {
         // token and so never reaches the check in `_update`).
         ITawfIdentityRegistry registry = identityRegistry;
         if (address(registry) != address(0) && !registry.isVerified(investor)) revert NotVerified(investor);
+
+        // A zero-principal receipt could never be redeemed (redeem needs
+        // principal != 0), so it would stay unburned forever. The vault's
+        // minimum ticket already rules this out; checked here too so the
+        // receipt does not depend on the registry's terms.
+        if (principal == 0) revert ZeroPrincipal();
 
         ReceiptMeta storage receipt = _receipts[dealId][investor];
 
@@ -268,7 +275,10 @@ contract BondReceiptNFT is ERC1155, AccessControl {
         if (_receipts[dealId][investor].principal == 0) {
             revert NotInvestor(dealId, investor);
         }
-        if (_receipts[dealId][investor].status == ReceiptStatus.Defaulted) {
+        ReceiptStatus status = _receipts[dealId][investor].status;
+        // A redeemed receipt is closed; flipping it back would un-redeem it.
+        if (status == ReceiptStatus.Redeemed) revert AlreadyRedeemed(dealId, investor);
+        if (status == ReceiptStatus.Defaulted) {
             return; // idempotent
         }
         _receipts[dealId][investor].status = ReceiptStatus.Defaulted;
