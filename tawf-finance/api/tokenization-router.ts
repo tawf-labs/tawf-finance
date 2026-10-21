@@ -29,6 +29,8 @@ import h21 from './_tokenization/series/sandbox.js'
 import h22 from './_tokenization/series/screen.js'
 import h23 from './_tokenization/series/settle-maturity.js'
 import h24 from './_tokenization/series/status.js'
+import h25 from './_tokenization/issuer/sukuk/held.js'
+import h26 from './_tokenization/bprs/sukuk-board.js'
 
 type Handler = (req: VercelRequest, res: VercelResponse) => unknown
 
@@ -58,6 +60,8 @@ const routes: Record<string, Handler> = {
   'series/screen': h22,
   'series/settle-maturity': h23,
   'series/status': h24,
+  'issuer/sukuk/held': h25,
+  'bprs/sukuk-board': h26,
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

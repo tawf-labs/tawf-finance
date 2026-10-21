@@ -495,6 +495,7 @@ function BprsTab({ busy, run, passcode, tawf, sukukStatus, onRefresh }: {
 
       {/* Sukuk lifecycle (unchanged) */}
       <SukukLedgerCard busy={busy} run={run} passcode={passcode} status={sukukStatus} />
+      <ShariahReviewCard busy={busy} run={run} passcode={passcode} />
     </div>
   );
 }
@@ -545,9 +546,110 @@ function SukukLedgerCard({ busy, run, passcode, status }: {
         <div className="space-y-2">
           <p className="text-sm text-tawf-muted">Declare maturity (USDC)</p>
           <input type="number" value={maturityAmount} min={0} onChange={(e) => setMaturityAmount(Number(e.target.value))} className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl" />
-          <Button size="sm" disabled={busy !== null || !allPeriodsDeclared} onClick={() => run('Declare maturity', () => postAdmin('bprs/declare-maturity', { amount: maturityAmount }, passcode))}>
+          <Button size="sm" disabled={busy !== null || !status} onClick={() => run('Declare maturity', () => postAdmin('bprs/declare-maturity', { amount: maturityAmount }, passcode))}>
             Declare maturity
           </Button>
+          {!allPeriodsDeclared && (
+            <p className="text-xs text-tawf-muted">
+              Periods are still undeclared. With a valid Shariah attestation the ledger refuses this; if the
+              attestation was revoked, principal is declared and the profit is held for the Shariah board.
+            </p>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+type HeldStatus = {
+  sukuk: number;
+  status: number;
+  totalUnitsAtMaturity: string | null;
+  releases: number;
+  released: string | null;
+  claimed: string | null;
+  swept: string | null;
+  heldBalance: string | null;
+  sweepOpensAt: number | null;
+  sweepDestination: string | null;
+  ledgerFlag: { state: string; heldAmount: string; undeclaredPeriods: number; releases: number; released: string; sweepDestination: string } | null;
+};
+
+const usdc = (v: string | null | undefined) => formatUsdc(Number(BigInt(v ?? '0')) / 1e6);
+const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
+
+/** Profit held at a Shariah-flagged maturity: the board's ledger actions and the issuer's parent-chain actions. */
+function ShariahReviewCard({ busy, run, passcode }: { busy: string | null; run: RunFn; passcode: string }) {
+  const [which, setWhich] = useState<1 | 2>(1);
+  const [held, setHeld] = useState<HeldStatus | null>(null);
+  const [releaseAmount, setReleaseAmount] = useState(0);
+  const [destination, setDestination] = useState('');
+  const [windowSeconds, setWindowSeconds] = useState(365 * 24 * 3600);
+
+  const load = async () => {
+    try { setHeld(await getJson<HeldStatus>(`issuer/sukuk/held?sukuk=${which}`)); } catch { setHeld(null); }
+  };
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- reload when the selected sukuk changes
+  useEffect(() => { void load(); }, [which]);
+
+  const act = (label: string, path: string, body: Record<string, unknown>) =>
+    run(label, async () => { const r = await postAdmin(path, { sukuk: which, ...body }, passcode); await load(); return r; });
+
+  const flag = held?.ledgerFlag;
+  const flagged = flag && flag.state !== 'None';
+  const destSet = held?.sweepDestination && held.sweepDestination !== ZERO_ADDR;
+
+  return (
+    <Card className="p-6 space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="font-medium text-tawf-green">Shariah review: held profit</p>
+        <div className="flex gap-2">
+          <Button size="sm" variant={which === 1 ? 'primary' : 'secondary'} onClick={() => setWhich(1)}>Sukuk</Button>
+          <Button size="sm" variant={which === 2 ? 'primary' : 'secondary'} onClick={() => setWhich(2)}>Test sukuk (v4)</Button>
+          <Button size="sm" variant="secondary" onClick={() => void load()}>Refresh</Button>
+        </div>
+      </div>
+      <p className="text-sm text-tawf-muted">
+        If the Shariah attestation is no longer valid at maturity, holders still redeem principal and the profit is
+        held. The board releases it in parts; holders at maturity claim pro rata, even after redeeming. After the
+        claim window, unclaimed profit can only go to a destination the board approved, never to Tawf.
+      </p>
+      {!held ? (
+        <p className="text-sm text-tawf-muted">Status unavailable.</p>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+          <Stat label="Ledger review" value={flag ? flag.state : 'unknown'} />
+          <Stat label="Held at maturity" value={flag ? usdc(flag.heldAmount) : '-'} />
+          <Stat label="Undeclared periods" value={flag ? String(flag.undeclaredPeriods) : '-'} />
+          <Stat label="Board releases" value={`${held.releases} / ${flag?.releases ?? 0}`} />
+          <Stat label="Released" value={usdc(held.released)} />
+          <Stat label="Claimed" value={usdc(held.claimed)} />
+          <Stat label="Unclaimed" value={usdc(held.heldBalance)} />
+          <Stat label="Swept" value={usdc(held.swept)} />
+          <Stat label="Sweep opens" value={held.sweepOpensAt ? new Date(held.sweepOpensAt * 1000).toLocaleString('en-SG') : '-'} />
+          <Stat label="Sweep destination" value={destSet ? held.sweepDestination! : 'not set'} />
+        </div>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-tawf-green">Shariah board (ledger)</p>
+          <input type="number" value={releaseAmount} min={0} onChange={(e) => setReleaseAmount(Number(e.target.value))} className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl" />
+          <div className="flex gap-2 flex-wrap">
+            <Button size="sm" disabled={busy !== null || !flagged} onClick={() => act('Board release', 'bprs/sukuk-board', { action: 'release', amount: releaseAmount })}>Release (USDC)</Button>
+            <Button size="sm" variant="secondary" disabled={busy !== null || !flagged} onClick={() => act('Close review', 'bprs/sukuk-board', { action: 'close' })}>Close review</Button>
+          </div>
+          <input value={destination} placeholder="0x... waqf or charity" onChange={(e) => setDestination(e.target.value)} className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl font-mono text-xs" />
+          <Button size="sm" variant="secondary" disabled={busy !== null || !flagged || !destination} onClick={() => act('Approve sweep destination', 'bprs/sukuk-board', { action: 'approve-sweep', destination })}>Approve sweep destination</Button>
+        </div>
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-tawf-green">Tawf issuer (parent chain)</p>
+          <Button size="sm" disabled={busy !== null || held?.status !== 3} onClick={() => act('Fund release', 'issuer/sukuk/held', { action: 'release', amount: releaseAmount })}>Pay the next release (USDC above)</Button>
+          <Button size="sm" variant="secondary" disabled={busy !== null || held?.status !== 3 || !destination || Boolean(destSet)} onClick={() => act('Set sweep destination', 'issuer/sukuk/held', { action: 'set-destination', destination })}>Record approved destination</Button>
+          <div className="flex gap-2 items-center">
+            <input type="number" value={windowSeconds} min={1} onChange={(e) => setWindowSeconds(Number(e.target.value))} className="w-40 px-3 py-2 border border-tawf-green-10 rounded-xl text-sm" />
+            <Button size="sm" variant="secondary" disabled={busy !== null} onClick={() => act('Set claim window', 'issuer/sukuk/held', { action: 'claim-window', seconds: windowSeconds })}>Set claim window (s)</Button>
+          </div>
+          <Button size="sm" variant="secondary" disabled={busy !== null || !destSet} onClick={() => act('Sweep unclaimed', 'issuer/sukuk/held', { action: 'sweep' })}>Sweep unclaimed</Button>
         </div>
       </div>
     </Card>

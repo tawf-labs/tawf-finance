@@ -11,7 +11,17 @@ import { BondReceiptNFT } from "../../../src/BondReceiptNFT.sol";
 /**
  * @title RedemptionVault
  * @notice The only contract that holds and moves investor USDC.
- * @dev Mutated copy of src/RedemptionVault.sol. See that file for full docs.
+ *
+ * @dev Flow:
+ *  1. invest()      — pulls USDC from the investor, records the deal funding
+ *                     in DealRegistry, mints a soulbound receipt.
+ *  2. repay()       — owner (later: SekuritasOracle) adds the profit share;
+ *                     deal transitions to Matured.
+ *  3. redeem()      — pro-rata payout of principal + yield; receipt burned.
+ *  4. claimDefault()— principal-only return on a defaulted deal.
+ *
+ *      Checks-effects-interactions and ReentrancyGuard everywhere money
+ *      moves. The vault never holds more than what deals owe + pending yield.
  */
 contract RedemptionVault is AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -41,11 +51,21 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
     event Redeemed(uint256 indexed dealId, address indexed investor, uint256 payout);
     event DefaultClaimed(uint256 indexed dealId, address indexed investor, uint256 payout);
 
+    /// @param admin Address (an EOA for local dev, a Safe multisig in
+    ///        production) granted DEFAULT_ADMIN_ROLE and ADMIN_ROLE.
     constructor(address admin) {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
     }
 
+    // ---------------------------------------------------------------------
+    // Admin configuration
+    // ---------------------------------------------------------------------
+
+    /// @notice One-time wiring of the token, registry, and receipt contracts.
+    /// @dev Callable exactly once. The original version could be re-called
+    ///      at any time by the owner, silently repointing custody-adjacent
+    ///      state post go-live; that gap is closed here.
     function configure(IERC20 usdc_, DealRegistry registry_, BondReceiptNFT nft_) external onlyRole(ADMIN_ROLE) {
         if (_configured) revert AlreadyConfigured();
         if (
@@ -61,6 +81,14 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         _configured = true;
     }
 
+    // ---------------------------------------------------------------------
+    // Investing
+    // ---------------------------------------------------------------------
+
+    /**
+     * @notice Invest USDC into a Mintable deal and receive a soulbound
+     *         receipt. Caller must have approved this vault for `amount`.
+     */
     function invest(uint256 dealId, uint96 amount) external nonReentrant {
         DealRegistry.Deal memory deal = _requireConfigured(dealId);
 
@@ -84,6 +112,29 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         emit Invested(dealId, msg.sender, amount);
     }
 
+    // ---------------------------------------------------------------------
+    // Repayment (owner / future SekuritasOracle)
+    // ---------------------------------------------------------------------
+
+    /**
+     * @notice Record repayment of a deal.
+     *
+     * @dev A deal repays from Mintable (partial funding) or Active (fully
+     *      funded); it just needs outstanding principal. The vault already
+     *      holds the principal from investments; this function pulls in only
+     *      the profit share (`totalRepayment` minus principal) from the
+     *      caller, then marks the deal Matured. Caller must have approved
+     *      this vault for the yield portion.
+     *
+     * @param totalRepayment Total repaid by the anchor buyer: principal + profit.
+     *
+     * @dev Gated by OPS_ROLE rather than a single owner, held by a multisig
+     *      requiring at least two of BPRS finance, Tawf ops, and an
+     *      independent auditor (regulation.md, disbursement-integrity
+     *      staged path, stage 1). This is the single highest-risk function
+     *      in the system, the amount is currently supplied by the caller
+     *      with no on-chain check against real collections.
+     */
     function repay(uint256 dealId, uint96 totalRepayment) external nonReentrant onlyRole(OPS_ROLE) {
         DealRegistry.Deal memory deal = _requireConfigured(dealId);
 
@@ -108,14 +159,20 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         emit Repaid(dealId, totalRepayment, yieldPool);
     }
 
+    // ---------------------------------------------------------------------
+    // Redemption
+    // ---------------------------------------------------------------------
+
+    /**
+     * @notice Redeem a matured receipt: pro-rata principal + yield, then burn.
+     */
     function redeem(uint256 dealId) external nonReentrant {
         DealRegistry.Deal memory deal = _requireConfigured(dealId);
         if (deal.status != DealRegistry.DealStatus.Matured) revert NotMatured(dealId);
 
         BondReceiptNFT.ReceiptMeta memory meta = nft.getReceiptMeta(dealId, msg.sender);
         if (meta.principal == 0) revert NotInvestor(dealId, msg.sender);
-        // MUTANT M8: dropped the `AlreadyRedeemed` guard, so a receipt can be
-        // redeemed more than once.
+        // MUTANT M8: redeem dropped the `AlreadyRedeemed` check.
 
         uint256 payout = payoutFor(dealId, msg.sender);
         if (usdc.balanceOf(address(this)) < payout) revert InsufficientVaultBalance();
@@ -130,12 +187,18 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         emit Redeemed(dealId, msg.sender, payout);
     }
 
+    /**
+     * @notice Principal-only return on a defaulted deal.
+     */
     function claimDefault(uint256 dealId) external nonReentrant {
         DealRegistry.Deal memory deal = _requireConfigured(dealId);
         if (deal.status != DealRegistry.DealStatus.Defaulted) revert NotDefaulted(dealId);
 
         BondReceiptNFT.ReceiptMeta memory meta = nft.getReceiptMeta(dealId, msg.sender);
         if (meta.principal == 0) revert NotInvestor(dealId, msg.sender);
+        // Double-claims are blocked: any completed claim burns the receipt
+        // and flags it Redeemed. (A derived "Defaulted" status merely means
+        // the deal defaulted, not that this investor already claimed.)
         if (meta.status == BondReceiptNFT.ReceiptStatus.Redeemed) {
             revert AlreadyRedeemed(dealId, msg.sender);
         }
@@ -155,6 +218,11 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         emit DefaultClaimed(dealId, msg.sender, payout);
     }
 
+    // ---------------------------------------------------------------------
+    // Views
+    // ---------------------------------------------------------------------
+
+    /// @notice Yield accrued for one investor against a matured deal.
     function accruedYield(uint256 dealId, address investor) public view returns (uint256) {
         DealRegistry.Deal memory deal = registry.getDeal(dealId);
         BondReceiptNFT.DealSnapshot memory snap = nft.getDealSnapshot(dealId);
@@ -164,11 +232,16 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         return (uint256(meta.principal) * uint256(snap.yieldPool)) / uint256(snap.totalFunded);
     }
 
+    /// @notice Total payout (principal + yield) for one investor.
     function payoutFor(uint256 dealId, address investor) public view returns (uint256) {
         BondReceiptNFT.ReceiptMeta memory meta = nft.getReceiptMeta(dealId, investor);
         if (meta.principal == 0) return 0;
         return uint256(meta.principal) + accruedYield(dealId, investor);
     }
+
+    // ---------------------------------------------------------------------
+    // Internal
+    // ---------------------------------------------------------------------
 
     function _requireConfigured(uint256 dealId) internal view returns (DealRegistry.Deal memory) {
         if (address(registry) == address(0) || address(nft) == address(0)) revert NotConfigured();

@@ -402,3 +402,56 @@ export function useSukukAllowance(owner: `0x${string}` | undefined, usdc: `0x${s
   });
   return { allowance: (data as bigint | undefined) ?? 0n, refetch };
 }
+
+// ---------------------------------------------------------------------------
+// Profit held at a Shariah-flagged maturity (pull claims)
+// ---------------------------------------------------------------------------
+
+export type HeldProfitState = {
+  status: number;
+  totalUnitsAtMaturity: bigint;
+  entitledUnits: bigint;
+  claimable: bigint;
+  released: bigint;
+  releases: number;
+};
+
+/** A holder's entitlement to profit the Shariah board releases after a flagged maturity. */
+export function useHeldProfit(distributor: `0x${string}` | undefined, address: `0x${string}` | undefined) {
+  const holder = address ?? '0x0000000000000000000000000000000000000000';
+  const { data, refetch } = useReadContracts({
+    contracts: distributor
+      ? [
+          { address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'status' },
+          { address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'totalUnitsAtMaturity' },
+          { address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'entitledUnits', args: [holder] },
+          { address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'claimableHeldProfit', args: [holder] },
+          { address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'totalHeldReleased' },
+          { address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'heldReleases' },
+        ]
+      : [],
+    query: { enabled: Boolean(distributor) },
+  });
+  const read = (i: number) => data?.[i]?.result;
+  const state: HeldProfitState = {
+    status: Number((read(0) as number | undefined) ?? 0),
+    totalUnitsAtMaturity: (read(1) as bigint | undefined) ?? 0n,
+    entitledUnits: (read(2) as bigint | undefined) ?? 0n,
+    claimable: (read(3) as bigint | undefined) ?? 0n,
+    released: (read(4) as bigint | undefined) ?? 0n,
+    releases: Number((read(5) as number | undefined) ?? 0),
+  };
+  return { state, refetch };
+}
+
+/** Pull the caller's share of released held profit. */
+export function useClaimHeldProfit() {
+  const { write, isPending } = useContractWrite();
+  const claimHeld = useCallback(
+    (distributor: `0x${string}`) =>
+      write({ address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'claimProfit' }),
+    [write],
+  );
+  return { claimHeld, isPending };
+}
+
