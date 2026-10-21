@@ -15,10 +15,19 @@ import { BondReceiptNFT } from "./BondReceiptNFT.sol";
  * @dev Flow:
  *  1. invest()      — pulls USDC from the investor, records the deal funding
  *                     in DealRegistry, mints a soulbound receipt.
- *  2. repay()       — owner (later: SekuritasOracle) adds the profit share;
- *                     deal transitions to Matured.
- *  3. redeem()      — pro-rata payout of principal + yield; receipt burned.
- *  4. claimDefault()— principal-only return on a defaulted deal.
+ *  2. disburse()    — once fully funded, the principal goes to the BPRS
+ *                     servicer, which deploys it in the financing pool.
+ *  3. repay()       — the deal's return comes back (principal + profit if
+ *                     disbursed, profit only if not); Tawf's nisbah is taken
+ *                     from the profit; deal transitions to Matured.
+ *  4. redeem()      — pro-rata payout of principal + yield; receipt burned.
+ *  5. default       — the servicer remits what was recovered
+ *                     (settleDefault). Holders share it pro rata
+ *                     (claimDefault): musyarakah losses fall on the capital,
+ *                     not on Tawf. Tawf's own money covers a loss ONLY after
+ *                     the DPS/auditor records negligence or misconduct
+ *                     (recordNegligence + payNegligence). A deal never
+ *                     disbursed returns its undeployed funds at par.
  *
  *      Checks-effects-interactions and ReentrancyGuard everywhere money
  *      moves. The vault never holds more than what deals owe + pending yield.
@@ -28,10 +37,36 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant OPS_ROLE = keccak256("OPS_ROLE");
+    /// @notice The BPRS servicer: receives disbursements, remits recoveries.
+    bytes32 public constant SERVICER_ROLE = keccak256("SERVICER_ROLE");
+    /// @notice DPS / independent auditor: the only role that can find Tawf
+    ///         liable for negligence or misconduct on a defaulted deal.
+    bytes32 public constant NEGLIGENCE_ROLE = keccak256("NEGLIGENCE_ROLE");
 
     IERC20 public usdc;
     DealRegistry public registry;
     BondReceiptNFT public nft;
+
+    /// @notice Highest Tawf nisbah accepted (50% of a deal's profit).
+    uint16 public constant MAX_TAWF_NISBAH_BPS = 5000;
+    /// @notice Where Tawf's profit share is paid.
+    address public feeRecipient;
+    /// @notice Tawf's share of each deal's profit (musyarakah / wakalah bil
+    ///         istithmar sell-down), in basis points. Fixed before the deal
+    ///         opens to investors; a default pays no share.
+    mapping(uint256 => uint16) public dealNisbahBps;
+
+    /// @notice Principal sent to the servicer (0 = still held, undeployed).
+    mapping(uint256 => uint96) public disbursedPrincipal;
+    /// @notice Recovery the servicer remitted after a default.
+    mapping(uint256 => uint96) public defaultRecovery;
+    mapping(uint256 => bool) public defaultSettled;
+    /// @notice Tawf's liability for negligence/misconduct, as found by the
+    ///         NEGLIGENCE_ROLE, and how much of it has been paid in.
+    mapping(uint256 => uint96) public negligenceLiability;
+    mapping(uint256 => uint96) public negligencePaid;
+    /// @notice Holders can claim once recovery (and any negligence cover) is in.
+    mapping(uint256 => bool) public defaultClaimsOpen;
     bool private _configured;
 
     error NotConfigured();
@@ -45,11 +80,33 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
     error AlreadyRedeemed(uint256 dealId, address investor);
     error InsufficientVaultBalance();
     error InvalidAddress();
+    error NisbahLocked(uint256 dealId);
+    error InvalidNisbah();
+    error NotDisbursable(uint256 dealId);
+    error AlreadyDisbursed(uint256 dealId);
+    error NotServicer(address to);
+    error DefaultAlreadySettled(uint256 dealId);
+    error DefaultNotSettled(uint256 dealId);
+    error DefaultClaimsOpen(uint256 dealId);
+    error DefaultClaimsNotOpen(uint256 dealId);
+    error RecoveryExceedsPrincipal();
+    error NoEvidence();
+    error NothingOwed();
+    error NegligenceUnpaid(uint256 dealId);
+    error NegligenceAlreadyPaid(uint256 dealId);
 
     event Invested(uint256 indexed dealId, address indexed investor, uint96 amount);
     event Repaid(uint256 indexed dealId, uint96 totalRepayment, uint96 yieldPool);
     event Redeemed(uint256 indexed dealId, address indexed investor, uint256 payout);
     event DefaultClaimed(uint256 indexed dealId, address indexed investor, uint256 payout);
+    event FeeRecipientSet(address feeRecipient);
+    event DealNisbahSet(uint256 indexed dealId, uint16 nisbahBps);
+    event TawfShareTaken(uint256 indexed dealId, uint96 share, address indexed feeRecipient);
+    event Disbursed(uint256 indexed dealId, address indexed servicer, uint96 principal);
+    event DefaultRecovered(uint256 indexed dealId, address indexed servicer, uint96 recovery);
+    event NegligenceRecorded(uint256 indexed dealId, uint96 liability, bytes32 evidenceHash, address indexed by);
+    event NegligencePaid(uint256 indexed dealId, address indexed payer, uint96 amount);
+    event DefaultClaimsOpened(uint256 indexed dealId, uint96 recovered, uint96 negligencePaid);
 
     /// @param admin Address (an EOA for local dev, a Safe multisig in
     ///        production) granted DEFAULT_ADMIN_ROLE and ADMIN_ROLE.
@@ -113,6 +170,107 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
     }
 
     // ---------------------------------------------------------------------
+    // Tawf's profit share
+    // ---------------------------------------------------------------------
+
+    /// @notice Set where Tawf's profit share is paid.
+    function setFeeRecipient(address recipient) external onlyRole(ADMIN_ROLE) {
+        if (recipient == address(0) || recipient == address(this)) revert InvalidAddress();
+        feeRecipient = recipient;
+        emit FeeRecipientSet(recipient);
+    }
+
+    /// @notice Set Tawf's nisbah for `dealId`. Only before the deal is
+    ///         Mintable: investors fund it under the disclosed ratio.
+    function setDealNisbah(uint256 dealId, uint16 nisbahBps) external onlyRole(OPS_ROLE) {
+        DealRegistry.Deal memory deal = _requireConfigured(dealId);
+        if (
+            deal.status != DealRegistry.DealStatus.Submitted && deal.status != DealRegistry.DealStatus.BmtApproved
+        ) revert NisbahLocked(dealId);
+        if (nisbahBps > MAX_TAWF_NISBAH_BPS) revert InvalidNisbah();
+        if (nisbahBps != 0 && feeRecipient == address(0)) revert InvalidAddress();
+        dealNisbahBps[dealId] = nisbahBps;
+        emit DealNisbahSet(dealId, nisbahBps);
+    }
+
+    // ---------------------------------------------------------------------
+    // Disbursement and default settlement
+    // ---------------------------------------------------------------------
+
+    /// @notice Send a fully funded deal's principal to the BPRS servicer.
+    function disburse(uint256 dealId, address servicer) external nonReentrant onlyRole(OPS_ROLE) {
+        DealRegistry.Deal memory deal = _requireConfigured(dealId);
+        if (deal.status != DealRegistry.DealStatus.Active) revert NotDisbursable(dealId);
+        if (disbursedPrincipal[dealId] != 0) revert AlreadyDisbursed(dealId);
+        if (!hasRole(SERVICER_ROLE, servicer)) revert NotServicer(servicer);
+        disbursedPrincipal[dealId] = deal.totalFunded;
+        usdc.safeTransfer(servicer, deal.totalFunded);
+        emit Disbursed(dealId, servicer, deal.totalFunded);
+    }
+
+    /// @notice The servicer remits what it recovered on a defaulted, disbursed
+    ///         deal (at most the principal disbursed).
+    function settleDefault(uint256 dealId, uint96 recovery) external nonReentrant onlyRole(SERVICER_ROLE) {
+        DealRegistry.Deal memory deal = _requireConfigured(dealId);
+        if (deal.status != DealRegistry.DealStatus.Defaulted) revert NotDefaulted(dealId);
+        if (disbursedPrincipal[dealId] == 0) revert NotDisbursable(dealId);
+        if (defaultSettled[dealId]) revert DefaultAlreadySettled(dealId);
+        if (recovery > disbursedPrincipal[dealId]) revert RecoveryExceedsPrincipal();
+        defaultSettled[dealId] = true;
+        defaultRecovery[dealId] = recovery;
+        if (recovery > 0) usdc.safeTransferFrom(msg.sender, address(this), recovery);
+        emit DefaultRecovered(dealId, msg.sender, recovery);
+    }
+
+    /// @notice The DPS / independent auditor finds Tawf liable for negligence
+    ///         or misconduct on a defaulted deal, up to the unrecovered loss.
+    ///         The only way Tawf's own money can cover a principal loss.
+    function recordNegligence(uint256 dealId, uint96 liability, bytes32 evidenceHash)
+        external
+        onlyRole(NEGLIGENCE_ROLE)
+    {
+        if (!defaultSettled[dealId]) revert DefaultNotSettled(dealId);
+        if (defaultClaimsOpen[dealId]) revert DefaultClaimsOpen(dealId);
+        if (evidenceHash == bytes32(0)) revert NoEvidence();
+        // Revisable until Tawf starts paying it in; then it is final.
+        if (negligencePaid[dealId] != 0) revert NegligenceAlreadyPaid(dealId);
+        if (uint256(defaultRecovery[dealId]) + liability > disbursedPrincipal[dealId]) revert RecoveryExceedsPrincipal();
+        negligenceLiability[dealId] = liability;
+        emit NegligenceRecorded(dealId, liability, evidenceHash, msg.sender);
+    }
+
+    /// @notice Tawf pays in the negligence liability found for `dealId`.
+    function payNegligence(uint256 dealId) external nonReentrant {
+        if (defaultClaimsOpen[dealId]) revert DefaultClaimsOpen(dealId);
+        uint96 owed = negligenceLiability[dealId] - negligencePaid[dealId];
+        if (owed == 0) revert NothingOwed();
+        negligencePaid[dealId] += owed;
+        usdc.safeTransferFrom(msg.sender, address(this), owed);
+        emit NegligencePaid(dealId, msg.sender, owed);
+    }
+
+    /// @notice Open holder claims on a defaulted, disbursed deal once the
+    ///         recovery and any negligence liability are in.
+    function openDefaultClaims(uint256 dealId) external onlyRole(OPS_ROLE) {
+        if (!defaultSettled[dealId]) revert DefaultNotSettled(dealId);
+        if (defaultClaimsOpen[dealId]) revert DefaultClaimsOpen(dealId);
+        if (negligencePaid[dealId] != negligenceLiability[dealId]) revert NegligenceUnpaid(dealId);
+        defaultClaimsOpen[dealId] = true;
+        emit DefaultClaimsOpened(dealId, defaultRecovery[dealId], negligencePaid[dealId]);
+    }
+
+    /// @notice What `investor` receives from a defaulted deal: par if the
+    ///         principal was never deployed, otherwise their pro-rata share of
+    ///         the recovery plus any negligence cover.
+    function defaultPayoutFor(uint256 dealId, address investor) public view returns (uint256) {
+        BondReceiptNFT.ReceiptMeta memory meta = nft.getReceiptMeta(dealId, investor);
+        uint96 disbursed = disbursedPrincipal[dealId];
+        if (disbursed == 0) return meta.principal;
+        uint256 pool = uint256(defaultRecovery[dealId]) + negligencePaid[dealId];
+        return (uint256(meta.principal) * pool) / disbursed;
+    }
+
+    // ---------------------------------------------------------------------
     // Repayment (owner / future SekuritasOracle)
     // ---------------------------------------------------------------------
 
@@ -148,12 +306,21 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         if (totalRepayment < deal.totalFunded) revert RepaymentBelowPrincipal();
 
         uint96 yieldPool = totalRepayment - deal.totalFunded;
+        // Tawf's nisbah of the profit; investors share the rest pro rata.
+        uint96 share = uint96((uint256(yieldPool) * dealNisbahBps[dealId]) / 10_000);
 
-        if (yieldPool > 0) {
-            usdc.safeTransferFrom(msg.sender, address(this), yieldPool);
+        // A disbursed deal returns its principal too; otherwise the vault
+        // still holds it.
+        uint256 pull = uint256(yieldPool) + disbursedPrincipal[dealId];
+        if (pull > 0) {
+            usdc.safeTransferFrom(msg.sender, address(this), pull);
+        }
+        if (share > 0) {
+            usdc.safeTransfer(feeRecipient, share);
+            emit TawfShareTaken(dealId, share, feeRecipient);
         }
 
-        nft.markDealMatured(dealId, yieldPool, deal.totalFunded);
+        nft.markDealMatured(dealId, yieldPool - share, deal.totalFunded);
         registry.markMatured(dealId);
 
         emit Repaid(dealId, totalRepayment, yieldPool);
@@ -205,7 +372,10 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
             revert AlreadyRedeemed(dealId, msg.sender);
         }
 
-        uint256 payout = uint256(meta.principal);
+        // Deployed capital bears the loss pro rata; Tawf covers it only via a
+        // recorded negligence finding (see recordNegligence).
+        if (disbursedPrincipal[dealId] != 0 && !defaultClaimsOpen[dealId]) revert DefaultClaimsNotOpen(dealId);
+        uint256 payout = defaultPayoutFor(dealId, msg.sender);
         if (usdc.balanceOf(address(this)) < payout) revert InsufficientVaultBalance();
 
         usdc.safeTransfer(msg.sender, payout);

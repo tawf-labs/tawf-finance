@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { ConnectButton } from '@/components/web3/ConnectButton';
 import { GetTestUsdc } from '@/components/web3/GetTestUsdc';
-import { useMyReceipts, usePayoutFor, useRedeem, useClaimDefault } from '@/web3/hooks';
+import { useMyReceipts, usePayoutFor, useRedeem, useClaimDefault, useDefaultPayout } from '@/web3/hooks';
 import { useTawfSeries, useSukuk } from '@/web3/tokenizationHooks';
 import { RECEIPT_STATUS_LABEL, type ReceiptStatus, type Deal } from '@/web3/types';
 import { formatUsdc, formatApy, formatTimestamp, formatIdr, getRevertReason } from '@/web3/format';
@@ -40,7 +40,10 @@ function ActionModal({
   onDone: () => void;
   onClose: () => void;
 }) {
-  const { payout, isLoading } = usePayoutFor(deal.id, address);
+  const { payout: redeemPayout, isLoading } = usePayoutFor(deal.id, address);
+  // A default pays the holder's pro-rata share of what the bank recovered.
+  const { payout: defaultPayout } = useDefaultPayout(deal.id, address);
+  const payout = mode === 'claim' && defaultPayout !== undefined ? defaultPayout : redeemPayout;
   const { redeem, isPending: redeeming } = useRedeem();
   const { claim, isPending: claiming } = useClaimDefault();
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +66,7 @@ function ActionModal({
     <Modal
       isOpen
       onClose={onClose}
-      title={mode === 'redeem' ? 'Redeem Principal + Yield' : 'Claim Principal'}
+      title={mode === 'redeem' ? 'Redeem Principal + Yield' : 'Claim Default Recovery'}
       size="md"
     >
       {txHash ? (
@@ -89,9 +92,15 @@ function ActionModal({
           <div className="p-4 bg-tawf-sand-30 rounded-xl">
             <p className="text-sm text-tawf-muted mb-1">{deal.supplierName}</p>
             <p className="font-medium text-tawf-green">
-              {isLoading ? 'Calculating…' : formatUsdc(payout)} {mode === 'redeem' ? '(principal + yield)' : '(principal)'}
+              {isLoading ? 'Calculating…' : formatUsdc(payout)} {mode === 'redeem' ? '(principal + yield)' : '(your share of the recovery)'}
             </p>
           </div>
+          {mode === 'claim' && (
+            <p className="text-xs text-tawf-muted">
+              In a musyarakah default, investors share what the bank recovered pro rata. Tawf adds to it only if
+              the Shariah board or an independent auditor found Tawf negligent.
+            </p>
+          )}
           {error && (
             <div className="bg-red-50 rounded-xl p-4 border border-red-200">
               <p className="text-sm text-red-600">{error}</p>

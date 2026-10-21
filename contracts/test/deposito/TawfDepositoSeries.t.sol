@@ -54,6 +54,10 @@ interface ISeries {
     function allowedStablecoins() external view returns (address[] memory);
     function isStablecoin(address token) external view returns (bool);
     function rateOf(address token) external view returns (uint256);
+    function setTawfShare(uint16 nisbahBps, address recipient) external;
+    function claimTawfShare(address token) external;
+    function tawfShareAccruedSen() external view returns (uint256);
+    function tawfSharePaidSen() external view returns (uint256);
 }
 
 interface IMintableCoin {
@@ -309,6 +313,42 @@ contract TawfDepositoSeriesTest is TrexFixture {
         // profitSen / RATE_USDC * 1e6 == 1e6 USDC.
         assertEq(IMintableCoin(usdc).balanceOf(alice) - before, 1e6);
         assertEq(ISeries(series).claimableSen(alice), 0);
+    }
+
+    // --- Tawf nisbah ----------------------------------------------------------
+
+    function test_nisbah_splitsProfitAndPaysFeeWallet() public {
+        address tawfFee = makeAddr("tawfFee");
+        vm.prank(operator);
+        ISeries(series).setTawfShare(1500, tawfFee);
+        _allocate(alice, usdc, 100e6);
+
+        uint256 profitSen = 100 * RATE_USDC; // 100 USDC worth
+        uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_PROFIT, 1, profitSen));
+        vm.prank(operator);
+        ISeries(series).distributeProfit(1, profitSen, e, noProof);
+        assertEq(ISeries(series).claimableSen(alice), (profitSen * 85) / 100);
+        assertEq(ISeries(series).tawfShareAccruedSen(), (profitSen * 15) / 100);
+
+        _fundTreasury(100e6);
+        ISeries(series).claimTawfShare(usdc);
+        assertEq(IMintableCoin(usdc).balanceOf(tawfFee), 15e6);
+        assertEq(ISeries(series).tawfSharePaidSen(), ISeries(series).tawfShareAccruedSen());
+        vm.expectRevert(abi.encodeWithSignature("NothingToClaim()"));
+        ISeries(series).claimTawfShare(usdc);
+    }
+
+    function test_nisbah_lockedAfterFirstSubscription() public {
+        _subscribe(alice, usdc, 10e6);
+        vm.prank(operator);
+        vm.expectRevert(abi.encodeWithSignature("TawfShareLocked()"));
+        ISeries(series).setTawfShare(1500, makeAddr("tawfFee"));
+    }
+
+    function test_nisbah_capped() public {
+        vm.prank(operator);
+        vm.expectRevert(abi.encodeWithSignature("InvalidTerms()"));
+        ISeries(series).setTawfShare(5001, makeAddr("tawfFee"));
     }
 
     function test_claimInUsdtPaysAtUsdtRate() public {

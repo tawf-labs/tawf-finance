@@ -21,6 +21,11 @@ and are left unchanged.
 | M7 | `BondReceiptNFT.sol` | `_update`: drop the `transferPolicy != VerifiedOnly → revert Soulbound()` guard | `soulboundUnlessVerifiedOnly` | Receipt |
 | M8 | `RedemptionVault.sol` | `redeem`: drop the `AlreadyRedeemed` check | `noDoubleRedeem` (see note: likely equivalent) | Vault |
 | M9 | `BondReceiptNFT.sol` | `_moveReceipt`: skip the `dealRegistry.moveInvestorPrincipal` call | `receiptFollowsToken`, `receiptMatchesRegistryOnTransfer` | Receipt, Vault |
+| M10 | `TawfDepositoSeries.sol` | `distributeProfit`: holders are credited the full profit while Tawf also accrues its share (the share comes out of nowhere / principal) | `distributeSplitsByNisbah` | deposito_Series |
+| M11 | `RedemptionVault.sol` | `setDealNisbah`: the nisbah can be changed after investors have funded | `nisbahLockedOnceMintable` | Vault |
+| M12 | `SukukDistributor.sol` | `releaseHeldProfit`: Tawf takes its nisbah from profit held for Shariah review | `heldProfitNeverToTawf` | sukuk_Distributor |
+| M13 | `RedemptionVault.sol` | `claimDefault`: pays full principal on a disbursed deal (capital guarantee funded by the vault/Tawf) | `claimDefaultPaysProRata` | Vault |
+| M14 | `RedemptionVault.sol` | `recordNegligence`: no role check, so Tawf could route its own money in as "negligence" | `tawfCoversLossOnlyViaNegligence` | Vault |
 
 ## Notes
 

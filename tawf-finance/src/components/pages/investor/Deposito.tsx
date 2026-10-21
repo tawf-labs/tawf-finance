@@ -23,6 +23,7 @@ import {
 import { formatIdr, formatUsdc, formatBps, getRevertReason } from '@/web3/format';
 import { isTokenizationConfigured, TAWF_SERIES } from '@/web3/tokenization';
 import { explorerTxUrl } from '@/web3/constants';
+import { NisbahNotice } from '@/components/tokenization/NisbahNotice';
 
 // The Model B disclosures the investor must acknowledge before subscribing.
 const DISCLOSURES = [
@@ -164,6 +165,8 @@ export function InvestorDeposito() {
         </div>
         <ConnectButton variant="primary" size="md" />
       </div>
+
+      <NisbahNotice product="series" extra="Tawf places your money at the BPRS on your behalf (two-tier mudharabah)." />
 
       <KycStatusCard key={address} compact />
 

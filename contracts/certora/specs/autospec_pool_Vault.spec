@@ -36,6 +36,17 @@ methods {
     function OPS_ROLE() external returns (bytes32) envfree;
     function ADMIN_ROLE() external returns (bytes32) envfree;
     function hasRole(bytes32, address) external returns (bool) envfree;
+    function SERVICER_ROLE() external returns (bytes32) envfree;
+    function NEGLIGENCE_ROLE() external returns (bytes32) envfree;
+    function feeRecipient() external returns (address) envfree;
+    function dealNisbahBps(uint256) external returns (uint16) envfree;
+    function disbursedPrincipal(uint256) external returns (uint96) envfree;
+    function defaultRecovery(uint256) external returns (uint96) envfree;
+    function defaultSettled(uint256) external returns (bool) envfree;
+    function negligenceLiability(uint256) external returns (uint96) envfree;
+    function negligencePaid(uint256) external returns (uint96) envfree;
+    function defaultClaimsOpen(uint256) external returns (bool) envfree;
+    function defaultPayoutFor(uint256, address) external returns (uint256) envfree;
 
     // ---- DealRegistryHarness views ----
     function registry.getStatus(uint256) external returns (uint8) envfree;
@@ -298,23 +309,93 @@ rule noDoubleRedeem(uint256 d, bool firstIsDefault, bool secondIsDefault) {
 // 6. claimDefaultPaysPrincipal
 // ===========================================================================
 
-/// @title claimDefaultPaysPrincipal
-rule claimDefaultPaysPrincipal(uint256 d) {
+/// @title claimDefaultPaysProRata
+// A holder of a defaulted deal receives exactly defaultPayoutFor: par if the
+// principal was never deployed, otherwise their pro-rata share of what the
+// servicer recovered plus any negligence cover (bounded in defaultPayoutFloor).
+rule claimDefaultPaysProRata(uint256 d) {
     env e;
     require e.msg.sender != currentContract;
     require nft.vault() == currentContract;
+    requireUsdcSane(currentContract, e.msg.sender);
 
-    uint96  principal    = nft.getPrincipal(d, e.msg.sender);
+    uint256 expected     = defaultPayoutFor(d, e.msg.sender);
     uint256 senderBefore = usdcToken.balanceOf(e.msg.sender);
 
     claimDefault(e, d);
 
-    assert usdcToken.balanceOf(e.msg.sender) == require_uint256(senderBefore + principal),
-        "claimDefault did not pay exactly the receipt principal";
+    assert to_mathint(usdcToken.balanceOf(e.msg.sender)) == senderBefore + expected,
+        "claimDefault did not pay exactly defaultPayoutFor";
+}
+
+/// @title defaultPayoutFloor (NIA lemma, isolated)
+// For a disbursed deal the payout is floor(principal * pool / disbursed), where
+// pool = servicer recovery + negligence cover: deployed capital bears the loss
+// pro rata and no other money is promised to holders.
+rule defaultPayoutFloor(uint256 d, address i) {
+    uint96 disbursed = disbursedPrincipal(d);
+    require disbursed > 0;
+    uint96 principal = nft.getPrincipal(d, i);
+    mathint pool = to_mathint(defaultRecovery(d)) + to_mathint(negligencePaid(d));
+    uint256 p = defaultPayoutFor(d, i);
+    assert to_mathint(p) * to_mathint(disbursed) <= to_mathint(principal) * pool,
+        "default payout exceeds the pro-rata share of recovery + negligence cover";
+}
+
+/// @title Recovery is remitted only by the servicer, once, capped at the principal
+rule recoveryOnlyFromServicer(method f, uint256 d) filtered { f -> !f.isView && !contractOnly(f) } {
+    env e; calldataarg args;
+    uint96 before = defaultRecovery(d);
+    bool settledBefore = defaultSettled(d);
+    f(e, args);
+    assert defaultRecovery(d) != before =>
+        (f.selector == sig:settleDefault(uint256,uint96).selector
+            && hasRole(SERVICER_ROLE(), e.msg.sender)
+            && !settledBefore
+            && defaultRecovery(d) <= disbursedPrincipal(d)),
+        "default recovery changed outside a servicer settlement";
+}
+
+/// @title Negligence cover paid never exceeds the liability found
+invariant negligencePaidWithinLiability(uint256 d)
+    negligencePaid(d) <= negligenceLiability(d)
+    filtered { f -> !contractOnly(f) }
+
+/// @title Tawf's money covers a principal loss only through a negligence finding
+// The only extra money holders of a defaulted deal can receive beyond the
+// servicer's recovery is negligencePaid, and it can rise only through
+// payNegligence, up to a liability that only the NEGLIGENCE_ROLE (DPS /
+// independent auditor) can record, with evidence, before claims open.
+rule tawfCoversLossOnlyViaNegligence(method f, uint256 d) filtered { f -> !f.isView && !contractOnly(f) } {
+    env e; calldataarg args;
+    uint96 paidBefore = negligencePaid(d);
+    uint96 liabBefore = negligenceLiability(d);
+    bool openBefore = defaultClaimsOpen(d);
+    requireInvariant negligencePaidWithinLiability(d);
+    f(e, args);
+    assert negligenceLiability(d) != liabBefore =>
+        (f.selector == sig:recordNegligence(uint256,uint96,bytes32).selector
+            && hasRole(NEGLIGENCE_ROLE(), e.msg.sender) && !openBefore),
+        "negligence liability set by someone other than the DPS/auditor role";
+    assert negligencePaid(d) != paidBefore =>
+        (f.selector == sig:payNegligence(uint256).selector && !openBefore),
+        "negligence cover paid in outside payNegligence";
+    assert negligencePaid(d) <= negligenceLiability(d),
+        "more negligence cover paid than the DPS found";
+}
+
+/// @title Tawf's nisbah is never taken on a default
+rule noNisbahOnDefault(uint256 d) {
+    env e;
+    address fee = feeRecipient();
+    require fee != e.msg.sender && fee != currentContract;
+    uint256 before = usdcToken.balanceOf(fee);
+    claimDefault(e, d);
+    assert usdcToken.balanceOf(fee) == before, "claimDefault paid the fee wallet";
 }
 
 // ===========================================================================
-// 7. repayOnlyOps + repayPullsExactYield
+// 7. repay: OPS only, exact amounts, Tawf's nisbah
 // ===========================================================================
 
 /// @title repayOnlyOps
@@ -325,24 +406,64 @@ rule repayOnlyOps(uint256 d, uint96 totalRepayment) {
         "repay succeeded for a caller without OPS_ROLE";
 }
 
-/// @title repayPullsExactYield
-rule repayPullsExactYield(uint256 d, uint96 totalRepayment) {
+/// @title repayPullsExactAmounts
+// The vault rises by the deal's profit minus Tawf's nisbah, plus the principal
+// if it was disbursed; the fee wallet receives exactly the nisbah; the
+// snapshot investors share is the profit minus the nisbah.
+rule repayPullsExactAmounts(uint256 d, uint96 totalRepayment) {
     env e;
-    // The OPS caller pulls yield in from somewhere other than the vault.
     require e.msg.sender != currentContract;
     require nft.vault() == currentContract;
+    address fee = feeRecipient();
+    require fee != currentContract && fee != e.msg.sender;
 
     requireUsdcSane(currentContract, e.msg.sender);
+    requireUsdcSane(fee, e.msg.sender);
+    requireUsdcSane(currentContract, fee);
     uint96  fundedBefore = registry.getTotalFunded(d);
+    uint96  disbursed    = disbursedPrincipal(d);
     uint256 vaultBefore  = vaultUsdc();
+    uint256 feeBefore    = usdcToken.balanceOf(fee);
 
     repay(e, d, totalRepayment);
 
-    // yield = totalRepayment - totalFunded (totalFunded is unchanged by repay).
     mathint yield = to_mathint(totalRepayment) - to_mathint(fundedBefore);
-    assert to_mathint(vaultUsdc()) == to_mathint(vaultBefore) + yield,
-        "vault USDC did not rise by exactly totalRepayment - totalFunded";
+    mathint share = to_mathint(usdcToken.balanceOf(fee)) - to_mathint(feeBefore);
+    assert to_mathint(vaultUsdc()) == to_mathint(vaultBefore) + yield - share + to_mathint(disbursed),
+        "vault USDC did not rise by profit - nisbah (+ disbursed principal)";
+    assert to_mathint(nft.snapYieldPool(d)) == yield - share,
+        "investors' profit is not the profit minus Tawf's nisbah";
     assert registry.getStatus(d) == 4, "deal status is not Matured after repay";
+}
+
+/// @title repayNisbahExact (NIA, isolated): share = floor(profit * nisbah / 1e4)
+rule repayNisbahExact(uint256 d, uint96 totalRepayment) {
+    env e;
+    require nft.vault() == currentContract;
+    address fee = feeRecipient();
+    require fee != currentContract && fee != e.msg.sender;
+    requireUsdcSane(fee, e.msg.sender);
+    requireUsdcSane(currentContract, fee);
+    uint16 bps = dealNisbahBps(d);
+    uint96 fundedBefore = registry.getTotalFunded(d);
+    uint256 feeBefore = usdcToken.balanceOf(fee);
+    repay(e, d, totalRepayment);
+    mathint yield = to_mathint(totalRepayment) - to_mathint(fundedBefore);
+    mathint share = to_mathint(usdcToken.balanceOf(fee)) - to_mathint(feeBefore);
+    assert share * 10000 <= yield * to_mathint(bps) && (share + 1) * 10000 > yield * to_mathint(bps),
+        "Tawf's share is not floor(profit * nisbah / 10000)";
+    assert share <= yield / 2, "Tawf's share above the 50% cap";
+}
+
+/// @title A deal's nisbah is fixed before it opens to investors
+rule nisbahLockedOnceMintable(method f, uint256 d) filtered { f -> !f.isView && !contractOnly(f) } {
+    env e; calldataarg args;
+    uint16 before = dealNisbahBps(d);
+    uint8 statusBefore = registry.getStatus(d);
+    f(e, args);
+    assert dealNisbahBps(d) != before =>
+        (f.selector == sig:setDealNisbah(uint256,uint16).selector && statusBefore <= 1 && dealNisbahBps(d) <= 5000),
+        "nisbah changed after the deal opened to investors";
 }
 
 // ===========================================================================
@@ -413,17 +534,21 @@ rule vaultUsdcOnlyMovesThroughVault(method f) filtered {
     bool isRepay       = f.selector == sig:repay(uint256,uint96).selector;
     bool isRedeem      = f.selector == sig:redeem(uint256).selector;
     bool isClaimDefault = f.selector == sig:claimDefault(uint256).selector;
+    bool isDisburse    = f.selector == sig:disburse(uint256,address).selector;
+    bool isSettle      = f.selector == sig:settleDefault(uint256,uint96).selector;
+    bool isNegligence  = f.selector == sig:payNegligence(uint256).selector;
+    bool inflow  = isInvest || isRepay || isSettle || isNegligence;
+    bool outflow = isRedeem || isClaimDefault || isDisburse;
 
     // No other function may change the vault's USDC balance.
-    assert (!isInvest && !isRepay && !isRedeem && !isClaimDefault)
-        => after == before,
-        "vault USDC moved outside invest/repay/redeem/claimDefault";
+    assert (!inflow && !outflow) => after == before,
+        "vault USDC moved outside the vault's money paths";
 
-    // Inflows (invest, repay) never decrease the balance.
-    assert (isInvest || isRepay) => after >= before,
+    // Inflows never decrease the balance (repay keeps profit - nisbah >= 0).
+    assert inflow => after >= before,
         "an inflow function decreased the vault USDC balance";
 
-    // Outflows (redeem, claimDefault) never increase the balance.
-    assert (isRedeem || isClaimDefault) => after <= before,
+    // Outflows never increase the balance.
+    assert outflow => after <= before,
         "an outflow function increased the vault USDC balance";
 }

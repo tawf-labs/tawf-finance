@@ -496,6 +496,7 @@ function BprsTab({ busy, run, passcode, tawf, sukukStatus, onRefresh }: {
       {/* Sukuk lifecycle (unchanged) */}
       <SukukLedgerCard busy={busy} run={run} passcode={passcode} status={sukukStatus} />
       <ShariahReviewCard busy={busy} run={run} passcode={passcode} />
+      <TawfShareCard busy={busy} run={run} passcode={passcode} />
     </div>
   );
 }
@@ -651,6 +652,58 @@ function ShariahReviewCard({ busy, run, passcode }: { busy: string | null; run: 
           </div>
           <Button size="sm" variant="secondary" disabled={busy !== null || !destSet} onClick={() => act('Sweep unclaimed', 'issuer/sukuk/held', { action: 'sweep' })}>Sweep unclaimed</Button>
         </div>
+      </div>
+    </Card>
+  );
+}
+
+type TawfShareStatus = {
+  nisbahBps: number;
+  feeRecipient: string | null;
+  locked?: boolean;
+  accruedSen?: string;
+  paidSen?: string;
+  totalTawfShare?: string;
+};
+
+/** Tawf's nisbah per product: set it before the sale opens, and collect the deposito share. */
+function TawfShareCard({ busy, run, passcode }: { busy: string | null; run: RunFn; passcode: string }) {
+  const [series, setSeries] = useState<TawfShareStatus | null>(null);
+  const [sukuk, setSukuk] = useState<TawfShareStatus | null>(null);
+  const [percent, setPercent] = useState(15);
+  const [recipient, setRecipient] = useState('');
+
+  const load = async () => {
+    try { setSeries(await getJson<TawfShareStatus>('tawf-share?product=series')); } catch { setSeries(null); }
+    try { setSukuk(await getJson<TawfShareStatus>('tawf-share?product=sukuk')); } catch { setSukuk(null); }
+  };
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- initial load
+  useEffect(() => { void load(); }, []);
+
+  const act = (label: string, body: Record<string, unknown>) =>
+    run(label, async () => { const r = await postAdmin('tawf-share', { ...body, ...(recipient ? { recipient } : {}) }, passcode); await load(); return r; });
+  const sen = (v?: string) => `IDR ${Number(BigInt(v ?? '0')).toLocaleString('id-ID')}`;
+
+  return (
+    <Card className="p-6 space-y-4">
+      <p className="font-medium text-tawf-green">Tawf profit share (nisbah)</p>
+      <p className="text-sm text-tawf-muted">
+        Mudharabah: Tawf keeps a fixed share of each period&apos;s profit, set before the sale opens and shown to
+        investors upfront. No profit, no share; principal is never charged; held (flagged) sukuk profit never goes to Tawf.
+      </p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        <Stat label="Deposito nisbah" value={series ? `${series.nisbahBps / 100}%${series.locked ? ' (fixed)' : ''}` : '-'} />
+        <Stat label="Deposito share accrued / paid" value={series ? `${sen(series.accruedSen)} / ${sen(series.paidSen)}` : '-'} />
+        <Stat label="Sukuk nisbah" value={sukuk ? `${sukuk.nisbahBps / 100}%` : '-'} />
+        <Stat label="Sukuk share paid" value={sukuk ? usdc(sukuk.totalTawfShare) : '-'} />
+      </div>
+      <div className="flex flex-wrap gap-2 items-center">
+        <input type="number" min={0} max={50} value={percent} onChange={(e) => setPercent(Number(e.target.value))} className="w-24 px-3 py-2 border border-tawf-green-10 rounded-xl text-sm" />
+        <span className="text-sm text-tawf-muted">% of profit</span>
+        <input value={recipient} placeholder="fee wallet 0x… (default FEE_RECIPIENT)" onChange={(e) => setRecipient(e.target.value)} className="w-80 px-3 py-2 border border-tawf-green-10 rounded-xl font-mono text-xs" />
+        <Button size="sm" variant="secondary" disabled={busy !== null || Boolean(series?.locked)} onClick={() => act('Set deposito nisbah', { product: 'series', action: 'set', percent })}>Set on deposito</Button>
+        <Button size="sm" variant="secondary" disabled={busy !== null} onClick={() => act('Set sukuk nisbah', { product: 'sukuk', action: 'set', percent })}>Set on sukuk</Button>
+        <Button size="sm" disabled={busy !== null || series?.accruedSen === series?.paidSen} onClick={() => act('Collect deposito share', { product: 'series', action: 'claim', coin: 'usdc' })}>Collect deposito share (USDC)</Button>
       </div>
     </Card>
   );

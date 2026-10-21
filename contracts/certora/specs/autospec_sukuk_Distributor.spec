@@ -49,6 +49,9 @@ methods {
     // AccessControl.
     function hasRole(bytes32, address) external returns (bool) envfree;
     function ADMIN_ROLE() external returns (bytes32) envfree;
+    function tawfNisbahBps() external returns (uint16) envfree;
+    function feeRecipient() external returns (address) envfree;
+    function totalTawfShare() external returns (uint256) envfree;
 
     // ---- MockUSDC ----
     function usdcToken.balanceOf(address) external returns (uint256) envfree;
@@ -842,8 +845,9 @@ rule setSweepDestinationValidAddress(address destination, uint256 epoch, bytes32
     bool ok = !lastReverted;
 
     assert ok => prev == 0, "setSweepDestination overwrote a set destination";
+    address fee = feeRecipient();
     assert ok => (destination != 0 && destination != currentContract
-                  && destination != issuerTreasuryOf()),
+                  && destination != issuerTreasuryOf() && destination != fee),
         "sweep destination is zero, the distributor or the issuer treasury";
     assert ok => (!isAdmin && !isDefaultAdmin), "sweep destination is an admin";
     assert ok => sweepDestination() == destination, "sweep destination not stored";
@@ -888,4 +892,70 @@ rule afterBalanceChangeFrozenAfterMaturity(address from, address to, uint256 amo
     require from != 0 && to != 0;
     afterBalanceChange@withrevert(e, from, to, amount);
     assert lastReverted, "a holder-to-holder balance change was accepted after maturity";
+}
+
+
+// ===========================================================================
+// TAWF NISBAH (mudharabah profit share)
+// ===========================================================================
+
+/// @title The nisbah never exceeds the 50% cap
+invariant nisbahCapped()
+    tawfNisbahBps() <= 5000;
+
+/// @title The nisbah and fee wallet are fixed once the subscription opens
+rule nisbahFixedOnceSubscriptionOpens(method f) filtered { f -> !f.isView } {
+    uint16 bps0 = tawfNisbahBps();
+    address fee0 = feeRecipient();
+    uint8 status0 = statusU8();
+    env e; calldataarg args;
+    f(e, args);
+    assert (tawfNisbahBps() != bps0 || feeRecipient() != fee0) =>
+        (f.selector == sig:setTawfShare(uint16,address).selector && status0 == 0),
+        "the nisbah changed after the subscription opened";
+}
+
+/// @title A distribution pays Tawf exactly its nisbah and funds holders with the rest
+rule distributeSplitsByNisbah(uint16 period, uint256 amount, uint256 epoch, bytes32[] proof) {
+    env e;
+    address fee = feeRecipient();
+    require fee != currentContract && fee != e.msg.sender;
+    requireUsdcSane(fee, e.msg.sender);
+    requireUsdcSane(currentContract, fee);
+    requireUsdcSane(currentContract, e.msg.sender);
+    requireInvariant nisbahCapped();
+    uint16 bps = tawfNisbahBps();
+    uint256 feeBefore = usdcToken.balanceOf(fee);
+    uint256 distBefore = distUsdc();
+    uint256 pptBefore = profitPerToken();
+    mathint supply = ghostSupply;
+
+    distribute(e, period, amount, epoch, proof);
+
+    mathint share = to_mathint(usdcToken.balanceOf(fee)) - to_mathint(feeBefore);
+    assert share * 10000 <= to_mathint(amount) * to_mathint(bps)
+        && (share + 1) * 10000 > to_mathint(amount) * to_mathint(bps),
+        "Tawf's share is not floor(amount * nisbah / 10000)";
+    assert to_mathint(distUsdc()) == to_mathint(distBefore) + to_mathint(amount) - share,
+        "the distributor did not keep exactly the holders' part";
+    assert supply > 0 => (to_mathint(profitPerToken()) - to_mathint(pptBefore)) * supply
+        <= (to_mathint(amount) - share) * 1000000000000000000,
+        "holders were credited more than the amount minus Tawf's share";
+}
+
+/// @title Profit held at a flagged maturity never reaches Tawf
+rule heldProfitNeverToTawf(method f) filtered {
+    f -> f.selector == sig:releaseHeldProfit(uint16,uint256,uint256,bytes32[]).selector
+      || f.selector == sig:claimProfit().selector
+      || f.selector == sig:sweepUnclaimed().selector
+      || f.selector == sig:redeem().selector
+} {
+    env e; calldataarg args;
+    address fee = feeRecipient();
+    require fee != e.msg.sender && fee != currentContract;
+    require fee != sweepDestination(); // setSweepDestinationValidAddress
+    requireUsdcSane(fee, currentContract);
+    uint256 before = usdcToken.balanceOf(fee);
+    f(e, args);
+    assert usdcToken.balanceOf(fee) == before, "held or principal money reached Tawf's fee wallet";
 }

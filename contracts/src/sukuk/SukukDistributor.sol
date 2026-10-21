@@ -54,6 +54,8 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
     uint256 private constant PRECISION = 1e18;
+    /// @notice Highest Tawf nisbah accepted (50% of profit).
+    uint16 public constant MAX_TAWF_NISBAH_BPS = 5000;
 
     enum Status {
         Pending,
@@ -133,6 +135,19 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     ///         and close will accept. Admin-configurable.
     uint64 public maxReserveAge = 3 days;
 
+    // --- Tawf's profit share (nisbah) -----------------------------------
+    // Of each declared profit distribution, Tawf keeps `tawfNisbahBps` and
+    // holders get the rest. Fixed before the subscription opens and disclosed
+    // upfront. Never applied to principal, to profit held at a flagged
+    // maturity, or to anything swept: doubtful income never reaches Tawf.
+
+    /// @notice Tawf's share of each distribution, in basis points.
+    uint16 public tawfNisbahBps;
+    /// @notice Where Tawf's share is paid.
+    address public feeRecipient;
+    /// @notice Total profit paid to Tawf.
+    uint256 public totalTawfShare;
+
     ProfitAccumulator.State private _profit;
 
     error InvalidAddress();
@@ -160,6 +175,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     error InvalidSweepDestination(address destination);
     error ClaimWindowOpen(uint256 opensAt);
     error InvalidClaimWindow();
+    error TawfShareLocked();
 
     /// @notice The compliance module authorized to report balance changes.
     address public immutable module;
@@ -181,6 +197,8 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     event HeldProfitSwept(address indexed destination, uint256 amount);
     event SweepDestinationSet(address indexed destination);
     event ClaimWindowSet(uint256 window);
+    event TawfShareSet(uint16 nisbahBps, address feeRecipient);
+    event TawfShareTaken(uint16 indexed period, uint256 share, address indexed feeRecipient);
 
     /// @param usdc_ Settlement token (USDC/MockUSDC).
     /// @param anchor_ LedgerAnchor the ledger roots are anchored on.
@@ -279,9 +297,20 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     function openSubscription(uint256 epoch, bytes32[] calldata proof) external onlyRole(ADMIN_ROLE) {
         if (status != Status.Pending) revert WrongStatus(status);
         _requireFact(LedgerLeaf.SUKUK_APPROVED, terms.faceValue, terms.maturity, epoch, proof);
-        status = Status.Subscription;
+        status = Status.Subscription; // also fixes the nisbah (setTawfShare needs Pending)
         subscriptionDeadline = uint40(block.timestamp) + terms.subscriptionPeriod;
         emit SubscriptionOpened(subscriptionDeadline);
+    }
+
+    /// @notice Set Tawf's nisbah and fee wallet. Only while Pending, before
+    ///         the subscription opens: investors commit under the disclosed ratio.
+    function setTawfShare(uint16 nisbahBps, address recipient) external onlyRole(ADMIN_ROLE) {
+        if (status != Status.Pending) revert TawfShareLocked();
+        if (nisbahBps > MAX_TAWF_NISBAH_BPS) revert InvalidTerms();
+        if (nisbahBps != 0 && (recipient == address(0) || recipient == address(this))) revert InvalidAddress();
+        tawfNisbahBps = nisbahBps;
+        feeRecipient = recipient;
+        emit TawfShareSet(nisbahBps, recipient);
     }
 
     /// @notice Subscribe `amount` USDC for the same number of token units.
@@ -348,7 +377,13 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         lastPeriod = period;
         if (amount != 0) {
             usdc.safeTransferFrom(msg.sender, address(this), amount);
-            _profit.fund(amount, token.totalSupply());
+            uint256 share = (amount * tawfNisbahBps) / 10_000;
+            if (amount - share != 0) _profit.fund(amount - share, token.totalSupply());
+            if (share != 0) {
+                totalTawfShare += share;
+                usdc.safeTransfer(feeRecipient, share);
+                emit TawfShareTaken(period, share, feeRecipient);
+            }
         }
         emit ProfitDistributed(period, amount);
     }
@@ -481,6 +516,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         if (sweepDestination != address(0)) revert SweepDestinationAlreadySet();
         if (
             destination == address(0) || destination == address(this) || destination == terms.issuerTreasury
+                || destination == feeRecipient
                 || hasRole(ADMIN_ROLE, destination) || hasRole(DEFAULT_ADMIN_ROLE, destination)
         ) revert InvalidSweepDestination(destination);
         _requireFact(LedgerLeaf.SUKUK_SWEEP_DESTINATION, uint256(uint160(destination)), 0, epoch, proof);
