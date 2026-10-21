@@ -14,6 +14,9 @@ import { DeployTokenization } from "./DeployTokenization.s.sol";
  *
  *      Series:  PRIVATE_KEY=.. LEDGER_ANCHOR=.. TAWF_SERIES_ID=<keccak("tawf.series.2")> \
  *               forge script script/DeployExtra.s.sol:DeployExtra --sig "runSeries()" --broadcast
+ *      Optional: OUT_KEY (json key prefix, default tawfSeries2 / sukuk2),
+ *      FEE_RECIPIENT + TAWF_NISBAH_BPS (Tawf's nisbah, set before the sale opens).
+ *
  *      Sukuk:   PRIVATE_KEY=.. LEDGER_ANCHOR=.. SUKUK_ID=.. SUKUK_FACE=.. SUKUK_MATURITY=.. \
  *               forge script script/DeployExtra.s.sol:DeployExtra --sig "runSukuk()" --broadcast
  */
@@ -40,10 +43,12 @@ contract DeployExtra is DeployTokenization {
         (address token, address series, address sandbox) = _deployTawfSeries(operator, usdc, usdt, anchor, seriesId);
         vm.stopBroadcast();
 
-        vm.writeJson(vm.toString(series), PATH, ".tawfSeries2");
-        vm.writeJson(vm.toString(token), PATH, ".tawfSeries2Token");
-        vm.writeJson(vm.toString(sandbox), PATH, ".tawfSeries2Sandbox");
-        vm.writeJson(vm.toString(seriesId), PATH, ".tawfSeries2Id");
+        _setShare(key, series);
+        string memory k = vm.envOr("OUT_KEY", string("tawfSeries2"));
+        vm.writeJson(vm.toString(series), PATH, string.concat(".", k));
+        vm.writeJson(vm.toString(token), PATH, string.concat(".", k, "Token"));
+        vm.writeJson(vm.toString(sandbox), PATH, string.concat(".", k, "Sandbox"));
+        vm.writeJson(vm.toString(seriesId), PATH, string.concat(".", k, "Id"));
     }
 
     function runSukuk() external {
@@ -57,9 +62,25 @@ contract DeployExtra is DeployTokenization {
         (address token, address distributor) = _deploySukuk(operator, anchor);
         vm.stopBroadcast();
 
-        vm.writeJson(vm.toString(distributor), PATH, ".sukuk2Distributor");
-        vm.writeJson(vm.toString(token), PATH, ".sukuk2Token");
-        vm.writeJson(vm.toString(_sukukId), PATH, ".sukuk2Id");
-        vm.writeJson(vm.toString(uint256(_sukukMaturity)), PATH, ".sukuk2Maturity");
+        _setShare(key, distributor);
+        string memory k = vm.envOr("OUT_KEY", string("sukuk2"));
+        vm.writeJson(vm.toString(distributor), PATH, string.concat(".", k, "Distributor"));
+        vm.writeJson(vm.toString(token), PATH, string.concat(".", k, "Token"));
+        vm.writeJson(vm.toString(_sukukId), PATH, string.concat(".", k, "Id"));
+        vm.writeJson(vm.toString(uint256(_sukukMaturity)), PATH, string.concat(".", k, "Maturity"));
     }
+
+    /// @dev Set Tawf's nisbah (TAWF_NISBAH_BPS, default 1500) and fee wallet
+    ///      (FEE_RECIPIENT) before the sale opens. Skipped when FEE_RECIPIENT is unset.
+    function _setShare(uint256 key, address product) internal {
+        address feeRecipient = vm.envOr("FEE_RECIPIENT", address(0));
+        if (feeRecipient == address(0)) return;
+        uint16 bps = uint16(vm.envOr("TAWF_NISBAH_BPS", uint256(1500)));
+        vm.broadcast(key);
+        ITawfShare(product).setTawfShare(bps, feeRecipient);
+    }
+}
+
+interface ITawfShare {
+    function setTawfShare(uint16 nisbahBps, address recipient) external;
 }

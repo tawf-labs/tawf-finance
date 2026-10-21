@@ -296,6 +296,12 @@ export function readableError(err: unknown): string {
       return 'That address cannot receive unclaimed profit (never the issuer, an admin or the contract).'
     case 'ClaimWindowOpen':
       return 'Holders can still claim: the claim window has not ended yet.'
+    case 'TawfShareLocked':
+      return 'The profit-sharing ratio is fixed: investors have already committed under it.'
+    case 'NisbahLocked':
+      return 'This deal is already open to investors: its nisbah is fixed.'
+    case 'InvalidNisbah':
+      return 'The nisbah must be at most 50% of profit.'
     case 'NotHeld':
       return 'This sukuk has no profit held for Shariah review (or the review is closed).'
     case 'NotShariahSigner':

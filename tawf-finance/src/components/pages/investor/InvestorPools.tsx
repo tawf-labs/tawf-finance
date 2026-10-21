@@ -10,7 +10,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ConnectButton } from '@/components/web3/ConnectButton';
 import { GetTestUsdc } from '@/components/web3/GetTestUsdc';
 import { KycStatusCard } from '@/components/kyc/KycStatusCard';
-import { useDeals, useAllowance, useUsdcBalance, useInvest } from '@/web3/hooks';
+import { useDeals, useAllowance, useUsdcBalance, useInvest, useDealSettlement } from '@/web3/hooks';
 import { DEAL_STATUS_LABEL, type Deal, type DealStatus } from '@/web3/types';
 import { formatUsdc, formatApy, usdcToNumber, getRevertReason } from '@/web3/format';
 import { isConfigured, explorerTxUrl } from '@/web3/constants';
@@ -50,7 +50,7 @@ function DealCard({ deal, onInvest }: { deal: Deal; onInvest: (deal: Deal) => vo
         <div className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-tawf-gold shrink-0" />
           <div>
-            <p className="text-xs text-tawf-muted">APY</p>
+            <p className="text-xs text-tawf-muted">Expected return</p>
             <p className="font-medium text-tawf-green">{apy}</p>
           </div>
         </div>
@@ -137,8 +137,11 @@ export function InvestorPools() {
   const minAmount = selected ? usdcToNumber(selected.minInvestment) : 0;
   const remaining = selected ? usdcToNumber(selected.fundingTarget - selected.totalFunded) : 0;
   const clampedAmount = Math.min(Math.max(amount, minAmount), remaining || amount);
+  // Expected, not promised: the pool shares the deal's actual profit (and loss).
+  const { settlement } = useDealSettlement(selected?.id ?? 0n);
+  const investorShare = 1 - settlement.nisbahBps / 10000;
   const expectedYield = selected
-    ? clampedAmount * (usdcToNumber(selected.apyBps) / 10000) * (Number(selected.durationDays) / 365)
+    ? clampedAmount * (usdcToNumber(selected.apyBps) / 10000) * (Number(selected.durationDays) / 365) * investorShare
     : 0;
 
   const handleInvest = async () => {
@@ -291,7 +294,7 @@ export function InvestorPools() {
               <div className="flex-1">
                 <Badge variant="info" size="sm" className="mb-2">{selected.anchorBuyer}</Badge>
                 <p className="text-sm text-tawf-muted">
-                  {formatApy(selected.apyBps)} APY · {selected.durationDays.toString()} days · repaid by{' '}
+                  {formatApy(selected.apyBps)} expected gross return · {selected.durationDays.toString()} days · repaid by{' '}
                   {selected.anchorBuyer}
                 </p>
               </div>
@@ -330,13 +333,26 @@ export function InvestorPools() {
 
             <div className="bg-green-50 rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-tawf-muted">APY</span>
+                <span className="text-sm text-tawf-muted">Expected gross return</span>
                 <span className="font-semibold text-tawf-green">{formatApy(selected.apyBps)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-tawf-muted">Est. yield at maturity</span>
+                <span className="text-sm text-tawf-muted">Expected profit to you at maturity</span>
                 <span className="font-semibold text-tawf-green text-lg">{formatUsdc(expectedYield)}</span>
               </div>
+            </div>
+
+            <div className="rounded-xl border border-tawf-green-10 p-4 text-xs text-tawf-muted space-y-1">
+              <p>
+                <span className="font-medium text-tawf-green">Profit sharing (nisbah):</span> investors{' '}
+                {100 - settlement.nisbahBps / 100}% / Tawf {settlement.nisbahBps / 100}% of the deal&apos;s actual profit.
+                Tawf earns nothing when there is no profit, and never takes principal.
+              </p>
+              <p>
+                The return is an expectation, not a promise: you share the deal&apos;s real profit, and if it
+                defaults you share what the bank recovers, pro rata. Tawf covers a loss only if the Shariah board
+                or an independent auditor finds Tawf negligent.
+              </p>
             </div>
 
             {error && (

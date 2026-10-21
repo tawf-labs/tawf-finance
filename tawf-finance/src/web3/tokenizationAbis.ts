@@ -15,6 +15,14 @@
 import type { Abi } from 'viem';
 
 export const TawfSeriesAbi = [
+  { name: 'tawfNisbahBps', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint16' }] },
+  { name: 'feeRecipient', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'address' }] },
+  { name: 'setTawfShare', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'nisbahBps', type: 'uint16' }, { name: 'recipient', type: 'address' }], outputs: [] },
+  { type: 'error', name: 'TawfShareLocked', inputs: [] },
+  { name: 'tawfShareLocked', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'bool' }] },
+  { name: 'tawfShareAccruedSen', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'tawfSharePaidSen', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'claimTawfShare', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'token', type: 'address' }], outputs: [] },
   { name: 'subscribe', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'token', type: 'address' }, { name: 'coinAmount', type: 'uint256' }], outputs: [] },
   { name: 'cancelSubscription', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'token', type: 'address' }], outputs: [] },
   { name: 'claim', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'token', type: 'address' }], outputs: [] },
@@ -99,6 +107,11 @@ export const TrexComplianceAbi = [
 ] as const satisfies Abi;
 
 export const SukukDistributorAbi = [
+  { name: 'tawfNisbahBps', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint16' }] },
+  { name: 'feeRecipient', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'address' }] },
+  { name: 'setTawfShare', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'nisbahBps', type: 'uint16' }, { name: 'recipient', type: 'address' }], outputs: [] },
+  { type: 'error', name: 'TawfShareLocked', inputs: [] },
+  { name: 'totalTawfShare', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
   { name: 'status', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint8' }] },
   {
     name: 'terms',

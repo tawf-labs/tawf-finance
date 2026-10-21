@@ -29,6 +29,7 @@ import {
   SUKUK2_DISTRIBUTOR_ADDRESS,
 } from '@/web3/tokenization';
 import { explorerTxUrl } from '@/web3/constants';
+import { NisbahNotice } from '@/components/tokenization/NisbahNotice';
 
 const STATUS_VARIANT: Record<number, 'info' | 'success' | 'warning' | 'error' | 'default'> = {
   0: 'default',
@@ -97,6 +98,8 @@ export function InvestorSukuk() {
         </div>
         <ConnectButton variant="primary" size="md" />
       </div>
+
+      <NisbahNotice product="sukuk" extra="Profit held for Shariah review never goes to Tawf." />
 
       <KycStatusCard key={address} compact />
 

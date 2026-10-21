@@ -20,6 +20,13 @@ import { ITawfIdentityRegistry } from "../src/interfaces/ITawfIdentityRegistry.s
  *      every mint). Run with the tokenization operator key so the same wallet
  *      holds the pool roles the admin page checks.
  *
+ *      Tawf's nisbah: FEE_RECIPIENT (Tawf fee wallet) and TAWF_NISBAH_BPS
+ *      (default 1500 = 15% of each deal's profit) are set on every seeded deal
+ *      before it opens. SERVICER (default: the operator) receives
+ *      disbursements and remits recoveries; NEGLIGENCE_SIGNER (the DPS /
+ *      auditor, never the operator) is the only role that can find Tawf liable
+ *      for a loss. The previous pool's addresses are kept as legacyPool*.
+ *
  *      forge script script/DeployPool.s.sol:DeployPool --rpc-url arbitrum_sepolia \
  *          --private-key $OPERATOR_KEY --broadcast
  */
@@ -30,6 +37,12 @@ contract DeployPool is Script {
         string memory json = vm.readFile(PATH);
         address identityRegistry = vm.parseJsonAddress(json, ".identityRegistry");
         address usdc = vm.parseJsonAddress(json, ".mockUsdc");
+        address oldVault = vm.parseJsonAddress(json, ".redemptionVault");
+        address oldRegistry = vm.parseJsonAddress(json, ".dealRegistry");
+        address oldNft = vm.parseJsonAddress(json, ".bondReceiptNft");
+        address feeRecipient = vm.envAddress("FEE_RECIPIENT");
+        uint16 nisbahBps = uint16(vm.envOr("TAWF_NISBAH_BPS", uint256(1500)));
+        address negligenceSigner = vm.envAddress("NEGLIGENCE_SIGNER");
 
         vm.startBroadcast();
         address admin = msg.sender;
@@ -50,10 +63,17 @@ contract DeployPool is Script {
         registry.grantRole(registry.SHARIAH_ROLE(), admin);
         registry.grantRole(registry.OPS_ROLE(), admin);
         vault.grantRole(vault.OPS_ROLE(), admin);
+        vault.grantRole(vault.SERVICER_ROLE(), vm.envOr("SERVICER", admin));
+        require(negligenceSigner != admin, "the negligence signer must not be Tawf ops");
+        vault.grantRole(vault.NEGLIGENCE_ROLE(), negligenceSigner);
+        vault.setFeeRecipient(feeRecipient);
 
-        _seed(registry);
+        _seed(registry, vault, nisbahBps);
         vm.stopBroadcast();
 
+        vm.writeJson(vm.toString(oldRegistry), PATH, ".legacyPoolDealRegistry");
+        vm.writeJson(vm.toString(oldNft), PATH, ".legacyPoolBondReceiptNft");
+        vm.writeJson(vm.toString(oldVault), PATH, ".legacyPoolRedemptionVault");
         vm.writeJson(vm.toString(address(registry)), PATH, ".dealRegistry");
         vm.writeJson(vm.toString(address(nft)), PATH, ".bondReceiptNft");
         vm.writeJson(vm.toString(address(vault)), PATH, ".redemptionVault");
@@ -66,18 +86,20 @@ contract DeployPool is Script {
     }
 
     /// @dev The same three BPRS financing pools as SeedDemo.s.sol.
-    function _seed(DealRegistry registry) internal {
+    function _seed(DealRegistry registry, RedemptionVault vault, uint16 nisbahBps) internal {
         address bprs = vm.addr(12345);
-        _open(registry, "tawf-demo/bprs-amanah/micro-trade/POOL-2026-001", "Micro-Trade Financing Segment",
+        _open(registry, vault, nisbahBps, "tawf-demo/bprs-amanah/micro-trade/POOL-2026-001", "Micro-Trade Financing Segment",
             "BPRS Amanah Ummah", bprs, 1200, 30, 2_500);
-        _open(registry, "tawf-demo/bprs-barokah/agri/POOL-2026-002", "Agri Financing Segment",
+        _open(registry, vault, nisbahBps, "tawf-demo/bprs-barokah/agri/POOL-2026-002", "Agri Financing Segment",
             "BPRS Barokah Sejahtera", bprs, 1500, 45, 1_800);
-        _open(registry, "tawf-demo/bprs-sejahtera/sme/POOL-2026-003", "SME Financing Segment",
+        _open(registry, vault, nisbahBps, "tawf-demo/bprs-sejahtera/sme/POOL-2026-003", "SME Financing Segment",
             "BPRS Insan Cita", bprs, 900, 60, 3_000);
     }
 
     function _open(
         DealRegistry registry,
+        RedemptionVault vault,
+        uint16 nisbahBps,
         string memory ref,
         string memory segment,
         string memory originator,
@@ -90,6 +112,7 @@ contract DeployPool is Script {
             keccak256(bytes(ref)), segment, originator, bprs, apyBps, durationDays, 10 * 10 ** 6, targetUsd * 10 ** 6
         );
         registry.approveDeal(id);
+        vault.setDealNisbah(id, nisbahBps); // fixed before investors can fund
         registry.markMintable(id);
     }
 }

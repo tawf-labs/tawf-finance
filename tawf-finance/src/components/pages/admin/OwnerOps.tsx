@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
+import { keccak256, toHex, isAddress } from 'viem';
 import { Loader2, ExternalLink, ShieldCheck, Wallet, Wrench } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -17,6 +18,13 @@ import {
   useRepay,
   useMarkMatured,
   useDefaultDeal,
+  useDealSettlement,
+  useSetDealNisbah,
+  useDisburse,
+  useSettleDefault,
+  useRecordNegligence,
+  usePayNegligence,
+  useOpenDefaultClaims,
 } from '@/web3/hooks';
 import { DEAL_STATUS_LABEL, type Deal, type DealStatus } from '@/web3/types';
 import { formatUsdc, usdcToNumber, getRevertReason } from '@/web3/format';
@@ -208,7 +216,7 @@ export function OwnerOps() {
                 {deals.map((deal) => (
                   <div
                     key={deal.id.toString()}
-                    className="flex flex-col lg:flex-row lg:items-center gap-4 p-4 rounded-xl border border-tawf-green-10 bg-white"
+                    className="flex flex-col lg:flex-row lg:flex-wrap lg:items-center gap-4 p-4 rounded-xl border border-tawf-green-10 bg-white"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
@@ -225,6 +233,7 @@ export function OwnerOps() {
                       </p>
                     </div>
                     <div className="shrink-0">{renderActions(deal)}</div>
+                    <SettlementPanel deal={deal} owner={address} handle={handle} />
                   </div>
                 ))}
               </div>
@@ -260,8 +269,11 @@ export function OwnerOps() {
               </div>
             </div>
 
+            <RepaySplit deal={repayDeal} totalRepayment={totalRepayment} />
+
             <p className="text-xs text-tawf-muted">
-              The yield portion is pulled from the connected owner wallet. USDC approval is handled automatically.
+              The profit (and the principal, if the deal was disbursed) is pulled from the connected wallet. USDC
+              approval is handled automatically.
             </p>
 
             <Button
@@ -281,6 +293,136 @@ export function OwnerOps() {
             </Button>
           </div>
         </Modal>
+      )}
+    </div>
+  );
+}
+
+/** How the repaid profit splits between investors and Tawf (the deal's nisbah). */
+function RepaySplit({ deal, totalRepayment }: { deal: Deal; totalRepayment: number }) {
+  const { settlement } = useDealSettlement(deal.id);
+  const profit = Math.max(0, totalRepayment - usdcToNumber(deal.totalFunded));
+  const tawf = Math.floor(profit * settlement.nisbahBps) / 10000;
+  return (
+    <div className="p-4 rounded-xl border border-tawf-green-10 text-sm space-y-1">
+      <div className="flex justify-between">
+        <span className="text-tawf-muted">Investors ({100 - settlement.nisbahBps / 100}% of profit)</span>
+        <span className="font-medium text-tawf-green">{formatUsdc(profit - tawf)}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-tawf-muted">Tawf nisbah ({settlement.nisbahBps / 100}%)</span>
+        <span className="font-medium">{formatUsdc(tawf)}</span>
+      </div>
+      {settlement.disbursed > 0n && (
+        <p className="text-xs text-tawf-muted pt-1">
+          Disbursed principal returned with this repayment: {formatUsdc(settlement.disbursed)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+type Handle = (fn: () => Promise<{ hash: `0x${string}` }>) => Promise<boolean>;
+
+/**
+ * Tawf's nisbah (before Mintable), disbursement to the servicer (Active), and
+ * the musyarakah default settlement: the servicer remits the recovery, holders
+ * share it pro rata, and Tawf's own money covers a loss only after the DPS /
+ * auditor records negligence or misconduct.
+ */
+function SettlementPanel({ deal, owner, handle }: { deal: Deal; owner?: `0x${string}`; handle: Handle }) {
+  const { settlement: st, refetch } = useDealSettlement(deal.id);
+  const { call: setNisbah, isPending: settingNisbah } = useSetDealNisbah();
+  const { call: disburse, isPending: disbursing } = useDisburse();
+  const { call: settleDefault, isPending: settling } = useSettleDefault();
+  const { call: recordNegligence, isPending: recording } = useRecordNegligence();
+  const { call: payNegligence, isPending: paying } = usePayNegligence();
+  const { call: openClaims, isPending: opening } = useOpenDefaultClaims();
+
+  const [nisbahPct, setNisbahPct] = useState(15);
+  const [servicer, setServicer] = useState(owner ?? '');
+  const [recovery, setRecovery] = useState(0);
+  const [liability, setLiability] = useState(0);
+  const [evidence, setEvidence] = useState('');
+
+  const run = async (fn: () => Promise<{ hash: `0x${string}` }>) => {
+    if (await handle(fn)) refetch();
+  };
+  const units = (n: number) => BigInt(Math.round(n * 1e6));
+  const input = 'px-3 py-1.5 border border-tawf-green-10 rounded-lg text-sm w-28';
+
+  return (
+    <div className="basis-full text-xs text-tawf-muted space-y-2">
+      <p>
+        Tawf nisbah: <span className="font-medium text-tawf-green">{st.nisbahBps / 100}% of profit</span>
+        {st.disbursed > 0n && <> · disbursed {formatUsdc(st.disbursed)}</>}
+        {deal.status === 6 && st.settled && (
+          <>
+            {' '}· recovered {formatUsdc(st.recovery)} · negligence cover {formatUsdc(st.negligencePaid)} /{' '}
+            {formatUsdc(st.negligenceLiability)} · claims {st.claimsOpen ? 'open' : 'closed'}
+          </>
+        )}
+      </p>
+
+      {deal.status <= 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <input type="number" min={0} max={50} value={nisbahPct} onChange={(e) => setNisbahPct(Number(e.target.value))} className={input} />
+          <span>% of profit to Tawf (fixed once Mintable, max 50%)</span>
+          <Button size="sm" variant="secondary" disabled={settingNisbah} onClick={() => run(() => setNisbah(deal.id, Math.round(nisbahPct * 100)))}>
+            Set nisbah
+          </Button>
+        </div>
+      )}
+
+      {deal.status === 3 && st.disbursed === 0n && (
+        <div className="flex flex-wrap items-center gap-2">
+          <input value={servicer} onChange={(e) => setServicer(e.target.value)} placeholder="BPRS servicer 0x…" className="px-3 py-1.5 border border-tawf-green-10 rounded-lg text-sm w-80 font-mono" />
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={disbursing || !isAddress(servicer)}
+            onClick={() => run(() => disburse(deal.id, servicer as `0x${string}`))}
+          >
+            Disburse to servicer
+          </Button>
+        </div>
+      )}
+
+      {deal.status === 6 && st.disbursed > 0n && !st.claimsOpen && (
+        <div className="space-y-2">
+          {!st.settled ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <input type="number" min={0} value={recovery} onChange={(e) => setRecovery(Number(e.target.value))} className={input} />
+              <span>USDC recovered (servicer remits; holders share it pro rata)</span>
+              <Button size="sm" variant="secondary" disabled={settling} onClick={() => run(() => settleDefault(units(recovery), deal.id, units(recovery)))}>
+                Remit recovery
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <input type="number" min={0} value={liability} onChange={(e) => setLiability(Number(e.target.value))} className={input} />
+                <input value={evidence} onChange={(e) => setEvidence(e.target.value)} placeholder="DPS finding / report reference" className="px-3 py-1.5 border border-tawf-green-10 rounded-lg text-sm w-64" />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={recording || !evidence}
+                  onClick={() => run(() => recordNegligence(deal.id, units(liability), keccak256(toHex(evidence))))}
+                >
+                  Record negligence (DPS)
+                </Button>
+                {st.negligenceLiability > st.negligencePaid && (
+                  <Button size="sm" variant="secondary" disabled={paying} onClick={() => run(() => payNegligence(st.negligenceLiability - st.negligencePaid, deal.id))}>
+                    Pay negligence cover (Tawf)
+                  </Button>
+                )}
+              </div>
+              <Button size="sm" disabled={opening || st.negligencePaid !== st.negligenceLiability} onClick={() => run(() => openClaims(deal.id))}>
+                Open default claims
+              </Button>
+            </>
+          )}
+        </div>
       )}
     </div>
   );

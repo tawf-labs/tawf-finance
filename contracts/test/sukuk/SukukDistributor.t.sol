@@ -71,6 +71,9 @@ interface ISukukDistributor {
     function setMaxReserveAge(uint64 maxAge) external;
     function reserveOf() external view returns (uint256);
     function isFullyBacked() external view returns (bool);
+    function setTawfShare(uint16 nisbahBps, address recipient) external;
+    function tawfNisbahBps() external view returns (uint16);
+    function totalTawfShare() external view returns (uint256);
 }
 
 /// @dev Minimal MockUSDC / MockLedgerAnchor views.
@@ -402,6 +405,57 @@ contract SukukDistributorTest is TrexFixture {
         assertEq(IMockUSDC(usdc).balanceOf(alice), MIN_SUB);
     }
 
+
+    // --- Tawf nisbah ----------------------------------------------------------
+
+    address tawfFee = makeAddr("tawfFee");
+
+    function _setShare(uint16 bps) internal {
+        vm.prank(deployer);
+        dist.setTawfShare(bps, tawfFee);
+    }
+
+    function test_nisbah_splitsDistribution() public {
+        _setShare(1500);
+        _issue();
+        _distribute(1, 1_000e6);
+        assertEq(IMockUSDC(usdc).balanceOf(tawfFee), 150e6);
+        assertEq(dist.totalTawfShare(), 150e6);
+        // Holders share the remaining 850 pro rata (3:1).
+        assertEq(dist.claimable(alice), 637_500_000);
+        assertEq(dist.claimable(bob), 212_500_000);
+    }
+
+    function test_nisbah_lockedOnceSubscriptionOpens() public {
+        _open();
+        vm.prank(deployer);
+        vm.expectRevert();
+        dist.setTawfShare(1500, tawfFee);
+    }
+
+    function test_nisbah_capped() public {
+        vm.prank(deployer);
+        vm.expectRevert();
+        dist.setTawfShare(5001, tawfFee);
+    }
+
+    function test_nisbah_neverOnHeldProfit() public {
+        _setShare(1500);
+        _issue();
+        _mature();
+        _release(1, 1_000e6);
+        assertEq(IMockUSDC(usdc).balanceOf(tawfFee), 0);
+        assertEq(_claim(alice) + _claim(bob), 1_000e6);
+    }
+
+    function test_nisbah_feeWalletCannotBeSweepDestination() public {
+        _setShare(1500);
+        _issue();
+        _mature();
+        uint256 epoch = _anchor(SWEEP_DEST, uint256(uint160(tawfFee)), 0);
+        vm.expectRevert();
+        dist.setSweepDestination(tawfFee, epoch, noProof);
+    }
 
     // --- profit held at a flagged maturity --------------------------------
 

@@ -69,6 +69,8 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
     uint256 private constant COIN_ONE = 1e6;
     /// @dev Required decimals for every settlement stablecoin.
     uint8 private constant COIN_DECIMALS = 6;
+    /// @notice Highest Tawf nisbah accepted (50% of profit).
+    uint16 public constant MAX_TAWF_NISBAH_BPS = 5000;
 
     struct Terms {
         /// @dev Series id on the Tawf Network ReserveLedger (subject of the
@@ -145,6 +147,7 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
     error StablecoinAlreadyAdded(address token);
     error BadDecimals(uint8 got);
     error ConversionZero();
+    error TawfShareLocked();
 
     event StablecoinAdded(address indexed token);
     event StablecoinRemoved(address indexed token);
@@ -159,6 +162,27 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
     event ProfitClaimed(address indexed investor, address indexed token, uint256 senClaimed, uint256 coinPaid);
     event MaturitySettled(uint64 at, uint256 principalSen);
     event Redeemed(address indexed investor, address indexed token, uint256 units, uint256 coinPaid, uint256 profitCoinPaid);
+    event TawfShareSet(uint16 nisbahBps, address feeRecipient);
+    event TawfShareAccrued(uint32 indexed period, uint256 shareSen);
+    event TawfShareClaimed(address indexed token, uint256 shareSen, uint256 coinPaid);
+
+    // --- Tawf's mudharabah share ----------------------------------------
+    // Investors place their money with Tawf (mudharib), which places it at the
+    // BPRS with their permission (two-tier mudharabah). Of each period's bank
+    // profit, Tawf keeps `tawfNisbahBps` and holders get the rest. The ratio
+    // is fixed before the first subscription and disclosed upfront; with no
+    // profit there is no share, and principal is never charged.
+
+    /// @notice Tawf's share of each period's profit, in basis points.
+    uint16 public tawfNisbahBps;
+    /// @notice Where Tawf's share is paid.
+    address public feeRecipient;
+    /// @notice True once the first subscription arrives: the share is fixed.
+    bool public tawfShareLocked;
+    /// @notice Tawf's share accrued from distributed profit, in sen.
+    uint256 public tawfShareAccruedSen;
+    /// @notice Tawf's share already paid out, in sen.
+    uint256 public tawfSharePaidSen;
 
     /// @param anchor_ LedgerAnchor the Tawf Network roots are anchored on.
     /// @param token_ The series T-REX token (2 decimals, sen); this contract
@@ -297,6 +321,8 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
         if (!isStablecoin[token_]) revert NotStablecoin(token_);
         if (coinAmount == 0) revert ZeroAmount();
         if (!sandbox.isEligible(compliance, msg.sender)) revert NotEligible(msg.sender);
+        // The profit-sharing terms are fixed from the first subscription on.
+        if (!tawfShareLocked) tawfShareLocked = true;
         IERC20(token_).safeTransferFrom(msg.sender, address(this), coinAmount);
         pendingOf[msg.sender][token_] += coinAmount;
         emit Subscribed(msg.sender, token_, coinAmount, pendingOf[msg.sender][token_]);
@@ -394,8 +420,14 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
         if (period != lastPeriod + 1) revert ProfitPeriodNotSequential(lastPeriod + 1, period);
         _requireFact(LedgerLeaf.DEPOSITO_PROFIT, period, profitSen, epoch, proof);
         lastPeriod = period;
-        if (profitSen != 0) {
-            _profit.fund(profitSen, token.totalSupply());
+        uint256 share = (profitSen * tawfNisbahBps) / 10_000;
+        uint256 holdersSen = profitSen - share;
+        if (holdersSen != 0) {
+            _profit.fund(holdersSen, token.totalSupply());
+        }
+        if (share != 0) {
+            tawfShareAccruedSen += share;
+            emit TawfShareAccrued(period, share);
         }
         emit ProfitDistributed(period, profitSen);
     }
@@ -415,6 +447,30 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
         if (coinAmount == 0) revert ConversionZero();
         IERC20(token_).safeTransferFrom(treasury, msg.sender, coinAmount);
         emit ProfitClaimed(msg.sender, token_, sen, coinAmount);
+    }
+
+    /// @notice Set Tawf's nisbah and fee wallet. Only before the first
+    ///         subscription: investors commit under the disclosed ratio.
+    function setTawfShare(uint16 nisbahBps, address recipient) external onlyRole(ADMIN_ROLE) {
+        if (tawfShareLocked) revert TawfShareLocked();
+        if (nisbahBps > MAX_TAWF_NISBAH_BPS) revert InvalidTerms();
+        if (nisbahBps != 0 && recipient == address(0)) revert InvalidAddress();
+        tawfNisbahBps = nisbahBps;
+        feeRecipient = recipient;
+        emit TawfShareSet(nisbahBps, recipient);
+    }
+
+    /// @notice Pay Tawf's accrued share to the fee wallet in `token_`, at that
+    ///         coin's current rate, from the treasury (as holder claims are).
+    function claimTawfShare(address token_) external nonReentrant {
+        if (!isStablecoin[token_]) revert NotStablecoin(token_);
+        uint256 sen = tawfShareAccruedSen - tawfSharePaidSen;
+        if (sen == 0) revert NothingToClaim();
+        tawfSharePaidSen = tawfShareAccruedSen;
+        uint256 coinAmount = _senToCoin(sen, _freshRate(token_));
+        if (coinAmount == 0) revert ConversionZero();
+        IERC20(token_).safeTransferFrom(treasury, feeRecipient, coinAmount);
+        emit TawfShareClaimed(token_, sen, coinAmount);
     }
 
     // ---------------------------------------------------------------

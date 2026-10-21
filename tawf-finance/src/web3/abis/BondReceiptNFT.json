@@ -123,6 +123,19 @@
   },
   {
     "type": "function",
+    "name": "dealRegistry",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IDealPrincipalLedger"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getDealSnapshot",
     "inputs": [
       {
@@ -573,6 +586,19 @@
   },
   {
     "type": "function",
+    "name": "setDealRegistry",
+    "inputs": [
+      {
+        "name": "dealRegistry_",
+        "type": "address",
+        "internalType": "contract IDealPrincipalLedger"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "setIdentityRegistry",
     "inputs": [
       {
@@ -750,6 +776,19 @@
   },
   {
     "type": "event",
+    "name": "DealRegistrySet",
+    "inputs": [
+      {
+        "name": "dealRegistry",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "IdentityRegistrySet",
     "inputs": [
       {
@@ -792,6 +831,37 @@
       },
       {
         "name": "investor",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "principal",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ReceiptMoved",
+    "inputs": [
+      {
+        "name": "dealId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "from",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "to",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -1181,12 +1251,54 @@
   },
   {
     "type": "error",
+    "name": "ReceiptAlreadyRedeemed",
+    "inputs": [
+      {
+        "name": "dealId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "investor",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ReceiptTransferInvalid",
+    "inputs": [
+      {
+        "name": "dealId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "from",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "Soulbound",
     "inputs": []
   },
   {
     "type": "error",
     "name": "TransferBlocked",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroPrincipal",
     "inputs": []
   },
   {

@@ -39,8 +39,10 @@ for id in "${ids[@]}"; do
 
   verdict="SURVIVED"
   for comp in $comps; do
-    conf=certora/confs/autospec_pool_${comp}.conf
-    spec=certora/specs/autospec_pool_${comp}.spec
+    # A component is a pool spec (Vault) or a full name (sukuk_Distributor).
+    case $comp in *_*) base=autospec_${comp} ;; *) base=autospec_pool_${comp} ;; esac
+    conf=certora/confs/${base}.conf
+    spec=certora/specs/${base}.spec
     rule_args=(); mine=()
     for r in $rules; do grep -qE "^(rule|invariant) $r\b" "$spec" && { rule_args+=(--rule "$r"); mine+=("$r"); }; done
     [ ${#mine[@]} -eq 0 ] && continue

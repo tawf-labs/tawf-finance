@@ -35,6 +35,11 @@ methods {
     function FX_ROLE() external returns (bytes32) envfree;
     function hasRole(bytes32, address) external returns (bool) envfree;
     function h_profitPerToken() external returns (uint256) envfree;
+    function tawfNisbahBps() external returns (uint16) envfree;
+    function feeRecipient() external returns (address) envfree;
+    function tawfShareLocked() external returns (bool) envfree;
+    function tawfShareAccruedSen() external returns (uint256) envfree;
+    function tawfSharePaidSen() external returns (uint256) envfree;
     function h_coinToSen(uint256, uint256) external returns (uint256) envfree;
     function h_senToCoin(uint256, uint256) external returns (uint256) envfree;
 
@@ -278,4 +283,71 @@ rule conversionsFloor(uint256 coinAmount, uint256 sen, uint256 rate) {
         "senToCoin rounded up";
     assert to_mathint(sen) * 1000000 < (to_mathint(toCoin) + 1) * to_mathint(rate),
         "senToCoin rounded down too far";
+}
+
+
+// ===========================================================================
+// TAWF NISBAH (mudharabah profit share)
+// ===========================================================================
+
+/// @title The nisbah never exceeds the 50% cap
+invariant nisbahCapped()
+    tawfNisbahBps() <= 5000;
+
+/// @title Tawf is never paid more than it accrued
+invariant tawfPaidNeverExceedsAccrued()
+    tawfSharePaidSen() <= tawfShareAccruedSen();
+
+/// @title The nisbah and fee wallet are fixed from the first subscription
+rule nisbahFixedFromFirstSubscription(method f) filtered { f -> !f.isView } {
+    uint16 bps0 = tawfNisbahBps();
+    address fee0 = feeRecipient();
+    bool locked0 = tawfShareLocked();
+    env e; calldataarg args;
+    f(e, args);
+    assert locked0 => tawfShareLocked(), "the profit-sharing terms unlocked";
+    assert (tawfNisbahBps() != bps0 || feeRecipient() != fee0) =>
+        (f.selector == sig:setTawfShare(uint16,address).selector && !locked0),
+        "the nisbah changed after the first subscription";
+}
+
+/// @title A subscription locks the profit-sharing terms
+rule subscribeLocksNisbah(address coin, uint256 amount) {
+    env e;
+    subscribe(e, coin, amount);
+    assert tawfShareLocked(), "a subscription went in under unlocked terms";
+}
+
+/// @title A distribution credits Tawf its nisbah and holders the rest
+rule distributeSplitsByNisbah(uint32 period, uint256 profitSen, uint256 epoch, bytes32[] proof) {
+    env e;
+    requireInvariant nisbahCapped();
+    uint16 bps = tawfNisbahBps();
+    uint256 accBefore = tawfShareAccruedSen();
+    uint256 pptBefore = h_profitPerToken();
+    mathint supply = ghostSupply;
+
+    distributeProfit(e, period, profitSen, epoch, proof);
+
+    mathint share = to_mathint(tawfShareAccruedSen()) - to_mathint(accBefore);
+    assert share * 10000 <= to_mathint(profitSen) * to_mathint(bps)
+        && (share + 1) * 10000 > to_mathint(profitSen) * to_mathint(bps),
+        "Tawf's share is not floor(profit * nisbah / 10000)";
+    assert supply > 0 => (to_mathint(h_profitPerToken()) - to_mathint(pptBefore)) * supply
+        <= (to_mathint(profitSen) - share) * 1000000000000000000,
+        "holders were credited more than the profit minus Tawf's share";
+}
+
+/// @title Tawf's share is paid only to the fee wallet and only up to what accrued
+rule claimTawfSharePaysFeeWalletOnly(address coin, address other) {
+    env e;
+    address fee = feeRecipient();
+    require other != fee && other != treasury();
+    requireInvariant tawfPaidNeverExceedsAccrued();
+    uint256 otherUsdc = usdc.balanceOf(other);
+    uint256 otherUsdt = usdt.balanceOf(other);
+    claimTawfShare(e, coin);
+    assert tawfSharePaidSen() == tawfShareAccruedSen(), "claimTawfShare did not settle the accrued share";
+    assert usdc.balanceOf(other) == otherUsdc && usdt.balanceOf(other) == otherUsdt,
+        "claimTawfShare paid someone other than the fee wallet";
 }
