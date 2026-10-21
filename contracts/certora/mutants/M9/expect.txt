@@ -1,2 +1,2 @@
 receiptFollowsToken
-receiptMatchesRegistry
+receiptMatchesRegistryOnTransfer

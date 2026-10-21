@@ -99,6 +99,18 @@ export function ledgerWalletClient() {
   return createWalletClient({ account: operator, chain: ledgerChain, transport: ledgerTransport() })
 }
 
+/**
+ * Write-capable L3 client for the Shariah board (DPS) role-play in the demo,
+ * signing with TAWF_NETWORK_DPS_KEY. Null when the key is not configured.
+ */
+export function boardWalletClient() {
+  const url = process.env.TAWF_NETWORK_RPC_URL
+  const key = process.env.TAWF_NETWORK_DPS_KEY
+  if (!url || !key) return null
+  const board = privateKeyToAccount((key.startsWith('0x') ? key : `0x${key}`) as Hex)
+  return createWalletClient({ account: board, chain: ledgerChain, transport: ledgerTransport() })
+}
+
 /** SukukLedger address on the L3, from env (the ledger lives in tawf-network). */
 export function sukukLedgerAddress(): Address | null {
   const addr = process.env.SUKUK_LEDGER
@@ -139,6 +151,19 @@ export const addresses = {
   sukukToken: deployments.sukukToken as Address,
   sukukDistributor: deployments.sukukDistributor as Address,
   sukukId: deployments.sukukId as Hex,
+  // Second, short-dated sukuk used for maturity tests (optional).
+  sukuk2Token: ((deployments as Record<string, unknown>).sukuk2Token ?? ZERO) as Address,
+  sukuk2Distributor: ((deployments as Record<string, unknown>).sukuk2Distributor ?? ZERO) as Address,
+  sukuk2Id: ((deployments as Record<string, unknown>).sukuk2Id ?? ZERO) as Hex,
+}
+
+/** The sukuk a request targets: `sukuk=2` (query or body) selects the test sukuk. */
+export function sukukTarget(req: VercelRequest): { distributor: Address; token: Address; sukukId: Hex; which: 1 | 2 } {
+  const pick = String((req.query?.sukuk as string | undefined) ?? (req.body?.sukuk as string | number | undefined) ?? '1')
+  if (pick === '2' && addresses.sukuk2Distributor !== ZERO) {
+    return { distributor: addresses.sukuk2Distributor, token: addresses.sukuk2Token, sukukId: addresses.sukuk2Id, which: 2 }
+  }
+  return { distributor: addresses.sukukDistributor, token: addresses.sukukToken, sukukId: addresses.sukukId, which: 1 }
 }
 
 export function isConfigured(): boolean {
@@ -256,6 +281,29 @@ export function readableError(err: unknown): string {
       return 'A newer reserve snapshot is already recorded on chain.'
     case 'WrongStatus':
       return 'The sukuk is not in the right state for this action.'
+    case 'TransfersFrozen':
+      return 'The sukuk has matured: transfers between holders are frozen.'
+    case 'ReleaseNotSequential':
+      return 'Release the board\'s held profit in order (next release index).'
+    case 'ZeroRelease':
+      return 'A release must be a positive amount.'
+    case 'SweepDestinationNotSet':
+      return 'No sweep destination is set yet. The Shariah board must approve one first.'
+    case 'SweepDestinationAlreadySet':
+    case 'SweepDestinationSet':
+      return 'A sweep destination is already set for this sukuk.'
+    case 'InvalidSweepDestination':
+      return 'That address cannot receive unclaimed profit (never the issuer, an admin or the contract).'
+    case 'ClaimWindowOpen':
+      return 'Holders can still claim: the claim window has not ended yet.'
+    case 'NotHeld':
+      return 'This sukuk has no profit held for Shariah review (or the review is closed).'
+    case 'NotShariahSigner':
+      return 'Only a Shariah signer of the institution can do this.'
+    case 'NoReserveSnapshot':
+      return 'No reserve snapshot is posted yet. Update the reserve first.'
+    case 'ReserveTooOld':
+      return 'The reserve snapshot is too old. Post a fresh reserve first.'
     case 'ExceedsFaceValue':
       return 'This would exceed the sukuk face value.'
     case 'BelowMinimum':

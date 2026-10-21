@@ -16,10 +16,18 @@ import {
   useSukukRedeem,
   useSukukRefund,
   useSukukAllowance,
+  useHeldProfit,
+  useClaimHeldProfit,
 } from '@/web3/tokenizationHooks';
 import { SUKUK_STATUS_LABEL } from '@/web3/tokenizationAbis';
 import { formatUsdc, usdcToNumber, getRevertReason } from '@/web3/format';
-import { isTokenizationConfigured, SUKUK_SYMBOL, TOKENIZATION_USDC_ADDRESS } from '@/web3/tokenization';
+import {
+  isTokenizationConfigured,
+  SUKUK_SYMBOL,
+  TOKENIZATION_USDC_ADDRESS,
+  SUKUK_DISTRIBUTOR_ADDRESS,
+  SUKUK2_DISTRIBUTOR_ADDRESS,
+} from '@/web3/tokenization';
 import { explorerTxUrl } from '@/web3/constants';
 
 const STATUS_VARIANT: Record<number, 'info' | 'success' | 'warning' | 'error' | 'default'> = {
@@ -210,8 +218,13 @@ export function InvestorSukuk() {
             {isConnected && !isVerified && (
               <p className="text-xs text-amber-700 mt-3">Verify your identity in Settings to subscribe. Sukuk tokens move only between verified wallets.</p>
             )}
+            {state.status === 3 && (
+              <p className="text-xs text-tawf-muted mt-3">The sukuk has matured: transfers between holders are frozen, so the holders at maturity stay fixed.</p>
+            )}
             {error && <div className="bg-red-50 rounded-xl p-4 border border-red-200 mt-4"><p className="text-sm text-red-600">{error}</p></div>}
           </Card>
+          <HeldProfitCard distributor={SUKUK_DISTRIBUTOR_ADDRESS} label="Sukuk" />
+          {SUKUK2_DISTRIBUTOR_ADDRESS && <HeldProfitCard distributor={SUKUK2_DISTRIBUTOR_ADDRESS} label="Test sukuk (v4)" />}
         </>
       )}
 
@@ -242,3 +255,62 @@ export function InvestorSukuk() {
     </div>
   );
 }
+
+/**
+ * Profit the Shariah board released after a flagged maturity. Entitlement is the
+ * units held at maturity (redeemed or not), so redeeming never reduces it.
+ */
+function HeldProfitCard({ distributor, label }: { distributor: `0x${string}` | undefined; label: string }) {
+  const { address } = useAccount();
+  const { state, refetch } = useHeldProfit(distributor, address);
+  const { claimHeld, isPending } = useClaimHeldProfit();
+  const [error, setError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
+
+  // Only relevant once matured and once the board has released something, or the holder is entitled.
+  if (!distributor || state.status !== 3 || (state.released === 0n && state.entitledUnits === 0n)) return null;
+
+  const share =
+    state.totalUnitsAtMaturity > 0n ? Number((state.entitledUnits * 10000n) / state.totalUnitsAtMaturity) / 100 : 0;
+
+  const onClaim = async () => {
+    setError(null);
+    setTxHash(null);
+    try {
+      const { hash } = await claimHeld(distributor);
+      setTxHash(hash);
+      void refetch();
+    } catch (e) {
+      setError(getRevertReason(e));
+    }
+  };
+
+  return (
+    <Card className="p-6 mt-6">
+      <div className="flex items-center gap-2 mb-2">
+        <ShieldCheck className="w-5 h-5 text-tawf-green" />
+        <p className="font-medium text-tawf-green">Held profit, {label}</p>
+      </div>
+      <p className="text-sm text-tawf-muted mb-4">
+        The Shariah review flagged this sukuk at maturity, so its profit was held. The Shariah board has released{' '}
+        {formatUsdc(usdcToNumber(state.released))} in {state.releases} part(s). Your share follows the units you held at
+        maturity, even if you have already redeemed.
+      </p>
+      <div className="grid grid-cols-3 gap-3 text-sm mb-4">
+        <div><p className="text-xs text-tawf-muted">Your units at maturity</p><p className="text-tawf-green font-medium">{usdcToNumber(state.entitledUnits).toLocaleString('en-SG')}</p></div>
+        <div><p className="text-xs text-tawf-muted">Your share</p><p className="text-tawf-green font-medium">{share}%</p></div>
+        <div><p className="text-xs text-tawf-muted">Claimable now</p><p className="text-tawf-green font-medium">{formatUsdc(usdcToNumber(state.claimable))}</p></div>
+      </div>
+      <Button size="md" disabled={!address || state.claimable === 0n || isPending} onClick={() => void onClaim()}>
+        {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Claim held profit'}
+      </Button>
+      {txHash && (
+        <a href={explorerTxUrl(txHash)} target="_blank" rel="noreferrer" className="text-xs text-tawf-green inline-flex items-center gap-1 ml-3">
+          View transaction <ExternalLink className="w-3 h-3" />
+        </a>
+      )}
+      {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+    </Card>
+  );
+}
+

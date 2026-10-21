@@ -6,6 +6,7 @@ import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol"
 import { ILedgerAnchor } from "../../src/sukuk/ILedgerAnchor.sol";
 import { ITawfIdentityRegistry } from "../../src/interfaces/ITawfIdentityRegistry.sol";
 import { ITrexToken } from "../../src/interfaces/ITrexToken.sol";
+import { LedgerLeaf } from "../../src/lib/LedgerLeaf.sol";
 
 /**
  * @title SukukDistributorHarness
@@ -54,4 +55,15 @@ contract SukukDistributorHarness is SukukDistributor {
     // perTokenPaidOf / owedOf are now public views on SukukDistributor in src
     // (lines 312 and 317): the harness inherits them directly, so no override
     // is needed here. The spec declares them `envfree`.
+
+    /// @dev The SUKUK_SWEEP_DESTINATION leaf setSweepDestination must prove
+    ///      for `destination`, computed exactly as _requireFact does
+    ///      (a = uint160(destination), b = 0). Internal library call only, no
+    ///      `this.` self-call (LESSONS 1); reads immutables and storage only, so
+    ///      it is envfree.
+    function sweepLeafOf(address destination) external view returns (bytes32) {
+        return LedgerLeaf.hash(
+            ledgerChainId, LedgerLeaf.SUKUK_SWEEP_DESTINATION, terms.sukukId, uint256(uint160(destination)), 0
+        );
+    }
 }

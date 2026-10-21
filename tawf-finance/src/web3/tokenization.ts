@@ -94,6 +94,9 @@ export const SUKUK_DISTRIBUTOR_ADDRESS = addr(raw.sukukDistributor);
 
 export const SUKUK_ID = ((raw.sukukId as string | undefined) ?? ZERO) as Hex;
 
+/** Optional second, short-dated sukuk used for maturity tests. */
+export const SUKUK2_DISTRIBUTOR_ADDRESS = addr(raw.sukuk2Distributor);
+
 export const SUKUK_SYMBOL = 'tSUKUK-DEMO-2026';
 
 /** Chain id of the Tawf Network L3 ledger the roots come from. */
