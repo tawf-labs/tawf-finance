@@ -919,6 +919,10 @@ rule nisbahFixedOnceSubscriptionOpens(method f) filtered { f -> !f.isView } {
 rule distributeSplitsByNisbah(uint16 period, uint256 amount, uint256 epoch, bytes32[] proof) {
     env e;
     address fee = feeRecipient();
+    // The distributor never calls itself (and has no code path that approves and
+    // pulls from itself), so a self-transferFrom, which nets to zero, is not a
+    // reachable caller. Same justification as the other money rules above.
+    require e.msg.sender != currentContract;
     require fee != currentContract && fee != e.msg.sender;
     requireUsdcSane(fee, e.msg.sender);
     requireUsdcSane(currentContract, fee);

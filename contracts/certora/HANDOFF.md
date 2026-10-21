@@ -26,10 +26,10 @@ Read first: `certora/REPORT.md` (results, bugs found, assumptions) and `certora/
 
 | Repo / spec | Checks verified |
 |---|---|
-| tawf-finance pool Registry / Vault / Receipt | 249 / 146 / 317 |
-| tawf-finance sukuk Distributor (incl. held profit) / ProfitAccumulator | 232 / 4 |
-| tawf-finance deposito Accumulator / Series / SandboxReal | 5 / 42 / 12 |
-| tawf-finance mutants M1–M9 | 8 killed; M8 equivalent (see REPORT) |
+| tawf-finance pool Registry / Vault / Receipt | 291 / 374 / 342 |
+| tawf-finance sukuk Distributor (incl. held profit + nisbah) / ProfitAccumulator | 298 / 4 |
+| tawf-finance deposito Accumulator / Series (incl. nisbah) / SandboxReal | 5 / 133 / 12 |
+| tawf-finance mutants M1–M14 | 13 killed; M8 equivalent (see REPORT) |
 | tawf-gold-bsi tBSI Controller | 69 |
 | tawf-network l2 LeafLog / LedgerAnchor | 12 / 40 |
 | tawf-network l3 SukukLedger / ReserveLedger / InstitutionRegistry | 127 / 42 / 33 |

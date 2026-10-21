@@ -10,14 +10,25 @@ Logs: `certora/out/<spec>.log`, which is gitignored. Rerun with `./certora/run.s
 
 | Spec | Contract(s) | Checks verified | Open | Notes |
 |---|---|---|---|---|
-| `autospec_pool_Registry` | DealRegistry | 249 | none | All 13 rules proven: funding ≤ target, principal sum = totalFunded, legal status edges only, terminal states, immutable terms, role gating, `moveInvestorPrincipal` |
-| `autospec_pool_Vault` | RedemptionVault (+ registry, receipt, MockUSDC) | 146 | none | receipt/registry principal stay equal (incl. across transfers), exact invest/repay/redeem/claimDefault amounts, no double redeem, yield floor bound, vault USDC moves only through the vault, MockUSDC supply = Σ balances |
-| `autospec_pool_Receipt` | BondReceiptNFT (+ vault, registry) | 317 | none | KYC gate on mint, soulbound unless VerifiedOnly + both verified, receipt follows token, vault-only mutators, write-once maturity snapshot, burned receipt stays Redeemed, counts monotonic, and the counting invariants: reachable receipt shapes, Redeemed count = burnedCount, live + redeemed = mintedCount, burned ≤ minted |
-| `autospec_sukuk_Distributor` | SukukDistributor | 232 | none | All rules proven, including the reserve gate and the held-profit design (frozen transfers at maturity, entitlement = redeemed + balance, pro-rata claims, sweep only after the claim window to the board-approved destination) |
+| `autospec_pool_Registry` | DealRegistry (+ vault, receipt) | 291 | none | All 13 rules proven: funding ≤ target, principal sum = totalFunded, legal status edges only, terminal states, immutable terms, role gating, `moveInvestorPrincipal`; re-proven with the new vault entry points in scope |
+| `autospec_pool_Vault` | RedemptionVault (+ registry, receipt, MockUSDC) | 374 | none | receipt/registry principal stay equal, exact invest/redeem amounts, no double redeem, yield floor bound, vault USDC moves only through its money paths. **Nisbah:** repay pays Tawf exactly floor(profit × nisbah), investors get the rest, nisbah ≤ 50% and fixed before Mintable, no share on default. **Loss-sharing:** default payout = pro-rata share of servicer recovery + negligence cover, recovery only from the servicer, Tawf money only via a DPS/auditor negligence finding |
+| `autospec_pool_Receipt` | BondReceiptNFT (+ vault, registry) | 342 | none | KYC gate on mint, soulbound unless VerifiedOnly + both verified, receipt follows token, vault-only mutators, write-once maturity snapshot, burned receipt stays Redeemed, counting invariants (reachable shapes, Redeemed = burned, live + redeemed = minted, burned ≤ minted) |
+| `autospec_sukuk_Distributor` | SukukDistributor | 298 | none | reserve gate, held-profit design (frozen transfers, entitlement = redeemed + balance, pro-rata claims, sweep only after the window to the board destination). **Nisbah:** each distribution pays Tawf exactly floor(amount × nisbah) and credits holders no more than the rest; fixed once the subscription opens; held profit never reaches Tawf; the fee wallet can't be the sweep destination |
 | `autospec_sukuk_ProfitAccumulator` | ProfitAccumulator (sukuk) | 4 | none | floor bounds of the nonlinear profit math, isolated per the Certora guide |
 | `autospec_deposito_Accumulator` | ProfitAccumulator (deposito) | 5 | none | same, deposito usage |
-| `autospec_deposito_Series` | TawfDepositoSeries | 42 | none | supply ≤ anchored reserve, allocation needs a verified unused leaf, exact anchored profit only, principal capped at face, **no profit after maturity, maturity only after every profit period** |
+| `autospec_deposito_Series` | TawfDepositoSeries | 133 | none | supply ≤ anchored reserve, allocation needs a verified unused leaf, exact anchored profit only, principal capped at face, no profit after maturity, maturity only after every profit period. **Nisbah:** Tawf accrues exactly floor(profit × nisbah), holders credited no more than the rest, ratio fixed from the first subscription, Tawf paid only to the fee wallet and never more than accrued |
 | `autospec_deposito_SandboxReal` | SandboxModule (the real 0.8.17 bytecode) | 12 | none | mode gating, investor-count cap, per-investor cap (treasury exempt), series cap on supply, series-end freeze, compliance-only actions |
+
+## Revenue model and loss-sharing (owner decision, 2026-10-21)
+
+- **Mudharabah nisbah on all three products.** Tawf keeps a fixed share of the *actual* profit (default 15%, capped at 50% on-chain). It is set before investors commit (deposito: before the first subscription; sukuk: while Pending; pool: per deal, before Mintable) and shown upfront in the app. No profit means no share. Principal, held (Shariah-flagged) sukuk profit and anything swept never go to Tawf. The deposito is two-tier mudharabah: Tawf places the investors' money at the BPRS, which the akad must explicitly permit.
+- **Pool default = musyarakah loss-sharing, not a capital guarantee.**
+  - Principal is disbursed to the BPRS servicer.
+  - On default, the servicer remits what it recovered, and holders share it pro rata (`claimDefault` pays `defaultPayoutFor`).
+  - Tawf's own money can cover a loss **only** through `recordNegligence` (NEGLIGENCE_ROLE: DPS / independent auditor, evidence hash required; the deploy script refuses to give it to Tawf ops) and then `payNegligence`.
+  - A deal that was never disbursed returns its undeployed funds at par.
+  - The pool's APY is shown as an *expected* return.
+- Two more sanity exclusions were added by the spec agents: in `vaultUsdcOnlyMovesThroughVault` (repay) and `distributeSplitsByNisbah` (sukuk), the contract is not its own caller. Contracts send no transactions; the other money rules already exclude this.
 
 ## Bugs found and fixed
 
@@ -62,3 +73,8 @@ Logs: `certora/out/<spec>.log`, which is gitignored. Rerun with `./certora/run.s
 | M7 | soulbound check broken | KILLED (`soulboundUnlessVerifiedOnly`) |
 | M8 | vault `redeem` drops its AlreadyRedeemed check | SURVIVED, **equivalent**: `burnOnRedemption` still reverts, so the whole transaction (payout included) rolls back. No double redeem is possible |
 | M9 | transfer moves the token but not the receipt (bug #2) | KILLED (`receiptFollowsToken`, `receiptMatchesRegistryOnTransfer`) |
+| M10 | deposito holders credited the gross profit while Tawf also accrues its share | KILLED (`distributeSplitsByNisbah`) |
+| M11 | pool nisbah editable after the deal is Mintable | KILLED (`nisbahLockedOnceMintable`) |
+| M12 | Tawf takes its nisbah from Shariah-held sukuk profit | KILLED (`heldProfitNeverToTawf`) |
+| M13 | default pays full principal on a disbursed deal (a capital guarantee) | KILLED (`claimDefaultPaysProRata`) |
+| M14 | anyone can record negligence (Tawf could route its own money in) | KILLED (`tawfCoversLossOnlyViaNegligence`) |

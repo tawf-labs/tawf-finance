@@ -384,6 +384,12 @@ rule tawfCoversLossOnlyViaNegligence(method f, uint256 d) filtered { f -> !f.isV
         "more negligence cover paid than the DPS found";
 }
 
+/// @title A deal's nisbah never exceeds the 50% cap
+// Written only by setDealNisbah, which rejects anything above MAX_TAWF_NISBAH_BPS.
+invariant dealNisbahCapped(uint256 d)
+    dealNisbahBps(d) <= 5000
+    filtered { f -> !contractOnly(f) }
+
 /// @title Tawf's nisbah is never taken on a default
 rule noNisbahOnDefault(uint256 d) {
     env e;
@@ -444,6 +450,7 @@ rule repayNisbahExact(uint256 d, uint96 totalRepayment) {
     require fee != currentContract && fee != e.msg.sender;
     requireUsdcSane(fee, e.msg.sender);
     requireUsdcSane(currentContract, fee);
+    requireInvariant dealNisbahCapped(d);
     uint16 bps = dealNisbahBps(d);
     uint96 fundedBefore = registry.getTotalFunded(d);
     uint256 feeBefore = usdcToken.balanceOf(fee);
@@ -525,8 +532,22 @@ rule vaultUsdcOnlyMovesThroughVault(method f) filtered {
     uint256 before = vaultUsdc();
 
     env e; calldataarg args;
+    uint256 repayDeal; uint96 repayAmount;
     requireUsdcSane(currentContract, e.msg.sender);
-    f(e, args);
+    if (f.selector == sig:repay(uint256,uint96).selector) {
+        // The vault never sends its own transactions (same exclusion as the other
+        // rules). Needed for repay only: it pays the nisbah out, so with the vault
+        // as caller the pull is a self-transfer and the nisbah would lower the
+        // balance. Kept off the other functions so the vault-only entry points
+        // (mint, fundDeal, ...) stay reachable.
+        require e.msg.sender != currentContract;
+        // Explicit arguments so the proven nisbah cap can be assumed for the
+        // deal being repaid (the share is at most half the profit).
+        requireInvariant dealNisbahCapped(repayDeal);
+        repay(e, repayDeal, repayAmount);
+    } else {
+        f(e, args);
+    }
 
     uint256 after = vaultUsdc();
 
