@@ -2,11 +2,13 @@ import { useCallback, useState } from 'react';
 import {
   useAccount,
   useBalance,
+  useConfig,
   usePublicClient,
   useReadContract,
   useReadContracts,
-  useWalletClient,
+  useSwitchChain,
 } from 'wagmi';
+import { getWalletClient } from 'wagmi/actions';
 import { keccak256, toHex, type Abi } from 'viem';
 import { DealRegistryAbi, BondReceiptNFTAbi, RedemptionVaultAbi, MockUsdcAbi } from './abis';
 import {
@@ -14,6 +16,7 @@ import {
   RECEIPT_NFT_ADDRESS,
   VAULT_ADDRESS,
   USDC_ADDRESS,
+  CHAIN_ID,
 } from './constants';
 import { mapDeal, mapReceipt, type Deal, type ReceiptMeta } from './types';
 
@@ -144,16 +147,35 @@ export interface WriteTx {
 
 type WalletWriter = { writeContract: (args: WriteTx) => Promise<`0x${string}`> };
 
-/** Thin async wrapper around a wallet write + receipt wait. */
+/**
+ * Thin async wrapper around a wallet write + receipt wait.
+ *
+ * The app only configures Arbitrum Sepolia. A wallet sitting on another network
+ * is still "connected" (it has an address) but wagmi cannot hand out a wallet
+ * client for it, so ask the wallet to switch first, then fetch a fresh client.
+ */
 export function useContractWrite() {
-  const { data: walletClient } = useWalletClient();
+  const config = useConfig();
+  const { isConnected, chainId: walletChainId } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
   const publicClient = usePublicClient();
   const [isPending, setIsPending] = useState(false);
 
   const write = useCallback(
     async (tx: WriteTx) => {
-      if (!walletClient) throw new Error('Connect your wallet first');
+      if (!isConnected) throw new Error('Connect your wallet first');
       if (!publicClient) throw new Error('No public client available');
+
+      if (walletChainId !== CHAIN_ID) {
+        try {
+          await switchChainAsync({ chainId: CHAIN_ID });
+        } catch {
+          throw new Error('Switch your wallet to Arbitrum Sepolia to continue');
+        }
+      }
+      const walletClient = await getWalletClient(config, { chainId: CHAIN_ID }).catch(() => undefined);
+      if (!walletClient) throw new Error('Wallet not ready, please try again');
+
       setIsPending(true);
       try {
         const hash = await (walletClient as unknown as WalletWriter).writeContract(tx);
@@ -163,7 +185,7 @@ export function useContractWrite() {
         setIsPending(false);
       }
     },
-    [walletClient, publicClient],
+    [config, isConnected, walletChainId, switchChainAsync, publicClient],
   );
 
   return { write, isPending };

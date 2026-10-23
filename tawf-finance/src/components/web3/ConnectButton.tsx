@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAccount, useChainId, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
+import { useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
 import { arbitrumSepolia } from 'wagmi/chains';
 import { Wallet, LogOut, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -8,8 +8,8 @@ import { CHAIN_ID } from '@/web3/constants';
 
 /** Connect / switch-chain / disconnect button for the EVM investor flow. */
 export function ConnectButton({ variant = 'primary', size = 'md' }: { variant?: 'primary' | 'secondary' | 'ghost'; size?: 'sm' | 'md' | 'lg' }) {
-  const { address, isConnected } = useAccount();
-  const chainId = useChainId();
+  // The wallet's real chain. useChainId() only ever returns a configured chain, so it hid a wrong network.
+  const { address, isConnected, chainId } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
