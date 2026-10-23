@@ -13,6 +13,7 @@ import { KycStatusCard } from '@/components/kyc/KycStatusCard';
 import { useDeals, useAllowance, useUsdcBalance, useInvest, useDealSettlement } from '@/web3/hooks';
 import { DEAL_STATUS_LABEL, type Deal, type DealStatus } from '@/web3/types';
 import { formatUsdc, formatApy, usdcToNumber, getRevertReason } from '@/web3/format';
+import { useIsVerified } from '@/web3/tokenizationHooks';
 import { isConfigured, explorerTxUrl } from '@/web3/constants';
 import { cn } from '@/utils/cn';
 
@@ -103,6 +104,7 @@ function DealCard({ deal, onInvest }: { deal: Deal; onInvest: (deal: Deal) => vo
 export function InvestorPools() {
   const { address, isConnected } = useAccount();
   const { deals, isLoading, refetch } = useDeals();
+  const { isVerified, isLoading: kycLoading } = useIsVerified(address);
   const { balance } = useUsdcBalance(address);
   const { allowance, refetch: refetchAllowance } = useAllowance(address);
   const { invest, isPending: isInvesting } = useInvest();
@@ -145,7 +147,7 @@ export function InvestorPools() {
     : 0;
 
   const handleInvest = async () => {
-    if (!selected) return;
+    if (!selected || !isVerified) return;
     setError(null);
     setTxHash(null);
     try {
@@ -361,10 +363,16 @@ export function InvestorPools() {
               </div>
             )}
 
+            {isConnected && !kycLoading && !isVerified && (
+              <p className="text-xs text-amber-700">
+                Verify your identity in Settings to invest. Pool receipts are only issued to verified wallets.
+              </p>
+            )}
+
             <Button
               size="lg"
               className="w-full"
-              disabled={isInvesting || clampedAmount < minAmount || balance < BigInt(Math.round(clampedAmount * 1e6))}
+              disabled={!isVerified || isInvesting || clampedAmount < minAmount || balance < BigInt(Math.round(clampedAmount * 1e6))}
               onClick={handleInvest}
             >
               {isInvesting ? (
