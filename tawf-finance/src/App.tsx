@@ -43,6 +43,7 @@ import {
   AdminTokenization,
   OwnerOps,
 } from './components/pages';
+import { RouteErrorBoundary } from '@/components/ErrorBoundary';
 import { useAuth } from '@/hooks/useAuth';
 
 // Protected Route Wrapper
@@ -203,7 +204,9 @@ function App() {
   return (
     <Web3Provider>
       <AuthProvider>
-        <AppContent />
+        <RouteErrorBoundary>
+          <AppContent />
+        </RouteErrorBoundary>
       </AuthProvider>
     </Web3Provider>
   );
