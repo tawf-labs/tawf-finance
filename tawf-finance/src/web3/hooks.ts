@@ -23,7 +23,9 @@ import { mapDeal, mapReceipt, type Deal, type ReceiptMeta } from './types';
 
 function asDeals(data: unknown): Deal[] {
   if (!Array.isArray(data)) return [];
-  return (data as unknown as Parameters<typeof mapDeal>[0][]).map(mapDeal);
+  return (data as unknown as Parameters<typeof mapDeal>[0][])
+    .map(mapDeal)
+    .filter((d): d is Deal => d !== null);
 }
 
 /** All deals in the registry, newest last. */

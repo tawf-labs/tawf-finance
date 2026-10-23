@@ -76,31 +76,48 @@ type RawReceipt = readonly [
   mintedAt: bigint,
 ];
 
-export function mapDeal(raw: RawDeal): Deal {
+/**
+ * viem decodes a struct with named ABI components into an object
+ * (`{ id, invoiceHash, ... }`), not a positional array. Read by name first and
+ * fall back to the tuple index so either shape works.
+ */
+function field<T>(raw: unknown, index: number, name: string): T | undefined {
+  if (Array.isArray(raw)) return raw[index] as T | undefined;
+  if (raw && typeof raw === 'object') return (raw as Record<string, unknown>)[name] as T | undefined;
+  return undefined;
+}
+
+/** Returns null when the value is not a usable deal, so callers can drop it instead of crashing. */
+export function mapDeal(raw: RawDeal | Record<string, unknown>): Deal | null {
+  const id = field<bigint>(raw, 0, 'id');
+  if (id === undefined) return null;
   return {
-    id: raw[0],
-    invoiceHash: raw[1],
-    supplierName: raw[2],
-    anchorBuyer: raw[3],
-    bmtOriginator: raw[4],
-    apyBps: raw[5],
-    durationDays: raw[6],
-    minInvestment: raw[7],
-    fundingTarget: raw[8],
-    totalFunded: raw[9],
-    investorCount: raw[10],
-    status: raw[11],
-    createdAt: raw[12],
-    maturesAt: raw[13],
+    id,
+    invoiceHash: field(raw, 1, 'invoiceHash') ?? '0x',
+    supplierName: field(raw, 2, 'supplierName') ?? '',
+    anchorBuyer: field(raw, 3, 'anchorBuyer') ?? '',
+    bmtOriginator: field(raw, 4, 'bmtOriginator') ?? '0x0000000000000000000000000000000000000000',
+    apyBps: field(raw, 5, 'apyBps') ?? 0n,
+    durationDays: BigInt(field<number | bigint>(raw, 6, 'durationDays') ?? 0),
+    minInvestment: field(raw, 7, 'minInvestment') ?? 0n,
+    fundingTarget: field(raw, 8, 'fundingTarget') ?? 0n,
+    totalFunded: field(raw, 9, 'totalFunded') ?? 0n,
+    investorCount: BigInt(field<number | bigint>(raw, 10, 'investorCount') ?? 0),
+    status: Number(field<number | bigint>(raw, 11, 'status') ?? 0) as DealStatus,
+    createdAt: field(raw, 12, 'createdAt') ?? 0n,
+    maturesAt: field(raw, 13, 'maturesAt') ?? 0n,
   };
 }
 
-export function mapReceipt(raw: RawReceipt): ReceiptMeta {
+/** Returns null when the value is not a usable receipt. */
+export function mapReceipt(raw: RawReceipt | Record<string, unknown>): ReceiptMeta | null {
+  const principal = field<bigint>(raw, 0, 'principal');
+  if (principal === undefined) return null;
   return {
-    principal: raw[0],
-    apyBps: raw[1],
-    durationDays: raw[2],
-    status: raw[3],
-    mintedAt: raw[4],
+    principal,
+    apyBps: field(raw, 1, 'apyBps') ?? 0n,
+    durationDays: BigInt(field<number | bigint>(raw, 2, 'durationDays') ?? 0),
+    status: Number(field<number | bigint>(raw, 3, 'status') ?? 0) as ReceiptStatus,
+    mintedAt: field(raw, 4, 'mintedAt') ?? 0n,
   };
 }
