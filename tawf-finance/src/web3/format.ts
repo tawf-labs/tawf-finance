@@ -67,6 +67,7 @@ export function getRevertReason(error: unknown): string {
   if (error instanceof Error) {
     const msg = error.message;
     if (/user rejected|denied/i.test(msg)) return 'Transaction rejected in wallet';
+    if (/NotVerified/.test(msg)) return 'Identity not verified. Complete KYC in Settings first.';
     const m = msg.match(/reverted with the following reason:\s*\n(.*)/);
     if (m) return m[1].trim();
     const short = msg.match(/shortMessage:\s*"([^"]+)"/);
