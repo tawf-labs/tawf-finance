@@ -16,6 +16,7 @@ import {
   RECEIPT_NFT_ADDRESS,
   VAULT_ADDRESS,
   USDC_ADDRESS,
+  SETTLEMENT_ADDRESS,
   CHAIN_ID,
 } from './constants';
 import { mapDeal, mapReceipt, type Deal, type ReceiptMeta } from './types';
@@ -41,10 +42,10 @@ export function useDeals() {
   return { deals: asDeals(data), isLoading, isError, error, refetch };
 }
 
-export function useUsdcBalance(address: `0x${string}` | undefined) {
+export function useUsdcBalance(address: `0x${string}` | undefined, token: `0x${string}` | undefined = USDC_ADDRESS) {
   const { data, isLoading, refetch } = useBalance({
     address,
-    token: USDC_ADDRESS,
+    token,
   });
   return {
     balance: (data?.value ?? 0n) as bigint,
@@ -54,9 +55,9 @@ export function useUsdcBalance(address: `0x${string}` | undefined) {
 }
 
 /** USDC allowance of `owner` to the RedemptionVault. */
-export function useAllowance(owner: `0x${string}` | undefined) {
+export function useAllowance(owner: `0x${string}` | undefined, token: `0x${string}` | undefined = USDC_ADDRESS) {
   const { data, refetch } = useReadContract({
-    address: USDC_ADDRESS,
+    address: token,
     abi: MockUsdcAbi,
     functionName: 'allowance',
     args: owner && VAULT_ADDRESS ? [owner, VAULT_ADDRESS] : undefined,
@@ -192,7 +193,8 @@ export function useContractWrite() {
 }
 
 /**
- * One-shot: approve USDC (if needed) then invest into a deal.
+ * One-shot: approve `token` (if needed) then invest into a deal. The settlement token goes through
+ * `invest`; any other accepted stablecoin goes through `investWithToken` and is swapped by the vault.
  * Returns the invest tx hash once both steps settle.
  */
 export function useInvest() {
@@ -200,23 +202,36 @@ export function useInvest() {
   const { address } = useAccount();
 
   const invest = useCallback(
-    async (dealId: bigint, amountBaseUnits: bigint, currentAllowance: bigint) => {
+    async (
+      dealId: bigint,
+      amountBaseUnits: bigint,
+      currentAllowance: bigint,
+      token: `0x${string}` | undefined = SETTLEMENT_ADDRESS,
+    ) => {
       if (!address) throw new Error('Connect your wallet first');
-      if (!VAULT_ADDRESS || !USDC_ADDRESS) throw new Error('Contracts not configured');
+      if (!VAULT_ADDRESS || !token) throw new Error('Contracts not configured');
 
       if (currentAllowance < amountBaseUnits) {
         await write({
-          address: USDC_ADDRESS,
+          address: token,
           abi: MockUsdcAbi,
           functionName: 'approve',
           args: [VAULT_ADDRESS, amountBaseUnits],
         });
       }
+      if (token.toLowerCase() === SETTLEMENT_ADDRESS?.toLowerCase()) {
+        return write({
+          address: VAULT_ADDRESS,
+          abi: RedemptionVaultAbi,
+          functionName: 'invest',
+          args: [dealId, amountBaseUnits],
+        });
+      }
       return write({
         address: VAULT_ADDRESS,
         abi: RedemptionVaultAbi,
-        functionName: 'invest',
-        args: [dealId, amountBaseUnits],
+        functionName: 'investWithToken',
+        args: [dealId, token, amountBaseUnits],
       });
     },
     [write, address],
