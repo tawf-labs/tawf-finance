@@ -79,7 +79,7 @@ contract AdversarialEval is EvalBase {
         _try("Mark mintable before Sharia approval", true, agent, address(registry), abi.encodeCall(registry.markMintable, (d0)));
         uint256 d1 = _deal(1);
         _try("Approve an already approved deal", true, shariah, address(registry), abi.encodeCall(registry.approveDeal, (d1)));
-        _try("Invest before deal is Mintable", true, _investor(5), address(vault), abi.encodeCall(vault.invest, (d1, TICKET)));
+        _try("Invest before deal is Mintable", true, _investor(5), address(vault), abi.encodeWithSelector(bytes4(keccak256("invest(uint256,address,uint96)")), d1, address(vault.usdc()), TICKET));
         uint256 d2 = _deal(2);
         _try("Repay with no funding (release without verification proxy)", true, agent, address(vault), abi.encodeCall(vault.repay, (d2, TICKET)));
         _try("Stranger forces early maturity", true, stranger, address(registry), abi.encodeCall(registry.markMatured, (d2)));
@@ -136,7 +136,7 @@ contract AdversarialEval is EvalBase {
         _try("Non-admin grants itself Sharia role", true, stranger, address(registry), abi.encodeCall(registry.grantRole, (registry.SHARIAH_ROLE(), stranger)));
         _try("Agent grants itself admin role", true, agent, address(registry), abi.encodeCall(registry.grantRole, (ADM, agent)));
         _try("Non-admin repoints registry vault", true, stranger, address(registry), abi.encodeCall(registry.setVault, (stranger)));
-        _try("Admin re-configures vault after go-live", true, admin, address(vault), abi.encodeCall(vault.configure, (usdc, registry, nft)));
+        _try("Admin re-configures vault after go-live", true, admin, address(vault), abi.encodeCall(vault.configure, (usdc, usdc, usdc, registry, nft)));
         _try("Non-admin sets transfer policy", true, stranger, address(nft), abi.encodeCall(nft.setTransferPolicy, (d3, BondReceiptNFT.TransferPolicy.VerifiedOnly)));
         _try("Direct fundDeal call bypassing vault", true, stranger, address(registry), abi.encodeCall(registry.fundDeal, (d2, stranger, TICKET)));
         _try("Direct receipt mint bypassing vault", true, stranger, address(nft), abi.encodeWithSignature("mint(address,uint256,uint96,uint96,uint32,string,string)", stranger, d2, uint96(TICKET), uint96(1200), uint32(30), "a", "b"));

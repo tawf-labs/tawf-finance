@@ -17,7 +17,7 @@ no_match_path = "test/eval/*"
 
 # Arbitrum Sepolia
 [rpc_endpoints]
-arbitrum_sepolia = "https://sepolia-rollup.arbitrum.io/rpc"
+arbitrum_sepolia = "https://dry-weathered-bush.arbitrum-sepolia.quiknode.pro/5b9eddccf9aabe7b713e57a8ad55f7cd0fd44c2f/"
 
 [etherscan]
 arbitrum_sepolia = { key = "${ARBISCAN_API_KEY}", url = "https://api-sepolia.arbiscan.io/api" }

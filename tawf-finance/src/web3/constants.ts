@@ -22,9 +22,11 @@ export const DEAL_REGISTRY_ADDRESS = address(deployments.dealRegistry);
 export const RECEIPT_NFT_ADDRESS = address(deployments.bondReceiptNft);
 export const VAULT_ADDRESS = address(deployments.redemptionVault);
 export const USDC_ADDRESS = address(deployments.mockUsdc);
+export const USDT_ADDRESS = address((deployments as any).mockUsdt);
+export const USDG_ADDRESS = address((deployments as any).usdg);
 
 export const RPC_URL =
-  import.meta.env.VITE_RPC_URL ?? 'https://sepolia-rollup.arbitrum.io/rpc';
+  import.meta.env.VITE_RPC_URL ?? 'https://dry-weathered-bush.arbitrum-sepolia.quiknode.pro/5b9eddccf9aabe7b713e57a8ad55f7cd0fd44c2f/';
 
 export const EXPLORER_URL =
   import.meta.env.VITE_EXPLORER ?? 'https://sepolia.arbiscan.io';

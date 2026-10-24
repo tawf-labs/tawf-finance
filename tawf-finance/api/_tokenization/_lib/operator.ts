@@ -27,7 +27,7 @@ import { arbitrumSepolia } from 'viem/chains'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import deployments from '../../../src/web3/tokenization.deployments.json' with { type: 'json' }
 
-const ARB_RPC_URL = process.env.ARB_SEPOLIA_RPC_URL ?? 'https://sepolia-rollup.arbitrum.io/rpc'
+const ARB_RPC_URL = process.env.ARB_SEPOLIA_RPC_URL ?? 'https://dry-weathered-bush.arbitrum-sepolia.quiknode.pro/5b9eddccf9aabe7b713e57a8ad55f7cd0fd44c2f/'
 
 export const RELAYER_URL = (process.env.RELAYER_URL ?? '').replace(/\/$/, '')
 export const CONNECTOR_URL = (process.env.CONNECTOR_URL ?? '').replace(/\/$/, '')

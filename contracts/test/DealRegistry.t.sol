@@ -201,7 +201,7 @@ contract DealRegistryTest is BaseSetup {
         usdc.faucet(MIN_INVEST);
         usdc.approve(address(vault), MIN_INVEST);
         vm.expectRevert(abi.encodeWithSelector(RedemptionVault.FundingClosed.selector, id));
-        vault.invest(id, MIN_INVEST);
+        vault.invest(id, address(usdc), MIN_INVEST);
         vm.stopPrank();
     }
 

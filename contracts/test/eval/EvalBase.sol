@@ -7,7 +7,8 @@ import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessC
 import { MockUSDC } from "../../src/mocks/MockUSDC.sol";
 import { DealRegistry } from "../../src/DealRegistry.sol";
 import { BondReceiptNFT } from "../../src/BondReceiptNFT.sol";
-import { RedemptionVault } from "../../src/RedemptionVault.sol";
+import { RedemptionVault, ISwapRouter } from "../../src/RedemptionVault.sol";
+import { MockSwapRouter } from "../../src/MockSwapRouter.sol";
 
 /// @notice Role-separated deployment for the synthetic evaluation. Unlike
 ///         test/Base.t.sol, every role sits on its own key, so the tests
@@ -49,7 +50,9 @@ abstract contract EvalBase is Test {
         vm.startPrank(admin);
         registry.setVault(address(vault));
         nft.setVault(address(vault));
-        vault.configure(IERC20(address(usdc)), registry, nft);
+        MockSwapRouter router = new MockSwapRouter();
+        vault.configure(IERC20(address(usdc)), IERC20(address(usdc)), IERC20(address(usdc)), registry, nft);
+        vault.setSwapRouter(ISwapRouter(address(router)), 3000, 50);
         registry.grantRole(registry.ORIGINATOR_ROLE(), originator);
         registry.grantRole(registry.SHARIAH_ROLE(), shariah);
         registry.grantRole(registry.OPS_ROLE(), agent);
@@ -74,7 +77,7 @@ abstract contract EvalBase is Test {
         vm.startPrank(who);
         usdc.faucet(amount);
         usdc.approve(address(vault), amount);
-        vault.invest(dealId, amount);
+        vault.invest(dealId, address(usdc), amount);
         vm.stopPrank();
     }
 

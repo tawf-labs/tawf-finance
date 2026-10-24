@@ -6,7 +6,8 @@ import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessC
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT } from "../src/BondReceiptNFT.sol";
-import { RedemptionVault } from "../src/RedemptionVault.sol";
+import { RedemptionVault, ISwapRouter } from "../src/RedemptionVault.sol";
+import { MockSwapRouter } from "../src/MockSwapRouter.sol";
 import { ITawfIdentityRegistry } from "../src/interfaces/ITawfIdentityRegistry.sol";
 
 contract RedemptionVaultTest is BaseSetup {
@@ -268,7 +269,7 @@ contract RedemptionVaultTest is BaseSetup {
         RedemptionVault fresh = new RedemptionVault(owner);
         vm.expectRevert(RedemptionVault.InvalidAddress.selector);
         vm.prank(owner);
-        fresh.configure(IERC20(address(0)), registry, nft);
+        fresh.configure(IERC20(address(0)), IERC20(address(usdc)), IERC20(address(usdc)), registry, nft);
     }
 
     function test_Configure_onlyOwner() public {
@@ -276,7 +277,9 @@ contract RedemptionVaultTest is BaseSetup {
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, stranger, vault.ADMIN_ROLE())
         );
         vm.prank(stranger);
-        vault.configure(IERC20(address(usdc)), registry, nft);
+        MockSwapRouter router = new MockSwapRouter();
+        vault.configure(IERC20(address(usdc)), IERC20(address(usdc)), IERC20(address(usdc)), registry, nft);
+        vault.setSwapRouter(ISwapRouter(address(router)), 3000, 50);
     }
 
     // ------------------------------------------------------------------

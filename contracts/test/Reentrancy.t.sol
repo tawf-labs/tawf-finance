@@ -8,7 +8,8 @@ import { ReentrancyGuard } from "openzeppelin-contracts/contracts/utils/Reentran
 import { MockUSDC } from "../src/mocks/MockUSDC.sol";
 import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT } from "../src/BondReceiptNFT.sol";
-import { RedemptionVault } from "../src/RedemptionVault.sol";
+import { RedemptionVault, ISwapRouter } from "../src/RedemptionVault.sol";
+import { MockSwapRouter } from "../src/MockSwapRouter.sol";
 
 /**
  * @notice A USDC-shaped token that tries to re-enter the vault from inside
@@ -63,7 +64,9 @@ contract ReentrancyTest is Test {
         token.setVault(address(vault));
         registry.setVault(address(vault));
         nft.setVault(address(vault));
-        vault.configure(IERC20(address(token)), registry, nft);
+        MockSwapRouter router = new MockSwapRouter();
+        vault.configure(IERC20(address(token)), IERC20(address(token)), IERC20(address(token)), registry, nft);
+        vault.setSwapRouter(ISwapRouter(address(router)), 3000, 50);
         registry.grantRole(registry.ORIGINATOR_ROLE(), owner);
         registry.grantRole(registry.SHARIAH_ROLE(), owner);
         registry.grantRole(registry.OPS_ROLE(), owner);
@@ -96,7 +99,7 @@ contract ReentrancyTest is Test {
         vm.startPrank(alice);
         token.faucet(100 * 10 ** 6);
         token.approve(address(vault), 100 * 10 ** 6);
-        vault.invest(id, 100 * 10 ** 6);
+        vault.invest(id, address(token), 100 * 10 ** 6);
         vm.stopPrank();
 
         // Owner repays $110 ($100 principal + $10 yield).

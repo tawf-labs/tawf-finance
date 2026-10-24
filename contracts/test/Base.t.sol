@@ -6,7 +6,8 @@ import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol"
 import { MockUSDC } from "../src/mocks/MockUSDC.sol";
 import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT, IDealPrincipalLedger as BondReceiptNFTDealRegistry } from "../src/BondReceiptNFT.sol";
-import { RedemptionVault } from "../src/RedemptionVault.sol";
+import { RedemptionVault, ISwapRouter } from "../src/RedemptionVault.sol";
+import { MockSwapRouter } from "../src/MockSwapRouter.sol";
 import { PooledFinancingVault } from "../src/PooledFinancingVault.sol";
 import { ITawfIdentityRegistry } from "../src/interfaces/ITawfIdentityRegistry.sol";
 
@@ -70,7 +71,10 @@ abstract contract BaseSetup is Test {
 
         registry.setVault(address(vault));
         nft.setVault(address(vault));
-        vault.configure(IERC20(address(usdc)), registry, nft);
+        MockSwapRouter router = new MockSwapRouter();
+        MockUSDC usdtToken = new MockUSDC();
+        vault.configure(IERC20(address(usdc)), IERC20(address(usdtToken)), IERC20(address(usdc)), registry, nft);
+        vault.setSwapRouter(ISwapRouter(address(router)), 3000, 50);
         nft.setIdentityRegistry(identityRegistry);
         nft.setDealRegistry(BondReceiptNFTDealRegistry(address(registry)));
         registry.setReceiptNft(address(nft));

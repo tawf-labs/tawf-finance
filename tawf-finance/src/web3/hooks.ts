@@ -192,7 +192,7 @@ export function useContractWrite() {
 }
 
 /**
- * One-shot: approve USDC (if needed) then invest into a deal.
+ * One-shot: approve token (if needed) then invest into a deal.
  * Returns the invest tx hash once both steps settle.
  */
 export function useInvest() {
@@ -200,13 +200,20 @@ export function useInvest() {
   const { address } = useAccount();
 
   const invest = useCallback(
-    async (dealId: bigint, amountBaseUnits: bigint, currentAllowance: bigint) => {
+    async (
+      dealId: bigint,
+      amountBaseUnits: bigint,
+      currentAllowance: bigint,
+      tokenAddress?: `0x${string}`,
+    ) => {
       if (!address) throw new Error('Connect your wallet first');
-      if (!VAULT_ADDRESS || !USDC_ADDRESS) throw new Error('Contracts not configured');
+      if (!VAULT_ADDRESS) throw new Error('Contracts not configured');
+      const token = tokenAddress || USDC_ADDRESS;
+      if (!token) throw new Error('Token not configured');
 
       if (currentAllowance < amountBaseUnits) {
         await write({
-          address: USDC_ADDRESS,
+          address: token,
           abi: MockUsdcAbi,
           functionName: 'approve',
           args: [VAULT_ADDRESS, amountBaseUnits],
@@ -216,7 +223,7 @@ export function useInvest() {
         address: VAULT_ADDRESS,
         abi: RedemptionVaultAbi,
         functionName: 'invest',
-        args: [dealId, amountBaseUnits],
+        args: [dealId, token, amountBaseUnits],
       });
     },
     [write, address],

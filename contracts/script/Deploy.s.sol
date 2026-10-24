@@ -6,8 +6,9 @@ import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol"
 import { MockUSDC } from "../src/mocks/MockUSDC.sol";
 import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT, IDealPrincipalLedger } from "../src/BondReceiptNFT.sol";
-import { RedemptionVault } from "../src/RedemptionVault.sol";
+import { RedemptionVault, ISwapRouter } from "../src/RedemptionVault.sol";
 import { PooledFinancingVault } from "../src/PooledFinancingVault.sol";
+import { MockSwapRouter } from "../src/MockSwapRouter.sol";
 
 /**
  * @notice Deploys the per-deal Tawf stack (DealRegistry, BondReceiptNFT,
@@ -89,7 +90,11 @@ contract Deploy is Script {
         nft.setVault(address(vault));
         nft.setDealRegistry(IDealPrincipalLedger(address(registry)));
         registry.setReceiptNft(address(nft));
-        vault.configure(IERC20(address(usdc)), registry, nft);
+        MockUSDC usdt = new MockUSDC();
+        MockUSDC usdg = new MockUSDC();
+        MockSwapRouter router = new MockSwapRouter();
+        vault.configure(IERC20(address(usdc)), IERC20(address(usdt)), IERC20(address(usdg)), registry, nft);
+        vault.setSwapRouter(ISwapRouter(address(router)), 3000, 50);
 
         // Testnet role grants: one broadcaster holds every role.
         registry.grantRole(registry.ORIGINATOR_ROLE(), admin);

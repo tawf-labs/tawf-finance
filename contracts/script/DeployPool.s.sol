@@ -5,8 +5,10 @@ import { Script, console2 } from "forge-std/Script.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT, IDealPrincipalLedger } from "../src/BondReceiptNFT.sol";
-import { RedemptionVault } from "../src/RedemptionVault.sol";
+import { RedemptionVault, ISwapRouter } from "../src/RedemptionVault.sol";
+import { MockSwapRouter } from "../src/MockSwapRouter.sol";
 import { ITawfIdentityRegistry } from "../src/interfaces/ITawfIdentityRegistry.sol";
+import { MockUSDC } from "../src/mocks/MockUSDC.sol";
 
 /**
  * @notice Redeploys the per-deal financing pool (DealRegistry, BondReceiptNFT,
@@ -56,7 +58,11 @@ contract DeployPool is Script {
         nft.setDealRegistry(IDealPrincipalLedger(address(registry)));
         registry.setReceiptNft(address(nft));
         nft.setIdentityRegistry(ITawfIdentityRegistry(identityRegistry));
-        vault.configure(IERC20(usdc), registry, nft);
+        MockSwapRouter router = new MockSwapRouter();
+        MockUSDC usdt = new MockUSDC();
+        MockUSDC usdg = new MockUSDC();
+        vault.configure(IERC20(usdc), IERC20(address(usdt)), IERC20(address(usdg)), registry, nft);
+        vault.setSwapRouter(ISwapRouter(address(router)), 3000, 50);
 
         // Testnet role grants: the operator holds every role.
         registry.grantRole(registry.ORIGINATOR_ROLE(), admin);
