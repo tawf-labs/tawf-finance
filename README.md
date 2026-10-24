@@ -245,7 +245,7 @@ Headings: Cormorant Garamond (serif) · Body/UI: Inter (sans-serif).
 
 ## Governance
 
-Governed by [Tawf Foundation](https://tawf.foundation), a non-profit public trust entity. Investment instruments are issued by licensed financial firms. Funds go into escrow (the vault), not to tawf.finance. Shariah review is provided by independent advisers.
+Built by [Tawf Labs](https://tawflabs.com), funds go into escrow (the vault), not to tawf.finance. Shariah review is provided by independent advisers from BPRS and external parties.
 
 ---
 
