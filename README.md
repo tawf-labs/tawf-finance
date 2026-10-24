@@ -262,7 +262,9 @@ Headings: Cormorant Garamond (serif) · Body/UI: Inter (sans-serif).
 - [`docs/buildathon-submission.md`](docs/buildathon-submission.md): submission copy
 - [`docs/didit-kyc.md`](docs/didit-kyc.md): KYC integration notes
 
----
+--- 
+
+Built at the Founder House: USDC/USDT/USDG multi-token investing with swap-to-USDG vault and yield sweep, a Robinhood Chain deploy path (tested locally, not yet live), a Fhenix reserve-ledger design, Certora spec plan, and frontend work. Core Tawf contracts predate the event.
 
 ## License
 
