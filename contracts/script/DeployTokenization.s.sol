@@ -368,7 +368,10 @@ contract DeployTokenization is Script {
     uint40 internal _sukukSubscriptionPeriod;
 
     function _writeDeployments(Deployment memory d) internal {
-        string memory path = "../tawf-finance/src/web3/tokenization.deployments.json";
+        // DEPLOYMENTS_PATH lets a second chain (e.g. Robinhood Chain) write its own file instead of
+        // overwriting the Arbitrum Sepolia addresses the live app reads.
+        string memory path =
+            vm.envOr("DEPLOYMENTS_PATH", string("../tawf-finance/src/web3/tokenization.deployments.json"));
         bytes memory proxyCode = vm.getCode("IdentityProxy.sol:IdentityProxy");
 
         string memory obj = "tokenization";
