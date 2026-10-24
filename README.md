@@ -3,7 +3,7 @@
 > **The all-in-one tokenization infrastructure for Indonesian BPRS, built on Arbitrum.**
 > One platform for every Islamic finance akad a licensed Shariah bank originates: structure, tokenize, sell down, and settle real financing on-chain. Take exposure from $10, with returns from 5%. Transparent, verifiable, and grounded in real serviced financing.
 
-Governed by [Tawf Foundation](https://tawf.foundation) · Shariah-Aligned · Arbitrum (EVM / Solidity)
+Built by [Tawf Labs](https://tawflabs.com) · Shariah-Aligned · Arbitrum (EVM / Solidity)
 
 ---
 
