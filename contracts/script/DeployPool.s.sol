@@ -7,6 +7,9 @@ import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT, IDealPrincipalLedger } from "../src/BondReceiptNFT.sol";
 import { RedemptionVault } from "../src/RedemptionVault.sol";
 import { ITawfIdentityRegistry } from "../src/interfaces/ITawfIdentityRegistry.sol";
+import { ISwapRouter } from "../src/RedemptionVault.sol";
+import { MockUSDC } from "../src/mocks/MockUSDC.sol";
+import { MockSwapRouter } from "../src/mocks/MockSwapRouter.sol";
 
 /**
  * @notice Redeploys the per-deal financing pool (DealRegistry, BondReceiptNFT,
@@ -27,13 +30,24 @@ import { ITawfIdentityRegistry } from "../src/interfaces/ITawfIdentityRegistry.s
  *      auditor, never the operator) is the only role that can find Tawf liable
  *      for a loss. The previous pool's addresses are kept as legacyPool*.
  *
+ *      Settlement token (USDG): set USDG_ADDRESS to the real USDG (Arbitrum Sepolia:
+ *      0xFFC95faa3d63Cde504a05B567C600B78C0b41892) or MOCK_USDG=1 to deploy a mock one
+ *      (chains with no USDG, e.g. Robinhood Chain testnet). Deals are then denominated in
+ *      USDG; mockUsdc/mockUsdt from the deployments file are accepted as inputs and swapped
+ *      to USDG through a MockSwapRouter that this script funds with ROUTER_USDG_LIQUIDITY
+ *      base units (mock mode mints it; with real USDG the operator must hold it). Surplus
+ *      USDG (rewards, dust) is swept to YIELD_RECIPIENT (default: FEE_RECIPIENT). With
+ *      neither variable set the pool settles in mockUsdc as before.
+ *      DEPLOYMENTS_PATH overrides the deployments file (e.g. the Robinhood one).
+ *
  *      forge script script/DeployPool.s.sol:DeployPool --rpc-url arbitrum_sepolia \
  *          --private-key $OPERATOR_KEY --broadcast
  */
 contract DeployPool is Script {
-    string internal constant PATH = "../tawf-finance/src/web3/tokenization.deployments.json";
+    string internal PATH = "../tawf-finance/src/web3/tokenization.deployments.json";
 
     function run() external returns (DealRegistry registry, BondReceiptNFT nft, RedemptionVault vault) {
+        PATH = vm.envOr("DEPLOYMENTS_PATH", PATH);
         string memory json = vm.readFile(PATH);
         address identityRegistry = vm.parseJsonAddress(json, ".identityRegistry");
         address usdc = vm.parseJsonAddress(json, ".mockUsdc");
@@ -56,7 +70,8 @@ contract DeployPool is Script {
         nft.setDealRegistry(IDealPrincipalLedger(address(registry)));
         registry.setReceiptNft(address(nft));
         nft.setIdentityRegistry(ITawfIdentityRegistry(identityRegistry));
-        vault.configure(IERC20(usdc), registry, nft);
+        address settlement = _settlementToken(usdc);
+        vault.configure(IERC20(settlement), registry, nft);
 
         // Testnet role grants: the operator holds every role.
         registry.grantRole(registry.ORIGINATOR_ROLE(), admin);
@@ -67,6 +82,7 @@ contract DeployPool is Script {
         require(negligenceSigner != admin, "the negligence signer must not be Tawf ops");
         vault.grantRole(vault.NEGLIGENCE_ROLE(), negligenceSigner);
         vault.setFeeRecipient(feeRecipient);
+        if (settlement != usdc) _wireUsdg(vault, settlement, usdc, json, feeRecipient);
 
         _seed(registry, vault, nisbahBps);
         vm.stopBroadcast();
@@ -77,12 +93,40 @@ contract DeployPool is Script {
         vm.writeJson(vm.toString(address(registry)), PATH, ".dealRegistry");
         vm.writeJson(vm.toString(address(nft)), PATH, ".bondReceiptNft");
         vm.writeJson(vm.toString(address(vault)), PATH, ".redemptionVault");
+        if (settlement != usdc) vm.writeJson(vm.toString(settlement), PATH, ".usdg");
 
         console2.log("IdentityRegistry:", identityRegistry);
         console2.log("MockUSDC:        ", usdc);
+        console2.log("Settlement:      ", settlement);
         console2.log("DealRegistry:    ", address(registry));
         console2.log("BondReceiptNFT:  ", address(nft));
         console2.log("RedemptionVault: ", address(vault));
+    }
+
+    /// @dev Real USDG (USDG_ADDRESS), a fresh mock USDG (MOCK_USDG=1), or the legacy mockUsdc.
+    ///      Must run inside the broadcast so the mock is deployed by the operator.
+    function _settlementToken(address mockUsdc) internal returns (address) {
+        address usdg = vm.envOr("USDG_ADDRESS", address(0));
+        if (usdg != address(0)) return usdg;
+        if (vm.envOr("MOCK_USDG", false)) return address(new MockUSDC());
+        return mockUsdc;
+    }
+
+    /// @dev Accept mockUsdc/mockUsdt as inputs swapped to USDG, route yield to the foundation.
+    function _wireUsdg(RedemptionVault vault, address usdg, address mockUsdc, string memory json, address feeRecipient)
+        internal
+    {
+        address mockUsdt = vm.parseJsonAddress(json, ".mockUsdt");
+        MockSwapRouter router = new MockSwapRouter();
+        uint256 liquidity = vm.envOr("ROUTER_USDG_LIQUIDITY", uint256(100_000 * 10 ** 6));
+        if (vm.envOr("MOCK_USDG", false)) MockUSDC(usdg).faucet(liquidity);
+        IERC20(usdg).transfer(address(router), liquidity);
+
+        vault.setInputToken(mockUsdc, true);
+        vault.setInputToken(mockUsdt, true);
+        vault.setSwapRouter(ISwapRouter(address(router)), 100, 50);
+        vault.setYieldRecipient(vm.envOr("YIELD_RECIPIENT", feeRecipient));
+        console2.log("MockSwapRouter:  ", address(router));
     }
 
     /// @dev The same three BPRS financing pools as SeedDemo.s.sol.

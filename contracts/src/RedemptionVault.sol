@@ -8,6 +8,22 @@ import { ReentrancyGuard } from "openzeppelin-contracts/contracts/utils/Reentran
 import { DealRegistry } from "./DealRegistry.sol";
 import { BondReceiptNFT } from "./BondReceiptNFT.sol";
 
+/// @dev Uniswap-V3-style single-hop router, the shape most Arbitrum DEX routers expose.
+interface ISwapRouter {
+    struct ExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        address recipient;
+        uint256 deadline;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        uint160 sqrtPriceLimitX96;
+    }
+
+    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
+}
+
 /**
  * @title RedemptionVault
  * @notice The only contract that holds and moves investor USDC.
@@ -29,6 +45,16 @@ import { BondReceiptNFT } from "./BondReceiptNFT.sol";
  *                     (recordNegligence + payNegligence). A deal never
  *                     disbursed returns its undeployed funds at par.
  *
+ *      Settlement token: `usdc` (kept under its original name so the ABI and
+ *      scripts stay stable) is the token every deal is denominated and paid in.
+ *      Production sets it to USDG (Global Dollar). Investors may also pay in
+ *      other allow-listed stablecoins (USDC, USDT); those are swapped to the
+ *      settlement token on the way in, and the deal is credited with what the
+ *      swap actually returned. USDG yield/rewards that reach the vault are not
+ *      owed to anyone: `sweepYield` forwards exactly that surplus (balance
+ *      above tracked liabilities) to the fixed `yieldRecipient` (Tawf
+ *      Foundation partners), and can never touch investor funds.
+ *
  *      Checks-effects-interactions and ReentrancyGuard everywhere money
  *      moves. The vault never holds more than what deals owe + pending yield.
  */
@@ -43,7 +69,19 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
     ///         liable for negligence or misconduct on a defaulted deal.
     bytes32 public constant NEGLIGENCE_ROLE = keccak256("NEGLIGENCE_ROLE");
 
+    /// @notice Settlement token (USDG in production). Name kept for ABI stability.
     IERC20 public usdc;
+    /// @notice Other stablecoins investors may pay in; swapped to `usdc` on invest.
+    mapping(address => bool) public acceptedInput;
+    ISwapRouter public swapRouter;
+    uint24 public swapFee = 3000;
+    /// @notice Max tolerated shortfall of a swap vs 1:1, in bps (stable-to-stable).
+    uint256 public slippageBps = 50;
+    /// @notice Where swept USDG yield goes (Tawf Foundation partners wallet).
+    address public yieldRecipient;
+    /// @notice Settlement-token amount the vault owes investors, the servicer
+    ///         flow and open default claims. Anything above it is surplus.
+    uint256 public liabilities;
     DealRegistry public registry;
     BondReceiptNFT public nft;
 
@@ -94,8 +132,19 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
     error NothingOwed();
     error NegligenceUnpaid(uint256 dealId);
     error NegligenceAlreadyPaid(uint256 dealId);
+    error UnsupportedToken(address token);
+    error SwapNotConfigured();
+    error InvalidSlippage();
+    error NothingToSweep();
 
     event Invested(uint256 indexed dealId, address indexed investor, uint96 amount);
+    event InvestedWithSwap(
+        uint256 indexed dealId, address indexed investor, address indexed tokenIn, uint256 amountIn, uint96 credited
+    );
+    event InputTokenSet(address indexed token, bool accepted);
+    event SwapRouterSet(address indexed router, uint24 fee, uint256 slippageBps);
+    event YieldRecipientSet(address indexed recipient);
+    event YieldSwept(address indexed to, uint256 amount);
     event Repaid(uint256 indexed dealId, uint96 totalRepayment, uint96 yieldPool);
     event Redeemed(uint256 indexed dealId, address indexed investor, uint256 payout);
     event DefaultClaimed(uint256 indexed dealId, address indexed investor, uint256 payout);
@@ -138,35 +187,130 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         _configured = true;
     }
 
+    /// @notice Allow (or stop allowing) a stablecoin as an investment input.
+    ///         The settlement token itself is always accepted.
+    function setInputToken(address token, bool accepted) external onlyRole(ADMIN_ROLE) {
+        if (token == address(0) || token == address(usdc)) revert InvalidAddress();
+        acceptedInput[token] = accepted;
+        emit InputTokenSet(token, accepted);
+    }
+
+    function setSwapRouter(ISwapRouter router_, uint24 fee_, uint256 slippageBps_) external onlyRole(ADMIN_ROLE) {
+        if (address(router_) == address(0)) revert InvalidAddress();
+        if (slippageBps_ > 300) revert InvalidSlippage();
+        swapRouter = router_;
+        swapFee = fee_;
+        slippageBps = slippageBps_;
+        emit SwapRouterSet(address(router_), fee_, slippageBps_);
+    }
+
+    /// @notice Where swept yield is paid. Fixed here so `sweepYield` can be public.
+    function setYieldRecipient(address recipient) external onlyRole(ADMIN_ROLE) {
+        if (recipient == address(0) || recipient == address(this)) revert InvalidAddress();
+        yieldRecipient = recipient;
+        emit YieldRecipientSet(recipient);
+    }
+
+    /// @notice The token deals are denominated and paid in (USDG in production).
+    function settlementToken() external view returns (address) {
+        return address(usdc);
+    }
+
+    /// @notice Settlement tokens held above what the vault owes.
+    function surplus() public view returns (uint256) {
+        uint256 bal = usdc.balanceOf(address(this));
+        return bal > liabilities ? bal - liabilities : 0;
+    }
+
+    /// @notice Forward the surplus (USDG yield / rewards / dust) to `yieldRecipient`.
+    ///         Callable by anyone; it can only ever move tokens that nothing is owed.
+    function sweepYield() external nonReentrant returns (uint256 amount) {
+        address to = yieldRecipient;
+        if (to == address(0)) revert InvalidAddress();
+        amount = surplus();
+        if (amount == 0) revert NothingToSweep();
+        usdc.safeTransfer(to, amount);
+        emit YieldSwept(to, amount);
+    }
+
     // ---------------------------------------------------------------------
     // Investing
     // ---------------------------------------------------------------------
 
     /**
-     * @notice Invest USDC into a Mintable deal and receive a soulbound
-     *         receipt. Caller must have approved this vault for `amount`.
+     * @notice Invest the settlement token into a Mintable deal and receive a
+     *         soulbound receipt. Caller must have approved this vault for `amount`.
      */
     function invest(uint256 dealId, uint96 amount) external nonReentrant {
+        _invest(dealId, address(usdc), amount);
+    }
+
+    /**
+     * @notice Invest with `tokenIn`: the settlement token directly, or an
+     *         allow-listed stablecoin (USDC/USDT) that is swapped to it first.
+     *         The deal is credited with the swap's actual output.
+     */
+    function investWithToken(uint256 dealId, address tokenIn, uint96 amount) external nonReentrant {
+        _invest(dealId, tokenIn, amount);
+    }
+
+    function _invest(uint256 dealId, address tokenIn, uint96 amount) internal {
         DealRegistry.Deal memory deal = _requireConfigured(dealId);
-
         if (deal.status != DealRegistry.DealStatus.Mintable) revert FundingClosed(dealId);
-        if (amount < deal.minInvestment) revert AmountBelowMinimum();
-        if (amount > deal.fundingTarget - deal.totalFunded) revert FundingClosed(dealId);
 
-        usdc.safeTransferFrom(msg.sender, address(this), amount);
+        uint96 credited = amount;
+        if (tokenIn == address(usdc)) {
+            usdc.safeTransferFrom(msg.sender, address(this), amount);
+        } else if (acceptedInput[tokenIn]) {
+            credited = _swapIn(tokenIn, amount);
+        } else {
+            revert UnsupportedToken(tokenIn);
+        }
 
-        registry.fundDeal(dealId, msg.sender, amount);
+        // Bounds apply to what the deal is credited, not what was paid in.
+        if (credited < deal.minInvestment) revert AmountBelowMinimum();
+        if (credited > deal.fundingTarget - deal.totalFunded) revert FundingClosed(dealId);
+
+        liabilities += credited;
+        registry.fundDeal(dealId, msg.sender, credited);
         nft.mint(
             msg.sender,
             dealId,
-            amount,
+            credited,
             deal.apyBps,
             deal.durationDays,
             deal.supplierName,
             deal.anchorBuyer
         );
 
-        emit Invested(dealId, msg.sender, amount);
+        emit Invested(dealId, msg.sender, credited);
+        if (tokenIn != address(usdc)) emit InvestedWithSwap(dealId, msg.sender, tokenIn, amount, credited);
+    }
+
+    function _swapIn(address tokenIn, uint96 amount) internal returns (uint96 credited) {
+        if (address(swapRouter) == address(0)) revert SwapNotConfigured();
+        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amount);
+        IERC20(tokenIn).forceApprove(address(swapRouter), amount);
+
+        uint256 balBefore = usdc.balanceOf(address(this));
+        swapRouter.exactInputSingle(
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: tokenIn,
+                tokenOut: address(usdc),
+                fee: swapFee,
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: amount,
+                amountOutMinimum: (uint256(amount) * (10_000 - slippageBps)) / 10_000,
+                sqrtPriceLimitX96: 0
+            })
+        );
+        IERC20(tokenIn).forceApprove(address(swapRouter), 0);
+
+        // Trust the balance delta, not the router's return value.
+        uint256 received = usdc.balanceOf(address(this)) - balBefore;
+        if (received == 0 || received > type(uint96).max) revert InvalidAddress();
+        credited = uint96(received);
     }
 
     // ---------------------------------------------------------------------
@@ -204,6 +348,7 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         if (disbursedPrincipal[dealId] != 0) revert AlreadyDisbursed(dealId);
         if (!hasRole(SERVICER_ROLE, servicer)) revert NotServicer(servicer);
         disbursedPrincipal[dealId] = deal.totalFunded;
+        liabilities -= deal.totalFunded;
         usdc.safeTransfer(servicer, deal.totalFunded);
         emit Disbursed(dealId, servicer, deal.totalFunded);
     }
@@ -218,6 +363,7 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         if (recovery > disbursedPrincipal[dealId]) revert RecoveryExceedsPrincipal();
         defaultSettled[dealId] = true;
         defaultRecovery[dealId] = recovery;
+        liabilities += recovery;
         if (recovery > 0) usdc.safeTransferFrom(msg.sender, address(this), recovery);
         emit DefaultRecovered(dealId, msg.sender, recovery);
     }
@@ -245,6 +391,7 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         uint96 owed = negligenceLiability[dealId] - negligencePaid[dealId];
         if (owed == 0) revert NothingOwed();
         negligencePaid[dealId] += owed;
+        liabilities += owed;
         usdc.safeTransferFrom(msg.sender, address(this), owed);
         emit NegligencePaid(dealId, msg.sender, owed);
     }
@@ -312,6 +459,7 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         // A disbursed deal returns its principal too; otherwise the vault
         // still holds it.
         uint256 pull = uint256(yieldPool) + disbursedPrincipal[dealId];
+        liabilities += pull - share;
         if (pull > 0) {
             usdc.safeTransferFrom(msg.sender, address(this), pull);
         }
@@ -346,6 +494,7 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         uint256 payout = payoutFor(dealId, msg.sender);
         if (usdc.balanceOf(address(this)) < payout) revert InsufficientVaultBalance();
 
+        liabilities -= payout;
         usdc.safeTransfer(msg.sender, payout);
         nft.burnOnRedemption(dealId, msg.sender);
 
@@ -378,6 +527,7 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         uint256 payout = defaultPayoutFor(dealId, msg.sender);
         if (usdc.balanceOf(address(this)) < payout) revert InsufficientVaultBalance();
 
+        liabilities -= payout;
         usdc.safeTransfer(msg.sender, payout);
         nft.markDealDefaulted(dealId);
         nft.markReceiptDefaulted(dealId, msg.sender);

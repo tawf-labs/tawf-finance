@@ -3,7 +3,8 @@
 # LedgerAnchor, shared T-REX identity, MockUSDC/USDT, deposito series, sukuk and the per-deal pool.
 # Results go to tawf-finance/src/web3/robinhood.deployments.json (the Arbitrum file is untouched).
 #
-# Needs in contracts/.env (or the shell): PRIVATE_KEY, ROBINHOOD_TESTNET_RPC_URL.
+# Needs in contracts/.env (or the shell): PRIVATE_KEY, ROBINHOOD_TESTNET_RPC_URL, NEGLIGENCE_SIGNER
+# (optional: FEE_RECIPIENT, YIELD_RECIPIENT for the Tawf Foundation wallet).
 # The operator wallet needs Robinhood testnet ETH. Usage: ./script/deploy-robinhood.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -24,6 +25,12 @@ export LEDGER_ANCHOR=$ANCHOR LEDGER_CHAIN_ID=$CHAIN_ID
 export SUKUK_MATURITY=$(( $(date +%s) + 400*24*3600 ))
 export DEPLOYMENTS_PATH=../tawf-finance/src/web3/robinhood.deployments.json
 forge script script/DeployTokenization.s.sol:DeployTokenization \
+  --rpc-url "$ROBINHOOD_TESTNET_RPC_URL" --private-key "$PRIVATE_KEY" --broadcast --slow -vvv
+
+# The tokenization deploy wires the legacy USDC pool. Redeploy the pool in USDG mode (mock USDG, since
+# Robinhood Chain has none): USDC/USDT in, swapped to USDG, yield swept to YIELD_RECIPIENT.
+export MOCK_USDG=1 FEE_RECIPIENT=${FEE_RECIPIENT:-$OPERATOR} NEGLIGENCE_SIGNER=${NEGLIGENCE_SIGNER:?set NEGLIGENCE_SIGNER (DPS/auditor wallet, not the operator)}
+forge script script/DeployPool.s.sol:DeployPool \
   --rpc-url "$ROBINHOOD_TESTNET_RPC_URL" --private-key "$PRIVATE_KEY" --broadcast --slow -vvv
 
 echo "Addresses written to tawf-finance/src/web3/robinhood.deployments.json (anchor $ANCHOR)"
