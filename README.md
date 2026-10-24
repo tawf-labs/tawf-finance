@@ -243,9 +243,15 @@ Headings: Cormorant Garamond (serif) · Body/UI: Inter (sans-serif).
 
 ---
 
-## Governance
+## Legal
 
-Built by [Tawf Labs](https://tawflabs.com), funds go into escrow (the vault), not to tawf.finance. Shariah review is provided by independent advisers from BPRS and external parties.
+**Issuer:** The token is issued by [Tawf Labs](https://tawflabs.com), the company behind tawf.finance.
+
+**Fund custody:** Funds are held in the on-chain vault according to the applicable contractual terms. The vault's control and withdrawal mechanisms are defined by its underlying technical and legal arrangements.
+
+**Regulatory status:** Any activities subject to OJK regulation must comply with applicable Indonesian law and be conducted through appropriately authorized entities where required. No OJK approval or endorsement is implied unless explicitly confirmed.
+
+**Shariah review:** Independent advisers from BPRS institutions and other external parties may provide Shariah review. The scope of review and any formal opinions are disclosed separately.
 
 ---
 
