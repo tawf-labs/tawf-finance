@@ -94,7 +94,10 @@ contract DeployPool is Script {
         vm.writeJson(vm.toString(address(registry)), PATH, ".dealRegistry");
         vm.writeJson(vm.toString(address(nft)), PATH, ".bondReceiptNft");
         vm.writeJson(vm.toString(address(vault)), PATH, ".redemptionVault");
-        if (settlement != usdc) vm.writeJson(vm.toString(settlement), PATH, ".usdg");
+        if (settlement != usdc) {
+            // A mock settlement token goes under mockUsdg so ".usdg" can keep pointing at the real token.
+            vm.writeJson(vm.toString(settlement), PATH, vm.envOr("MOCK_USDG", false) ? ".mockUsdg" : ".usdg");
+        }
 
         console2.log("IdentityRegistry:", identityRegistry);
         console2.log("MockUSDC:        ", usdc);
