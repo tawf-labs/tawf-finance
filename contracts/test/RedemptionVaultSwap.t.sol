@@ -7,6 +7,7 @@ import { MockUSDC } from "../src/mocks/MockUSDC.sol";
 import { MockUSDT } from "../src/mocks/MockUSDT.sol";
 import { MockSwapRouter } from "../src/mocks/MockSwapRouter.sol";
 import { RedemptionVault, ISwapRouter } from "../src/RedemptionVault.sol";
+import { Proxies } from "../src/proxy/Proxies.sol";
 
 /// @notice Multi-token investing: the vault's settlement token (`usdc` in BaseSetup, standing in
 ///         for USDG) is paid in directly, while USDC and USDT are swapped to it on the way in.
@@ -89,7 +90,7 @@ contract RedemptionVaultSwapTest is BaseSetup {
     }
 
     function test_swapNotConfiguredReverts() public {
-        RedemptionVault fresh = new RedemptionVault(owner);
+        RedemptionVault fresh = Proxies.vault(owner);
         vm.startPrank(owner);
         fresh.configure(IERC20(address(usdc)), registry, nft);
         fresh.setInputToken(address(usdcIn), true);
@@ -188,7 +189,7 @@ contract RedemptionVaultSwapTest is BaseSetup {
     }
 
     function test_sweepYield_revertsWithoutRecipient() public {
-        RedemptionVault fresh = new RedemptionVault(owner);
+        RedemptionVault fresh = Proxies.vault(owner);
         vm.expectRevert(RedemptionVault.InvalidAddress.selector);
         fresh.sweepYield();
     }

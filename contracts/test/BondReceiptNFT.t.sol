@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import { Test } from "forge-std/Test.sol";
 import { IERC1155Errors } from "openzeppelin-contracts/contracts/interfaces/draft-IERC6093.sol";
 import { BondReceiptNFT } from "../src/BondReceiptNFT.sol";
+import { Proxies } from "../src/proxy/Proxies.sol";
 
 contract BondReceiptNFTTest is Test {
     BondReceiptNFT public nft;
@@ -17,7 +18,7 @@ contract BondReceiptNFTTest is Test {
     uint96 public constant PRINCIPAL = 100 * 10 ** 6; // $100
 
     function setUp() public {
-        nft = new BondReceiptNFT(address(this));
+        nft = Proxies.nft(address(this));
         nft.setVault(vault);
     }
 

@@ -10,6 +10,7 @@ import { ITawfIdentityRegistry } from "../src/interfaces/ITawfIdentityRegistry.s
 import { ISwapRouter } from "../src/RedemptionVault.sol";
 import { MockUSDC } from "../src/mocks/MockUSDC.sol";
 import { MockSwapRouter } from "../src/mocks/MockSwapRouter.sol";
+import { Proxies } from "../src/proxy/Proxies.sol";
 
 /**
  * @notice Redeploys the per-deal financing pool (DealRegistry, BondReceiptNFT,
@@ -61,9 +62,9 @@ contract DeployPool is Script {
         vm.startBroadcast();
         address admin = msg.sender;
 
-        nft = new BondReceiptNFT(admin);
-        registry = new DealRegistry(admin);
-        vault = new RedemptionVault(admin);
+        nft = Proxies.nft(admin);
+        registry = Proxies.dealRegistry(admin);
+        vault = Proxies.vault(admin);
 
         registry.setVault(address(vault));
         nft.setVault(address(vault));

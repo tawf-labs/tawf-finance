@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
-import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
+import { Initializable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import { UUPSUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import { AccessControlUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
@@ -58,10 +60,11 @@ interface ISwapRouter {
  *      Checks-effects-interactions and ReentrancyGuard everywhere money
  *      moves. The vault never holds more than what deals owe + pending yield.
  */
-contract RedemptionVault is AccessControl, ReentrancyGuard {
+contract RedemptionVault is Initializable, AccessControlUpgradeable, ReentrancyGuard, UUPSUpgradeable {
     using SafeERC20 for IERC20;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant OPS_ROLE = keccak256("OPS_ROLE");
     /// @notice The BPRS servicer: receives disbursements, remits recoveries.
     bytes32 public constant SERVICER_ROLE = keccak256("SERVICER_ROLE");
@@ -74,9 +77,9 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
     /// @notice Other stablecoins investors may pay in; swapped to `usdc` on invest.
     mapping(address => bool) public acceptedInput;
     ISwapRouter public swapRouter;
-    uint24 public swapFee = 3000;
+    uint24 public swapFee;
     /// @notice Max tolerated shortfall of a swap vs 1:1, in bps (stable-to-stable).
-    uint256 public slippageBps = 50;
+    uint256 public slippageBps;
     /// @notice Where swept USDG yield goes (Tawf Foundation partners wallet).
     address public yieldRecipient;
     /// @notice Settlement-token amount the vault owes investors, the servicer
@@ -157,12 +160,31 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
     event NegligencePaid(uint256 indexed dealId, address indexed payer, uint96 amount);
     event DefaultClaimsOpened(uint256 indexed dealId, uint96 recovered, uint96 negligencePaid);
 
-    /// @param admin Address (an EOA for local dev, a Safe multisig in
-    ///        production) granted DEFAULT_ADMIN_ROLE and ADMIN_ROLE.
-    constructor(address admin) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _lockImplementation();
+    }
+
+    /// @dev Locks the bare implementation so only proxies can be initialised.
+    ///      Virtual so a verification harness can skip it.
+    function _lockImplementation() internal virtual {
+        _disableInitializers();
+    }
+
+    /// @notice One-time proxy setup. `admin` receives DEFAULT_ADMIN_ROLE,
+    ///         ADMIN_ROLE and UPGRADER_ROLE. Move UPGRADER_ROLE to a Safe or
+    ///         timelock later with grantRole / revokeRole, no redeploy needed.
+    function initialize(address admin) public initializer {
+        __AccessControl_init();
+        swapFee = 3000;
+        slippageBps = 50;
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
+        _grantRole(UPGRADER_ROLE, admin);
     }
+
+    /// @dev UUPS: only UPGRADER_ROLE may point the proxy at a new implementation.
+    function _authorizeUpgrade(address) internal override onlyRole(UPGRADER_ROLE) {}
 
     // ---------------------------------------------------------------------
     // Admin configuration
@@ -569,4 +591,7 @@ contract RedemptionVault is AccessControl, ReentrancyGuard {
         if (address(registry) == address(0) || address(nft) == address(0)) revert NotConfigured();
         return registry.getDeal(dealId);
     }
+
+    /// @dev Reserved storage so later versions can add state without shifting the layout.
+    uint256[50] private __gap;
 }

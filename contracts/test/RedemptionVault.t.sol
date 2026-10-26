@@ -8,6 +8,7 @@ import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT } from "../src/BondReceiptNFT.sol";
 import { RedemptionVault } from "../src/RedemptionVault.sol";
 import { ITawfIdentityRegistry } from "../src/interfaces/ITawfIdentityRegistry.sol";
+import { Proxies } from "../src/proxy/Proxies.sol";
 
 contract RedemptionVaultTest is BaseSetup {
     uint96 public constant HUNDRED = 100 * 10 ** 6;
@@ -265,7 +266,7 @@ contract RedemptionVaultTest is BaseSetup {
 
     function test_Configure_zeroAddress_reverts() public {
         // configure() is one-shot and setUp already used it, so test a fresh vault.
-        RedemptionVault fresh = new RedemptionVault(owner);
+        RedemptionVault fresh = Proxies.vault(owner);
         vm.expectRevert(RedemptionVault.InvalidAddress.selector);
         vm.prank(owner);
         fresh.configure(IERC20(address(0)), registry, nft);
