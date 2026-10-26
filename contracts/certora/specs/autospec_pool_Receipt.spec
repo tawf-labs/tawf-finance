@@ -291,18 +291,22 @@ invariant redeemedHasPrincipalAll()
         (mStatus[d][a] == BondReceiptNFT.ReceiptStatus.Redeemed => mPrincipal[d][a] != 0)
         && (mPrincipal[d][a] == 0 => mStatus[d][a] == BondReceiptNFT.ReceiptStatus.Active)
         && (mStatus[d][a] == BondReceiptNFT.ReceiptStatus.Active || mStatus[d][a] == BondReceiptNFT.ReceiptStatus.Redeemed)
+    filtered { f -> !isUpgradeCall(f) }
     {
         // The vault is a contract: it reaches the NFT only through
         // RedemptionVault.invest / redeem / claimDefault (which stay in), never
         // as the sender of its own transaction.
         preserved with (env e) { require e.msg.sender != vault(); }
-        preserved RedemptionVault.invest(uint256 dealId, uint96 amount) with (env e) {
+        preserved RedemptionVaultHarness.invest(uint256 dealId, uint96 amount) with (env e) {
             syncReceipt(dealId, e.msg.sender);
         }
-        preserved RedemptionVault.redeem(uint256 dealId) with (env e) {
+        preserved RedemptionVaultHarness.investWithToken(uint256 dealId, address tokenIn, uint96 amount) with (env e) {
             syncReceipt(dealId, e.msg.sender);
         }
-        preserved RedemptionVault.claimDefault(uint256 dealId) with (env e) {
+        preserved RedemptionVaultHarness.redeem(uint256 dealId) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
+        }
+        preserved RedemptionVaultHarness.claimDefault(uint256 dealId) with (env e) {
             syncReceipt(dealId, e.msg.sender);
         }
     }
@@ -312,20 +316,25 @@ invariant redeemedHasPrincipalAll()
 // _burnedCount in the same call; Redeemed is terminal.
 invariant redeemedCountEqualsBurned(uint256 d)
     ghostRedeemedCount[d] == to_mathint(getBurnedCount(d))
+    filtered { f -> !isUpgradeCall(f) }
     {
         preserved with (env e) {
             require e.msg.sender != vault();
             requireInvariant redeemedHasPrincipalAll();
         }
-        preserved RedemptionVault.invest(uint256 dealId, uint96 amount) with (env e) {
+        preserved RedemptionVaultHarness.invest(uint256 dealId, uint96 amount) with (env e) {
             syncReceipt(dealId, e.msg.sender);
             requireInvariant redeemedHasPrincipalAll();
         }
-        preserved RedemptionVault.redeem(uint256 dealId) with (env e) {
+        preserved RedemptionVaultHarness.investWithToken(uint256 dealId, address tokenIn, uint96 amount) with (env e) {
             syncReceipt(dealId, e.msg.sender);
             requireInvariant redeemedHasPrincipalAll();
         }
-        preserved RedemptionVault.claimDefault(uint256 dealId) with (env e) {
+        preserved RedemptionVaultHarness.redeem(uint256 dealId) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
+            requireInvariant redeemedHasPrincipalAll();
+        }
+        preserved RedemptionVaultHarness.claimDefault(uint256 dealId) with (env e) {
             syncReceipt(dealId, e.msg.sender);
             requireInvariant redeemedHasPrincipalAll();
         }
@@ -337,20 +346,25 @@ invariant redeemedCountEqualsBurned(uint256 d)
 // a VerifiedOnly move makes the recipient live and the sender not (net zero).
 invariant liveAndRedeemedEqualMinted(uint256 d)
     ghostLiveCount[d] + ghostRedeemedCount[d] == to_mathint(getMintedCount(d))
+    filtered { f -> !isUpgradeCall(f) }
     {
         preserved with (env e) {
             require e.msg.sender != vault();
             requireInvariant redeemedHasPrincipalAll();
         }
-        preserved RedemptionVault.invest(uint256 dealId, uint96 amount) with (env e) {
+        preserved RedemptionVaultHarness.invest(uint256 dealId, uint96 amount) with (env e) {
             syncReceipt(dealId, e.msg.sender);
             requireInvariant redeemedHasPrincipalAll();
         }
-        preserved RedemptionVault.redeem(uint256 dealId) with (env e) {
+        preserved RedemptionVaultHarness.investWithToken(uint256 dealId, address tokenIn, uint96 amount) with (env e) {
             syncReceipt(dealId, e.msg.sender);
             requireInvariant redeemedHasPrincipalAll();
         }
-        preserved RedemptionVault.claimDefault(uint256 dealId) with (env e) {
+        preserved RedemptionVaultHarness.redeem(uint256 dealId) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
+            requireInvariant redeemedHasPrincipalAll();
+        }
+        preserved RedemptionVaultHarness.claimDefault(uint256 dealId) with (env e) {
             syncReceipt(dealId, e.msg.sender);
             requireInvariant redeemedHasPrincipalAll();
         }
@@ -359,6 +373,7 @@ invariant liveAndRedeemedEqualMinted(uint256 d)
 /// @title burnedCount never exceeds mintedCount
 invariant burnedNeverExceedsMinted(uint256 d)
     getBurnedCount(d) <= getMintedCount(d)
+    filtered { f -> !isUpgradeCall(f) }
     {
         preserved with (env e) {
             require e.msg.sender != vault();
@@ -367,14 +382,21 @@ invariant burnedNeverExceedsMinted(uint256 d)
             requireInvariant liveAndRedeemedEqualMinted(d);
             require ghostLiveCount[d] >= 0;
         }
-        preserved RedemptionVault.invest(uint256 dealId, uint96 amount) with (env e) {
+        preserved RedemptionVaultHarness.invest(uint256 dealId, uint96 amount) with (env e) {
             syncReceipt(dealId, e.msg.sender);
             requireInvariant redeemedHasPrincipalAll();
             requireInvariant redeemedCountEqualsBurned(d);
             requireInvariant liveAndRedeemedEqualMinted(d);
             require ghostLiveCount[d] >= 0;
         }
-        preserved RedemptionVault.redeem(uint256 dealId) with (env e) {
+        preserved RedemptionVaultHarness.investWithToken(uint256 dealId, address tokenIn, uint96 amount) with (env e) {
+            syncReceipt(dealId, e.msg.sender);
+            requireInvariant redeemedHasPrincipalAll();
+            requireInvariant redeemedCountEqualsBurned(d);
+            requireInvariant liveAndRedeemedEqualMinted(d);
+            require ghostLiveCount[d] >= 0;
+        }
+        preserved RedemptionVaultHarness.redeem(uint256 dealId) with (env e) {
             syncReceipt(dealId, e.msg.sender);
             // ASSUMPTION (sum >= element): ghostLiveCount is maintained as the
             // sum over holders of isLive(slot), each term 0 or 1, so it is at
@@ -385,7 +407,7 @@ invariant burnedNeverExceedsMinted(uint256 d)
             requireInvariant liveAndRedeemedEqualMinted(d);
             require ghostLiveCount[d] >= 0;
         }
-        preserved RedemptionVault.claimDefault(uint256 dealId) with (env e) {
+        preserved RedemptionVaultHarness.claimDefault(uint256 dealId) with (env e) {
             syncReceipt(dealId, e.msg.sender);
             // ASSUMPTION (sum >= element): ghostLiveCount is maintained as the
             // sum over holders of isLive(slot), each term 0 or 1, so it is at
@@ -404,7 +426,7 @@ rule countsAreMonotonic(method f, uint256 dealId) filtered {
     // so they are irrelevant to a monotonicity property and would only add
     // trivially-passing cases. Mutators (mint/burnOnRedemption/...) and every
     // non-view function of the other in-scene contracts remain covered.
-    f -> !f.isView
+    f -> !f.isView && !isUpgradeCall(f)
 } {
     uint256 mintedBefore = getMintedCount(dealId);
     uint256 burnedBefore = getBurnedCount(dealId);
@@ -425,7 +447,7 @@ rule maturitySnapshotWriteOnce(method f, uint256 dealId) filtered {
     // Justification: view functions cannot write the deal snapshot, so they
     // cannot violate write-once; excluding them removes only trivially-passing
     // cases. All state-mutating functions across the scene stay in range.
-    f -> !f.isView
+    f -> !f.isView && !isUpgradeCall(f)
 } {
     require snapMatured(dealId);
     uint96 yield0 = snapYieldPool(dealId);
@@ -475,7 +497,7 @@ rule burnedReceiptStaysRedeemed(method f, uint256 dealId, address investor) filt
     // about elsewhere (see vaultUsdcOnlyMovesThroughVault's `contractOnly`-style
     // filter). Every other non-view function across the scene, including all of
     // RedemptionVault's own entrypoints, remains covered and non-vacuous.
-    f -> !f.isView
+    f -> !f.isView && !isUpgradeCall(f)
         && f.selector != sig:mint(address,uint256,uint96,uint96,uint32,string,string).selector
         && f.selector != sig:markDealMatured(uint256,uint96,uint96).selector
         && f.selector != sig:markDealDefaulted(uint256).selector

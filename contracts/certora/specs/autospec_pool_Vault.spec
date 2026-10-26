@@ -21,6 +21,8 @@ import "summaries/pool_summaries.spec";
 using DealRegistryHarness as registry;
 using BondReceiptNFTHarness as nft;
 using MockUSDC as usdcToken;
+using MockUSDT as usdtToken;
+using MockSwapRouter as router;
 
 methods {
     function usdcToken.totalSupply() external returns (uint256) envfree;
@@ -47,6 +49,13 @@ methods {
     function negligencePaid(uint256) external returns (uint96) envfree;
     function defaultClaimsOpen(uint256) external returns (bool) envfree;
     function defaultPayoutFor(uint256, address) external returns (uint256) envfree;
+    // ---- USDG swap path and yield sweep ----
+    function liabilities() external returns (uint256) envfree;
+    function surplus() external returns (uint256) envfree;
+    function yieldRecipient() external returns (address) envfree;
+    function swapRouter() external returns (address) envfree;
+    function acceptedInput(address) external returns (bool) envfree;
+    function guardEntered() external returns (bool) envfree;
 
     // ---- DealRegistryHarness views ----
     function registry.getStatus(uint256) external returns (uint8) envfree;
@@ -69,6 +78,10 @@ methods {
 
     // ---- MockUSDC ----
     function usdcToken.balanceOf(address) external returns (uint256) envfree;
+    function usdcToken.allowance(address, address) external returns (uint256) envfree;
+    // ---- MockUSDT: the input token that is swapped to the settlement token ----
+    function usdtToken.balanceOf(address) external returns (uint256) envfree;
+    function usdtToken.allowance(address, address) external returns (uint256) envfree;
 }
 
 // Convenience: current USDC balance of the vault contract.
@@ -116,7 +129,7 @@ hook Sload uint256 bal usdcToken._balances[KEY address a] {
 /// @title MockUSDC total supply equals the sum of balances
 // Preservation over every function (only the vault's constructor runs in an
 // invariant's base case; MockUSDC starts empty on deployment, so 0 == 0).
-rule usdcSupplyIsSum(method f) filtered { f -> !f.isView } {
+rule usdcSupplyIsSum(method f) filtered { f -> !f.isView && !isUpgradeCall(f) } {
     env e; calldataarg args;
     require to_mathint(usdcToken.totalSupply()) == sumUsdc;
     f(e, args);
@@ -135,7 +148,7 @@ function requireUsdcSane(address a, address b) {
 // nothing funds a Matured deal. Preservation over every function; calls sent
 // from the scene's own contracts are excluded (contracts send no transactions;
 // their behaviour is covered by their own functions, which stay in).
-rule snapshotFundedMatchesRegistry(method f, uint256 d) filtered { f -> !f.isView && !contractOnly(f) } {
+rule snapshotFundedMatchesRegistry(method f, uint256 d) filtered { f -> !f.isView && !contractOnly(f) && !isUpgradeCall(f) } {
     env e;
     require e.msg.sender != currentContract && e.msg.sender != nft && e.msg.sender != registry;
     require nft.vault() == currentContract;
@@ -168,7 +181,7 @@ rule snapshotFundedMatchesRegistry(method f, uint256 d) filtered { f -> !f.isVie
 // the vault, the registry and the NFT are contracts, so they never send a
 // transaction themselves; what they do is covered by calling their own
 // functions (invest, redeem, claimDefault, safeTransferFrom, ...), which stay in.
-rule receiptMatchesRegistry(method f, uint256 d, address i) filtered { f -> !f.isView && !contractOnly(f) && !isReceiptTransfer(f) } {
+rule receiptMatchesRegistry(method f, uint256 d, address i) filtered { f -> !f.isView && !contractOnly(f) && !isReceiptTransfer(f) && !isUpgradeCall(f) } {
     env e;
     require e.msg.sender != currentContract;
     require e.msg.sender != nft;
@@ -343,7 +356,7 @@ rule defaultPayoutFloor(uint256 d, address i) {
 }
 
 /// @title Recovery is remitted only by the servicer, once, capped at the principal
-rule recoveryOnlyFromServicer(method f, uint256 d) filtered { f -> !f.isView && !contractOnly(f) } {
+rule recoveryOnlyFromServicer(method f, uint256 d) filtered { f -> !f.isView && !contractOnly(f) && !isUpgradeCall(f) } {
     env e; calldataarg args;
     uint96 before = defaultRecovery(d);
     bool settledBefore = defaultSettled(d);
@@ -359,14 +372,14 @@ rule recoveryOnlyFromServicer(method f, uint256 d) filtered { f -> !f.isView && 
 /// @title Negligence cover paid never exceeds the liability found
 invariant negligencePaidWithinLiability(uint256 d)
     negligencePaid(d) <= negligenceLiability(d)
-    filtered { f -> !contractOnly(f) }
+    filtered { f -> !contractOnly(f) && !isUpgradeCall(f) }
 
 /// @title Tawf's money covers a principal loss only through a negligence finding
 // The only extra money holders of a defaulted deal can receive beyond the
 // servicer's recovery is negligencePaid, and it can rise only through
 // payNegligence, up to a liability that only the NEGLIGENCE_ROLE (DPS /
 // independent auditor) can record, with evidence, before claims open.
-rule tawfCoversLossOnlyViaNegligence(method f, uint256 d) filtered { f -> !f.isView && !contractOnly(f) } {
+rule tawfCoversLossOnlyViaNegligence(method f, uint256 d) filtered { f -> !f.isView && !contractOnly(f) && !isUpgradeCall(f) } {
     env e; calldataarg args;
     uint96 paidBefore = negligencePaid(d);
     uint96 liabBefore = negligenceLiability(d);
@@ -388,7 +401,7 @@ rule tawfCoversLossOnlyViaNegligence(method f, uint256 d) filtered { f -> !f.isV
 // Written only by setDealNisbah, which rejects anything above MAX_TAWF_NISBAH_BPS.
 invariant dealNisbahCapped(uint256 d)
     dealNisbahBps(d) <= 5000
-    filtered { f -> !contractOnly(f) }
+    filtered { f -> !contractOnly(f) && !isUpgradeCall(f) }
 
 /// @title Tawf's nisbah is never taken on a default
 rule noNisbahOnDefault(uint256 d) {
@@ -463,7 +476,7 @@ rule repayNisbahExact(uint256 d, uint96 totalRepayment) {
 }
 
 /// @title A deal's nisbah is fixed before it opens to investors
-rule nisbahLockedOnceMintable(method f, uint256 d) filtered { f -> !f.isView && !contractOnly(f) } {
+rule nisbahLockedOnceMintable(method f, uint256 d) filtered { f -> !f.isView && !contractOnly(f) && !isUpgradeCall(f) } {
     env e; calldataarg args;
     uint16 before = dealNisbahBps(d);
     uint8 statusBefore = registry.getStatus(d);
@@ -521,6 +534,10 @@ rule accruedYieldFloor(uint256 d, address i) {
 //     but is excluded so the rule reasons solely about the four vault paths.
 //   - faucet(uint256) / faucetMax(): demo minting helpers that credit the caller
 //     arbitrary test USDC and can thus change any balance; not a vault flow.
+//   - every MockSwapRouter function (exactInputSingle): anyone may call the DEX router with the vault as
+//     `recipient`, which sends settlement tokens to the vault out of the router's
+//     own balance. Like a direct transfer, a donation, not a vault-mediated flow.
+//   - upgradeToAndCall: delegatecalls arbitrary code (see isUpgradeCall).
 rule vaultUsdcOnlyMovesThroughVault(method f) filtered {
     f -> !f.isView
         && f.selector != sig:usdcToken.transfer(address,uint256).selector
@@ -528,6 +545,8 @@ rule vaultUsdcOnlyMovesThroughVault(method f) filtered {
         && f.selector != sig:usdcToken.approve(address,uint256).selector
         && f.selector != sig:usdcToken.faucet(uint256).selector
         && f.selector != sig:usdcToken.faucetMax().selector
+        && f.contract != router
+        && !isUpgradeCall(f)
 } {
     uint256 before = vaultUsdc();
 
@@ -551,7 +570,8 @@ rule vaultUsdcOnlyMovesThroughVault(method f) filtered {
 
     uint256 after = vaultUsdc();
 
-    bool isInvest      = f.selector == sig:invest(uint256,uint96).selector;
+    bool isInvest      = f.selector == sig:invest(uint256,uint96).selector
+                      || f.selector == sig:investWithToken(uint256,address,uint96).selector;
     bool isRepay       = f.selector == sig:repay(uint256,uint96).selector;
     bool isRedeem      = f.selector == sig:redeem(uint256).selector;
     bool isClaimDefault = f.selector == sig:claimDefault(uint256).selector;
@@ -559,7 +579,8 @@ rule vaultUsdcOnlyMovesThroughVault(method f) filtered {
     bool isSettle      = f.selector == sig:settleDefault(uint256,uint96).selector;
     bool isNegligence  = f.selector == sig:payNegligence(uint256).selector;
     bool inflow  = isInvest || isRepay || isSettle || isNegligence;
-    bool outflow = isRedeem || isClaimDefault || isDisburse;
+    bool isSweep       = f.selector == sig:sweepYield().selector;
+    bool outflow = isRedeem || isClaimDefault || isDisburse || isSweep;
 
     // No other function may change the vault's USDC balance.
     assert (!inflow && !outflow) => after == before,
@@ -572,4 +593,168 @@ rule vaultUsdcOnlyMovesThroughVault(method f) filtered {
     // Outflows never increase the balance.
     assert outflow => after <= before,
         "an outflow function increased the vault USDC balance";
+}
+
+// ===========================================================================
+// 10. USDG upgrade: solvency, the yield sweep and the swap path
+// ===========================================================================
+// The settlement token `usdc` (USDG in production, MockUSDC here) is tracked by
+// `liabilities`; the balance above it is the surplus that sweepYield forwards.
+// MockUSDT stands for an allow-listed input token (USDC/USDT) and MockSwapRouter
+// for the DEX router, with an arbitrary rate (rateBps) the router may drift to.
+
+/// @title The fee wallet is never the vault itself
+// setFeeRecipient rejects address(this); nothing else writes feeRecipient.
+invariant feeRecipientNotVault()
+    feeRecipient() != currentContract
+    filtered { f -> !contractOnly(f) && !isUpgradeCall(f) }
+
+/// @title The yield recipient is never the vault itself
+// setYieldRecipient rejects address(this); nothing else writes yieldRecipient.
+invariant yieldRecipientNotVault()
+    yieldRecipient() != currentContract
+    filtered { f -> !contractOnly(f) && !isUpgradeCall(f) }
+
+/// @title The vault never approves a spender on the settlement token
+// The only approvals the vault makes are forceApprove(swapRouter) on a swap's
+// input token, which is not the settlement token (invest takes the direct path
+// for it). So nobody can pull settlement tokens out of the vault with
+// transferFrom. Needed to rule out a token-level drain in the rules below.
+rule vaultNeverApprovesSettlementToken(method f, address spender) filtered { f -> !f.isView && !contractOnly(f) && !isUpgradeCall(f) } {
+    env e; calldataarg args;
+    require e.msg.sender != currentContract && e.msg.sender != nft && e.msg.sender != registry;
+    require usdcToken.allowance(currentContract, spender) == 0;
+    f(e, args);
+    assert usdcToken.allowance(currentContract, spender) == 0,
+        "the vault granted an allowance on the settlement token";
+}
+
+/// @title solvency: the vault always holds at least what it owes
+// Preserved by every function. disburse, redeem and claimDefault lower the
+// balance and `liabilities` by the same amount, sweepYield lowers the balance to
+// exactly `liabilities`, and every inflow raises both by the same amount.
+rule solvencyPreserved(method f) filtered { f -> !f.isView && !contractOnly(f) && !isUpgradeCall(f) } {
+    env e; calldataarg args;
+    require e.msg.sender != currentContract && e.msg.sender != nft && e.msg.sender != registry;
+    require nft.vault() == currentContract;
+    require registry.vault() == currentContract;
+    requireInvariant feeRecipientNotVault();
+    requireInvariant yieldRecipientNotVault();
+    requireUsdcSane(currentContract, e.msg.sender);
+    // rule vaultNeverApprovesSettlementToken
+    require usdcToken.allowance(currentContract, e.msg.sender) == 0;
+    require vaultUsdc() >= liabilities();
+
+    f(e, args);
+
+    assert vaultUsdc() >= liabilities(), "the vault holds less than it owes";
+}
+
+/// @title surplus (balance - liabilities) falls only through sweepYield
+rule surplusFallsOnlyThroughSweep(method f) filtered {
+    f -> !f.isView && !contractOnly(f) && !isUpgradeCall(f)
+        && f.selector != sig:sweepYield().selector
+} {
+    env e; calldataarg args;
+    require e.msg.sender != currentContract && e.msg.sender != nft && e.msg.sender != registry;
+    require nft.vault() == currentContract;
+    require registry.vault() == currentContract;
+    requireInvariant feeRecipientNotVault();
+    requireUsdcSane(currentContract, e.msg.sender);
+    // rule vaultNeverApprovesSettlementToken
+    require usdcToken.allowance(currentContract, e.msg.sender) == 0;
+    mathint before = to_mathint(vaultUsdc()) - to_mathint(liabilities());
+
+    f(e, args);
+
+    assert to_mathint(vaultUsdc()) - to_mathint(liabilities()) >= before,
+        "investor funds were drawn down without sweepYield";
+}
+
+/// @title sweepYield pays exactly the surplus, to the fixed recipient
+rule sweepYieldTakesExactlySurplus() {
+    env e;
+    require e.msg.sender != currentContract;
+    requireInvariant yieldRecipientNotVault();
+    address to = yieldRecipient();
+    requireUsdcSane(currentContract, to);
+    uint256 sur = surplus();
+    uint256 liab = liabilities();
+    uint256 toBefore = usdcToken.balanceOf(to);
+
+    uint256 amount = sweepYield(e);
+
+    assert amount == sur && amount > 0, "swept amount is not the surplus";
+    assert vaultUsdc() == liab, "after the sweep the vault does not hold exactly its liabilities";
+    assert liabilities() == liab, "the sweep changed liabilities";
+    assert to_mathint(usdcToken.balanceOf(to)) == to_mathint(toBefore) + to_mathint(sur),
+        "the yield recipient did not receive exactly the surplus";
+}
+
+/// @title sweepYield cannot revert by underflow while a surplus exists
+// Conditions: a recipient is set, no ETH is sent and the reentrancy guard is
+// free. The token transfer itself is modelled as succeeding (SafeERC20 summary).
+rule sweepYieldWorksWithSurplus() {
+    env e;
+    require e.msg.value == 0;
+    require !guardEntered();
+    requireInvariant yieldRecipientNotVault();
+    address to = yieldRecipient();
+    require to != 0;
+    requireUsdcSane(currentContract, to);
+    require surplus() > 0;
+
+    sweepYield@withrevert(e);
+
+    assert !lastReverted, "sweepYield reverted although a surplus exists";
+}
+
+/// @title investWithToken leaves no input token and no allowance behind
+// For the allow-listed input token (MockUSDT here): the vault's balance of it is
+// unchanged by a swap-funded investment, and the router's allowance is back to 0.
+rule investWithTokenLeavesNoInputBehind(uint256 d, uint96 a) {
+    env e;
+    require e.msg.sender != currentContract && e.msg.sender != nft && e.msg.sender != registry;
+    require nft.vault() == currentContract;
+    require registry.vault() == currentContract;
+    uint256 inputBefore = usdtToken.balanceOf(currentContract);
+
+    investWithToken(e, d, usdtToken, a);
+
+    assert usdtToken.balanceOf(currentContract) == inputBefore,
+        "input tokens were left in the vault";
+    assert usdtToken.allowance(currentContract, swapRouter()) == 0,
+        "the router keeps an allowance on the input token";
+}
+
+/// @title the credited amount is within the deal's bounds and equals what arrived
+// Whatever the input token: minInvestment <= credited <= fundingTarget - funded.
+// credited is the deal's totalFunded rise. It equals the receipt's rise and the
+// liabilities rise, and for a swap it equals the vault's settlement-token rise.
+rule investWithTokenCreditedWithinBounds(uint256 d, address tokenIn, uint96 a) {
+    env e;
+    require e.msg.sender != currentContract && e.msg.sender != nft && e.msg.sender != registry;
+    require nft.vault() == currentContract;
+    require registry.vault() == currentContract;
+    // rule receiptMatchesRegistry
+    require nft.getPrincipal(d, e.msg.sender) == registry.investorPrincipal(d, e.msg.sender);
+    requireUsdcSane(currentContract, e.msg.sender);
+    uint96 fundedBefore = registry.getTotalFunded(d);
+    uint96 principalBefore = nft.getPrincipal(d, e.msg.sender);
+    uint256 vaultBefore = vaultUsdc();
+    uint256 liabBefore = liabilities();
+
+    investWithToken(e, d, tokenIn, a);
+
+    mathint credited = to_mathint(registry.getTotalFunded(d)) - to_mathint(fundedBefore);
+    assert credited >= to_mathint(registry.getMinInvestment(d)), "credited below minInvestment";
+    assert credited <= to_mathint(registry.getFundingTarget(d)) - to_mathint(fundedBefore),
+        "credited above the remaining funding target";
+    assert to_mathint(nft.getPrincipal(d, e.msg.sender)) == to_mathint(principalBefore) + credited,
+        "receipt principal did not rise by the credited amount";
+    assert to_mathint(liabilities()) == to_mathint(liabBefore) + credited,
+        "liabilities did not rise by the credited amount";
+    assert tokenIn == usdc() => credited == to_mathint(a), "settlement token not credited 1:1";
+    assert tokenIn != usdc() => to_mathint(vaultUsdc()) == to_mathint(vaultBefore) + credited,
+        "credited differs from the settlement tokens that reached the vault";
 }

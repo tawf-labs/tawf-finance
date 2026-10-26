@@ -22,7 +22,15 @@ import { BondReceiptNFT } from "../../src/BondReceiptNFT.sol";
  *      BondReceiptNFT:vault link).
  */
 contract BondReceiptNFTHarness is BondReceiptNFT {
-    constructor(address admin) BondReceiptNFT(admin) {}
+    /// @dev Initialised in the constructor so the prover starts from the state
+    ///      of a deployed proxy. The bare implementation lock is skipped by the
+    ///      override below.
+    constructor(address admin) {
+        initialize(admin);
+    }
+
+    /// @dev No-op: `_disableInitializers()` would make `initialize` unreachable.
+    function _lockImplementation() internal override {}
 
     // --- receipt metadata (flat) ---
 
