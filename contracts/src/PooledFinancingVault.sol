@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
-import { ERC4626 } from "openzeppelin-contracts/contracts/token/ERC20/extensions/ERC4626.sol";
-import { ERC20 } from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import { Initializable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import { UUPSUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import { ERC4626Upgradeable } from "openzeppelin-contracts-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import { ERC20Upgradeable } from "openzeppelin-contracts-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
+import { AccessControlUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import { ReentrancyGuard } from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import { ITawfIdentityRegistry } from "./interfaces/ITawfIdentityRegistry.sol";
 
@@ -43,10 +45,17 @@ import { ITawfIdentityRegistry } from "./interfaces/ITawfIdentityRegistry.sol";
  *      which a transfer clears only between two currently verified holders in
  *      the wired identity registry (T-REX IdentityRegistry in production).
  */
-contract PooledFinancingVault is ERC4626, AccessControl, ReentrancyGuard {
+contract PooledFinancingVault is
+    Initializable,
+    ERC4626Upgradeable,
+    AccessControlUpgradeable,
+    ReentrancyGuard,
+    UUPSUpgradeable
+{
     using SafeERC20 for IERC20;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant OPS_ROLE = keccak256("OPS_ROLE");
 
     /// @notice Per-vault transfer policy. Soulbound (default) blocks every
@@ -70,17 +79,32 @@ contract PooledFinancingVault is ERC4626, AccessControl, ReentrancyGuard {
     event TransferPolicySet(TransferPolicy policy);
     event RepaymentRecorded(address indexed from, uint256 amount);
 
-    /// @param asset_ The pooled underlying, USDC in production.
-    /// @param admin Address (an EOA for local dev, a Safe multisig in
-    ///        production) granted DEFAULT_ADMIN_ROLE and ADMIN_ROLE.
-    constructor(
-        IERC20 asset_,
-        address admin
-    ) ERC4626(asset_) ERC20("Tawf Pooled Financing Shares", "tPFS") {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _lockImplementation();
+    }
+
+    /// @dev Locks the bare implementation so only proxies can be initialised.
+    ///      Virtual so a verification harness can skip it.
+    function _lockImplementation() internal virtual {
+        _disableInitializers();
+    }
+
+    /// @notice One-time proxy setup. `admin` receives DEFAULT_ADMIN_ROLE,
+    ///         ADMIN_ROLE and UPGRADER_ROLE. Move UPGRADER_ROLE to a Safe or
+    ///         timelock later with grantRole / revokeRole, no redeploy needed.
+    function initialize(IERC20 asset_, address admin) public initializer {
         if (address(asset_) == address(0) || admin == address(0)) revert InvalidAddress();
+        __ERC20_init("Tawf Pooled Financing Shares", "tPFS");
+        __ERC4626_init(asset_);
+        __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
+        _grantRole(UPGRADER_ROLE, admin);
     }
+
+    /// @dev UUPS: only UPGRADER_ROLE may point the proxy at a new implementation.
+    function _authorizeUpgrade(address) internal override onlyRole(UPGRADER_ROLE) {}
 
     // ---------------------------------------------------------------------
     // Admin configuration
@@ -133,7 +157,7 @@ contract PooledFinancingVault is ERC4626, AccessControl, ReentrancyGuard {
     ///      vault operations are never blocked, only a direct share-to-share
     ///      transfer is. Soulbound (default) always reverts; VerifiedOnly
     ///      requires a wired registry and both parties verified.
-    function _update(address from, address to, uint256 value) internal virtual override(ERC20) {
+    function _update(address from, address to, uint256 value) internal virtual override(ERC20Upgradeable) {
         if (from != address(0) && to != address(0)) {
             if (transferPolicy != TransferPolicy.VerifiedOnly) revert TransferBlocked();
             ITawfIdentityRegistry registry = identityRegistry;
@@ -149,7 +173,10 @@ contract PooledFinancingVault is ERC4626, AccessControl, ReentrancyGuard {
     ///      needs resolving here, AccessControl provides it, ERC4626 does
     ///      not implement it, so no override conflict exists in practice,
     ///      this function is included for future-proofing if that changes.
-    function supportsInterface(bytes4 interfaceId) public view virtual override(AccessControl) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(AccessControlUpgradeable) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
+
+    /// @dev Reserved storage so later versions can add state without shifting the layout.
+    uint256[50] private __gap;
 }

@@ -8,6 +8,7 @@ import { MockUSDC } from "../../src/mocks/MockUSDC.sol";
 import { DealRegistry } from "../../src/DealRegistry.sol";
 import { BondReceiptNFT } from "../../src/BondReceiptNFT.sol";
 import { RedemptionVault } from "../../src/RedemptionVault.sol";
+import { Proxies } from "../../src/proxy/Proxies.sol";
 
 /// @notice Role-separated deployment for the synthetic evaluation. Unlike
 ///         test/Base.t.sol, every role sits on its own key, so the tests
@@ -37,13 +38,13 @@ abstract contract EvalBase is Test {
         usdc = new MockUSDC();
         deployGas[0] = g - gasleft();
         g = gasleft();
-        nft = new BondReceiptNFT(admin);
+        nft = Proxies.nft(admin);
         deployGas[1] = g - gasleft();
         g = gasleft();
-        registry = new DealRegistry(admin);
+        registry = Proxies.dealRegistry(admin);
         deployGas[2] = g - gasleft();
         g = gasleft();
-        vault = new RedemptionVault(admin);
+        vault = Proxies.vault(admin);
         deployGas[3] = g - gasleft();
 
         vm.startPrank(admin);

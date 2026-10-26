@@ -6,6 +6,7 @@
 import "OZ_SafeERC20.spec";
 
 methods {
+    function _.approve(address, uint256) external => DISPATCHER(true);
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
     function _.balanceOf(address) external => DISPATCHER(true);
@@ -28,3 +29,26 @@ methods {
     function _.onERC1155Received(address, address, uint256, uint256, bytes) external => NONDET;
     function _.onERC1155BatchReceived(address, address, uint256[], uint256[], bytes) external => NONDET;
 }
+
+// SafeERC20.forceApprove (OZ 5.x) makes its call through LowLevelCall assembly.
+// Left alone, the pointer analysis fails and the prover havocs the vault's swap
+// path. Summarised as a direct approve, as for safeTransfer in OZ_SafeERC20.spec.
+methods {
+    function _.forceApprove(address token, address spender, uint256 value) internal =>
+        cvl_forceApprove(executingContract, token, spender, value) expect void;
+}
+
+function cvl_forceApprove(address executing_contract, address token, address spender, uint256 value) {
+    env e;
+    require e.msg.sender == executing_contract, "The caller must be the contract executing the SafeERC20 function";
+    require e.msg.value == 0, "SafeERC20 sends no ETH";
+    bool success = token.approve(e, spender, value);
+    require success, "forceApprove reverts on failure, so we model this behavior";
+}
+
+// UUPS: `upgradeToAndCall` delegatecalls an arbitrary new implementation, so it
+// can rewrite any storage and no property over the current code can survive it.
+// It is gated by UPGRADER_ROLE, and an upgrade needs its own review of the new
+// code. Parametric rules and invariants exclude it with this definition.
+definition isUpgradeCall(method f) returns bool =
+    f.selector == sig:upgradeToAndCall(address,bytes).selector;

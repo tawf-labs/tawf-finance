@@ -9,6 +9,7 @@ import { MockUSDC } from "../src/mocks/MockUSDC.sol";
 import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT } from "../src/BondReceiptNFT.sol";
 import { RedemptionVault } from "../src/RedemptionVault.sol";
+import { Proxies } from "../src/proxy/Proxies.sol";
 
 /**
  * @notice A USDC-shaped token that tries to re-enter the vault from inside
@@ -56,9 +57,9 @@ contract ReentrancyTest is Test {
     function setUp() public {
         vm.startPrank(owner);
         token = new MaliciousToken();
-        nft = new BondReceiptNFT(owner);
-        registry = new DealRegistry(owner);
-        vault = new RedemptionVault(owner);
+        nft = Proxies.nft(owner);
+        registry = Proxies.dealRegistry(owner);
+        vault = Proxies.vault(owner);
 
         token.setVault(address(vault));
         registry.setVault(address(vault));

@@ -18,6 +18,9 @@ no_match_path = "test/eval/*"
 # Arbitrum Sepolia
 [rpc_endpoints]
 arbitrum_sepolia = "https://sepolia-rollup.arbitrum.io/rpc"
+# Robinhood Chain testnet (chain id 46630). The official RPC host served an expired TLS certificate
+# when last checked, so the URL comes from the environment (a publicnode or drpc endpoint works).
+robinhood_testnet = "${ROBINHOOD_TESTNET_RPC_URL}"
 
 [etherscan]
 arbitrum_sepolia = { key = "${ARBISCAN_API_KEY}", url = "https://api-sepolia.arbiscan.io/api" }

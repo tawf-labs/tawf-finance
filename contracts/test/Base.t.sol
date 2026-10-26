@@ -9,6 +9,7 @@ import { BondReceiptNFT, IDealPrincipalLedger as BondReceiptNFTDealRegistry } fr
 import { RedemptionVault } from "../src/RedemptionVault.sol";
 import { PooledFinancingVault } from "../src/PooledFinancingVault.sol";
 import { ITawfIdentityRegistry } from "../src/interfaces/ITawfIdentityRegistry.sol";
+import { Proxies } from "../src/proxy/Proxies.sol";
 
 /// @notice An in-memory stand-in for the shared T-REX IdentityRegistry's
 ///         verification view. The production registry answers isVerified by
@@ -62,11 +63,11 @@ abstract contract BaseSetup is Test {
     function setUp() public virtual {
         vm.startPrank(owner);
         usdc = new MockUSDC();
-        nft = new BondReceiptNFT(owner);
-        registry = new DealRegistry(owner);
-        vault = new RedemptionVault(owner);
+        nft = Proxies.nft(owner);
+        registry = Proxies.dealRegistry(owner);
+        vault = Proxies.vault(owner);
         identityRegistry = new MockIdentityRegistry();
-        pooledVault = new PooledFinancingVault(IERC20(address(usdc)), owner);
+        pooledVault = Proxies.pooledVault(IERC20(address(usdc)), owner);
 
         registry.setVault(address(vault));
         nft.setVault(address(vault));

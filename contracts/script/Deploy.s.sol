@@ -8,6 +8,7 @@ import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT, IDealPrincipalLedger } from "../src/BondReceiptNFT.sol";
 import { RedemptionVault } from "../src/RedemptionVault.sol";
 import { PooledFinancingVault } from "../src/PooledFinancingVault.sol";
+import { Proxies } from "../src/proxy/Proxies.sol";
 
 /**
  * @notice Deploys the per-deal Tawf stack (DealRegistry, BondReceiptNFT,
@@ -79,10 +80,10 @@ contract Deploy is Script {
             usdc = MockUSDC(usdcAddress);
         }
 
-        nft = new BondReceiptNFT(admin);
-        registry = new DealRegistry(admin);
-        vault = new RedemptionVault(admin);
-        pooledVault = new PooledFinancingVault(IERC20(address(usdc)), admin);
+        nft = Proxies.nft(admin);
+        registry = Proxies.dealRegistry(admin);
+        vault = Proxies.vault(admin);
+        pooledVault = Proxies.pooledVault(IERC20(address(usdc)), admin);
 
         // Per-deal product wiring (unchanged shape from the original deploy).
         registry.setVault(address(vault));

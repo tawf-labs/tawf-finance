@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
-import { ERC1155 } from "openzeppelin-contracts/contracts/token/ERC1155/ERC1155.sol";
-import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
+import { Initializable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import { UUPSUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import { ERC1155Upgradeable } from "openzeppelin-contracts-upgradeable/contracts/token/ERC1155/ERC1155Upgradeable.sol";
+import { AccessControlUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import { Strings } from "openzeppelin-contracts/contracts/utils/Strings.sol";
 import { ITawfIdentityRegistry } from "./interfaces/ITawfIdentityRegistry.sol";
 
@@ -34,8 +36,9 @@ interface IDealPrincipalLedger {
  *      T-REX IdentityRegistry, read through ITawfIdentityRegistry.isVerified,
  *      so flipping a pool's policy never requires a redeploy.
  */
-contract BondReceiptNFT is ERC1155, AccessControl {
+contract BondReceiptNFT is Initializable, ERC1155Upgradeable, AccessControlUpgradeable, UUPSUpgradeable {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
     /// @notice Per-dealId transfer policy. Soulbound (default) blocks every
     ///         holder-to-holder move; VerifiedOnly permits it between two
@@ -119,10 +122,30 @@ contract BondReceiptNFT is ERC1155, AccessControl {
         _;
     }
 
-    constructor(address admin) ERC1155("") {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _lockImplementation();
+    }
+
+    /// @dev Locks the bare implementation so only proxies can be initialised.
+    ///      Virtual so a verification harness can skip it.
+    function _lockImplementation() internal virtual {
+        _disableInitializers();
+    }
+
+    /// @notice One-time proxy setup. `admin` receives DEFAULT_ADMIN_ROLE,
+    ///         ADMIN_ROLE and UPGRADER_ROLE. Move UPGRADER_ROLE to a Safe or
+    ///         timelock later with grantRole / revokeRole, no redeploy needed.
+    function initialize(address admin) public initializer {
+        __ERC1155_init("");
+        __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
+        _grantRole(UPGRADER_ROLE, admin);
     }
+
+    /// @dev UUPS: only UPGRADER_ROLE may point the proxy at a new implementation.
+    function _authorizeUpgrade(address) internal override onlyRole(UPGRADER_ROLE) {}
 
     // ---------------------------------------------------------------------
     // Admin configuration
@@ -421,7 +444,7 @@ contract BondReceiptNFT is ERC1155, AccessControl {
         public
         view
         virtual
-        override(ERC1155, AccessControl)
+        override(ERC1155Upgradeable, AccessControlUpgradeable)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
@@ -455,4 +478,7 @@ contract BondReceiptNFT is ERC1155, AccessControl {
         }
         return out;
     }
+
+    /// @dev Reserved storage so later versions can add state without shifting the layout.
+    uint256[50] private __gap;
 }

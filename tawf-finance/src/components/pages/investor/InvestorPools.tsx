@@ -10,6 +10,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ConnectButton } from '@/components/web3/ConnectButton';
 import { GetTestUsdc } from '@/components/web3/GetTestUsdc';
 import { KycStatusCard } from '@/components/kyc/KycStatusCard';
+import { INVEST_TOKENS, SETTLEMENT_ADDRESS } from '@/web3/constants';
 import { useDeals, useAllowance, useUsdcBalance, useInvest, useDealSettlement } from '@/web3/hooks';
 import { DEAL_STATUS_LABEL, type Deal, type DealStatus } from '@/web3/types';
 import { formatUsdc, formatApy, usdcToNumber, getRevertReason } from '@/web3/format';
@@ -105,8 +106,11 @@ export function InvestorPools() {
   const { address, isConnected } = useAccount();
   const { deals, isLoading, refetch } = useDeals();
   const { isVerified, isLoading: kycLoading } = useIsVerified(address);
-  const { balance } = useUsdcBalance(address);
-  const { allowance, refetch: refetchAllowance } = useAllowance(address);
+  const [token, setToken] = useState(
+    INVEST_TOKENS.find((t) => t.address === SETTLEMENT_ADDRESS) ?? INVEST_TOKENS[0],
+  );
+  const { balance } = useUsdcBalance(address, token?.address);
+  const { allowance, refetch: refetchAllowance } = useAllowance(address, token?.address);
   const { invest, isPending: isInvesting } = useInvest();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -152,7 +156,7 @@ export function InvestorPools() {
     setTxHash(null);
     try {
       const baseUnits = BigInt(Math.round(clampedAmount * 1e6));
-      const { hash } = await invest(selected.id, baseUnits, allowance);
+      const { hash } = await invest(selected.id, baseUnits, allowance, token?.address);
       setTxHash(hash);
       refetch();
       refetchAllowance();
@@ -303,7 +307,7 @@ export function InvestorPools() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-tawf-ink mb-2">Investment Amount (USDC)</label>
+              <label className="block text-sm font-medium text-tawf-ink mb-2">Investment Amount ({token?.symbol ?? 'USDC'})</label>
               <div className="flex items-center gap-4 mb-3">
                 <input
                   type="number"
@@ -313,7 +317,22 @@ export function InvestorPools() {
                   max={remaining}
                   className="flex-1 px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
                 />
-                <span className="text-sm font-medium text-tawf-green">USDC</span>
+                {INVEST_TOKENS.length > 1 ? (
+                  <select
+                    value={token?.symbol}
+                    onChange={(e) => setToken(INVEST_TOKENS.find((t) => t.symbol === e.target.value) ?? token)}
+                    aria-label="Pay with"
+                    className="text-sm font-medium text-tawf-green bg-transparent border border-tawf-green-10 rounded-lg px-2 py-2"
+                  >
+                    {INVEST_TOKENS.map((t) => (
+                      <option key={t.symbol} value={t.symbol}>
+                        {t.symbol}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-sm font-medium text-tawf-green">{token?.symbol ?? 'USDC'}</span>
+                )}
               </div>
               <input
                 type="range"

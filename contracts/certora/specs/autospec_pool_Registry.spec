@@ -69,6 +69,7 @@ hook Sstore registry.investorPrincipal[KEY uint256 dealId][KEY address investor]
 /// @title Funding never exceeds the target
 invariant fundingWithinTarget(uint256 id)
     dealExists(id) => getTotalFunded(id) <= getFundingTarget(id)
+    filtered { f -> !isUpgradeCall(f) }
     {
         preserved {
             require dealExists(id);
@@ -78,6 +79,7 @@ invariant fundingWithinTarget(uint256 id)
 /// @title Sum of investor principals equals totalFunded
 invariant principalSumEqualsTotalFunded(uint256 id)
     dealExists(id) => sumPrincipal[id] == to_mathint(getTotalFunded(id))
+    filtered { f -> !isUpgradeCall(f) }
     {
         preserved {
             require dealExists(id);
@@ -90,7 +92,7 @@ invariant principalSumEqualsTotalFunded(uint256 id)
 
 /// @title Only legal status transitions occur
 rule statusTransitionsAreLegal(method f) filtered {
-    f -> !f.isView
+    f -> !f.isView && !isUpgradeCall(f)
 } {
     uint256 id;
     require dealExists(id);
@@ -121,7 +123,7 @@ rule statusTransitionsAreLegal(method f) filtered {
 
 /// @title Completed is terminal
 rule completedIsTerminal(method f) filtered {
-    f -> !f.isView
+    f -> !f.isView && !isUpgradeCall(f)
 } {
     uint256 id;
     require dealExists(id);
@@ -135,7 +137,7 @@ rule completedIsTerminal(method f) filtered {
 
 /// @title Defaulted only moves to Completed
 rule defaultedOnlyToCompleted(method f) filtered {
-    f -> !f.isView
+    f -> !f.isView && !isUpgradeCall(f)
 } {
     uint256 id;
     require dealExists(id);
@@ -150,7 +152,7 @@ rule defaultedOnlyToCompleted(method f) filtered {
 
 /// @title Deal immutable terms are fixed at creation
 rule immutableTermsUnchanged(method f) filtered {
-    f -> !f.isView
+    f -> !f.isView && !isUpgradeCall(f)
 } {
     uint256 id;
     require dealExists(id);

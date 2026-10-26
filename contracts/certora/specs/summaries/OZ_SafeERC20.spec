@@ -22,6 +22,7 @@ function cvl_safeTransfer(address executing_contract, address token, address to,
     // The SafeERC20 wrapper handles return value checking, but here we call directly
     env e;
     require e.msg.sender == executing_contract, "The caller must be the contract executing the SafeERC20 function";
+    require e.msg.value == 0, "SafeERC20 sends no ETH; a free value would make the non-payable token call revert";
     
     bool success = token.transfer(e, to, value);
     
@@ -34,6 +35,7 @@ function cvl_safeTransferFrom(address executing_contract, address token, address
     // The SafeERC20 wrapper handles return value checking, but here we call directly
     env e;
     require e.msg.sender == executing_contract, "The caller must be the contract executing the SafeERC20 function";
+    require e.msg.value == 0, "SafeERC20 sends no ETH; a free value would make the non-payable token call revert";
     
     bool success = token.transferFrom(e, from, to, value);
     

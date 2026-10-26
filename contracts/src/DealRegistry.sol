@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
-import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
+import { Initializable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import { UUPSUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import { AccessControlUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 
 /**
  * @title DealRegistry
@@ -34,11 +36,12 @@ import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessCon
  *      regulated issuer once that licence exists; this role split is the
  *      step before it, not a replacement for it.
  */
-contract DealRegistry is AccessControl {
+contract DealRegistry is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
     bytes32 public constant ORIGINATOR_ROLE = keccak256("ORIGINATOR_ROLE");
     bytes32 public constant SHARIAH_ROLE = keccak256("SHARIAH_ROLE");
     bytes32 public constant OPS_ROLE = keccak256("OPS_ROLE");
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     enum DealStatus {
         Submitted,    // 0 — pool submitted by a BPRS originator
         BmtApproved,  // 1 — originator/DPS approved (akad reviewed)
@@ -75,7 +78,7 @@ contract DealRegistry is AccessControl {
     address public receiptNft;
 
     Deal[] private _deals;
-    uint256 private _nextId = 1;
+    uint256 private _nextId;
 
     mapping(uint256 => mapping(address => uint96)) public investorPrincipal;
 
@@ -101,13 +104,30 @@ contract DealRegistry is AccessControl {
         _;
     }
 
-    /// @param admin Address (an EOA for local dev, a Safe multisig in
-    ///        production) granted DEFAULT_ADMIN_ROLE and ADMIN_ROLE. It must
-    ///        grant ORIGINATOR_ROLE / SHARIAH_ROLE / OPS_ROLE separately.
-    constructor(address admin) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _lockImplementation();
+    }
+
+    /// @dev Locks the bare implementation so only proxies can be initialised.
+    ///      Virtual so a verification harness can skip it.
+    function _lockImplementation() internal virtual {
+        _disableInitializers();
+    }
+
+    /// @notice One-time proxy setup. `admin` receives DEFAULT_ADMIN_ROLE,
+    ///         ADMIN_ROLE and UPGRADER_ROLE. Move UPGRADER_ROLE to a Safe or
+    ///         timelock later with grantRole / revokeRole, no redeploy needed.
+    function initialize(address admin) public initializer {
+        __AccessControl_init();
+        _nextId = 1;
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
+        _grantRole(UPGRADER_ROLE, admin);
     }
+
+    /// @dev UUPS: only UPGRADER_ROLE may point the proxy at a new implementation.
+    function _authorizeUpgrade(address) internal override onlyRole(UPGRADER_ROLE) {}
 
     // ---------------------------------------------------------------------
     // Admin configuration
@@ -342,4 +362,7 @@ contract DealRegistry is AccessControl {
         deal.status = to;
         emit DealStatusChanged(id, from, to);
     }
+
+    /// @dev Reserved storage so later versions can add state without shifting the layout.
+    uint256[50] private __gap;
 }

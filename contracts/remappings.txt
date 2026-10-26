@@ -4,3 +4,5 @@ openzeppelin-contracts/=lib/openzeppelin-contracts/
 @onchain-id/solidity/=lib/solidity/
 @openzeppelin/contracts/=lib/oz-v4/contracts/
 @openzeppelin/contracts-upgradeable/=lib/oz-upgradeable-v4/contracts/
+openzeppelin-contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/
+lib/openzeppelin-contracts-upgradeable/:@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/

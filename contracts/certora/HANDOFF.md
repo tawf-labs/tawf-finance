@@ -22,14 +22,14 @@ Read first: `certora/REPORT.md` (results, bugs found, assumptions) and `certora/
 
 **Run a spec:** `cd contracts && ~/tools/bin/prove certora/confs/<name>.conf`. Real failures are `Failed on <rule>:` lines, excluding `rule_not_vacuous`.
 
-## Status (2026-10-21): everything proven
+## Status (2026-10-27): pool specs rerun on the upgradeable contracts, others as of 2026-10-21
 
 | Repo / spec | Checks verified |
 |---|---|
-| tawf-finance pool Registry / Vault / Receipt | 291 / 374 / 342 |
+| tawf-finance pool Registry / Vault / Receipt (UUPS + USDG vault, 2026-10-27) | 339 / 777 / 422 |
 | tawf-finance sukuk Distributor (incl. held profit + nisbah) / ProfitAccumulator | 298 / 4 |
 | tawf-finance deposito Accumulator / Series (incl. nisbah) / SandboxReal | 5 / 133 / 12 |
-| tawf-finance mutants M1–M14 | 13 killed; M8 equivalent (see REPORT) |
+| tawf-finance mutants M1–M14 | 13 killed; M8 equivalent (see REPORT). M11 and M13 rerun on 2026-10-27, still killed. The other vault, registry and receipt mutants need regenerating from the upgradeable sources |
 | tawf-gold-bsi tBSI Controller | 69 |
 | tawf-network l2 LeafLog / LedgerAnchor | 12 / 40 |
 | tawf-network l3 SukukLedger / ReserveLedger / InstitutionRegistry | 127 / 42 / 33 |

@@ -18,7 +18,15 @@ import { DealRegistry } from "../../src/DealRegistry.sol";
  *      `DealRegistryHarness`.
  */
 contract DealRegistryHarness is DealRegistry {
-    constructor(address admin) DealRegistry(admin) {}
+    /// @dev Initialised in the constructor so the prover starts from the state
+    ///      of a deployed proxy (roles granted, `_nextId == 1`). The bare
+    ///      implementation lock is skipped by the override below.
+    constructor(address admin) {
+        initialize(admin);
+    }
+
+    /// @dev No-op: `_disableInitializers()` would make `initialize` unreachable.
+    function _lockImplementation() internal override {}
 
     /// @dev Raw status byte of a deal (0..6). Reverts if the deal does not exist.
     function getStatus(uint256 id) external view returns (uint8) {

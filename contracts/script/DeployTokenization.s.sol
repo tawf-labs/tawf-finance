@@ -335,9 +335,9 @@ contract DeployTokenization is Script {
         internal
         returns (address dealRegistry, address bondReceiptNft, address redemptionVault)
     {
-        bondReceiptNft = deployCode("BondReceiptNFT.sol:BondReceiptNFT", abi.encode(operator));
-        dealRegistry = deployCode("DealRegistry.sol:DealRegistry", abi.encode(operator));
-        redemptionVault = deployCode("RedemptionVault.sol:RedemptionVault", abi.encode(operator));
+        bondReceiptNft = _deployProxy("BondReceiptNFT.sol:BondReceiptNFT", operator);
+        dealRegistry = _deployProxy("DealRegistry.sol:DealRegistry", operator);
+        redemptionVault = _deployProxy("RedemptionVault.sol:RedemptionVault", operator);
 
         IDealRegistry(dealRegistry).setVault(redemptionVault);
         IBondReceiptNFT(bondReceiptNft).setVault(redemptionVault);
@@ -350,6 +350,15 @@ contract DeployTokenization is Script {
         IDealRegistry(dealRegistry).grantRole(keccak256("SHARIAH_ROLE"), operator);
         IDealRegistry(dealRegistry).grantRole(keccak256("OPS_ROLE"), operator);
         IRedemptionVault(redemptionVault).grantRole(keccak256("OPS_ROLE"), operator);
+    }
+
+    /// @dev The pool contracts are UUPS-upgradeable: deploy the implementation, then an ERC1967 proxy
+    ///      that calls `initialize(operator)`. Callers use the returned proxy address everywhere.
+    function _deployProxy(string memory artifact, address admin) internal returns (address proxy) {
+        address impl = deployCode(artifact);
+        proxy = deployCode(
+            "ERC1967Proxy.sol:ERC1967Proxy", abi.encode(impl, abi.encodeWithSignature("initialize(address)", admin))
+        );
     }
 
     // --- transient operator-scoped wiring values ---------------------------------
@@ -368,7 +377,10 @@ contract DeployTokenization is Script {
     uint40 internal _sukukSubscriptionPeriod;
 
     function _writeDeployments(Deployment memory d) internal {
-        string memory path = "../tawf-finance/src/web3/tokenization.deployments.json";
+        // DEPLOYMENTS_PATH lets a second chain (e.g. Robinhood Chain) write its own file instead of
+        // overwriting the Arbitrum Sepolia addresses the live app reads.
+        string memory path =
+            vm.envOr("DEPLOYMENTS_PATH", string("../tawf-finance/src/web3/tokenization.deployments.json"));
         bytes memory proxyCode = vm.getCode("IdentityProxy.sol:IdentityProxy");
 
         string memory obj = "tokenization";

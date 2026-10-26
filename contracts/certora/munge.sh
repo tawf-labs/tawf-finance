@@ -32,4 +32,24 @@ patch(f"{root}/utils/Arrays.sol",
       r'\1\n        res = arr[pos];',
       5)
 PY
-echo "munged OpenZeppelin ready at $dst"
+
+# The upgradeable library (ERC-7201 namespaced storage). Its imports of
+# `@openzeppelin/contracts/` are mapped to the munged copy above by the confs.
+usrc=lib/openzeppelin-contracts-upgradeable
+udst=certora/munged/openzeppelin-contracts-upgradeable
+rm -rf "$udst" && mkdir -p "$udst"
+cp -r "$usrc/contracts" "$udst/contracts"
+python3 - "$udst/contracts" <<'PY'
+import re, sys
+root = sys.argv[1]
+path = f"{root}/token/ERC1155/ERC1155Upgradeable.sol"
+s = open(path).read()
+s, n = re.subn(
+    r'(returns \(uint256\[\] memory array1, uint256\[\] memory array2\) \{)\s*assembly \("memory-safe"\) \{.*?mstore\(0x40, add\(array2, 0x40\)\)\s*\}',
+    r'\1\n        array1 = new uint256[](1);\n        array1[0] = element1;\n        array2 = new uint256[](1);\n        array2[0] = element2;',
+    s, flags=re.S)
+if n != 1:
+    sys.exit(f"munge: expected 1 match in {path}, got {n}")
+open(path, "w").write(s)
+PY
+echo "munged OpenZeppelin ready at $dst and $udst"

@@ -22,6 +22,26 @@ export const DEAL_REGISTRY_ADDRESS = address(deployments.dealRegistry);
 export const RECEIPT_NFT_ADDRESS = address(deployments.bondReceiptNft);
 export const VAULT_ADDRESS = address(deployments.redemptionVault);
 export const USDC_ADDRESS = address(deployments.mockUsdc);
+export const USDT_ADDRESS = address(deployments.mockUsdt);
+/**
+ * The token the deployed vault actually settles in (`settlementToken()` on the vault).
+ * On testnet this is a mock USDG. `usdg` in the deployments file is the real Paxos USDG,
+ * kept for reference only: the vault does not accept it until it is redeployed or
+ * reconfigured for it, so the app must not offer it.
+ */
+export const USDG_ADDRESS = address((deployments as { settlementToken?: string }).settlementToken);
+/** What deals are denominated and paid in: USDG when configured, otherwise the legacy USDC. */
+export const SETTLEMENT_ADDRESS = USDG_ADDRESS ?? USDC_ADDRESS;
+
+export type InvestToken = { symbol: 'USDC' | 'USDT' | 'USDG'; address: `0x${string}` };
+/** Stablecoins an investor can pay in. Non-settlement tokens are swapped to the settlement token. */
+export const INVEST_TOKENS: InvestToken[] = (
+  [
+    { symbol: 'USDC', address: USDC_ADDRESS },
+    { symbol: 'USDT', address: USDT_ADDRESS },
+    { symbol: 'USDG', address: USDG_ADDRESS },
+  ] as const
+).filter((t): t is InvestToken => Boolean(t.address));
 
 export const RPC_URL =
   import.meta.env.VITE_RPC_URL ?? 'https://sepolia-rollup.arbitrum.io/rpc';
