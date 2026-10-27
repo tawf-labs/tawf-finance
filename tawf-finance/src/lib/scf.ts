@@ -30,12 +30,18 @@ export function scfLimitPercent(incomeIdr: number): 5 | 10 {
  * The text the investor signs. Must match `declarationMessage` in
  * api/_tokenization/scf/profile.ts exactly.
  */
-export function scfDeclarationMessage(wallet: `0x${string}`, incomeIdr: bigint, exemption: ScfExemption): string {
+export function scfDeclarationMessage(
+  wallet: `0x${string}`,
+  incomeIdr: bigint,
+  exemption: ScfExemption,
+  signedAt: number,
+): string {
   return [
     'Tawf SCF suitability declaration (testnet)',
     `Wallet: ${wallet}`,
     `Annual income (IDR): ${incomeIdr.toString()}`,
     `Exemption: ${exemption}`,
+    `Signed at (unix): ${signedAt}`,
   ].join('\n');
 }
 
@@ -53,6 +59,7 @@ export function submitScfProfile(body: {
   wallet: `0x${string}`;
   incomeIdr: string;
   exemption: ScfExemption;
+  signedAt: number;
   signature: `0x${string}`;
 }): Promise<ScfProfileResult> {
   return postPublic<ScfProfileResult>('scf/profile', body);

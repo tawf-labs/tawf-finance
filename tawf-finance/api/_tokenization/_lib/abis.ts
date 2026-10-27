@@ -380,6 +380,18 @@ export const operatorAnchorAbi = [
 /** ScfInvestorLimitModule: POJK 57/2020 investor limit and offering cap. */
 export const scfLimitModuleAbi = [
   {
+    name: 'profileOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'onchainId', type: 'address' }],
+    outputs: [
+      { name: 'annualLimit', type: 'uint128' },
+      { name: 'bracket', type: 'uint8' },
+      { name: 'exemption', type: 'uint8' },
+      { name: 'updatedAt', type: 'uint64' },
+    ],
+  },
+  {
     name: 'setProfile',
     type: 'function',
     stateMutability: 'nonpayable',

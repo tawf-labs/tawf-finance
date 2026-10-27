@@ -355,8 +355,9 @@ function SuitabilityCard({ disabled, limit, hasProfile, onSaved }: {
     setError(null);
     try {
       const incomeBig = BigInt(Math.max(0, Math.floor(incomeIdr)));
-      const signature = await signMessageAsync({ message: scfDeclarationMessage(address, incomeBig, exemption) });
-      await submitScfProfile({ wallet: address, incomeIdr: incomeBig.toString(), exemption, signature });
+      const signedAt = Math.floor(Date.now() / 1000);
+      const signature = await signMessageAsync({ message: scfDeclarationMessage(address, incomeBig, exemption, signedAt) });
+      await submitScfProfile({ wallet: address, incomeIdr: incomeBig.toString(), exemption, signedAt, signature });
       setEditing(false);
       onSaved();
     } catch (e) {

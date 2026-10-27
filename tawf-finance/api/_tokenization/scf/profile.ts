@@ -16,6 +16,10 @@ const ZERO = '0x0000000000000000000000000000000000000000'
 const INCOME_THRESHOLD_IDR = 500_000_000n
 const MAX_INCOME_IDR = 1_000_000_000_000_000n
 
+/** How old a signed declaration may be, and how far ahead of the server clock. */
+const MAX_AGE_S = 10 * 60
+const MAX_SKEW_S = 60
+
 const EXEMPTIONS = { none: 0, legal_entity: 1, capital_market_2y: 2 } as const
 type ExemptionKey = keyof typeof EXEMPTIONS
 
@@ -23,12 +27,13 @@ type ExemptionKey = keyof typeof EXEMPTIONS
  * The text the investor signs. Must match `scfDeclarationMessage` in
  * src/lib/scf.ts exactly.
  */
-export function declarationMessage(wallet: Address, incomeIdr: bigint, exemption: ExemptionKey): string {
+export function declarationMessage(wallet: Address, incomeIdr: bigint, exemption: ExemptionKey, signedAt: number): string {
   return [
     'Tawf SCF suitability declaration (testnet)',
     `Wallet: ${wallet}`,
     `Annual income (IDR): ${incomeIdr.toString()}`,
     `Exemption: ${exemption}`,
+    `Signed at (unix): ${signedAt}`,
   ].join('\n')
 }
 
@@ -41,9 +46,12 @@ export function declarationMessage(wallet: Address, incomeIdr: bigint, exemption
  * at the deployment's USDC rate, and writes it on chain. Only the limit and a
  * bracket code go on chain, never the income figure.
  *
- * No passcode: the wallet signature authorizes the change.
+ * No passcode: the wallet signature authorizes the change. The declaration
+ * carries its signing time, so a signature is accepted only while fresh and
+ * only if it is newer than the profile already on chain: an old signature
+ * cannot be replayed to restore an earlier limit.
  *
- *   POST /api/tokenization/scf/profile { wallet, incomeIdr, exemption, signature }
+ *   POST /api/tokenization/scf/profile { wallet, incomeIdr, exemption, signedAt, signature }
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!methodGuard(req, res)) return
@@ -53,12 +61,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { wallet, incomeIdr, exemption = 'none', signature } = req.body ?? {}
+    const { wallet, incomeIdr, exemption = 'none', signedAt, signature } = req.body ?? {}
     if (typeof wallet !== 'string' || !isAddress(wallet)) {
       res.status(400).json({ error: 'A valid wallet address is required.' })
       return
     }
-    if (typeof exemption !== 'string' || !(exemption in EXEMPTIONS)) {
+    if (typeof exemption !== 'string' || !Object.hasOwn(EXEMPTIONS, exemption)) {
       res.status(400).json({ error: 'exemption must be none, legal_entity or capital_market_2y.' })
       return
     }
@@ -72,11 +80,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(400).json({ error: 'Enter your annual income in rupiah.' })
       return
     }
+    const now = Math.floor(Date.now() / 1000)
+    if (typeof signedAt !== 'number' || !Number.isSafeInteger(signedAt) || signedAt > now + MAX_SKEW_S || signedAt < now - MAX_AGE_S) {
+      res.status(400).json({ error: 'The declaration has expired. Sign it again.' })
+      return
+    }
     const user = getAddress(wallet) as Address
     const ex = exemption as ExemptionKey
     const ok =
       typeof signature === 'string' &&
-      (await verifyMessage({ address: user, message: declarationMessage(user, income, ex), signature: signature as Hex }).catch(() => false))
+      (await verifyMessage({ address: user, message: declarationMessage(user, income, ex, signedAt), signature: signature as Hex }).catch(() => false))
     if (!ok) {
       res.status(401).json({ error: 'The declaration signature does not match this wallet.' })
       return
@@ -91,6 +104,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })) as Address
     if (identity === ZERO) {
       res.status(409).json({ error: 'The identity is not registered yet. Try again in a moment.', steps })
+      return
+    }
+    const [, , , updatedAt] = (await publicClient.readContract({
+      address: addresses.scfLimitModule,
+      abi: scfLimitModuleAbi,
+      functionName: 'profileOf',
+      args: [identity],
+    })) as readonly [bigint, number, number, bigint]
+    if (BigInt(signedAt) <= updatedAt) {
+      res.status(409).json({ error: 'This declaration is older than the profile on record. Sign it again.', steps })
       return
     }
 

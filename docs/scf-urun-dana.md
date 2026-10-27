@@ -63,7 +63,8 @@ Platform / SME ── facts ──> LedgerAnchor (operator-gated) ──> SukukD
   - In production the facts come from the platform's records, signed off by its Shariah board.
 - **API** (one Vercel function, `api/tokenization-router.ts`):
   - **`scf/profile` (POST, no passcode).**
-    - The investor signs a declaration of their annual income or exemption.
+    - The investor signs a declaration of their annual income or exemption, stamped with the signing time.
+    - The server accepts it only within 10 minutes of signing, and only if it is newer than the profile on chain, so an old signature cannot be replayed.
     - The server verifies the signature and the identity (as the faucet does), then computes the limit.
     - It converts the limit from IDR to USDC at the deployment's USDC rate and records it.
   - **`scf/status` (GET).** The offering state, plus a wallet's limit when one is given.
