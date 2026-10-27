@@ -487,6 +487,9 @@ export function readableError(err: unknown, fallback = 'Transaction failed'): st
     case 'BelowMinimum':
       return 'Below the minimum subscription.'
   }
+  if (/function "transfer" reverted/i.test(anyErr?.message ?? '')) {
+    return 'The test token transfer did not go through (the network was still catching up). Please try again in a few seconds.'
+  }
   if (/Compliance not followed/i.test(anyErr?.message ?? '')) {
     return 'The token compliance rules rejected this: it would exceed an investor limit or a cap (for a Deposito Pool the per-investor or series cap, for an SCF offering the yearly POJK 57/2020 limit or the offering cap), or the wallet is not admitted.'
   }
