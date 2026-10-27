@@ -62,8 +62,7 @@ export function Footer() {
           <div className="lg:col-span-5">
             <span role="img" aria-label="Tawf" className="block h-9 w-[150px] bg-ink" style={MASK} />
             <p className="mt-6 max-w-sm text-[0.95rem] leading-relaxed text-ink/65">
-              Originator-side infrastructure for licensed Indonesian Shariah banks. Built by Tawf Labs on Arbitrum,
-              governed by Tawf Foundation.
+              Originator-side infrastructure for licensed Indonesian Shariah banks. Built by Tawf Labs on Arbitrum.
             </p>
           </div>
 
