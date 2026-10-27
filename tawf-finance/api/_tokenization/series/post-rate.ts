@@ -3,11 +3,11 @@ import { getAddress, isAddress, type Address, type Hex } from 'viem'
 import {
   publicClient,
   walletClient,
-  addresses,
   isConfigured,
   methodGuard,
   requirePasscode,
   readableError,
+  seriesTarget,
 } from '../_lib/operator.js'
 import { tawfSeriesAbi } from '../_lib/abis.js'
 
@@ -27,6 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
   if (!requirePasscode(req, res)) return
+  const target = seriesTarget(req)
 
   try {
     const rawToken = req.body?.token
@@ -43,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const wc = walletClient()
     const txHash = (await wc.writeContract({
-      address: addresses.tawfSeries,
+      address: target.series,
       abi: tawfSeriesAbi,
       functionName: 'postRate',
       args: [token, idrPerToken],

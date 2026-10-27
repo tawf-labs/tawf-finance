@@ -50,9 +50,9 @@ We give a BPRS a wider funding channel. The bank originates and services Shariah
 
 ## What Is tawf.finance?
 
-Originator-side infrastructure connecting everyday investors with licensed Indonesian BPRS. A bank originates and services a financing pool → its DPS reviews the sell-down akad → an investor pool funds it with USDC → the bank services and remits collections → investors redeem principal + profit. First product is a **financing sell-down**, not sukuk issuance (issuance is the tier-2 product for the few BPRS above the IDR 80bn threshold).
+Infrastructure connecting everyday investors with licensed Indonesian Islamic rural banks (BPRS) and sharia crowdfunding. The pilot product is the **Tawf Deposito Pool**: investors subscribe in stablecoins, Tawf converts to IDR and places mudharabah deposito at several BPRS in one region, and one ERC-3643 token (a claim on Tawf) is backed by the total, with each bank's balance in the proof of reserve. A BPRS cannot issue sukuk without IDR 80bn core capital, so no BPRS product is called a sukuk. The financing sell-down pool is built and tested but switched off for the pilot (`VITE_FEATURE_FINANCING_POOL`).
 
-**Issuer types.** Tawf onboards two kinds of issuer: licensed Indonesian Islamic rural banks (BPRS), whose deposito, sukuk and financing pools it tokenizes, and securities crowdfunding platforms licensed under POJK 57/2020 ("Layanan Urun Dana", such as LBS Urun Dana), whose SME sukuk and sharia shares it tokenizes with the POJK investor limit enforced on chain. The demo uses fictional names for both.
+**Issuer types.** Tawf onboards two kinds of issuer: licensed Indonesian Islamic rural banks (BPRS), whose deposito it wraps into regional Deposito Pools, and securities crowdfunding platforms licensed under POJK 57/2020 ("Layanan Urun Dana", such as LBS Urun Dana), whose SME sukuk and sharia shares it tokenizes with the POJK investor limit enforced on chain. The demo uses fictional names for both.
 
 ### Instrument coverage
 
@@ -60,18 +60,18 @@ Tawf is designed as one primitive for the full range of Islamic finance instrume
 
 | Instrument | Family | Status | Return band | Role |
 |---|---|---|---|---|
-| Murabaha | Debt-based | Live | 5 to 9% | Cost-plus trade and working-capital financing |
-| Musyarakah | Equity-based | Live | 7 to 11% | Partnership and the financing sell-down pool |
-| Wakalah bil Istithmar | Equity-based | Live | 7 to 11% | Investment-agency sell-down for an investor pool |
-| Deposito | Equity-based | Demo | nisbah share | Mudharabah time deposit, wrapped as one Tawf series token (Model B, ERC-3643) |
+| Murabaha | Debt-based | Coming soon | 5 to 9% | Cost-plus trade and working-capital financing (sell-down pool, behind the flag) |
+| Musyarakah | Equity-based | Coming soon | 7 to 11% | Partnership and the financing sell-down pool (behind the flag) |
+| Wakalah bil Istithmar | Equity-based | Coming soon | 7 to 11% | Investment-agency sell-down for an investor pool (behind the flag) |
+| Deposito Pool | Equity-based | Pilot | nisbah share | Mudharabah deposito at several BPRS in a region, wrapped into one Tawf Deposito Pool token (ERC-3643) with a per-bank proof of reserve |
 | Ijarah | Debt-based | Structured | 5 to 9% | Lease of equipment, vehicles, property |
-| Mudarabah | Equity-based | Structured | 7 to 11% | Profit-sharing investment mandate |
+| Mudarabah | Equity-based | Pilot | nisbah share | Profit-sharing. The akad of the deposito behind every Deposito Pool |
 | Salam | Debt-based | Pipeline | 5 to 9% | Agricultural pre-harvest financing |
 | Istisna' | Debt-based | Pipeline | 5 to 9% | Manufacture and construction to order |
 | Qard Hasan | Social | Roadmap | 0% | Benevolent, principal-only social financing |
-| Sukuk | Tradable | Demo | tracks pool | Tokenized BPRS sukuk series (ERC-3643) with proof of reserve |
+| Sukuk | Tradable | Pilot (SCF only) | tracks the SME | Issued by SMEs through a licensed securities crowdfunding platform. Never by a BPRS |
 
-Live instruments are structured with a partner DPS and running in the demo. The rest are staged deliberately: the wedge is the sell-down (Murabaha and Musyarakah), and nothing is presented as live before an akad is validated with a design-partner bank.
+Pilot instruments run in the testnet demo. The sell-down instruments are built and tested but switched off until the pilot is done, and nothing is presented as live before an akad is validated with a design-partner bank.
 
 ---
 
@@ -81,33 +81,35 @@ The judge-facing flow lives under `/investor` after signing in (demo login: `inv
 
 | Screen | What it does (on-chain) |
 |---|---|
-| **Pools** (`/investor/pools`) | Lists live deals from `DealRegistry`. Filter by status, invest USDC (auto-approve → invest), see projected yield. |
-| **Portfolio** (`/investor/portfolio`) | Your soulbound receipts as positions. Redeem principal+yield when matured, or claim on default. |
+| **Deposito Pool** (`/investor/deposito`) | The regional pool and the BPRS Demo pool: subscribe in USDC, USDT or USDG, see each bank's balance, claim profit, redeem at maturity. |
+| **Urun Dana (SCF)** (`/investor/scf`) | SME sukuk through a licensed crowdfunding platform, with the POJK 57/2020 investor limit. |
+| **Pools** (`/investor/pools`) | Financing sell-down pool. Shown only with `VITE_FEATURE_FINANCING_POOL=true`, otherwise "coming soon". |
+| **Portfolio** (`/investor/portfolio`) | Your Deposito Pool and SCF positions (plus sell-down receipts when the flag is on). |
 | **Transactions** (`/investor/transactions`) | Activity ledger of your receipts with explorer links. |
 | **Settings** (`/investor/settings`) | EVM wallet (Arbitrum Sepolia), test-USDC faucet, and identity (Didit KYC). |
 
-**Demo flow:** connect wallet → mint test USDC → invest $10+ in a live financing pool → soulbound `BondReceiptNFT` is minted → the BPRS services and remits (`repay`) → redeem returns principal + profit and burns the receipt. See [`docs/demo-script.md`](docs/demo-script.md).
+**Demo flow:** connect wallet → verify with test KYC and get test USDC → subscribe to the Deposito Pool → Tawf allocates against the recorded bank balances → the banks credit profit and you claim it → redeem at maturity. See [`docs/demo-script.md`](docs/demo-script.md).
 
-### Tokenization demo (ERC-3643 deposito + sukuk)
+### Tokenization demo (ERC-3643 Deposito Pools + SCF)
 
-A second track tokenizes a licensed BPRS's time deposits and a sukuk series as ERC-3643 (T-REX) tokens, gated by proof of reserve from Tawf Network:
+Deposito Pools and SCF offerings are ERC-3643 (T-REX) tokens, gated by proof of reserve:
 
-- **Tawf Deposito Series** (`/investor/deposito`): Model B, a wrapped Tawf deposit. One series token (`tDEP-TAWF-S1`, 2 decimals, 1 token = IDR 1 claim on Tawf) backed by Tawf's single dedicated account at the BPRS. Settle in USDC, USDT or USDG (all 6 decimals, each with its own posted FX rate, no 1:1 peg). USDG is offered once the admin adds it to the series allowlist (Admin → Tokenization → "Add mUSDG as settlement coin"): pick a coin and subscribe (approve + subscribe), cancel pending per coin before allocation, then claim profit and redeem after maturity in whichever coin you pick, with the quoted amount shown per coin. A sandbox mode badge (PILOT ONLY / SCREENED GROUP / OJK SANDBOX) and caps are shown, and the disclosures must be acknowledged before subscribing.
-- **Sukuk** (`/investor/sukuk`): subscribe with USDC to the `tSUKUK-DEMO-2026` series, claim periodic profit, redeem at maturity, or refund a cancelled subscription.
+- **Tawf Deposito Pool: BPRS Demo** (series 1, on the same page): Model B, a wrapped Tawf deposit at a single bank. One series token (`tDEP-TAWF-S1`, 2 decimals, 1 token = IDR 1 claim on Tawf) backed by Tawf's single dedicated account at the BPRS. Settle in USDC, USDT or USDG (all 6 decimals, each with its own posted FX rate, no 1:1 peg). USDG is offered once the admin adds it to the series allowlist (Admin → Tokenization → "Add mUSDG as settlement coin"): pick a coin and subscribe (approve + subscribe), cancel pending per coin before allocation, then claim profit and redeem after maturity in whichever coin you pick, with the quoted amount shown per coin. A sandbox mode badge (PILOT ONLY / SCREENED GROUP / OJK SANDBOX) and caps are shown, and the disclosures must be acknowledged before subscribing.
+- **Tawf Deposito Pool: Jawa Barat** (`/investor/deposito`, the default): one token (`tDEP-JABAR-1`) backed by Tawf's deposito at three fictional BPRS in Jawa Barat. Its anchor is a `DepositoPoolLedger` that records each bank's balance and serves the total to an unmodified `TawfDepositoSeries`. The page lists every bank and its share. Admin → Tokenization → Deposito Pool tab records bank balances, allocates, distributes per-bank profit and settles maturity. The earlier BPRS sukuk demo is retired (`/investor/sukuk` redirects here). See [`docs/tokenized-deposito.md`](docs/tokenized-deposito.md).
 - **Test funds and test KYC (testnet only)**: Settings has a "Get test" faucet for each of mUSDC, mUSDT and mUSDG, and a "Get test funds + verify identity (test KYC)" button that tops up gas, sends all three tokens and registers an ONCHAINID verified identity. The pool page offers the same "Verify with test KYC" button and a "Get test" button for the chosen token, so testers can invest without leaving the page. Real investors verify with Didit.
-- **Admin** (`/admin/tokenization`, actions need the `DEMO_PASSCODE`): a **Tawf treasury** tab (add a mock coin such as mUSDG to the series allowlist, post FX rate per coin with a "use market quote" per coin, list pending subscriptions per coin, show treasury balances and series allowances per coin with an "Approve series" button per coin, place converted funds at the BPRS, allocate, distribute profit, settle maturity, screen wallets, set mode + caps) and a **BPRS** tab (sync, simulate the bank crediting profit and maturing, and the sukuk lifecycle).
+- **Admin** (`/admin/tokenization`, actions need the `DEMO_PASSCODE`): a **Deposito Pool** tab for the regional pool, a **BPRS Demo pool** tab (add a mock coin such as mUSDG to the series allowlist, post FX rate per coin with a "use market quote" per coin, list pending subscriptions per coin, show treasury balances and series allowances per coin with an "Approve series" button per coin, place converted funds at the BPRS, allocate, distribute profit, settle maturity, screen wallets, set mode + caps) and a **BPRS** tab (sync, simulate the bank crediting profit and maturing, and the Tawf profit share).
 - **Urun Dana / SCF** (`/investor/scf`): the second issuer type, a securities crowdfunding platform (fictional "Demo Urun Dana Syariah") listing a sukuk mudharabah of an SME. Verify with test KYC, declare your annual income (signed by your wallet), and the token enforces your POJK 57/2020 yearly limit (5% of income up to Rp500m, 10% above, exemptions for legal entities and 2-year capital-market accounts) across all of the platform's offerings. The declaration carries its signing time and is accepted only within 10 minutes and only if newer than the profile on chain, so an old signature cannot be replayed. Admin at `/admin/scf` (needs the `DEMO_PASSCODE`): platform and SME profiles, contract links, issuer actions (refresh reserve, close the subscription, distribute profit, settle maturity), and an investor limit lookup with a button to reset that investor's usage for the period after a cancelled raise. The full lifecycle (close, distribute, claim, settle, redeem, cancelled raise with refund and usage reset) and both pages were tested end to end. See [`docs/scf-urun-dana.md`](docs/scf-urun-dana.md).
 - **Proof of Reserve** (`/proof-of-reserve`): tokens outstanding on Arbitrum vs Tawf's dedicated account balance at the BPRS (anchored), profits credited vs distributed, and a client-side `LedgerAnchor.verify` check. The sukuk section remains.
 
 The trust path is `core banking → bprs-connector → Tawf Network ledger → LedgerAnchor on Arbitrum → allocate gate`: the series only mints against a Merkle-verified `DEPOSITO_RESERVE` leaf and never beyond the anchored account balance. Server-side operator actions run in one Vercel function, [`tawf-finance/api/tokenization-router.ts`](tawf-finance/api/tokenization-router.ts), with the handlers in [`tawf-finance/api/_tokenization/`](tawf-finance/api/_tokenization/). See [`docs/tokenized-deposito.md`](docs/tokenized-deposito.md).
 
-The sukuk runs the full lifecycle across both chains: its L2 `SukukDistributor` is deployed with the exact sukukId, face value and maturity the Tawf Network `SukukLedger` holds (so the `SUKUK_APPROVED` leaf verifies), subscribe → close records `markIssued` back on the L3, the BPRS then declares each period's realized profit and, after maturity, the redemption on the L3 (via the bprs-connector), and Tawf funds exactly those declared amounts on Arbitrum for holders to claim and redeem. All sukuk amounts, including the reserve snapshot, are in USDC base units (6 decimals), the settlement token's unit.
+The financing sell-down pool, the BPRS originator role and the issuer and admin pool pages are behind `VITE_FEATURE_FINANCING_POOL` (off by default). Their contracts stay deployed and tested. The purchase-order and invoice style business pages are removed.
 
 ---
 
 ## Smart Contracts
 
-`contracts/`: Solidity 0.8.24 (T-REX and ONCHAINID files on 0.8.17), Foundry, OpenZeppelin v5 (v4.8.3 for T-REX). 242 tests pass (`forge test`). The pool contracts (DealRegistry, BondReceiptNFT, RedemptionVault, PooledFinancingVault) are UUPS-upgradeable behind ERC1967 proxies. Only `UPGRADER_ROLE` can upgrade them.
+`contracts/`: Solidity 0.8.24 (T-REX and ONCHAINID files on 0.8.17), Foundry, OpenZeppelin v5 (v4.8.3 for T-REX). 250 tests pass (`forge test`). The pool contracts (DealRegistry, BondReceiptNFT, RedemptionVault, PooledFinancingVault) are UUPS-upgradeable behind ERC1967 proxies. Only `UPGRADER_ROLE` can upgrade them.
 
 | Contract | Role |
 |---|---|
@@ -118,7 +120,8 @@ The sukuk runs the full lifecycle across both chains: its L2 `SukukDistributor` 
 | `TawfDepositoSeries` | Model B series: escrows subscriptions in an allowlist of settlement stablecoins (USDC + USDT, both 6 decimals, each with its own posted FX rate, no 1:1 peg), accounts internally in IDR sen, allocates against a Merkle-verified `DEPOSITO_RESERVE` for Tawf's dedicated account, accrues profit and principal in sen (both proven), and pays claims and redemptions from the treasury in whichever coin the holder picks at that coin's current rate. |
 | `SandboxModule` | T-REX compliance module enforcing the series sandbox policy: mode (PILOT_ONLY / SCREENED_GROUP / SANDBOX_ADMITTED) by reading ONCHAINID screening claims, and caps (max investors, per-investor balance, series cap, series end). |
 | `DistributionCheckpointModule` | Compliance module bound to each ERC-3643 token so profit follows the holder of record across transfers. |
-| `SukukDistributor` | Sukuk primary subscription, periodic profit, and redemption at maturity or default, each gated by a Merkle-verified ledger fact. |
+| `DepositoPoolLedger` | Reserve ledger of a regional Deposito Pool: Tawf's balance and credited profit at each BPRS, with the total served as ledger facts (`ILedgerAnchor`) to an unmodified `TawfDepositoSeries`, plus a per-bank leaf for each balance. |
+| `SukukDistributor` | Sukuk primary subscription, periodic profit, and redemption at maturity or default, each gated by a ledger fact. Used for SCF offerings. |
 | `ScfInvestorLimitModule` | Compliance module for securities crowdfunding offerings: the POJK 57/2020 yearly investor limit per ONCHAINID across all of a platform's offerings, exemptions, and the offering cap. |
 | `MockUSDC` / `MockUSDT` | 6-decimal test USDC and USDT, each with a faucet (10,000 tokens). Swap for real test stablecoins in production. |
 
@@ -197,6 +200,10 @@ npm run build   # tsc + vite build
 
 `script/DeployScf.s.sol` (`--sig "runScf()"`) deploys the investor-limit module, an SCF sukuk token, its distributor and an operator-gated anchor on the shared identity registry, opens the subscription and writes the `scf*` keys. See [docs/scf-urun-dana.md](docs/scf-urun-dana.md).
 
+### 1c. Deploy a regional Deposito Pool
+
+`script/DeployDepositoPool.s.sol` (`--sig "runPool()"`) deploys a `DepositoPoolLedger` with three fictional BPRS in Jawa Barat, the pool series on it (`tDEP-JABAR-1`, mUSDC, mUSDT and mUSDG), sets SCREENED_GROUP, posts an opening reserve and writes the `depositoPool*` keys.
+
 ### 2. Deploy the financing pool
 
 ```bash
@@ -214,6 +221,7 @@ The app reads every contract address from `tokenization.deployments.json`, so th
 | Variable | Used by | Purpose |
 |---|---|---|
 | `VITE_RPC_URL` | browser build | Arbitrum Sepolia RPC (QuickNode). Built in at build time, so redeploy after changing it. Falls back to the public RPC. |
+| `VITE_FEATURE_FINANCING_POOL` | browser build | `true` shows the financing sell-down pool, the BPRS originator role and the pool admin pages. Unset (the default) for the pilot. |
 | `ARB_SEPOLIA_RPC_URL` | API | Same RPC for the serverless functions |
 | `DEMO_OPERATOR_KEY` | API | Operator wallet `0xbE49…16aC` (the same key as the pool admin): owner of the deposito series, sukuk and identity registry roles, signer for the faucet, test KYC and admin actions |
 | `DEMO_PASSCODE` | API | Required (header `x-demo-passcode`) for every admin action |
@@ -271,7 +279,16 @@ The previous non-upgradeable pool (DealRegistry `0x691F811ac97B23cC471E96114c017
 | IdFactory (ONCHAINID) | `0xE167FE4E61cBC3Fa084aF5B4E601adF017d0ac4a` |
 | ImplementationAuthority | `0xEFc5dd8d3dFB05a29022d2Cf351331B145809444` |
 
-### Deposito and sukuk
+### Deposito Pools
+
+| Contract | Address |
+|---|---|
+| Deposito Pool: Jawa Barat (TawfDepositoSeries) | [`0xb858cf61610517333Ac1A69304A5556C9fBb6C3a`](https://sepolia.arbiscan.io/address/0xb858cf61610517333Ac1A69304A5556C9fBb6C3a) |
+| Pool token `tDEP-JABAR-1` | `0xB6E99Bd6B05F142f7Aa75dab3bff817bC9a32f1C` |
+| DepositoPoolLedger | [`0xEC729090D07Ec3f234D9a663CB2A81192D5CA3b5`](https://sepolia.arbiscan.io/address/0xEC729090D07Ec3f234D9a663CB2A81192D5CA3b5) |
+| Pool SandboxModule | `0xbAE93bF211e75c98EeC2B73Bf3124DcEAa03d0fa` |
+
+### BPRS Demo pool (series 1) and retired sukuk
 
 | Contract | Address |
 |---|---|
@@ -281,9 +298,9 @@ The previous non-upgradeable pool (DealRegistry `0x691F811ac97B23cC471E96114c017
 | TawfDepositoSeries 2 | `0x6493690fBc255dD180a4e56b111621C486E5039F` |
 | Series 2 token | `0x5218560a09808D1277098661506c5E997CDc905c` |
 | Series 2 SandboxModule | `0x43f1d8EeFb090F06f3cB80eA7C3bf53c25573271` |
-| SukukDistributor | [`0x9324344197a4bD82F746660451B8376B1387E8d4`](https://sepolia.arbiscan.io/address/0x9324344197a4bD82F746660451B8376B1387E8d4) |
+| SukukDistributor (retired BPRS sukuk) | [`0x9324344197a4bD82F746660451B8376B1387E8d4`](https://sepolia.arbiscan.io/address/0x9324344197a4bD82F746660451B8376B1387E8d4) |
 | Sukuk token | `0xaFAF90E1cefa04F7530730C47794b9039Ec9232d` |
-| SukukDistributor 2 | `0x853CA06aB46ca54412279f51626571413d3C69c2` |
+| SukukDistributor 2 (retired) | `0x853CA06aB46ca54412279f51626571413d3C69c2` |
 | Sukuk 2 token | `0x2efcf0e6B33726E95e393FdFF4127145Db15415f` |
 | LedgerAnchor | `0xA91985E62abDF7B884E4637fa23DdD974953C2Cd` |
 

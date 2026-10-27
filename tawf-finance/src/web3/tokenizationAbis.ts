@@ -289,3 +289,28 @@ export const ScfLimitModuleAbi = [
     ],
   },
 ] as const;
+
+/** DepositoPoolLedger: per-bank balances behind a regional Deposito Pool. */
+export const DepositoPoolLedgerAbi = [
+  {
+    name: 'banks',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [
+      { name: 'ids', type: 'bytes32[]' },
+      { name: 'names', type: 'string[]' },
+      { name: 'accountRefs', type: 'string[]' },
+      { name: 'balances', type: 'uint256[]' },
+    ],
+  },
+  { name: 'totalBalance', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'snapshotAt', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint64' }] },
+  {
+    name: 'verify',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'epoch', type: 'uint256' }, { name: 'leaf', type: 'bytes32' }, { name: 'proof', type: 'bytes32[]' }],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+] as const;

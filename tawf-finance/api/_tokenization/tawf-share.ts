@@ -7,17 +7,19 @@ import {
   isConfigured,
   requirePasscode,
   readableError,
-  sukukTarget,
+  pool,
+  isPoolConfigured,
 } from './_lib/operator.js'
-import { tawfSeriesAbi, sukukDistributorAbi } from './_lib/abis.js'
+import { tawfSeriesAbi } from './_lib/abis.js'
 
 /**
- * Tawf's mudharabah profit share (nisbah) on the deposito series and the sukuk.
+ * Tawf's mudharabah profit share (nisbah) on a deposito series: series 1
+ * (BPRS Demo) or the regional Deposito Pool.
  *
- *   GET  /api/tokenization/tawf-share?product=series|sukuk[&sukuk=1|2]   public disclosure
+ *   GET  /api/tokenization/tawf-share?product=series|pool   public disclosure
  *   POST /api/tokenization/tawf-share  (passcode)
  *     { product, action: "set", percent, recipient? }  set the nisbah (only before the sale opens)
- *     { product: "series", action: "claim", coin: "usdc"|"usdt" }  pay Tawf's accrued share to the fee wallet
+ *     { product, action: "claim", coin: "usdc"|"usdt" }  pay Tawf's accrued share to the fee wallet
  *
  * A contract deployed before the nisbah existed reports nisbahBps 0.
  */
@@ -27,9 +29,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
   const product = String(req.query?.product ?? req.body?.product ?? 'series')
-  const isSukuk = product === 'sukuk'
-  const target: Address = isSukuk ? sukukTarget(req).distributor : addresses.tawfSeries
-  const abi = isSukuk ? sukukDistributorAbi : tawfSeriesAbi
+  const target: Address = product === 'pool' && isPoolConfigured() ? pool.series : addresses.tawfSeries
+  const abi = tawfSeriesAbi
   const read = async <T,>(functionName: string, fallback: T): Promise<T> => {
     try {
       return (await publicClient.readContract({ address: target, abi, functionName: functionName as never })) as T
@@ -50,13 +51,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         tawfPercent: nisbahBps / 100,
         feeRecipient,
       }
-      if (isSukuk) {
-        body.totalTawfShare = String(await read<bigint>('totalTawfShare', 0n))
-      } else {
-        body.locked = await read<boolean>('tawfShareLocked', false)
-        body.accruedSen = String(await read<bigint>('tawfShareAccruedSen', 0n))
-        body.paidSen = String(await read<bigint>('tawfSharePaidSen', 0n))
-      }
+      body.locked = await read<boolean>('tawfShareLocked', false)
+      body.accruedSen = String(await read<bigint>('tawfShareAccruedSen', 0n))
+      body.paidSen = String(await read<bigint>('tawfSharePaidSen', 0n))
       res.status(200).json(body)
       return
     }
@@ -88,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         functionName: 'setTawfShare',
         args: [Math.round(percent * 100), recipient],
       })) as Hex
-    } else if (action === 'claim' && !isSukuk) {
+    } else if (action === 'claim') {
       const coin = String(req.body?.coin ?? 'usdc') === 'usdt' ? addresses.mockUsdt : addresses.mockUsdc
       txHash = (await wc.writeContract({ address: target, abi, functionName: 'claimTawfShare', args: [coin] })) as Hex
     } else {

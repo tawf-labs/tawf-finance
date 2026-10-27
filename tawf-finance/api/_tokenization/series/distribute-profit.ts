@@ -85,16 +85,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 export async function fundTreasuryForSen(
   sen: bigint,
   wc: ReturnType<typeof walletClient>,
+  series: Hex = addresses.tawfSeries,
 ): Promise<void> {
   const coins = (await publicClient.readContract({
-    address: addresses.tawfSeries,
+    address: series,
     abi: tawfSeriesAbi,
     functionName: 'allowedStablecoins',
   })) as readonly Hex[]
 
   for (const coin of coins) {
     const isAllowed = (await publicClient.readContract({
-      address: addresses.tawfSeries,
+      address: series,
       abi: tawfSeriesAbi,
       functionName: 'isStablecoin',
       args: [coin],
@@ -102,7 +103,7 @@ export async function fundTreasuryForSen(
     if (!isAllowed) continue
 
     const rate = (await publicClient.readContract({
-      address: addresses.tawfSeries,
+      address: series,
       abi: tawfSeriesAbi,
       functionName: 'rateOf',
       args: [coin],

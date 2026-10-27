@@ -1,3 +1,4 @@
+import { FINANCING_POOL_ENABLED } from '@/config/features';
 // Mock Data Layer for Tawf Finance Prototype
 // Comprehensive mock data for all user types and dashboard scenarios
 
@@ -371,6 +372,9 @@ export const demoUsers = {
 // primitive. Status is honest about what is live today versus on the roadmap.
 
 export type AkadFamily = 'Debt-based' | 'Equity-based' | 'Social' | 'Tradable';
+/** The sell-down instruments are live only when the financing pool feature is on. */
+const SELL_DOWN_STATUS: InstrumentStatus = FINANCING_POOL_ENABLED ? 'Live' : 'Structured';
+
 export type InstrumentStatus = 'Live' | 'Structured' | 'Pipeline' | 'Roadmap';
 
 export interface Instrument {
@@ -393,7 +397,7 @@ export const instrumentCatalog: Instrument[] = [
     name: 'Murabaha',
     arabic: 'مرابحة',
     family: 'Debt-based',
-    status: 'Live',
+    status: SELL_DOWN_STATUS,
     summary: 'Cost-plus sale. The bank buys an asset and resells it to the client at a disclosed markup on deferred terms.',
     useCase: 'Working capital and trade or inventory financing for micro and small clients.',
     yieldBand: '5 to 9 percent',
@@ -415,7 +419,7 @@ export const instrumentCatalog: Instrument[] = [
     name: 'Musyarakah',
     arabic: 'مشاركة',
     family: 'Equity-based',
-    status: 'Live',
+    status: SELL_DOWN_STATUS,
     summary: 'Partnership. All parties contribute capital and share profit and loss by an agreed ratio.',
     useCase: 'Joint financing and the financing sell-down pool structure.',
     yieldBand: '7 to 11 percent (variable)',
@@ -426,8 +430,8 @@ export const instrumentCatalog: Instrument[] = [
     name: 'Mudarabah',
     arabic: 'مضاربة',
     family: 'Equity-based',
-    status: 'Structured',
-    summary: 'Profit-sharing. One party funds, the other manages. Profit is shared, capital loss sits with the funder absent misconduct.',
+    status: 'Live',
+    summary: 'Profit-sharing. One party funds, the other manages. Profit is shared, capital loss sits with the funder absent misconduct. The akad of the deposito behind every Tawf Deposito Pool.',
     useCase: 'Investment mandates where the bank or client manages the venture.',
     yieldBand: '7 to 11 percent (variable)',
     dsnRef: 'DSN-MUI No. 07/2000',
@@ -437,7 +441,7 @@ export const instrumentCatalog: Instrument[] = [
     name: 'Wakalah bil Istithmar',
     arabic: 'وكالة بالاستثمار',
     family: 'Equity-based',
-    status: 'Live',
+    status: SELL_DOWN_STATUS,
     summary: 'Investment agency. An agent invests the principal capital on the client behalf for a fee.',
     useCase: 'The core financing sell-down akad for an outside investor pool.',
     yieldBand: '7 to 11 percent (variable)',
@@ -481,10 +485,10 @@ export const instrumentCatalog: Instrument[] = [
     name: 'Sukuk',
     arabic: 'صكوك',
     family: 'Tradable',
-    status: 'Roadmap',
-    summary: 'Tradable certificates of ownership in a pool or project. The tier-2 product for BPRS above the issuance threshold.',
-    useCase: 'Public offering for the few BPRS above the IDR 80bn core-capital threshold.',
-    yieldBand: 'tracks the underlying pool',
+    status: 'Live',
+    summary: 'Certificates of ownership in a business or project. On Tawf, only SMEs issue sukuk, through a licensed securities crowdfunding (SCF) platform. A BPRS would need IDR 80bn core capital to issue one, so Tawf offers BPRS exposure as a Deposito Pool instead.',
+    useCase: 'SME sukuk mudharabah through a licensed SCF platform under POJK 57/2020, with the investor limit enforced on chain.',
+    yieldBand: 'tracks the SME business',
     dsnRef: 'DSN-MUI No. 32/2002',
   },
 ];

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { motion } from 'framer-motion';
-import { Loader2, ExternalLink, ShieldCheck, Wallet, Clock, PiggyBank, Lock } from 'lucide-react';
+import { Loader2, ExternalLink, ShieldCheck, Wallet, Clock, PiggyBank, Lock, Landmark } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -17,21 +17,28 @@ import {
   useSeriesClaim,
   useSeriesRedeem,
   useSeriesAllowance,
+  usePoolBanks,
   SANDBOX_MODE_LABEL,
   type SeriesCoinView,
 } from '@/web3/tokenizationHooks';
 import { formatIdr, formatUsdc, formatBps, getRevertReason } from '@/web3/format';
-import { isTokenizationConfigured, TAWF_SERIES, type SettlementCoinKey } from '@/web3/tokenization';
+import { isTokenizationConfigured, DEPOSITO_PRODUCTS, type DepositoProduct, type SettlementCoinKey } from '@/web3/tokenization';
 import { explorerTxUrl } from '@/web3/constants';
 import { NisbahNotice } from '@/components/tokenization/NisbahNotice';
 
-// The Model B disclosures the investor must acknowledge before subscribing.
-const DISCLOSURES = [
-  'The token is a claim ON TAWF, backed by Tawf\u2019s own deposit at the BPRS (BPRS Demo Syariah). It is not a direct deposit account in your name.',
-  'LPS (deposit insurance) covers Tawf\u2019s deposit at the bank, not each investor individually.',
-  'Returns follow the bank\u2019s profit share (nisbah) and are not guaranteed. A period may pay zero.',
-  'Your holding is valued in IDR; that IDR value is what is backed. You subscribe, claim and redeem in any accepted stablecoin, and the amount you receive in a coin depends on that coin\u2019s posted rate at payout. Each coin carries its own rate and FX risk.',
-];
+// The disclosures the investor must acknowledge before subscribing.
+function disclosuresFor(product: DepositoProduct, bankCount: number): string[] {
+  const where =
+    product.key === 'pool'
+      ? `Tawf\u2019s own deposits at ${bankCount || 'several'} BPRS in ${product.region}`
+      : 'Tawf\u2019s own deposit at the BPRS (BPRS Demo Syariah)';
+  return [
+    `The token is a claim ON TAWF, backed by ${where}. It is not a direct deposit account in your name, and it is not a sukuk, bond or mutual fund unit.`,
+    'LPS (deposit insurance) covers Tawf\u2019s deposit at each bank, up to the LPS limit per bank and only at or below the LPS rate cap. It does not cover each investor individually.',
+    'Returns follow each bank\u2019s profit share (nisbah) and are not guaranteed. A period may pay zero.',
+    'Your holding is valued in IDR; that IDR value is what is backed. You subscribe, claim and redeem in any accepted stablecoin, and the amount you receive in a coin depends on that coin\u2019s posted rate at payout. Each coin carries its own rate and FX risk.',
+  ];
+}
 
 function NotConfigured() {
   return (
@@ -54,12 +61,21 @@ function coinApprox(senBaseUnits: bigint, idrPerToken: bigint): bigint {
 
 export function InvestorDeposito() {
   const { address, isConnected } = useAccount();
-  const { state, isLoading, refetch, configured } = useTawfSeries(address);
+  const [productKey, setProductKey] = useState<DepositoProduct['key']>(DEPOSITO_PRODUCTS[0]?.key ?? 'series1');
+  const product = DEPOSITO_PRODUCTS.find((p) => p.key === productKey) ?? DEPOSITO_PRODUCTS[0];
+  const target = useMemo(
+    () => ({ series: product?.series, token: product?.token, sandbox: product?.sandbox, seriesId: product?.seriesId }),
+    [product],
+  );
+  const { state, isLoading, refetch, configured } = useTawfSeries(address, target);
+  const { banks } = usePoolBanks(product?.ledger);
   const { isVerified } = useIsVerified(address);
-  const { subscribe, isPending: subscribing } = useSeriesSubscribe();
-  const { cancel, isPending: cancelling } = useSeriesCancel();
-  const { claim, isPending: claiming } = useSeriesClaim();
-  const { redeem, isPending: redeeming } = useSeriesRedeem();
+  const { subscribe, isPending: subscribing } = useSeriesSubscribe(target);
+  const { cancel, isPending: cancelling } = useSeriesCancel(target);
+  const { claim, isPending: claiming } = useSeriesClaim(target);
+  const { redeem, isPending: redeeming } = useSeriesRedeem(target);
+  const isPool = product?.key === 'pool';
+  const disclosures = product ? disclosuresFor(product, banks.length) : [];
 
   const coins = state.coins;
   // "USDC, USDT or USDG": the coins the series accepts right now.
@@ -72,7 +88,7 @@ export function InvestorDeposito() {
   const selectedCoin: SeriesCoinView | undefined =
     coins.find((c) => c.key === coinKey) ?? coins[0];
 
-  const { allowance, refetch: refetchAllowance } = useSeriesAllowance(address, selectedCoin?.address);
+  const { allowance, refetch: refetchAllowance } = useSeriesAllowance(address, selectedCoin?.address, target);
 
   const [subOpen, setSubOpen] = useState(false);
   const [coinAmount, setCoinAmount] = useState(100);
@@ -161,16 +177,37 @@ export function InvestorDeposito() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="font-serif text-3xl text-tawf-green mb-2">Tawf Deposito Series</h1>
+          <h1 className="font-serif text-3xl text-tawf-green mb-2">Tawf Deposito Pool</h1>
           <p className="text-tawf-muted">
-            A wrapped Tawf deposit (Model B). 1 token = IDR 1 claim on Tawf, backed by Tawf&apos;s dedicated
-            account at the BPRS. Settle in {coinNames}.
+            Tawf places mudharabah deposito at licensed Islamic rural banks (BPRS) and wraps them into one token.
+            1 token = IDR 1 claim on Tawf, backed by Tawf&apos;s dedicated accounts at the banks. Settle in {coinNames}.
           </p>
         </div>
         <ConnectButton variant="primary" size="md" />
       </div>
 
-      <NisbahNotice product="series" extra="Tawf places your money at the BPRS on your behalf (two-tier mudharabah)." />
+      {DEPOSITO_PRODUCTS.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {DEPOSITO_PRODUCTS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => { setProductKey(p.key); reset(); }}
+              className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                productKey === p.key ? 'bg-tawf-green text-white border-tawf-green' : 'bg-white text-tawf-green border-tawf-green-10'
+              }`}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <NisbahNotice
+        key={productKey}
+        product={isPool ? 'pool' : 'series'}
+        extra={isPool ? 'Tawf places your money across the BPRS in the pool on your behalf (two-tier mudharabah).' : 'Tawf places your money at the BPRS on your behalf (two-tier mudharabah).'}
+      />
 
       <KycStatusCard key={address} compact />
 
@@ -192,13 +229,13 @@ export function InvestorDeposito() {
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20 text-tawf-muted">
-          <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading series…
+          <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading pool…
         </div>
       ) : !isConnected ? (
         <Card className="p-10 text-center">
           <Wallet className="w-16 h-16 text-tawf-muted mx-auto mb-4" />
           <h3 className="font-serif text-xl text-tawf-green mb-2">Connect your wallet</h3>
-          <p className="text-tawf-muted mb-4">Connect an EVM wallet on Arbitrum Sepolia to view the series</p>
+          <p className="text-tawf-muted mb-4">Connect an EVM wallet on Arbitrum Sepolia to view the pool</p>
           <ConnectButton variant="primary" size="md" />
         </Card>
       ) : !configured ? (
@@ -211,7 +248,7 @@ export function InvestorDeposito() {
           {/* Series card */}
           <Card className="p-6 lg:col-span-2">
             <div className="flex items-start justify-between mb-3">
-              <Badge variant="info" size="sm">{TAWF_SERIES.symbol}</Badge>
+              <Badge variant="info" size="sm">{product?.symbol}</Badge>
               <div className="flex gap-2">
                 <Badge variant={state.mode === 0 ? 'warning' : 'success'} size="sm">
                   <Lock className="w-3 h-3" /> {modeLabel}
@@ -223,10 +260,11 @@ export function InvestorDeposito() {
                 )}
               </div>
             </div>
-            <h3 className="font-serif text-xl text-tawf-green mb-1">{TAWF_SERIES.name}</h3>
+            <h3 className="font-serif text-xl text-tawf-green mb-1">{product?.name}</h3>
             <p className="text-tawf-muted text-sm leading-relaxed mb-4">
-              BPRS Demo Syariah · dedicated account TAWF-S1. Subscribe in {coinNames}. Tawf converts to IDR
-              and places the funds in the account.
+              {isPool
+                ? `${banks.length} BPRS in ${product?.region}, one dedicated Tawf account at each. Subscribe in ${coinNames}. Tawf converts to IDR and places the funds across the banks.`
+                : `BPRS Demo Syariah · dedicated account TAWF-S1. Subscribe in ${coinNames}. Tawf converts to IDR and places the funds in the account.`}
             </p>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
@@ -272,17 +310,43 @@ export function InvestorDeposito() {
               size="sm"
               color="green"
               showLabel
-              label="Supply vs anchored account balance"
+              label={isPool ? 'Supply vs total balance across the banks' : 'Supply vs anchored account balance'}
             />
             <div className="flex justify-between mt-1 mb-4">
               <span className="text-xs text-tawf-muted">{formatIdr(state.supply)} tokenized</span>
-              <span className="text-xs text-tawf-muted">{formatIdr(state.reserve)} at BPRS (anchored)</span>
+              <span className="text-xs text-tawf-muted">{formatIdr(state.reserve)} {isPool ? `at ${banks.length} BPRS` : 'at BPRS'} (anchored)</span>
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-xs text-tawf-muted">
               <div>Cap / investor: <span className="text-tawf-green">{formatIdr(state.maxBalancePerInvestor)}</span></div>
               <div>Series cap: <span className="text-tawf-green">{formatIdr(state.seriesCap)}</span></div>
             </div>
+
+            {isPool && banks.length > 0 && (
+              <div className="mt-5">
+                <p className="text-sm font-medium text-tawf-green mb-2 flex items-center gap-2">
+                  <Landmark className="w-4 h-4 text-tawf-gold" /> Banks in the pool
+                </p>
+                <div className="rounded-xl border border-tawf-green-10 divide-y divide-tawf-green-10">
+                  {banks.map((b) => {
+                    const total = banks.reduce((a, x) => a + x.balanceSen, 0n);
+                    const share = total > 0n ? Number((b.balanceSen * 10000n) / total) / 100 : 0;
+                    return (
+                      <div key={b.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                        <div>
+                          <p className="text-tawf-green">{b.name}</p>
+                          <p className="text-xs text-tawf-muted font-mono">{b.accountRef}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-tawf-green">{formatIdr(b.balanceSen)}</p>
+                          <p className="text-xs text-tawf-muted">{share}% of the pool</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </Card>
 
           {/* Actions + holdings */}
@@ -366,7 +430,7 @@ export function InvestorDeposito() {
 
       {/* Subscribe modal with disclosures */}
       {subOpen && selectedCoin && (
-        <Modal isOpen onClose={() => setSubOpen(false)} title="Subscribe to the Tawf Deposito Series" size="md">
+        <Modal isOpen onClose={() => setSubOpen(false)} title={`Subscribe to ${product?.name ?? 'the Deposito Pool'}`} size="md">
           <div className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-tawf-ink mb-2">Settlement coin</label>
@@ -405,7 +469,7 @@ export function InvestorDeposito() {
             <div className="rounded-xl border border-tawf-green-10 p-4 bg-tawf-sand-30">
               <p className="text-sm font-medium text-tawf-green mb-2">Please read and acknowledge</p>
               <ul className="list-disc pl-5 space-y-1 text-xs text-tawf-muted">
-                {DISCLOSURES.map((d) => <li key={d}>{d}</li>)}
+                {disclosures.map((d) => <li key={d}>{d}</li>)}
               </ul>
               <label className="flex items-start gap-2 mt-3 text-sm text-tawf-ink">
                 <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} className="mt-1" />

@@ -9,20 +9,20 @@ export function HowItWorks() {
     {
       step: '01',
       icon: <Search className="w-8 h-8" />,
-      title: 'Browse Financing Pools',
-      description: 'Explore live BPRS financing pools. See pool size, NPF ratio, and akad compliance before you commit.',
+      title: 'Pick a Deposito Pool',
+      description: 'Each pool wraps the mudharabah deposito Tawf holds at several licensed BPRS in one region. See every bank and its balance before you commit.',
     },
     {
       step: '02',
       icon: <Wallet className="w-8 h-8" />,
-      title: 'Connect & Take Exposure',
-      description: 'Connect your wallet and take exposure to a pool from just $10. Your funds go into a secure escrow.',
+      title: 'Verify & Subscribe',
+      description: 'Verify your identity, then subscribe in USDC, USDT or USDG. Tawf converts to IDR and places the funds across the banks.',
     },
     {
       step: '03',
       icon: <CheckCircle className="w-8 h-8" />,
-      title: 'Receive Returns',
-      description: 'The bank services and remits collections. At maturity you redeem principal and profit, and your receipt is burned.',
+      title: 'Receive Profit Share',
+      description: 'Each period the banks credit their profit share and you claim yours. At maturity you redeem the principal.',
     },
   ];
 
@@ -30,20 +30,20 @@ export function HowItWorks() {
     {
       step: '01',
       icon: <FileText className="w-8 h-8" />,
-      title: 'BPRS Assembles a Pool',
-      description: 'A licensed Shariah bank assembles a defined pool of the financing it has already originated and services.',
+      title: 'Tawf Places Deposito',
+      description: 'Tawf opens one dedicated mudharabah deposito account at each BPRS in the region and places the converted funds there.',
     },
     {
       step: '02',
       icon: <Shield className="w-8 h-8" />,
-      title: 'DPS Reviews the Akad',
-      description: 'The bank\'s Dewan Pengawas Syariah reviews the sell-down akad (wakalah bil istithmar or musyarakah).',
+      title: 'Balances Are Proven',
+      description: 'Each bank\'s balance is recorded on the pool ledger, and the token can never be minted above their total.',
     },
     {
       step: '03',
       icon: <TrendingUp className="w-8 h-8" />,
-      title: 'Release Capacity',
-      description: 'The pool is funded by outside investors, releasing CAR and BMPK capacity so the bank can keep growing its book.',
+      title: 'Funding Beyond the District',
+      description: 'A BPRS can only collect deposits in its own area. The pool brings it funding from outside, at its own deposito terms.',
     },
   ];
 
@@ -62,8 +62,9 @@ export function HowItWorks() {
             <span className="block text-tawf-gold">Impactful Investing</span>
           </h1>
           <p className="text-tawf-muted text-lg md:text-xl leading-relaxed max-w-2xl mx-auto">
-            Take verifiable exposure to a licensed Shariah bank&apos;s financing pool, or give your
-            BPRS a wider funding channel, all through a compliant sell-down akad.
+            Put stablecoins into mudharabah deposito across licensed Indonesian Islamic rural banks,
+            wrapped into one Tawf Deposito Pool with a per-bank proof of reserve. The financing
+            sell-down pool comes after the pilot.
           </p>
         </motion.div>
       </Section>
@@ -170,7 +171,7 @@ export function HowItWorks() {
             <div className="p-6 bg-tawf-sand-30 rounded-xl text-center">
               <p className="text-4xl font-serif text-tawf-green mb-2">~2-5%</p>
               <p className="font-medium text-tawf-ink mb-1">Structuring Fee</p>
-              <p className="text-sm text-tawf-muted">On each sell-down pool</p>
+              <p className="text-sm text-tawf-muted">On each Deposito Pool</p>
             </div>
             <div className="p-6 bg-tawf-sand-30 rounded-xl text-center">
               <p className="text-4xl font-serif text-tawf-green mb-2">1%</p>

@@ -9,6 +9,7 @@ import {
   methodGuard,
   requirePasscode,
   readableError,
+  seriesTarget,
 } from '../_lib/operator.js'
 import { mockTokenAbi, tawfSeriesAbi } from '../_lib/abis.js'
 import type { IdentityStep } from '../_lib/identity.js'
@@ -29,6 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
   if (!requirePasscode(req, res)) return
+  const target = seriesTarget(req)
 
   try {
     const rawToken = req.body?.token
@@ -42,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(400).json({ error: 'Only the deployment mock stablecoins (mUSDC, mUSDT, mUSDG) can be added here.' })
       return
     }
-    const series = addresses.tawfSeries
+    const series = target.series
     const wc = walletClient()
     const steps: IdentityStep[] = []
 

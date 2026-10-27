@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, ArrowRight, User, Store, Building, Landmark, Shield } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, ArrowRight, User, Building, Landmark, Shield } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { FINANCING_POOL_ENABLED } from '@/config/features';
 import { useAuth } from '@/hooks/useAuth';
 import { demoUsers } from '@/data/mockData';
 
@@ -55,7 +56,7 @@ export function Login() {
             <h3 className="text-sm font-medium text-tawf-muted mb-4 text-center">
               Quick Demo Access
             </h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className={FINANCING_POOL_ENABLED ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-1 gap-3'}>
               <button
                 onClick={() => handleDemoLogin('investor')}
                 disabled={isLoading}
@@ -64,14 +65,8 @@ export function Login() {
                 <User className="w-6 h-6 mx-auto mb-1 text-tawf-green" />
                 <p className="text-sm font-medium text-tawf-green">Investor</p>
               </button>
-              <button
-                onClick={() => handleDemoLogin('business')}
-                disabled={isLoading}
-                className="p-3 border border-tawf-green-10 rounded-xl hover:border-tawf-green hover:bg-tawf-green-5 transition-colors text-center disabled:opacity-50"
-              >
-                <Store className="w-6 h-6 mx-auto mb-1 text-tawf-green" />
-                <p className="text-sm font-medium text-tawf-green">Business</p>
-              </button>
+              {FINANCING_POOL_ENABLED && (
+                <>
               <button
                 onClick={() => handleDemoLogin('cooperative')}
                 disabled={isLoading}
@@ -88,6 +83,8 @@ export function Login() {
                 <Landmark className="w-6 h-6 mx-auto mb-1 text-tawf-green" />
                 <p className="text-sm font-medium text-tawf-green">Licensed Issuer</p>
               </button>
+                </>
+              )}
             </div>
             <button
               onClick={() => handleDemoLogin('admin')}

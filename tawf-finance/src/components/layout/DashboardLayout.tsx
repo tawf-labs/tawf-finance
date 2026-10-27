@@ -3,7 +3,6 @@ import { Link, useLocation, Outlet } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   TrendingUp,
-  FileText,
   CreditCard,
   Heart,
   Settings,
@@ -17,8 +16,6 @@ import {
   Shield,
   LayoutDashboard,
   DollarSign,
-  Truck,
-  BarChart3,
   Briefcase,
   Search,
   ChevronLeft,
@@ -26,13 +23,13 @@ import {
   Wrench,
   PiggyBank,
   Landmark,
-  Coins,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { ConnectButton } from '@/components/web3/ConnectButton';
 import { cn } from '@/utils/cn';
+import { FINANCING_POOL_ENABLED } from '@/config/features';
 
 interface NavItem {
   id: string;
@@ -46,19 +43,16 @@ interface NavItem {
 const navConfigs: Record<string, NavItem[]> = {
   investor: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/investor/dashboard' },
-    { id: 'pools', label: 'Investment Pools', icon: TrendingUp, href: '/investor/pools' },
-    { id: 'deposito', label: 'Deposito', icon: PiggyBank, href: '/investor/deposito' },
-    { id: 'sukuk', label: 'Sukuk', icon: Coins, href: '/investor/sukuk' },
+    ...(FINANCING_POOL_ENABLED ? [{ id: 'pools', label: 'Investment Pools', icon: TrendingUp, href: '/investor/pools' }] : []),
+    { id: 'deposito', label: 'Deposito Pool', icon: PiggyBank, href: '/investor/deposito' },
     { id: 'scf', label: 'Urun Dana (SCF)', icon: Store, href: '/investor/scf' },
     { id: 'portfolio', label: 'Portfolio', icon: Briefcase, href: '/investor/portfolio' },
     { id: 'transactions', label: 'Transactions', icon: CreditCard, href: '/investor/transactions' },
-    { id: 'impact', label: 'Impact', icon: Heart, href: '/investor/impact' },
+    ...(FINANCING_POOL_ENABLED ? [{ id: 'impact', label: 'Impact', icon: Heart, href: '/investor/impact' }] : []),
     { id: 'settings', label: 'Settings', icon: Settings, href: '/investor/settings' },
   ],
-  issuer: [
-    { id: 'ops', label: 'Issuance & Settlement', icon: Wrench, href: '/issuer/ops' },
-  ],
-  cooperative: [
+  issuer: FINANCING_POOL_ENABLED ? [{ id: 'ops', label: 'Issuance & Settlement', icon: Wrench, href: '/issuer/ops' }] : [],
+  cooperative: !FINANCING_POOL_ENABLED ? [] : [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/cooperative/dashboard' },
     { id: 'verification', label: 'Pool Approval', icon: CheckCircle, href: '/cooperative/verification' },
     { id: 'businesses', label: 'Segments', icon: Store, href: '/cooperative/businesses' },
@@ -66,22 +60,14 @@ const navConfigs: Record<string, NavItem[]> = {
     { id: 'members', label: 'Bank Staff', icon: Users, href: '/cooperative/members' },
     { id: 'settings', label: 'Settings', icon: Settings, href: '/cooperative/settings' },
   ],
-  business: [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/business/dashboard' },
-    { id: 'purchase-orders', label: 'Pool Tranches', icon: FileText, href: '/business/purchase-orders' },
-    { id: 'funding', label: 'Funding', icon: DollarSign, href: '/business/funding' },
-    { id: 'fulfillment', label: 'Servicing', icon: Truck, href: '/business/fulfillment' },
-    { id: 'performance', label: 'Performance', icon: BarChart3, href: '/business/performance' },
-    { id: 'settings', label: 'Settings', icon: Settings, href: '/business/settings' },
-  ],
   admin: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
     { id: 'users', label: 'Users', icon: Users, href: '/admin/users' },
     { id: 'investments', label: 'Investments', icon: TrendingUp, href: '/admin/investments' },
-    { id: 'pools', label: 'Pools', icon: Briefcase, href: '/admin/pools' },
+    ...(FINANCING_POOL_ENABLED ? [{ id: 'pools', label: 'Pools', icon: Briefcase, href: '/admin/pools' }] : []),
     { id: 'tokenization', label: 'Tokenization', icon: Landmark, href: '/admin/tokenization' },
     { id: 'scf', label: 'SCF Onboarding', icon: Store, href: '/admin/scf' },
-    { id: 'ops', label: 'Protocol Ops', icon: Wrench, href: '/admin/ops' },
+    ...(FINANCING_POOL_ENABLED ? [{ id: 'ops', label: 'Protocol Ops', icon: Wrench, href: '/admin/ops' }] : []),
     { id: 'compliance', label: 'Compliance', icon: Shield, href: '/admin/compliance' },
     { id: 'settings', label: 'Settings', icon: Settings, href: '/admin/settings' },
   ],
@@ -89,7 +75,6 @@ const navConfigs: Record<string, NavItem[]> = {
 
 const roleLabels: Record<string, string> = {
   investor: 'Investor',
-  business: 'Business',
   cooperative: 'Cooperative',
   issuer: 'Licensed Issuer',
   admin: 'Admin',

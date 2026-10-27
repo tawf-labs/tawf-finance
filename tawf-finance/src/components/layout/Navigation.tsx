@@ -45,7 +45,7 @@ export function Navigation() {
 
   const isHomePage = location.pathname === '/';
   const isAuthPage = ['/login', '/register', '/onboarding'].includes(location.pathname);
-  const isDashboardPage = ['/investor', '/issuer', '/cooperative', '/business', '/admin'].some((p) =>
+  const isDashboardPage = ['/investor', '/issuer', '/cooperative', '/admin'].some((p) =>
     location.pathname.includes(p),
   );
 

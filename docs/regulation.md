@@ -129,7 +129,16 @@ guaranteed exit.
 - Travel rule compliance on secondary transfers once they exist.
 - Retail investor caps and risk warnings on every primary subscription.
 
-### 3.8 Second issuer type: securities crowdfunding platforms
+### 3.8 No BPRS sukuk: the regional Deposito Pool
+
+Sukuk issuance by a BPRS needs IDR 80bn core capital (section 3.1), so Tawf does not present any BPRS product as a sukuk. Instead it wraps the deposito it places at several BPRS in one region into a **Tawf Deposito Pool**: one token, a claim on Tawf, backed by Tawf's dedicated mudharabah deposito account at each bank, with each bank's balance shown in the proof of reserve.
+- **Naming.** The name avoids every regulated label: sukuk, obligasi, efek, reksa dana or unit penyertaan, and sertifikat deposito.
+- **Substance still decides.** A name does not decide the legal character. Pooling public money and issuing claims may still fall under the tokenised-asset offering rules in section 3.3. Map it with counsel.
+- **LPS.** LPS insures Tawf's deposit at each bank (up to Rp2bn per bank, at or below the LPS rate cap), not each investor.
+
+The financing sell-down pool (section 3.1) stays built and tested but is switched off for the pilot (feature flag `VITE_FEATURE_FINANCING_POOL`), so the pilot launches with the Deposito Pool and SCF offerings through a licensed partner platform. The purchase-order and invoice style flow is removed: verifying receivables, double financing and P2P lending licensing make it a poor fit for the pilot.
+
+### 3.9 Second issuer type: securities crowdfunding platforms
 
 Securities crowdfunding platforms (SCF, "Layanan Urun Dana") licensed under POJK 57/2020, as amended by POJK 16/2021, are the second issuer type. Sharia platforms such as LBS Urun Dana list sukuk and sharia shares of SMEs (UMKM).
 - **Who carries the licence.** The platform keeps the licence and the suitability check. Tawf stays the tech vendor, the same split as with a BPRS.

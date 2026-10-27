@@ -9,11 +9,11 @@ import { ConnectButton } from '@/components/web3/ConnectButton';
 import { GetTestUsdc } from '@/components/web3/GetTestUsdc';
 import { useMyReceipts, usePayoutFor, useRedeem, useClaimDefault, useDefaultPayout } from '@/web3/hooks';
 import { useTawfSeries, useSukuk } from '@/web3/tokenizationHooks';
+import { FINANCING_POOL_ENABLED } from '@/config/features';
 import { RECEIPT_STATUS_LABEL, type ReceiptStatus, type Deal } from '@/web3/types';
 import { formatUsdc, formatApy, formatTimestamp, formatIdr, getRevertReason } from '@/web3/format';
 import { RECEIPT_NFT_ADDRESS, isConfigured, explorerTxUrl, explorerAddressUrl } from '@/web3/constants';
-import { isTokenizationConfigured, SUKUK_SYMBOL } from '@/web3/tokenization';
-import { SUKUK_STATUS_LABEL } from '@/web3/tokenizationAbis';
+import { isTokenizationConfigured, DEPOSITO_POOL, SCF_DISTRIBUTOR_ADDRESS, SCF_TOKEN_ADDRESS, SCF_SYMBOL } from '@/web3/tokenization';
 import { cn } from '@/utils/cn';
 
 const RECEIPT_VARIANT: Record<ReceiptStatus, 'info' | 'success' | 'warning' | 'error' | 'default'> = {
@@ -115,16 +115,22 @@ function ActionModal({
   );
 }
 
+const POOL_TARGET = { series: DEPOSITO_POOL.series, token: DEPOSITO_POOL.token, sandbox: DEPOSITO_POOL.sandbox, seriesId: DEPOSITO_POOL.seriesId };
+const SCF_TARGET = { distributor: SCF_DISTRIBUTOR_ADDRESS, token: SCF_TOKEN_ADDRESS };
+
 export function Portfolio() {
   const { address, isConnected } = useAccount();
   const { positions, isLoading, refetch } = useMyReceipts(address);
   const { state: seriesState } = useTawfSeries(address);
-  const { state: sukukState } = useSukuk(address);
+  const { state: poolState } = useTawfSeries(address, POOL_TARGET);
+  const { state: scfState } = useSukuk(address, SCF_TARGET);
   const [action, setAction] = useState<{ deal: Deal; mode: 'redeem' | 'claim' } | null>(null);
 
   const seriesPending = seriesState.coins.reduce((s, c) => s + c.pending, 0n);
   const hasSeries = seriesState.balance > 0n || seriesPending > 0n;
-  const hasSukuk = sukukState.balance > 0n;
+  const poolPending = poolState.coins.reduce((s, c) => s + c.pending, 0n);
+  const hasPool = Boolean(DEPOSITO_POOL.series) && (poolState.balance > 0n || poolPending > 0n);
+  const hasScf = Boolean(SCF_DISTRIBUTOR_ADDRESS) && scfState.balance > 0n;
 
   const totalInvested = positions.reduce((s, p) => s + p.meta.principal, 0n);
   const totalProjected = positions.reduce(
@@ -139,7 +145,7 @@ export function Portfolio() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">My Portfolio</h1>
-          <p className="text-tawf-muted">Your soulbound sukuk receipts</p>
+          <p className="text-tawf-muted">Your Deposito Pool and crowdfunding positions</p>
         </div>
         <GetTestUsdc />
       </div>
@@ -152,6 +158,8 @@ export function Portfolio() {
         </div>
       )}
 
+      {FINANCING_POOL_ENABLED && (
+        <>
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-6">
@@ -266,54 +274,53 @@ export function Portfolio() {
         )}
       </Card>
 
-      {isTokenizationConfigured && isConnected && (hasSeries || hasSukuk) && (
+        </>
+      )}
+
+      {isTokenizationConfigured && isConnected && !hasSeries && !hasPool && !hasScf && (
+        <Card className="p-10 text-center">
+          <FileText className="w-16 h-16 text-tawf-muted mx-auto mb-4" />
+          <p className="text-tawf-muted">No positions yet. Subscribe to a Deposito Pool or invest in a crowdfunding offering to get started.</p>
+        </Card>
+      )}
+
+      {isTokenizationConfigured && isConnected && (hasSeries || hasPool || hasScf) && (
         <Card className="p-6">
           <p className="font-medium text-tawf-green mb-4 flex items-center gap-2">
             <Briefcase className="w-4 h-4" /> Tokenized positions (ERC-3643)
           </p>
           <div className="space-y-3">
-            {hasSeries && (
-              <div className="flex flex-col md:flex-row md:items-center gap-4 p-4 rounded-xl border border-tawf-green-10 bg-white">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-medium text-tawf-green">tDEP-TAWF-S1</p>
-                    <Badge variant="info" size="sm">Tawf Deposito Series</Badge>
-                  </div>
-                  <p className="text-xs text-tawf-muted">Wrapped Tawf deposit · 1 token = IDR 1 claim on Tawf</p>
-                </div>
-                <div className="flex md:flex-col items-center md:items-end gap-1 shrink-0">
-                  <p className="text-sm text-tawf-muted">Holding</p>
-                  <p className="font-semibold text-tawf-green">{formatIdr(seriesState.balance)}</p>
-                </div>
-                <div className="flex md:flex-col items-center md:items-end gap-1 shrink-0">
-                  <p className="text-sm text-tawf-muted">Claimable profit</p>
-                  <p className="font-semibold text-tawf-gold">{formatIdr(seriesState.claimableSen)}</p>
-                </div>
-              </div>
+            {hasPool && (
+              <PositionRow
+                symbol={DEPOSITO_POOL.symbol}
+                badge={DEPOSITO_POOL.name}
+                note="Deposito at several BPRS in Jawa Barat · 1 token = IDR 1 claim on Tawf"
+                holding={formatIdr(poolState.balance)}
+                claimable={formatIdr(poolState.claimableSen)}
+              />
             )}
-            {hasSukuk && (
-              <div className="flex flex-col md:flex-row md:items-center gap-4 p-4 rounded-xl border border-tawf-green-10 bg-white">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-medium text-tawf-green">{SUKUK_SYMBOL}</p>
-                    <Badge variant="info" size="sm">{SUKUK_STATUS_LABEL[sukukState.status]}</Badge>
-                  </div>
-                  <p className="text-xs text-tawf-muted">Sukuk series · returns from serviced financing</p>
-                </div>
-                <div className="flex md:flex-col items-center md:items-end gap-1 shrink-0">
-                  <p className="text-sm text-tawf-muted">Holding</p>
-                  <p className="font-semibold text-tawf-green">{formatUsdc(sukukState.balance)}</p>
-                </div>
-                <div className="flex md:flex-col items-center md:items-end gap-1 shrink-0">
-                  <p className="text-sm text-tawf-muted">Claimable profit</p>
-                  <p className="font-semibold text-tawf-gold">{formatUsdc(sukukState.claimable)}</p>
-                </div>
-              </div>
+            {hasSeries && (
+              <PositionRow
+                symbol="tDEP-TAWF-S1"
+                badge="Tawf Deposito Pool: BPRS Demo"
+                note="Deposito at one BPRS · 1 token = IDR 1 claim on Tawf"
+                holding={formatIdr(seriesState.balance)}
+                claimable={formatIdr(seriesState.claimableSen)}
+              />
+            )}
+            {hasScf && (
+              <PositionRow
+                symbol={SCF_SYMBOL}
+                badge="Urun Dana (SCF)"
+                note="SME sukuk mudharabah through a licensed crowdfunding platform"
+                holding={formatUsdc(scfState.balance)}
+                claimable={formatUsdc(scfState.claimable)}
+              />
             )}
           </div>
           <p className="text-xs text-tawf-muted mt-4">
-            Manage these positions in <span className="font-medium">Deposito</span> and{' '}
-            <span className="font-medium">Sukuk</span>.
+            Manage these positions in <span className="font-medium">Deposito Pool</span> and{' '}
+            <span className="font-medium">Urun Dana (SCF)</span>.
           </p>
         </Card>
       )}
@@ -330,6 +337,34 @@ export function Portfolio() {
           onClose={() => setAction(null)}
         />
       )}
+    </div>
+  );
+}
+
+function PositionRow({ symbol, badge, note, holding, claimable }: {
+  symbol: string;
+  badge: string;
+  note: string;
+  holding: string;
+  claimable: string;
+}) {
+  return (
+    <div className="flex flex-col md:flex-row md:items-center gap-4 p-4 rounded-xl border border-tawf-green-10 bg-white">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <p className="font-medium text-tawf-green">{symbol}</p>
+          <Badge variant="info" size="sm">{badge}</Badge>
+        </div>
+        <p className="text-xs text-tawf-muted">{note}</p>
+      </div>
+      <div className="flex md:flex-col items-center md:items-end gap-1 shrink-0">
+        <p className="text-sm text-tawf-muted">Holding</p>
+        <p className="font-semibold text-tawf-green">{holding}</p>
+      </div>
+      <div className="flex md:flex-col items-center md:items-end gap-1 shrink-0">
+        <p className="text-sm text-tawf-muted">Claimable profit</p>
+        <p className="font-semibold text-tawf-gold">{claimable}</p>
+      </div>
     </div>
   );
 }

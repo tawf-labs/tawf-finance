@@ -20,12 +20,11 @@ import {
   postAdmin,
   getJson,
   type TxStep,
-  type SukukStatus,
   type SeriesStatus,
   type TawfAccountStatus,
   type FxQuote,
 } from '@/lib/tokenization';
-import { SUKUK_SYMBOL, isTokenizationConfigured, SETTLEMENT_STABLECOINS } from '@/web3/tokenization';
+import { isTokenizationConfigured, SETTLEMENT_STABLECOINS, DEPOSITO_POOL } from '@/web3/tokenization';
 import { explorerTxUrl } from '@/web3/constants';
 import { formatIdr, formatUsdc } from '@/web3/format';
 
@@ -83,7 +82,7 @@ export function AdminTokenization() {
   const [passcode, setPasscode] = useState(loadPasscode());
   const [series, setSeries] = useState<SeriesStatus | null>(null);
   const [tawf, setTawf] = useState<TawfAccountStatus | null>(null);
-  const [sukukStatus, setSukukStatus] = useState<SukukStatus | null>(null);
+  const [poolStatus, setPoolStatus] = useState<SeriesStatus | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [steps, setSteps] = useState<TxStep[] | null>(null);
@@ -95,11 +94,13 @@ export function AdminTokenization() {
       setSeries(s);
     } catch { setSeries(null); }
     try { setTawf(await getJson<TawfAccountStatus>('bprs/tawf-status')); } catch { setTawf(null); }
-    try { setSukukStatus(await getJson<SukukStatus>('bprs/sukuk-status', passcode)); } catch { setSukukStatus(null); }
-  }, [address, passcode]);
+    if (DEPOSITO_POOL.series) {
+      try { setPoolStatus(await getJson<SeriesStatus>('series/status?series=pool')); } catch { setPoolStatus(null); }
+    }
+  }, [address]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- load series, treasury and sukuk state on mount
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load series, pool and treasury state on mount
     if (isTokenizationConfigured) void refreshAll();
   }, [refreshAll]);
 
@@ -123,9 +124,17 @@ export function AdminTokenization() {
   const savePass = (v: string) => { setPasscode(v); savePasscode(v); };
 
   const tabs = [
+    ...(DEPOSITO_POOL.series
+      ? [{
+          id: 'pool',
+          label: 'Deposito Pool: Jawa Barat',
+          icon: <Landmark className="w-4 h-4" />,
+          content: <PoolTab busy={busy} run={run} passcode={passcode} pool={poolStatus} />,
+        }]
+      : []),
     {
       id: 'treasury',
-      label: 'Tawf treasury',
+      label: 'BPRS Demo pool (series 1)',
       icon: <Landmark className="w-4 h-4" />,
       content: <TreasuryTab busy={busy} run={run} passcode={passcode} series={series} tawf={tawf} />,
     },
@@ -133,7 +142,7 @@ export function AdminTokenization() {
       id: 'bprs',
       label: 'BPRS (bank)',
       icon: <Building2 className="w-4 h-4" />,
-      content: <BprsTab busy={busy} run={run} passcode={passcode} tawf={tawf} sukukStatus={sukukStatus} onRefresh={refreshAll} />,
+      content: <BprsTab busy={busy} run={run} passcode={passcode} tawf={tawf} onRefresh={refreshAll} />,
     },
   ];
 
@@ -142,7 +151,7 @@ export function AdminTokenization() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">Tokenization Ops</h1>
-          <p className="text-tawf-muted">Tawf treasury and BPRS actions for the Model B deposito series and the sukuk demo.</p>
+          <p className="text-tawf-muted">Operator actions for the Tawf Deposito Pools: the regional pool across several BPRS, and the single-bank BPRS Demo pool.</p>
         </div>
         <ConnectButton variant="primary" size="md" />
       </div>
@@ -170,13 +179,144 @@ export function AdminTokenization() {
       <ActionFeedback busy={busy} error={error} steps={steps} lastHash={lastHash} />
 
       <Card className="p-6">
-        <Tabs tabs={tabs} defaultTab="treasury" variant="pills" />
+        <Tabs tabs={tabs} defaultTab={DEPOSITO_POOL.series ? 'pool' : 'treasury'} variant="pills" />
       </Card>
     </div>
   );
 }
 
 type RunFn = (label: string, fn: () => Promise<unknown>) => Promise<void>;
+
+const coinLabel = (addr: string): string =>
+  SETTLEMENT_STABLECOINS.find((c) => c.address?.toLowerCase() === addr.toLowerCase())?.symbol ?? 'COIN';
+
+/**
+ * The regional Deposito Pool: Tawf's balance at each BPRS (recorded on the pool
+ * ledger, whose total backs the token), allocation, per-bank profit and
+ * maturity, plus the shared coin, approval and sandbox controls.
+ */
+function PoolTab({ busy, run, passcode, pool }: {
+  busy: string | null;
+  run: RunFn;
+  passcode: string;
+  pool: SeriesStatus | null;
+}) {
+  const banks = pool?.banks ?? [];
+  const [balances, setBalances] = useState<Record<string, number>>({});
+  const [profits, setProfits] = useState<Record<string, number>>({});
+  const [allocateList, setAllocateList] = useState('');
+  const total = banks.reduce((a, b) => a + BigInt(b.balanceSen), 0n);
+  const nextPeriod = pool ? pool.lastPeriod + 1 : 1;
+  const idrOf = (b: { id: string; balanceSen: string }) => balances[b.id] ?? Number(BigInt(b.balanceSen) / 100n);
+  const profitTotal = banks.reduce((a, b) => a + (profits[b.id] ?? 0), 0);
+
+  return (
+    <div className="space-y-6">
+      <Card className="p-6 space-y-3">
+        <p className="font-medium text-tawf-green">Bank balances (pool ledger)</p>
+        <p className="text-xs text-tawf-muted">
+          Tawf&apos;s dedicated account at each BPRS. Recording new balances updates the total that backs the token
+          ({formatIdr(total)} now, supply {pool ? formatIdr(BigInt(pool.supply)) : '-'}). In production each balance
+          comes from the bank&apos;s core banking through the bprs-connector.
+        </p>
+        <div className="space-y-2">
+          {banks.map((b) => (
+            <div key={b.id} className="flex flex-wrap items-center gap-2">
+              <span className="w-48 text-sm text-tawf-green">{b.name}</span>
+              <span className="w-28 text-xs font-mono text-tawf-muted">{b.accountRef}</span>
+              <input
+                type="number"
+                min={0}
+                value={idrOf(b)}
+                onChange={(e) => setBalances((p) => ({ ...p, [b.id]: Number(e.target.value) }))}
+                className="px-3 py-2 border border-tawf-green-10 rounded-xl w-48 text-sm"
+              />
+              <span className="text-xs text-tawf-muted">IDR (now {formatIdr(BigInt(b.balanceSen))})</span>
+            </div>
+          ))}
+        </div>
+        <Button
+          size="sm"
+          disabled={busy !== null || banks.length === 0}
+          onClick={() => run('Record bank balances', () => postAdmin('pool/admin', {
+            action: 'reserve',
+            balances: Object.fromEntries(banks.map((b) => [b.id, idrOf(b)])),
+          }, passcode))}
+        >
+          Record balances
+        </Button>
+      </Card>
+
+      <SeriesCoinsCards busy={busy} run={run} passcode={passcode} series={pool} pool />
+
+      <Card className="p-6 space-y-3">
+        <p className="font-medium text-tawf-green">Allocate pending subscriptions</p>
+        <p className="text-xs text-tawf-muted">
+          Converts each investor&apos;s escrowed coins to IDR at the posted rates and mints the pool token, within the
+          total recorded across the banks.
+        </p>
+        <textarea
+          value={allocateList}
+          onChange={(e) => setAllocateList(e.target.value)}
+          placeholder="0xabc...&#10;0xdef..."
+          rows={3}
+          className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl font-mono text-xs"
+        />
+        <Button
+          size="sm"
+          disabled={busy !== null}
+          onClick={() => {
+            const investors = allocateList.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+            return run('Allocate', () => postAdmin('pool/admin', { action: 'allocate', investors }, passcode));
+          }}
+        >
+          Allocate
+        </Button>
+      </Card>
+
+      <Card className="p-6 space-y-3">
+        <p className="font-medium text-tawf-green">Profit for period {nextPeriod}, per bank</p>
+        <div className="space-y-2">
+          {banks.map((b) => (
+            <div key={b.id} className="flex flex-wrap items-center gap-2">
+              <span className="w-48 text-sm text-tawf-green">{b.name}</span>
+              <input
+                type="number"
+                min={0}
+                value={profits[b.id] ?? 0}
+                onChange={(e) => setProfits((p) => ({ ...p, [b.id]: Number(e.target.value) }))}
+                className="px-3 py-2 border border-tawf-green-10 rounded-xl w-48 text-sm"
+              />
+              <span className="text-xs text-tawf-muted">IDR credited by the bank</span>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            size="sm"
+            disabled={busy !== null || profitTotal <= 0 || Boolean(pool?.redemptionOpen)}
+            onClick={() => run(`Distribute period ${nextPeriod}`, () => postAdmin('pool/admin', {
+              action: 'distribute',
+              profits: Object.fromEntries(banks.map((b) => [b.id, profits[b.id] ?? 0])),
+            }, passcode))}
+          >
+            Distribute {profitTotal > 0 ? `Rp ${profitTotal.toLocaleString('id-ID')}` : ''}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={busy !== null || Boolean(pool?.redemptionOpen) || !pool || pool.supply === '0'}
+            onClick={() => run('Settle maturity at par', () => postAdmin('pool/admin', { action: 'settle' }, passcode))}
+          >
+            Settle maturity at par
+          </Button>
+        </div>
+      </Card>
+
+      <SandboxControls busy={busy} run={run} passcode={passcode} series={pool} pool />
+    </div>
+  );
+}
 
 function TreasuryTab({ busy, run, passcode, series, tawf }: {
   busy: string | null;
@@ -185,8 +325,6 @@ function TreasuryTab({ busy, run, passcode, series, tawf }: {
   series: SeriesStatus | null;
   tawf: TawfAccountStatus | null;
 }) {
-  // Per-coin rate inputs (IDR per coin), keyed by coin address.
-  const [rates, setRates] = useState<Record<string, number>>({});
   const [depositIdr, setDepositIdr] = useState<number>(0);
   const [screenWallet, setScreenWallet] = useState('');
   const [screenNote, setScreenNote] = useState('');
@@ -199,105 +337,9 @@ function TreasuryTab({ busy, run, passcode, series, tawf }: {
   const nextProfitSen = nextCredit ? nextCredit.amountIdr * 100 : 0;
   const maturity = tawf?.account.maturity;
 
-  const coinLabel = (addr: string): string =>
-    SETTLEMENT_STABLECOINS.find((c) => c.address?.toLowerCase() === addr.toLowerCase())?.symbol ?? 'COIN';
-  // App-known coins the series does not list yet (e.g. mock USDG before it is enabled).
-  const addableCoins = series
-    ? SETTLEMENT_STABLECOINS.filter(
-        (c) => c.address && !series.coins.some((sc) => sc.address.toLowerCase() === c.address!.toLowerCase()),
-      )
-    : [];
-
-  const rateFor = (addr: string): number => rates[addr.toLowerCase()] ?? 16000;
-  const setRateFor = (addr: string, v: number) =>
-    setRates((prev) => ({ ...prev, [addr.toLowerCase()]: v }));
-
-  const applyQuote = async (addr: string) => {
-    const q = await getJson<FxQuote>('fx');
-    const label = coinLabel(addr);
-    const coin = label === 'USDT' ? q.usdt : label === 'USDG' ? (q.usdg ?? q.usdc) : q.usdc;
-    setRateFor(addr, coin.idr);
-  };
-
   return (
     <div className="space-y-6">
-      {/* FX rate, per coin */}
-      <Card className="p-6 space-y-3">
-        <p className="font-medium text-tawf-green">Post FX rate (per settlement coin)</p>
-        <p className="text-xs text-tawf-muted">
-          Each coin carries its own IDR rate (no 1:1 peg). Production uses an IDRX / exchange quote per coin (the
-          number Tawf uses when it converts that coin to IDR off chain).
-        </p>
-        {addableCoins.map((c) => (
-          <div key={c.key} className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-tawf-sand-30">
-            <span className="text-sm text-tawf-ink">{c.symbol} is not a settlement coin on this series yet.</span>
-            <Button
-              size="sm"
-              disabled={busy !== null}
-              onClick={() => run(`Add m${c.symbol} as settlement coin`, () => postAdmin('series/add-stablecoin', { token: c.address }, passcode))}
-            >
-              Add m{c.symbol} as settlement coin
-            </Button>
-          </div>
-        ))}
-        <div className="space-y-3">
-          {(series?.coins ?? []).map((c) => {
-            const idr = c.rate.idrPerToken !== '0' ? Number(c.rate.idrPerToken) / 100 : 0;
-            return (
-              <div key={c.address} className="flex flex-wrap gap-2 items-center">
-                <span className="w-14 text-sm font-medium text-tawf-green">{coinLabel(c.address)}</span>
-                <input
-                  type="number"
-                  value={rateFor(c.address)}
-                  min={1}
-                  onChange={(e) => setRateFor(c.address, Number(e.target.value))}
-                  className="px-4 py-3 border border-tawf-green-10 rounded-xl w-40"
-                />
-                <span className="text-sm text-tawf-muted">IDR / {coinLabel(c.address)}</span>
-                <Button size="sm" variant="ghost" onClick={() => applyQuote(c.address)}>Use market quote</Button>
-                <Button
-                  size="sm"
-                  disabled={busy !== null}
-                  onClick={() => run(`Post ${coinLabel(c.address)} rate`, () => postAdmin('series/post-rate', { token: c.address, idrPerToken: Math.round(rateFor(c.address) * 100) }, passcode))}
-                >
-                  Post rate
-                </Button>
-                <span className="text-xs text-tawf-muted">
-                  posted: {idr > 0 ? `Rp ${idr.toLocaleString('id-ID')}` : 'none'} {idr > 0 && (c.rate.fresh ? '(fresh)' : '(stale)')}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
-      {/* Treasury balances + series allowance per coin */}
-      <Card className="p-6 space-y-3">
-        <p className="font-medium text-tawf-green">Treasury balances &amp; series allowances</p>
-        <p className="text-xs text-tawf-muted">
-          Profit and principal payouts transfer from the treasury at claim/redeem. The treasury must approve the
-          series per coin. Treasury: <span className="font-mono">{series?.treasury ?? '—'}</span>
-        </p>
-        <div className="space-y-2">
-          {(series?.coins ?? []).map((c) => {
-            const approved = c.seriesAllowance !== '0';
-            return (
-              <div key={c.address} className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-sm">
-                  <span className="w-14 inline-block font-medium text-tawf-green">{coinLabel(c.address)}</span>
-                  <span className="text-tawf-muted">balance </span>
-                  <span className="text-tawf-green">{formatUsdc(BigInt(c.treasuryBalance))}</span>
-                  <span className="text-tawf-muted"> · allowance </span>
-                  <Badge variant={approved ? 'success' : 'warning'} size="sm">{approved ? 'approved' : 'not approved'}</Badge>
-                </div>
-                <Button size="sm" variant="secondary" disabled={busy !== null} onClick={() => run(`Approve series (${coinLabel(c.address)})`, () => postAdmin('series/approve-treasury', { token: c.address }, passcode))}>
-                  Approve series
-                </Button>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
+      <SeriesCoinsCards busy={busy} run={run} passcode={passcode} series={series} />
 
       {/* Pending subscriptions + allocate */}
       <Card className="p-6 space-y-3">
@@ -414,12 +456,128 @@ function TreasuryTab({ busy, run, passcode, series, tawf }: {
   );
 }
 
-function SandboxControls({ busy, run, passcode, series }: {
+
+/** Per-coin FX rates, treasury balances and series approvals for one deposito series. */
+function SeriesCoinsCards({ busy, run, passcode, series, pool = false }: {
   busy: string | null;
   run: RunFn;
   passcode: string;
   series: SeriesStatus | null;
+  pool?: boolean;
 }) {
+  const target = pool ? { series: 'pool' } : {};
+  // Per-coin rate inputs (IDR per coin), keyed by coin address.
+  const [rates, setRates] = useState<Record<string, number>>({});
+  // App-known coins the series does not list yet (e.g. mock USDG before it is enabled).
+  const addableCoins = series
+    ? SETTLEMENT_STABLECOINS.filter(
+        (c) => c.address && !series.coins.some((sc) => sc.address.toLowerCase() === c.address!.toLowerCase()),
+      )
+    : [];
+
+  const rateFor = (addr: string): number => rates[addr.toLowerCase()] ?? 16000;
+  const setRateFor = (addr: string, v: number) =>
+    setRates((prev) => ({ ...prev, [addr.toLowerCase()]: v }));
+
+  const applyQuote = async (addr: string) => {
+    const q = await getJson<FxQuote>('fx');
+    const label = coinLabel(addr);
+    const coin = label === 'USDT' ? q.usdt : label === 'USDG' ? (q.usdg ?? q.usdc) : q.usdc;
+    setRateFor(addr, coin.idr);
+  };
+
+  return (
+    <>
+      {/* FX rate, per coin */}
+      <Card className="p-6 space-y-3">
+        <p className="font-medium text-tawf-green">Post FX rate (per settlement coin)</p>
+        <p className="text-xs text-tawf-muted">
+          Each coin carries its own IDR rate (no 1:1 peg). Production uses an IDRX / exchange quote per coin (the
+          number Tawf uses when it converts that coin to IDR off chain).
+        </p>
+        {addableCoins.map((c) => (
+          <div key={c.key} className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-tawf-sand-30">
+            <span className="text-sm text-tawf-ink">{c.symbol} is not a settlement coin on this series yet.</span>
+            <Button
+              size="sm"
+              disabled={busy !== null}
+              onClick={() => run(`Add m${c.symbol} as settlement coin`, () => postAdmin('series/add-stablecoin', { token: c.address, ...target }, passcode))}
+            >
+              Add m{c.symbol} as settlement coin
+            </Button>
+          </div>
+        ))}
+        <div className="space-y-3">
+          {(series?.coins ?? []).map((c) => {
+            const idr = c.rate.idrPerToken !== '0' ? Number(c.rate.idrPerToken) / 100 : 0;
+            return (
+              <div key={c.address} className="flex flex-wrap gap-2 items-center">
+                <span className="w-14 text-sm font-medium text-tawf-green">{coinLabel(c.address)}</span>
+                <input
+                  type="number"
+                  value={rateFor(c.address)}
+                  min={1}
+                  onChange={(e) => setRateFor(c.address, Number(e.target.value))}
+                  className="px-4 py-3 border border-tawf-green-10 rounded-xl w-40"
+                />
+                <span className="text-sm text-tawf-muted">IDR / {coinLabel(c.address)}</span>
+                <Button size="sm" variant="ghost" onClick={() => applyQuote(c.address)}>Use market quote</Button>
+                <Button
+                  size="sm"
+                  disabled={busy !== null}
+                  onClick={() => run(`Post ${coinLabel(c.address)} rate`, () => postAdmin('series/post-rate', { token: c.address, idrPerToken: Math.round(rateFor(c.address) * 100), ...target }, passcode))}
+                >
+                  Post rate
+                </Button>
+                <span className="text-xs text-tawf-muted">
+                  posted: {idr > 0 ? `Rp ${idr.toLocaleString('id-ID')}` : 'none'} {idr > 0 && (c.rate.fresh ? '(fresh)' : '(stale)')}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Treasury balances + series allowance per coin */}
+      <Card className="p-6 space-y-3">
+        <p className="font-medium text-tawf-green">Treasury balances &amp; series allowances</p>
+        <p className="text-xs text-tawf-muted">
+          Profit and principal payouts transfer from the treasury at claim/redeem. The treasury must approve the
+          series per coin. Treasury: <span className="font-mono">{series?.treasury ?? '—'}</span>
+        </p>
+        <div className="space-y-2">
+          {(series?.coins ?? []).map((c) => {
+            const approved = c.seriesAllowance !== '0';
+            return (
+              <div key={c.address} className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm">
+                  <span className="w-14 inline-block font-medium text-tawf-green">{coinLabel(c.address)}</span>
+                  <span className="text-tawf-muted">balance </span>
+                  <span className="text-tawf-green">{formatUsdc(BigInt(c.treasuryBalance))}</span>
+                  <span className="text-tawf-muted"> · allowance </span>
+                  <Badge variant={approved ? 'success' : 'warning'} size="sm">{approved ? 'approved' : 'not approved'}</Badge>
+                </div>
+                <Button size="sm" variant="secondary" disabled={busy !== null} onClick={() => run(`Approve series (${coinLabel(c.address)})`, () => postAdmin('series/approve-treasury', { token: c.address, ...target }, passcode))}>
+                  Approve series
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+    </>
+  );
+}
+
+function SandboxControls({ busy, run, passcode, series, pool = false }: {
+  busy: string | null;
+  run: RunFn;
+  passcode: string;
+  series: SeriesStatus | null;
+  pool?: boolean;
+}) {
+  const target = pool ? { series: 'pool' } : {};
   const [maxInvestors, setMaxInvestors] = useState(0);
   const [maxBalIdr, setMaxBalIdr] = useState(0);
   const [seriesCapIdr, setSeriesCapIdr] = useState(0);
@@ -435,7 +593,7 @@ function SandboxControls({ busy, run, passcode, series }: {
       </p>
       <div className="flex flex-wrap gap-2">
         {(['PILOT_ONLY', 'SCREENED_GROUP', 'SANDBOX_ADMITTED'] as const).map((m) => (
-          <Button key={m} size="sm" variant="secondary" disabled={busy !== null} onClick={() => run(`Set mode ${m}`, () => postAdmin('series/sandbox', { action: 'mode', mode: m }, passcode))}>
+          <Button key={m} size="sm" variant="secondary" disabled={busy !== null} onClick={() => run(`Set mode ${m}`, () => postAdmin('series/sandbox', { action: 'mode', mode: m, ...target }, passcode))}>
             {m.replace(/_/g, ' ')}
           </Button>
         ))}
@@ -449,6 +607,7 @@ function SandboxControls({ busy, run, passcode, series }: {
         size="sm"
         disabled={busy !== null}
         onClick={() => run('Set caps', () => postAdmin('series/sandbox', {
+          ...target,
           action: 'caps',
           maxInvestors,
           maxBalancePerInvestorSen: maxBalIdr * 100,
@@ -461,12 +620,11 @@ function SandboxControls({ busy, run, passcode, series }: {
   );
 }
 
-function BprsTab({ busy, run, passcode, tawf, sukukStatus, onRefresh }: {
+function BprsTab({ busy, run, passcode, tawf, onRefresh }: {
   busy: string | null;
   run: RunFn;
   passcode: string;
   tawf: TawfAccountStatus | null;
-  sukukStatus: SukukStatus | null;
   onRefresh: () => Promise<void>;
 }) {
   const [creditIdr, setCreditIdr] = useState(0);
@@ -508,9 +666,6 @@ function BprsTab({ busy, run, passcode, tawf, sukukStatus, onRefresh }: {
         </div>
       </Card>
 
-      {/* Sukuk lifecycle (unchanged) */}
-      <SukukLedgerCard busy={busy} run={run} passcode={passcode} status={sukukStatus} />
-      <ShariahReviewCard busy={busy} run={run} passcode={passcode} />
       <TawfShareCard busy={busy} run={run} passcode={passcode} />
     </div>
   );
@@ -525,172 +680,24 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SukukLedgerCard({ busy, run, passcode, status }: {
-  busy: string | null;
-  run: RunFn;
-  passcode: string;
-  status: SukukStatus | null;
-}) {
-  const [profitAmount, setProfitAmount] = useState(0);
-  const [maturityAmount, setMaturityAmount] = useState(0);
-
-  const nextPeriod = status ? status.declaredPeriods + 1 : 1;
-  const canDeclarePeriod = status ? status.declaredPeriods < status.periods : false;
-  const allPeriodsDeclared = status ? status.declaredPeriods >= status.periods : false;
-
-  return (
-    <Card className="p-6 space-y-4">
-      <p className="font-medium text-tawf-green">Sukuk on Tawf Network ({SUKUK_SYMBOL})</p>
-      {!status ? (
-        <p className="text-sm text-tawf-muted">Sukuk ledger status unavailable. Set the connector and sync.</p>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-          <div><p className="text-xs text-tawf-muted">Status</p><Badge variant="info" size="sm">{status.status}</Badge></div>
-          <div><p className="text-xs text-tawf-muted">Periods</p><p className="text-tawf-green font-medium">{status.declaredPeriods} / {status.periods}</p></div>
-          <div><p className="text-xs text-tawf-muted">Face value</p><p className="text-tawf-green font-medium">{formatUsdc(Number(BigInt(status.faceValue)) / 1e6)}</p></div>
-          <div><p className="text-xs text-tawf-muted">Maturity</p><p className="text-tawf-green font-medium">{status.maturity ? new Date(status.maturity * 1000).toLocaleDateString('en-SG') : 'N/A'}</p></div>
-        </div>
-      )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-2">
-          <p className="text-sm text-tawf-muted">Declare period {nextPeriod} profit (USDC)</p>
-          <input type="number" value={profitAmount} min={0} onChange={(e) => setProfitAmount(Number(e.target.value))} className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl" />
-          <Button size="sm" disabled={busy !== null || !canDeclarePeriod} onClick={() => run('Declare profit', () => postAdmin('bprs/declare-distribution', { period: nextPeriod, amount: profitAmount }, passcode))}>
-            Declare period {nextPeriod} profit
-          </Button>
-        </div>
-        <div className="space-y-2">
-          <p className="text-sm text-tawf-muted">Declare maturity (USDC)</p>
-          <input type="number" value={maturityAmount} min={0} onChange={(e) => setMaturityAmount(Number(e.target.value))} className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl" />
-          <Button size="sm" disabled={busy !== null || !status} onClick={() => run('Declare maturity', () => postAdmin('bprs/declare-maturity', { amount: maturityAmount }, passcode))}>
-            Declare maturity
-          </Button>
-          {!allPeriodsDeclared && (
-            <p className="text-xs text-tawf-muted">
-              Periods are still undeclared. With a valid Shariah attestation the ledger refuses this; if the
-              attestation was revoked, principal is declared and the profit is held for the Shariah board.
-            </p>
-          )}
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-type HeldStatus = {
-  sukuk: number;
-  status: number;
-  totalUnitsAtMaturity: string | null;
-  releases: number;
-  released: string | null;
-  claimed: string | null;
-  swept: string | null;
-  heldBalance: string | null;
-  sweepOpensAt: number | null;
-  sweepDestination: string | null;
-  ledgerFlag: { state: string; heldAmount: string; undeclaredPeriods: number; releases: number; released: string; sweepDestination: string } | null;
-};
-
-const usdc = (v: string | null | undefined) => formatUsdc(Number(BigInt(v ?? '0')) / 1e6);
-const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
-
-/** Profit held at a Shariah-flagged maturity: the board's ledger actions and the issuer's parent-chain actions. */
-function ShariahReviewCard({ busy, run, passcode }: { busy: string | null; run: RunFn; passcode: string }) {
-  const [which, setWhich] = useState<1 | 2>(1);
-  const [held, setHeld] = useState<HeldStatus | null>(null);
-  const [releaseAmount, setReleaseAmount] = useState(0);
-  const [destination, setDestination] = useState('');
-  const [windowSeconds, setWindowSeconds] = useState(365 * 24 * 3600);
-
-  const load = async () => {
-    try { setHeld(await getJson<HeldStatus>(`issuer/sukuk/held?sukuk=${which}`)); } catch { setHeld(null); }
-  };
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- reload when the selected sukuk changes
-  useEffect(() => { void load(); }, [which]);
-
-  const act = (label: string, path: string, body: Record<string, unknown>) =>
-    run(label, async () => { const r = await postAdmin(path, { sukuk: which, ...body }, passcode); await load(); return r; });
-
-  const flag = held?.ledgerFlag;
-  const flagged = flag && flag.state !== 'None';
-  const destSet = held?.sweepDestination && held.sweepDestination !== ZERO_ADDR;
-
-  return (
-    <Card className="p-6 space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="font-medium text-tawf-green">Shariah review: held profit</p>
-        <div className="flex gap-2">
-          <Button size="sm" variant={which === 1 ? 'primary' : 'secondary'} onClick={() => setWhich(1)}>Sukuk</Button>
-          <Button size="sm" variant={which === 2 ? 'primary' : 'secondary'} onClick={() => setWhich(2)}>Test sukuk (v4)</Button>
-          <Button size="sm" variant="secondary" onClick={() => void load()}>Refresh</Button>
-        </div>
-      </div>
-      <p className="text-sm text-tawf-muted">
-        If the Shariah attestation is no longer valid at maturity, holders still redeem principal and the profit is
-        held. The board releases it in parts; holders at maturity claim pro rata, even after redeeming. After the
-        claim window, unclaimed profit can only go to a destination the board approved, never to Tawf.
-      </p>
-      {!held ? (
-        <p className="text-sm text-tawf-muted">Status unavailable.</p>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-          <Stat label="Ledger review" value={flag ? flag.state : 'unknown'} />
-          <Stat label="Held at maturity" value={flag ? usdc(flag.heldAmount) : '-'} />
-          <Stat label="Undeclared periods" value={flag ? String(flag.undeclaredPeriods) : '-'} />
-          <Stat label="Board releases" value={`${held.releases} / ${flag?.releases ?? 0}`} />
-          <Stat label="Released" value={usdc(held.released)} />
-          <Stat label="Claimed" value={usdc(held.claimed)} />
-          <Stat label="Unclaimed" value={usdc(held.heldBalance)} />
-          <Stat label="Swept" value={usdc(held.swept)} />
-          <Stat label="Sweep opens" value={held.sweepOpensAt ? new Date(held.sweepOpensAt * 1000).toLocaleString('en-SG') : '-'} />
-          <Stat label="Sweep destination" value={destSet ? held.sweepDestination! : 'not set'} />
-        </div>
-      )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-tawf-green">Shariah board (ledger)</p>
-          <input type="number" value={releaseAmount} min={0} onChange={(e) => setReleaseAmount(Number(e.target.value))} className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl" />
-          <div className="flex gap-2 flex-wrap">
-            <Button size="sm" disabled={busy !== null || !flagged} onClick={() => act('Board release', 'bprs/sukuk-board', { action: 'release', amount: releaseAmount })}>Release (USDC)</Button>
-            <Button size="sm" variant="secondary" disabled={busy !== null || !flagged} onClick={() => act('Close review', 'bprs/sukuk-board', { action: 'close' })}>Close review</Button>
-          </div>
-          <input value={destination} placeholder="0x... waqf or charity" onChange={(e) => setDestination(e.target.value)} className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl font-mono text-xs" />
-          <Button size="sm" variant="secondary" disabled={busy !== null || !flagged || !destination} onClick={() => act('Approve sweep destination', 'bprs/sukuk-board', { action: 'approve-sweep', destination })}>Approve sweep destination</Button>
-        </div>
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-tawf-green">Tawf issuer (parent chain)</p>
-          <Button size="sm" disabled={busy !== null || held?.status !== 3} onClick={() => act('Fund release', 'issuer/sukuk/held', { action: 'release', amount: releaseAmount })}>Pay the next release (USDC above)</Button>
-          <Button size="sm" variant="secondary" disabled={busy !== null || held?.status !== 3 || !destination || Boolean(destSet)} onClick={() => act('Set sweep destination', 'issuer/sukuk/held', { action: 'set-destination', destination })}>Record approved destination</Button>
-          <div className="flex gap-2 items-center">
-            <input type="number" value={windowSeconds} min={1} onChange={(e) => setWindowSeconds(Number(e.target.value))} className="w-40 px-3 py-2 border border-tawf-green-10 rounded-xl text-sm" />
-            <Button size="sm" variant="secondary" disabled={busy !== null} onClick={() => act('Set claim window', 'issuer/sukuk/held', { action: 'claim-window', seconds: windowSeconds })}>Set claim window (s)</Button>
-          </div>
-          <Button size="sm" variant="secondary" disabled={busy !== null || !destSet} onClick={() => act('Sweep unclaimed', 'issuer/sukuk/held', { action: 'sweep' })}>Sweep unclaimed</Button>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
 type TawfShareStatus = {
   nisbahBps: number;
   feeRecipient: string | null;
   locked?: boolean;
   accruedSen?: string;
   paidSen?: string;
-  totalTawfShare?: string;
 };
 
 /** Tawf's nisbah per product: set it before the sale opens, and collect the deposito share. */
 function TawfShareCard({ busy, run, passcode }: { busy: string | null; run: RunFn; passcode: string }) {
   const [series, setSeries] = useState<TawfShareStatus | null>(null);
-  const [sukuk, setSukuk] = useState<TawfShareStatus | null>(null);
+  const [pool, setPool] = useState<TawfShareStatus | null>(null);
   const [percent, setPercent] = useState(15);
   const [recipient, setRecipient] = useState('');
 
   const load = async () => {
     try { setSeries(await getJson<TawfShareStatus>('tawf-share?product=series')); } catch { setSeries(null); }
-    try { setSukuk(await getJson<TawfShareStatus>('tawf-share?product=sukuk')); } catch { setSukuk(null); }
+    try { setPool(await getJson<TawfShareStatus>('tawf-share?product=pool')); } catch { setPool(null); }
   };
   // eslint-disable-next-line react-hooks/set-state-in-effect -- initial load
   useEffect(() => { void load(); }, []);
@@ -704,21 +711,21 @@ function TawfShareCard({ busy, run, passcode }: { busy: string | null; run: RunF
       <p className="font-medium text-tawf-green">Tawf profit share (nisbah)</p>
       <p className="text-sm text-tawf-muted">
         Mudharabah: Tawf keeps a fixed share of each period&apos;s profit, set before the sale opens and shown to
-        investors upfront. No profit, no share; principal is never charged; held (flagged) sukuk profit never goes to Tawf.
+        investors upfront. No profit, no share, and principal is never charged.
       </p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-        <Stat label="Deposito nisbah" value={series ? `${series.nisbahBps / 100}%${series.locked ? ' (fixed)' : ''}` : '-'} />
-        <Stat label="Deposito share accrued / paid" value={series ? `${sen(series.accruedSen)} / ${sen(series.paidSen)}` : '-'} />
-        <Stat label="Sukuk nisbah" value={sukuk ? `${sukuk.nisbahBps / 100}%` : '-'} />
-        <Stat label="Sukuk share paid" value={sukuk ? usdc(sukuk.totalTawfShare) : '-'} />
+        <Stat label="Regional pool nisbah" value={pool ? `${pool.nisbahBps / 100}%${pool.locked ? ' (fixed)' : ''}` : '-'} />
+        <Stat label="Regional pool share accrued / paid" value={pool ? `${sen(pool.accruedSen)} / ${sen(pool.paidSen)}` : '-'} />
+        <Stat label="BPRS Demo pool nisbah" value={series ? `${series.nisbahBps / 100}%${series.locked ? ' (fixed)' : ''}` : '-'} />
+        <Stat label="BPRS Demo pool share accrued / paid" value={series ? `${sen(series.accruedSen)} / ${sen(series.paidSen)}` : '-'} />
       </div>
       <div className="flex flex-wrap gap-2 items-center">
         <input type="number" min={0} max={50} value={percent} onChange={(e) => setPercent(Number(e.target.value))} className="w-24 px-3 py-2 border border-tawf-green-10 rounded-xl text-sm" />
         <span className="text-sm text-tawf-muted">% of profit</span>
         <input value={recipient} placeholder="fee wallet 0x… (default FEE_RECIPIENT)" onChange={(e) => setRecipient(e.target.value)} className="w-80 px-3 py-2 border border-tawf-green-10 rounded-xl font-mono text-xs" />
-        <Button size="sm" variant="secondary" disabled={busy !== null || Boolean(series?.locked)} onClick={() => act('Set deposito nisbah', { product: 'series', action: 'set', percent })}>Set on deposito</Button>
-        <Button size="sm" variant="secondary" disabled={busy !== null} onClick={() => act('Set sukuk nisbah', { product: 'sukuk', action: 'set', percent })}>Set on sukuk</Button>
-        <Button size="sm" disabled={busy !== null || series?.accruedSen === series?.paidSen} onClick={() => act('Collect deposito share', { product: 'series', action: 'claim', coin: 'usdc' })}>Collect deposito share (USDC)</Button>
+        <Button size="sm" variant="secondary" disabled={busy !== null || Boolean(series?.locked)} onClick={() => act('Set BPRS Demo pool nisbah', { product: 'series', action: 'set', percent })}>Set on BPRS Demo pool</Button>
+        <Button size="sm" disabled={busy !== null || series?.accruedSen === series?.paidSen} onClick={() => act('Collect BPRS Demo pool share', { product: 'series', action: 'claim', coin: 'usdc' })}>Collect BPRS Demo pool share (USDC)</Button>
+        <Button size="sm" disabled={busy !== null || pool?.accruedSen === pool?.paidSen} onClick={() => act('Collect regional pool share', { product: 'pool', action: 'claim', coin: 'usdc' })}>Collect regional pool share (USDC)</Button>
       </div>
     </Card>
   );

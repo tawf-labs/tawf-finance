@@ -4,6 +4,7 @@ import { TrendingUp, Clock, DollarSign, Lock } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Section } from '../ui/Section';
 import { Button } from '../ui/Button';
+import { FINANCING_POOL_ENABLED } from '@/config/features';
 
 interface Pool {
   id: string;
@@ -111,7 +112,11 @@ function PoolCard({ pool }: { pool: Pool }) {
             </span>
             <span className="text-xs font-medium text-tawf-gold">{pool.instrument}</span>
           </div>
-          {pool.available ? (
+          {!FINANCING_POOL_ENABLED ? (
+            <span className="text-xs text-tawf-muted bg-tawf-sand-50 px-2 py-1 rounded-full">
+              Coming soon
+            </span>
+          ) : pool.available ? (
             <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
               <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
               Open
@@ -159,7 +164,11 @@ function PoolCard({ pool }: { pool: Pool }) {
           </div>
         </div>
 
-        {pool.available ? (
+        {!FINANCING_POOL_ENABLED ? (
+          <Button size="md" className="w-full" disabled>
+            Coming after the pilot
+          </Button>
+        ) : pool.available ? (
           <a href="https://app.tawf.finance/login" className="block">
             <Button size="md" className="w-full">
               Invest Now
@@ -190,9 +199,12 @@ export function Earn() {
             <span className="block text-tawf-gold">Create Real Impact</span>
           </h1>
           <p className="text-tawf-muted text-lg md:text-xl leading-relaxed max-w-2xl mx-auto">
-            Choose from live pools of financing originated and serviced by licensed Indonesian BPRS.
-            Each pool is a compliant sell-down akad, verifiable on-chain.
+            The pilot starts with the Tawf Deposito Pool: mudharabah deposito across licensed Indonesian
+            BPRS in one region, with a per-bank proof of reserve. The financing pools below come after the pilot.
           </p>
+          <a href="https://app.tawf.finance/login" className="inline-block mt-6 text-sm font-medium text-tawf-green underline">
+            Open the Deposito Pool in the investor app
+          </a>
         </motion.div>
 
         <motion.div

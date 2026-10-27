@@ -3,12 +3,13 @@ import { usePublicClient } from 'wagmi';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { ShieldCheck, Loader2, ExternalLink, CheckCircle2, XCircle, ArrowRight } from 'lucide-react';
+import { encodeAbiParameters, keccak256, stringToHex } from 'viem';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { getJson, type ReserveResponse, type SeriesReserveLine, type SukukReserveLine, type ProofResponse } from '@/lib/tokenization';
-import { LedgerAnchorAbi } from '@/web3/tokenizationAbis';
+import { getJson, type ReserveResponse, type SeriesReserveLine, type PoolReserveLine, type ProofResponse } from '@/lib/tokenization';
+import { LedgerAnchorAbi, DepositoPoolLedgerAbi } from '@/web3/tokenizationAbis';
 import { LEDGER_ANCHOR_ADDRESS, LEDGER_CHAIN_ID, isTokenizationConfigured } from '@/web3/tokenization';
 import { explorerTxUrl, explorerAddressUrl } from '@/web3/constants';
 import { formatBps, formatIdr } from '@/web3/format';
@@ -16,7 +17,7 @@ import { formatBps, formatIdr } from '@/web3/format';
 type VerifyState = 'idle' | 'checking' | 'valid' | 'invalid' | 'error';
 
 interface RowLine {
-  kind: 'series' | 'sukuk';
+  kind: 'series' | 'pool';
   label: string;
   symbol: string;
   subject: `0x${string}`;
@@ -28,18 +29,26 @@ interface RowLine {
   anchored: boolean;
   epoch: string | null;
   anchorTxHash: `0x${string}` | null;
-  /** How to display amounts: series is IDR sen, sukuk is USDC base units. */
-  isIdr: boolean;
-  /** Extra line for the series: profits credited vs distributed. */
+  /** Extra line: profits credited vs distributed. */
   profitNote?: string;
+  /** Regional pool only: its ledger and the per-bank balances. */
+  ledger?: `0x${string}`;
+  banks?: PoolReserveLine['banks'];
 }
 
-function leafKindFor(line: RowLine): string {
-  return line.kind === 'sukuk' ? 'tawf.sukuk.reserve' : 'tawf.deposito.reserve';
+function amount(raw: string): string {
+  return formatIdr(BigInt(raw));
 }
 
-function amount(line: RowLine, raw: string): string {
-  return line.isIdr ? formatIdr(BigInt(raw)) : raw;
+/** The DEPOSITO_RESERVE leaf, encoded exactly as contracts/src/lib/LedgerLeaf.sol. */
+function reserveLeaf(subject: `0x${string}`, snapshotAt: number, total: string): `0x${string}` {
+  const inner = keccak256(
+    encodeAbiParameters(
+      [{ type: 'uint256' }, { type: 'bytes32' }, { type: 'bytes32' }, { type: 'uint256' }, { type: 'uint256' }],
+      [BigInt(LEDGER_CHAIN_ID), keccak256(stringToHex('tawf.deposito.reserve')), subject, BigInt(snapshotAt), BigInt(total)],
+    ),
+  );
+  return keccak256(inner);
 }
 
 function ReserveRow({ line }: { line: RowLine }) {
@@ -54,8 +63,20 @@ function ReserveRow({ line }: { line: RowLine }) {
     setVerify('checking');
     setVerifyMsg(null);
     try {
+      if (line.kind === 'pool' && line.ledger && line.epoch !== null) {
+        if (!publicClient) throw new Error('No RPC client available');
+        // The pool ledger records each fact's leaves per epoch: no Merkle proof needed.
+        const ok = await publicClient.readContract({
+          address: line.ledger,
+          abi: DepositoPoolLedgerAbi,
+          functionName: 'verify',
+          args: [BigInt(line.epoch), reserveLeaf(line.subject, line.snapshotAt, line.reserve), []],
+        });
+        setVerify(ok ? 'valid' : 'invalid');
+        return;
+      }
       const params = new URLSearchParams({
-        kind: leafKindFor(line),
+        kind: 'tawf.deposito.reserve',
         subject: line.subject,
         a: String(line.snapshotAt),
         b: line.reserve,
@@ -99,16 +120,16 @@ function ReserveRow({ line }: { line: RowLine }) {
         size="md"
         color="green"
         showLabel
-        label={line.kind === 'series' ? 'Tokens outstanding vs Tawf\u2019s account balance at the BPRS' : 'Supply on Arbitrum vs reserve on Tawf Network'}
+        label={line.kind === 'pool' ? 'Tokens outstanding vs Tawf\u2019s total balance across the banks' : 'Tokens outstanding vs Tawf\u2019s account balance at the BPRS'}
       />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
         <div>
           <p className="text-xs text-tawf-muted">Token supply</p>
-          <p className="font-medium text-tawf-green">{amount(line, line.supply)}</p>
+          <p className="font-medium text-tawf-green">{amount(line.supply)}</p>
         </div>
         <div>
-          <p className="text-xs text-tawf-muted">{line.kind === 'series' ? 'Account balance' : 'Recorded reserve'}</p>
-          <p className="font-medium text-tawf-green">{amount(line, line.reserve)}</p>
+          <p className="text-xs text-tawf-muted">{line.kind === 'pool' ? 'Total across banks' : 'Account balance'}</p>
+          <p className="font-medium text-tawf-green">{amount(line.reserve)}</p>
         </div>
         <div>
           <p className="text-xs text-tawf-muted">Backing ratio</p>
@@ -121,6 +142,17 @@ function ReserveRow({ line }: { line: RowLine }) {
       </div>
 
       {line.profitNote && <p className="text-xs text-tawf-muted mt-3">{line.profitNote}</p>}
+
+      {line.banks && line.banks.length > 0 && (
+        <div className="mt-4 rounded-xl border border-tawf-green-10 divide-y divide-tawf-green-10">
+          {line.banks.map((b) => (
+            <div key={b.id} className="flex items-center justify-between px-3 py-2 text-sm">
+              <span className="text-tawf-green">{b.name} <span className="text-xs font-mono text-tawf-muted">{b.accountRef}</span></span>
+              <span className="text-tawf-green">{formatIdr(BigInt(b.balanceSen))}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="mt-5 flex flex-wrap items-center gap-3 justify-between">
         <div className="flex items-center gap-3">
@@ -145,13 +177,13 @@ function seriesRow(s: SeriesReserveLine): RowLine {
   const credited = s.profitsCredited.reduce((n, c) => Math.max(n, c.period), 0);
   return {
     ...s,
-    isIdr: true,
+    label: 'Tawf Deposito Pool: BPRS Demo',
     profitNote: `Profit periods credited by the bank: ${credited} · distributed on chain: ${s.lastDistributedPeriod}`,
   };
 }
 
-function sukukRow(s: SukukReserveLine): RowLine {
-  return { ...s, isIdr: false };
+function poolRow(p: PoolReserveLine): RowLine {
+  return { ...p, profitNote: `${p.banks.length} BPRS · profit periods distributed on chain: ${p.lastDistributedPeriod}` };
 }
 
 export function ProofOfReserve() {
@@ -175,11 +207,10 @@ export function ProofOfReserve() {
           <Badge variant="info" size="md" className="mb-4">Proof of reserve</Badge>
           <h1 className="font-serif text-4xl text-tawf-green mb-4">Every token is backed by a real placement</h1>
           <p className="text-tawf-muted leading-relaxed">
-            For the Tawf deposito series we show the tokens outstanding on Arbitrum against Tawf&apos;s dedicated
-            account balance at the BPRS, anchored on Tawf Network; and for the sukuk, supply against the pool
-            outstanding. A token can only move against a Merkle-verified reserve leaf, so what you see here is
-            checked, not claimed. BPRS-wide deposits recorded on Tawf Network back the bank&apos;s overall proof of
-            reserve.
+            For each Tawf Deposito Pool we show the tokens outstanding on Arbitrum against Tawf&apos;s dedicated
+            account balances at the BPRS. The regional pool adds up Tawf&apos;s balance at each bank in the region and
+            shows every bank&apos;s part. A token can only be minted against a reserve fact the contract verifies, so
+            what you see here is checked, not claimed.
           </p>
           {data?.lastSyncAt && (
             <p className="text-sm text-tawf-muted mt-3">Last BPRS sync: {new Date(data.lastSyncAt).toLocaleString('en-SG')}</p>
@@ -198,8 +229,8 @@ export function ProofOfReserve() {
           <div className="bg-red-50 rounded-2xl border border-red-200 p-6 max-w-3xl"><p className="text-sm text-red-600">{error}</p></div>
         ) : data ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {data.pool && <ReserveRow line={poolRow(data.pool)} />}
             <ReserveRow line={seriesRow(data.series)} />
-            <ReserveRow line={sukukRow(data.sukuk)} />
           </div>
         ) : (
           <p className="text-tawf-muted">No reserve snapshots anchored yet.</p>
@@ -223,7 +254,7 @@ export function ProofOfReserve() {
             ))}
           </div>
           <p className="text-tawf-muted leading-relaxed mt-6">
-            The bank's core banking system holds the real deposits and the pool backing the sukuk. The connector reads it
+            Each bank's core banking system holds Tawf's real deposits. The connector reads it
             and writes placements and reserve snapshots to the Tawf Network ledger, with no borrower names on chain. The
             relayer anchors the ledger's Merkle root on Arbitrum through the LedgerAnchor. tawf.finance contracts only mint
             a token against a leaf that verifies under an anchored root, so supply can never run ahead of proven reserve.

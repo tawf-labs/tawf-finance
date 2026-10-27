@@ -206,7 +206,7 @@ function Hero() {
       <div className="mx-auto grid max-w-7xl gap-14 lg:grid-cols-12 lg:gap-6">
         <div className="relative z-10 lg:col-span-7 lg:pb-24">
           <motion.p {...rise(0)} className="text-sm font-medium text-tawf-muted">
-            Tokenized Shariah bank financing, Indonesia
+            Tokenized Shariah deposito, Indonesia
           </motion.p>
           <h1 className="display mt-6 text-[clamp(3.4rem,10.5vw,9.5rem)]">
             <motion.span {...rise(1)} className="block">Capital,</motion.span>
@@ -229,11 +229,11 @@ function Hero() {
             </motion.span>
           </h1>
           <motion.p {...rise(3)} className="mt-8 max-w-md text-[1.1rem] leading-relaxed text-ink/75">
-            Fund real financing from licensed Indonesian Shariah banks. From 10 USDC, with every position held as an on-chain receipt.
+            Put stablecoins into mudharabah deposito across licensed Indonesian Islamic rural banks, wrapped into one Tawf Deposito Pool, with every bank&apos;s balance shown in the proof of reserve.
           </motion.p>
           <motion.div {...rise(4)} className="mt-9 flex flex-wrap items-center gap-3">
             <a href="https://app.tawf.finance/login" className={solid}>Open the investor app</a>
-            <a href="#how-it-works" className={ghost}>See the lifecycle</a>
+            <a href="/proof-of-reserve" className={ghost}>See the proof of reserve</a>
           </motion.div>
         </div>
 
@@ -245,9 +245,9 @@ function Hero() {
       {/* Facts that hold for every pool, read across like a ledger line. */}
       <dl className="relative z-10 mx-auto mt-4 grid max-w-7xl border-t border-ink/15 sm:grid-cols-3 lg:mt-0">
         {[
-          ['10', 'USDC', 'Minimum ticket per pool'],
-          ['30–90', 'days', 'Tenor, fixed at registration'],
-          ['9', 'akad', 'Mapped to one contract primitive'],
+          ['3', 'BPRS', 'Banks in the first regional pool'],
+          ['1', 'token', 'One claim on Tawf, backed bank by bank'],
+          ['3', 'months', 'Deposito tenor in the pilot'],
         ].map(([n, u, l], i) => (
           <div key={l} className={`py-6 sm:px-6 ${i ? 'border-ink/15 max-sm:border-t sm:border-l' : 'sm:pl-0'}`}>
             <dt className="sr-only">{l}</dt>
@@ -279,7 +279,7 @@ function Lifecycle() {
             <Words text="Follow one unit of capital," /> <Words text="from your wallet and back." className="text-jade" delay={0.25} />
           </h2>
           <p className="text-[1.05rem] leading-relaxed text-tawf-muted lg:col-span-3 lg:col-start-10">
-            Six steps. Each one is a real contract call you can read on-chain.
+            The financing sell-down pool, coming after the pilot. Six steps, each one a real contract call you can read on-chain.
           </p>
         </Reveal>
 
@@ -358,7 +358,7 @@ function Receipt() {
             <Words text="A receipt," /> <Words text="not a promise." className="text-jade" delay={0.15} />
           </h2>
           <p className="mx-auto mt-5 max-w-lg text-[1.05rem] leading-relaxed text-ink/75">
-            Your position is one token you can read, never move. It carries the terms you entered on, and it ends when you are paid.
+            Coming after the pilot: in the financing sell-down pool, your position is one token you can read, never move. It carries the terms you entered on, and it ends when you are paid.
           </p>
         </Reveal>
 
