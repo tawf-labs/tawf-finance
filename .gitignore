@@ -35,3 +35,4 @@ dist-ssr
 skills-lock.json
 temp_prd/
 .vercel
+.gstack/
