@@ -94,6 +94,13 @@ async function mintAndTransfer(
     return
   }
   // faucetMax mints the standard demo allowance to the operator.
+  const operator = account().address
+  const opBefore = (await publicClient.readContract({
+    address: token,
+    abi: mockTokenAbi,
+    functionName: 'balanceOf',
+    args: [operator],
+  })) as bigint
   const faucetHash = (await wc.writeContract({
     address: token,
     abi: mockTokenAbi,
@@ -107,12 +114,33 @@ async function mintAndTransfer(
     abi: mockTokenAbi,
     functionName: 'FAUCET_AMOUNT',
   })) as bigint
-  const transferHash = (await wc.writeContract({
-    address: token,
-    abi: mockTokenAbi,
-    functionName: 'transfer',
-    args: [user, minted],
-  })) as Hex
+  // A load-balanced RPC can answer from a node that has not seen the mint yet,
+  // and the transfer then simulates against the old (possibly small) balance
+  // and reverts. Wait until the mint is visible, and retry the transfer once.
+  for (let i = 0; i < 10; i++) {
+    const bal = (await publicClient.readContract({
+      address: token,
+      abi: mockTokenAbi,
+      functionName: 'balanceOf',
+      args: [operator],
+    })) as bigint
+    if (bal >= opBefore + minted || bal >= minted) break
+    await new Promise((r) => setTimeout(r, 1000))
+  }
+  const transfer = () =>
+    wc.writeContract({
+      address: token,
+      abi: mockTokenAbi,
+      functionName: 'transfer',
+      args: [user, minted],
+    }) as Promise<Hex>
+  let transferHash: Hex
+  try {
+    transferHash = await transfer()
+  } catch {
+    await new Promise((r) => setTimeout(r, 3000))
+    transferHash = await transfer()
+  }
   await publicClient.waitForTransactionReceipt({ hash: transferHash })
   steps.push({ label: `Minted test ${symbol}`, txHash: transferHash })
 }
