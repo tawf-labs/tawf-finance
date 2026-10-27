@@ -2,7 +2,7 @@
 
 Date 2026-10-27. Worktree of `feat/deposito-pool` at 1287863 (the SCF module is identical to main). Local prover (`~/tools/bin/prove`, serial), so there are no cloud job links. The raw logs are in `contracts/certora/out/` (list at the end).
 
-Result: both contracts satisfy every property in the brief. No real violation in DepositoPoolLedger. One design finding in ScfInvestorLimitModule (`initOffering` can rewrite a bound offering), confirmed by a failing probe rule. Six mutants of DepositoPoolLedger were all killed.
+Result: both contracts satisfy every property in the brief. No real violation in DepositoPoolLedger. One design finding in ScfInvestorLimitModule (`initOffering` could rewrite a bound offering), confirmed by a failing probe rule and now fixed (a866768, rerun verified, see "Re-run after the fix"). Six mutants of DepositoPoolLedger were all killed.
 
 ## Files to copy into feat/deposito-pool
 
@@ -111,6 +111,10 @@ Suggested fix (one line in `initOffering`): a revert with a new error when `isCo
 3. **Transfers move usage only to the receiver.** The sender's usage never drops (same rule as burns, "the limit counts money invested"). Consistent, noted because it surprises people.
 4. **`moduleCheck` reverts instead of returning false on overflow.** `used + value` is checked arithmetic, so an absurd `value` reverts the view. The token reverts the transfer either way.
 
+## Re-run after the fix (a866768)
+
+`initOffering` now reverts with `AlreadyBound()` when `this.isComplianceBound(compliance)`, and a re-init before binding still works. The probe rule was turned into a normal rule (it no longer assumes `configured(c)`, so it covers every bound compliance) and `autospec_scf_LimitModule` was rerun against the fixed source: 16 of 16 rule groups verified, no violation. `initOfferingCannotRewriteBoundCompliance` flipped from violated to verified. The self call `this.isComplianceBound` resolved inside the scene without a summary. Log: `out/scf_limit_after_fix_2026-10-27.log`. The local prover has no job link, the report folder is `emv-8-certora-27-Oct--23-00/Reports` in the scratch run directory.
+
 ## Not covered
 
 - Cross contract behaviour of the real T-REX token and compliance with the module (summarized by ghosts). The existing `autospec_deposito_SandboxReal` uses the same boundary.
@@ -120,5 +124,6 @@ Suggested fix (one line in `initOffering`): a revert with a new error when `isCo
 ## Logs (in `contracts/certora/out/`)
 
 - `pool_ledger_2026-10-27.log`: final full DepositoPoolLedger run
-- `scf_limit_2026-10-27.log`: ScfInvestorLimitModule run
+- `scf_limit_2026-10-27.log`: ScfInvestorLimitModule run before the fix (probe rule violated)
+- `scf_limit_after_fix_2026-10-27.log`: the same spec after the fix (all verified)
 - `M15_...` to `M20_deposito_PoolLedger.log`, `mutants_M15_M20_summary.txt`: mutation runs

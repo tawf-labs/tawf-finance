@@ -215,15 +215,14 @@ rule actionsOnlyFromBoundCompliance(env e, address from, address to, uint256 val
 }
 
 // ===========================================================================
-// Finding probe: expected VIOLATED (see notes/pool-scf-review.md)
+// Offering configuration is frozen once bound
 // ===========================================================================
 
 /// @title the owner cannot rewrite the treasury or cap of a compliance that is already bound
-/// @dev The contract comment says initOffering is for "before the offering's compliance binds the
-///      module", but nothing enforces it. Expected to be violated.
+/// @dev initOffering reverts with AlreadyBound. Before this was added (fix for the review
+///      finding) the rule was violated. A later change goes through setOfferingCap only.
 rule initOfferingCannotRewriteBoundCompliance(env e, address c, address t, uint256 cap) {
     require isComplianceBound(c);
-    require configured(c);
     initOffering@withrevert(e, c, t, cap);
     assert lastReverted, "initOffering rewrote an offering that is already bound";
 }
