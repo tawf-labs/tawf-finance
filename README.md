@@ -16,6 +16,7 @@ Built by [Tawf Labs](https://tawflabs.com) · Shariah-Aligned · Arbitrum (EVM /
 - [Repository Structure](#repository-structure)
 - [Getting Started](#getting-started)
 - [Deployment](#deployment)
+- [Deployed Contracts (Arbitrum Sepolia)](#deployed-contracts-arbitrum-sepolia)
 - [Tech Stack](#tech-stack)
 - [KYC (Didit)](#kyc-didit)
 - [Design System](#design-system)
@@ -103,13 +104,13 @@ The sukuk runs the full lifecycle across both chains: its L2 `SukukDistributor` 
 
 ## Smart Contracts
 
-`contracts/`: Solidity 0.8.24 (T-REX and ONCHAINID files on 0.8.17), Foundry, OpenZeppelin v5 (v4.8.3 for T-REX). 145 tests pass (`forge test`).
+`contracts/`: Solidity 0.8.24 (T-REX and ONCHAINID files on 0.8.17), Foundry, OpenZeppelin v5 (v4.8.3 for T-REX). 223 tests pass (`forge test`). The pool contracts (DealRegistry, BondReceiptNFT, RedemptionVault, PooledFinancingVault) are UUPS-upgradeable behind ERC1967 proxies. Only `UPGRADER_ROLE` can upgrade them.
 
 | Contract | Role |
 |---|---|
 | `DealRegistry` | Deal lifecycle state machine (Submitted → BmtApproved → Mintable → Active → Matured → Completed/Defaulted). |
 | `BondReceiptNFT` | Soulbound ERC-1155 receipts. Metadata = principal, APY (bps), duration, status, mint time. Non-transferable. |
-| `RedemptionVault` | Escrow + settlement: `invest`, `repay`, `redeem`, `claimDefault`, `accruedYield`, `payoutFor`. |
+| `RedemptionVault` | Escrow + settlement: `invest`, `investWithToken`, `repay`, `redeem`, `claimDefault`, `accruedYield`, `payoutFor`, `sweepYield`. Accepts USDC, USDT or USDG and swaps the input to the USDG settlement token through an allow-listed router. `sweepYield` moves only the surplus above investor liabilities. |
 | T-REX suite (ERC-3643) | Shared identity token stack (`Token`, `IdentityRegistry`, `ModularCompliance`, ONCHAINID) reused across the Tawf deposito series token and the sukuk series. Holders must be verified; transfers are limited to eligible identities. |
 | `TawfDepositoSeries` | Model B series: escrows subscriptions in an allowlist of settlement stablecoins (USDC + USDT, both 6 decimals, each with its own posted FX rate, no 1:1 peg), accounts internally in IDR sen, allocates against a Merkle-verified `DEPOSITO_RESERVE` for Tawf's dedicated account, accrues profit and principal in sen (both proven), and pays claims and redemptions from the treasury in whichever coin the holder picks at that coin's current rate. |
 | `SandboxModule` | T-REX compliance module enforcing the series sandbox policy: mode (PILOT_ONLY / SCREENED_GROUP / SANDBOX_ADMITTED) by reading ONCHAINID screening claims, and caps (max investors, per-investor balance, series cap, series end). |
@@ -196,13 +197,72 @@ forge script script/DeployPool.s.sol:DeployPool \
   --rpc-url arbitrum_sepolia --private-key $OPERATOR_KEY --broadcast
 ```
 
-It deploys DealRegistry, BondReceiptNFT and RedemptionVault on the identity registry and MockUSDC from that file, opens the three demo BPRS pools, and writes the new addresses back. Only wallets with a verified KYC claim can invest; the faucet verifies demo wallets.
+It deploys DealRegistry, BondReceiptNFT and RedemptionVault (each an implementation plus an ERC1967 proxy) on the identity registry from that file, settles in USDG (real, or a mock with `MOCK_USDG=1`), accepts mUSDC and mUSDT through a funded MockSwapRouter, opens the three demo BPRS pools, and writes the new addresses back. Only wallets with a verified KYC claim can invest; the faucet verifies demo wallets.
 
 ### 3. Deploy the app
 
 The app reads every contract address from `tokenization.deployments.json`, so there are no address env vars. Deploy to Vercel (`vercel --prod`).
 
 RPC: `https://sepolia-rollup.arbitrum.io/rpc` · Chain ID `421614` · Explorer `https://sepolia.arbiscan.io`.
+
+---
+
+## Deployed Contracts (Arbitrum Sepolia)
+
+Live testnet addresses, chain ID `421614`. The source of truth is [`tokenization.deployments.json`](tawf-finance/src/web3/tokenization.deployments.json).
+
+### Financing pool (upgradeable)
+
+Use the proxy addresses. The implementation is shown for verification only.
+
+| Contract | Proxy | Implementation |
+|---|---|---|
+| DealRegistry | [`0x73E7Fe80e714FDD1eb3447A63c8988A7fd693968`](https://sepolia.arbiscan.io/address/0x73E7Fe80e714FDD1eb3447A63c8988A7fd693968) | `0x31D5928D3c953998202D2F05A8Eec3DD5846618A` |
+| BondReceiptNFT | [`0x2c22c7BDdbB0aa5920A2439A44F1dbE10Dc8bf9F`](https://sepolia.arbiscan.io/address/0x2c22c7BDdbB0aa5920A2439A44F1dbE10Dc8bf9F) | `0x770B224A9d87DcD5de178D3223269a9eca9F6394` |
+| RedemptionVault | [`0x330276397651be3CdfEdb61B31efdc9e068ECAa8`](https://sepolia.arbiscan.io/address/0x330276397651be3CdfEdb61B31efdc9e068ECAa8) | `0x5AB35AE2f4fae0A40F29ac52fed25C8016490B4e` |
+
+| Contract | Address |
+|---|---|
+| Settlement token (mock USDG, 6 decimals) | [`0x10962b65Ad725CD7257A1D137eAF555748D92D20`](https://sepolia.arbiscan.io/address/0x10962b65Ad725CD7257A1D137eAF555748D92D20) |
+| MockSwapRouter (USDC/USDT to USDG) | [`0x091892374a3C6d620F6175dAB05b06620A229489`](https://sepolia.arbiscan.io/address/0x091892374a3C6d620F6175dAB05b06620A229489) |
+| USDG (Paxos, not yet used by the vault) | [`0xFFC95faa3d63Cde504a05B567C600B78C0b41892`](https://sepolia.arbiscan.io/address/0xFFC95faa3d63Cde504a05B567C600B78C0b41892) |
+
+The previous non-upgradeable pool (DealRegistry `0x691F811ac97B23cC471E96114c01772d4DF5BE85`, BondReceiptNFT `0x7785317Dce248fb3E4b526915CaE0D543716B603`, RedemptionVault `0x53179710C042B3962572b214A9bB2bf618AFd332`) is retired. Its deals and receipts were not migrated.
+
+### Stablecoins
+
+| Contract | Address |
+|---|---|
+| MockUSDC (6 decimals, faucet) | [`0x6010ee037A7Eb302235383770c0dAB9780C8Fe89`](https://sepolia.arbiscan.io/address/0x6010ee037A7Eb302235383770c0dAB9780C8Fe89) |
+| MockUSDT (6 decimals, faucet) | [`0xaB23b6bE9C57C73EFbE4aB4b10Bf0951aF31c5D2`](https://sepolia.arbiscan.io/address/0xaB23b6bE9C57C73EFbE4aB4b10Bf0951aF31c5D2) |
+
+### ERC-3643 identity stack
+
+| Contract | Address |
+|---|---|
+| IdentityRegistry | [`0x2aBdc925E9cEAe109D22E4352C8d84e91eB00b00`](https://sepolia.arbiscan.io/address/0x2aBdc925E9cEAe109D22E4352C8d84e91eB00b00) |
+| IdentityRegistryStorage | `0x5BFCBC670FdC5A76F89Fd075B2659193a6c44AbD` |
+| ClaimTopicsRegistry | `0xB43058aD816Dd9Cf23988C284C32E21D312a835c` |
+| TrustedIssuersRegistry | `0xf0F81532ED05E0f3bB7C324b2448509f7CF02aed` |
+| ClaimIssuer | `0xc84d8e15ef48224747bF6c23F7a5d92406A147ff` |
+| IdFactory (ONCHAINID) | `0xE167FE4E61cBC3Fa084aF5B4E601adF017d0ac4a` |
+| ImplementationAuthority | `0xEFc5dd8d3dFB05a29022d2Cf351331B145809444` |
+
+### Deposito and sukuk
+
+| Contract | Address |
+|---|---|
+| TawfDepositoSeries | [`0xe3BB065C86b35d850265ECCAFe9AA34a00fb8294`](https://sepolia.arbiscan.io/address/0xe3BB065C86b35d850265ECCAFe9AA34a00fb8294) |
+| Series token `tDEP-TAWF-S1` | `0x26F2f103684eE99cB6c47f1a030051dc455F4B1b` |
+| SandboxModule | `0x704b6131680FB96498536622546121214055f7A5` |
+| TawfDepositoSeries 2 | `0x6493690fBc255dD180a4e56b111621C486E5039F` |
+| Series 2 token | `0x5218560a09808D1277098661506c5E997CDc905c` |
+| Series 2 SandboxModule | `0x43f1d8EeFb090F06f3cB80eA7C3bf53c25573271` |
+| SukukDistributor | [`0x9324344197a4bD82F746660451B8376B1387E8d4`](https://sepolia.arbiscan.io/address/0x9324344197a4bD82F746660451B8376B1387E8d4) |
+| Sukuk token | `0xaFAF90E1cefa04F7530730C47794b9039Ec9232d` |
+| SukukDistributor 2 | `0x853CA06aB46ca54412279f51626571413d3C69c2` |
+| Sukuk 2 token | `0x2efcf0e6B33726E95e393FdFF4127145Db15415f` |
+| LedgerAnchor | `0xA91985E62abDF7B884E4637fa23DdD974953C2Cd` |
 
 ---
 
