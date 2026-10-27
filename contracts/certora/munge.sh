@@ -52,4 +52,10 @@ if n != 1:
     sys.exit(f"munge: expected 1 match in {path}, got {n}")
 open(path, "w").write(s)
 PY
+# DepositoPoolLedger: the harness needs the private `_bankIds` array, so it imports a copy with the
+# array made `internal` and the imports pointed at src/. Nothing else differs from src/.
+mkdir -p certora/munged/deposito
+sed 's/bytes32\[\] private _bankIds;/bytes32[] internal _bankIds;/; s#"\.\./sukuk/#"../../../src/sukuk/#; s#"\.\./lib/#"../../../src/lib/#' \
+  src/deposito/DepositoPoolLedger.sol > certora/munged/deposito/DepositoPoolLedger.sol
+
 echo "munged OpenZeppelin ready at $dst and $udst"

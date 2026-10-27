@@ -21,7 +21,6 @@ export { Transactions } from './investor/Transactions';
 export { Impact } from './investor/Impact';
 export { Settings as InvestorSettings } from './investor/Settings';
 export { InvestorDeposito } from './investor/Deposito';
-export { InvestorSukuk } from './investor/Sukuk';
 export { InvestorScf } from './investor/Scf';
 
 // Vendor Pages removed (replaced by issuer role)
@@ -35,12 +34,6 @@ export { Members } from './cooperative/Members';
 export { CooperativeSettings } from './cooperative/CooperativeSettings';
 
 // Business Pages
-export { BusinessDashboard } from './business/BusinessDashboard';
-export { PurchaseOrders } from './business/PurchaseOrders';
-export { Funding } from './business/Funding';
-export { Fulfillment } from './business/Fulfillment';
-export { Performance } from './business/Performance';
-export { BusinessSettings } from './business/BusinessSettings';
 
 // Admin Pages
 export { AdminDashboard } from './admin/AdminDashboard';

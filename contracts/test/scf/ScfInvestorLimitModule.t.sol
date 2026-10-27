@@ -84,6 +84,28 @@ contract ScfInvestorLimitModuleTest is TrexFixture {
         scf.initOffering(address(0xC0), treasury, CAP);
     }
 
+    function test_initOffering_cannotRewriteBoundOffering() public {
+        vm.prank(deployer);
+        vm.expectRevert(ScfInvestorLimitModule.AlreadyBound.selector);
+        scf.initOffering(address(mcA), alice, CAP * 10);
+        (address t, uint256 cap,) = scf.offeringOf(address(mcA));
+        assertEq(t, treasury);
+        assertEq(cap, CAP);
+    }
+
+    function test_initOffering_reinitBeforeBinding() public {
+        (, ModularCompliance mcC,) = _deployTrexToken("SCF Sukuk C", "tSCF-C", 6);
+        vm.startPrank(deployer);
+        scf.initOffering(address(mcC), treasury, 1e6);
+        scf.initOffering(address(mcC), treasury, 2e6);
+        mcC.addModule(address(scf));
+        vm.expectRevert(ScfInvestorLimitModule.AlreadyBound.selector);
+        scf.initOffering(address(mcC), treasury, 3e6);
+        vm.stopPrank();
+        (, uint256 cap,) = scf.offeringOf(address(mcC));
+        assertEq(cap, 2e6);
+    }
+
     function test_setOfferingCap_onlyCompliance() public {
         vm.expectRevert("only bound compliance can call");
         scf.setOfferingCap(1);

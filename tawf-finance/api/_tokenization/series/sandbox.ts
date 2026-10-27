@@ -3,11 +3,11 @@ import { encodeFunctionData, type Address, type Hex } from 'viem'
 import {
   publicClient,
   walletClient,
-  addresses,
   isConfigured,
   methodGuard,
   requirePasscode,
   readableError,
+  seriesTarget,
 } from '../_lib/operator.js'
 import { sandboxModuleAbi, modularComplianceAbi, trexComplianceAbi } from '../_lib/abis.js'
 
@@ -32,6 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
   if (!requirePasscode(req, res)) return
+  const target = seriesTarget(req)
 
   try {
     const action = String(req.body?.action ?? '')
@@ -58,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const compliance = (await publicClient.readContract({
-      address: addresses.tawfSeriesToken,
+      address: target.token,
       abi: trexComplianceAbi,
       functionName: 'compliance',
     })) as Address
@@ -68,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       address: compliance,
       abi: modularComplianceAbi,
       functionName: 'callModuleFunction',
-      args: [data, addresses.sandboxModule],
+      args: [data, target.sandbox],
     })) as Hex
     await publicClient.waitForTransactionReceipt({ hash: txHash })
 

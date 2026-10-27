@@ -234,7 +234,7 @@ export function Onboarding() {
       // Redirect to appropriate dashboard
       const redirectMap: Record<string, string> = {
         investor: '/investor/dashboard',
-        business: '/business/dashboard',
+        business: '/investor/dashboard',
         cooperative: '/cooperative/dashboard',
         issuer: '/issuer/ops',
         admin: '/admin/dashboard',
@@ -246,7 +246,7 @@ export function Onboarding() {
   const handleSkip = () => {
     const redirectMap: Record<string, string> = {
       investor: '/investor/dashboard',
-      business: '/business/dashboard',
+      business: '/investor/dashboard',
       cooperative: '/cooperative/dashboard',
       issuer: '/issuer/ops',
       admin: '/admin/dashboard',

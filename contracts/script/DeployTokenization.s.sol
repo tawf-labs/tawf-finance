@@ -202,17 +202,23 @@ contract DeployTokenization is Script {
         internal
         returns (address tokenAddr, address series, address sandboxAddr)
     {
+        return _deployTawfSeries(operator, usdc, usdt, anchor, seriesId, "Tawf Deposito Series 1 (BPRS Demo)", "tDEP-TAWF-S1");
+    }
+
+    /// @dev Same as above with the token name and symbol given, e.g. for a regional Deposito Pool.
+    function _deployTawfSeries(
+        address operator,
+        address usdc,
+        address usdt,
+        address anchor,
+        bytes32 seriesId,
+        string memory name_,
+        string memory symbol_
+    ) internal returns (address tokenAddr, address series, address sandboxAddr) {
         ModularCompliance mc = new ModularCompliance();
         mc.init();
         Token token = new Token();
-        token.init(
-            _sharedIdentityRegistry,
-            address(mc),
-            "Tawf Deposito Series 1 (BPRS Demo)",
-            "tDEP-TAWF-S1",
-            2,
-            address(0)
-        );
+        token.init(_sharedIdentityRegistry, address(mc), name_, symbol_, 2, address(0));
 
         DistributionCheckpointModule checkpoint = new DistributionCheckpointModule();
         SandboxModule sandbox = new SandboxModule();

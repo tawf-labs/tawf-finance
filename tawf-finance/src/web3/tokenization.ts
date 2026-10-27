@@ -93,6 +93,52 @@ export const SETTLEMENT_STABLECOINS: StablecoinConfig[] = [
 /** LedgerAnchor on Arbitrum Sepolia that anchors Tawf Network roots. */
 export const LEDGER_ANCHOR_ADDRESS = addr(raw.anchor);
 
+/**
+ * Deposito products, newest first. A Deposito Pool is one series token backed
+ * by the deposito Tawf holds at one or more BPRS: the regional pool spans
+ * several banks (its reserve is the DepositoPoolLedger total), series 1 is the
+ * single-bank "BPRS Demo" pool from the first pilot.
+ */
+export interface DepositoProduct {
+  key: 'pool' | 'series1';
+  name: string;
+  symbol: string;
+  region: string;
+  series: Hex | undefined;
+  token: Hex | undefined;
+  sandbox: Hex | undefined;
+  seriesId: Hex;
+  /** DepositoPoolLedger (multi-bank pools only). */
+  ledger?: Hex;
+}
+
+const rawAny = raw as Record<string, unknown>;
+
+export const DEPOSITO_POOL: DepositoProduct = {
+  key: 'pool',
+  name: 'Tawf Deposito Pool: Jawa Barat',
+  symbol: 'tDEP-JABAR-1',
+  region: 'Jawa Barat',
+  series: addr(rawAny.depositoPool as string | undefined),
+  token: addr(rawAny.depositoPoolToken as string | undefined),
+  sandbox: addr(rawAny.depositoPoolSandbox as string | undefined),
+  seriesId: ((rawAny.depositoPoolId as string | undefined) ?? ZERO) as Hex,
+  ledger: addr(rawAny.depositoPoolLedger as string | undefined),
+};
+
+export const DEPOSITO_SERIES1: DepositoProduct = {
+  key: 'series1',
+  name: 'Tawf Deposito Pool: BPRS Demo',
+  symbol: 'tDEP-TAWF-S1',
+  region: 'Single bank (BPRS Demo Syariah)',
+  series: addr(raw.tawfSeries),
+  token: addr(raw.tawfSeriesToken),
+  sandbox: addr(raw.sandboxModule),
+  seriesId: ((raw.tawfSeriesId as string | undefined) ?? ZERO) as Hex,
+};
+
+export const DEPOSITO_PRODUCTS: DepositoProduct[] = [DEPOSITO_POOL, DEPOSITO_SERIES1].filter((p) => p.series && p.token);
+
 /** Sukuk series token (tSUKUK-DEMO-2026, 6 decimals). */
 export const SUKUK_TOKEN_ADDRESS = addr(raw.sukukToken);
 

@@ -143,6 +143,16 @@ export const tawfSeriesAbi = [
   { type: 'error', name: 'BadDecimals', inputs: [{ name: 'got', type: 'uint8' }] },
   { type: 'error', name: 'ProfitPeriodNotSequential', inputs: [{ name: 'expected', type: 'uint32' }, { name: 'got', type: 'uint32' }] },
   { type: 'error', name: 'NothingToClaim', inputs: [] },
+  { type: 'error', name: 'InvalidAddress', inputs: [] },
+  { type: 'error', name: 'InvalidTerms', inputs: [] },
+  { type: 'error', name: 'ZeroAmount', inputs: [] },
+  { type: 'error', name: 'RedemptionAlreadyOpen', inputs: [] },
+  { type: 'error', name: 'ProfitAfterMaturity', inputs: [] },
+  { type: 'error', name: 'ProfitPeriodsOutstanding', inputs: [{ name: 'distributed', type: 'uint32' }, { name: 'finalPeriod', type: 'uint32' }] },
+  { type: 'error', name: 'RedemptionNotOpen', inputs: [] },
+  { type: 'error', name: 'OnlyModule', inputs: [] },
+  { type: 'error', name: 'StablecoinAlreadyAdded', inputs: [{ name: 'token', type: 'address' }] },
+  { type: 'error', name: 'ConversionZero', inputs: [] },
 ] as const
 
 export const sandboxModuleAbi = [
@@ -443,4 +453,50 @@ export const scfLimitModuleAbi = [
       { name: 'configured', type: 'bool' },
     ],
   },
+] as const
+
+/** DepositoPoolLedger: the regional Deposito Pool's per-bank reserve ledger (an ILedgerAnchor). */
+export const depositoPoolLedgerAbi = [
+  {
+    name: 'banks',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [
+      { name: 'ids', type: 'bytes32[]' },
+      { name: 'names', type: 'string[]' },
+      { name: 'accountRefs', type: 'string[]' },
+      { name: 'balances', type: 'uint256[]' },
+    ],
+  },
+  { name: 'totalBalance', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'snapshotAt', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint64' }] },
+  { name: 'reserveEpoch', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'epochs', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+  {
+    name: 'postReserve',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'at', type: 'uint64' }, { name: 'bankIds', type: 'bytes32[]' }, { name: 'balances', type: 'uint256[]' }],
+    outputs: [{ name: 'epoch', type: 'uint256' }],
+  },
+  {
+    name: 'postProfit',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'period', type: 'uint32' }, { name: 'bankIds', type: 'bytes32[]' }, { name: 'profits', type: 'uint256[]' }],
+    outputs: [{ name: 'epoch', type: 'uint256' }, { name: 'total', type: 'uint256' }],
+  },
+  {
+    name: 'postMaturity',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'at', type: 'uint64' }, { name: 'finalPeriod', type: 'uint32' }, { name: 'principal', type: 'uint256' }],
+    outputs: [{ name: 'epoch', type: 'uint256' }],
+  },
+  { type: 'error', name: 'NotOperator', inputs: [] },
+  { type: 'error', name: 'BadBank', inputs: [{ name: 'bankId', type: 'bytes32' }] },
+  { type: 'error', name: 'LengthMismatch', inputs: [] },
+  { type: 'error', name: 'StaleSnapshot', inputs: [{ name: 'latest', type: 'uint64' }, { name: 'got', type: 'uint64' }] },
+  { type: 'error', name: 'FutureSnapshot', inputs: [{ name: 'got', type: 'uint64' }] },
 ] as const

@@ -21,7 +21,6 @@ import {
   Impact,
   InvestorSettings,
   InvestorDeposito,
-  InvestorSukuk,
   InvestorScf,
   CooperativeDashboard,
   Verification,
@@ -29,12 +28,6 @@ import {
   Deals,
   Members,
   CooperativeSettings as CooperativeSettings,
-  BusinessDashboard,
-  PurchaseOrders,
-  Funding,
-  Fulfillment,
-  Performance,
-  BusinessSettings,
   AdminDashboard,
   AdminUsers,
   AdminInvestments,
@@ -46,6 +39,8 @@ import {
   OwnerOps,
 } from './components/pages';
 import { RouteErrorBoundary } from '@/components/ErrorBoundary';
+import { ComingSoon } from '@/components/ComingSoon';
+import { FINANCING_POOL_ENABLED, FINANCING_POOL_SOON } from '@/config/features';
 import { useAuth } from '@/hooks/useAuth';
 
 // Protected Route Wrapper
@@ -73,7 +68,6 @@ function AppContent() {
   const isDashboardPage = location.pathname.includes('/investor') ||
                           location.pathname.includes('/issuer') ||
                           location.pathname.includes('/cooperative') ||
-                          location.pathname.includes('/business') ||
                           location.pathname.includes('/admin');
 
   return (
@@ -114,14 +108,16 @@ function AppContent() {
             }
           >
             <Route path="dashboard" element={<InvestorDashboard />} />
-            <Route path="pools" element={<InvestorPools />} />
+            <Route path="pools" element={FINANCING_POOL_ENABLED ? <InvestorPools /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
             <Route path="deposito" element={<InvestorDeposito />} />
-            <Route path="sukuk" element={<InvestorSukuk />} />
+            <Route path="sukuk" element={<Navigate to="/investor/deposito" replace />} />
             <Route path="scf" element={<InvestorScf />} />
             <Route path="portfolio" element={<Portfolio />} />
             <Route path="transactions" element={<Transactions />} />
-            <Route path="impact" element={<Impact />} />
+            <Route path="impact" element={FINANCING_POOL_ENABLED ? <Impact /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
             <Route path="settings" element={<InvestorSettings />} />
+            <Route index element={<Navigate to="/investor/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/investor/dashboard" replace />} />
           </Route>
 
           {/* Issuer (Licensed Sekuritas) Routes */}
@@ -133,7 +129,9 @@ function AppContent() {
               </ProtectedRoute>
             }
           >
-            <Route path="ops" element={<OwnerOps />} />
+            <Route path="ops" element={FINANCING_POOL_ENABLED ? <OwnerOps /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
+            <Route index element={<Navigate to="/issuer/ops" replace />} />
+            <Route path="*" element={<Navigate to="/issuer/ops" replace />} />
           </Route>
 
           {/* Cooperative Dashboard Routes */}
@@ -145,29 +143,14 @@ function AppContent() {
               </ProtectedRoute>
             }
           >
-            <Route path="dashboard" element={<CooperativeDashboard />} />
-            <Route path="verification" element={<Verification />} />
-            <Route path="businesses" element={<Businesses />} />
-            <Route path="deals" element={<Deals />} />
-            <Route path="members" element={<Members />} />
-            <Route path="settings" element={<CooperativeSettings />} />
-          </Route>
-
-          {/* Business Dashboard Routes */}
-          <Route
-            path="/business/*"
-            element={
-              <ProtectedRoute>
-                <DashboardLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="dashboard" element={<BusinessDashboard />} />
-            <Route path="purchase-orders" element={<PurchaseOrders />} />
-            <Route path="funding" element={<Funding />} />
-            <Route path="fulfillment" element={<Fulfillment />} />
-            <Route path="performance" element={<Performance />} />
-            <Route path="settings" element={<BusinessSettings />} />
+            <Route path="dashboard" element={FINANCING_POOL_ENABLED ? <CooperativeDashboard /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
+            <Route path="verification" element={FINANCING_POOL_ENABLED ? <Verification /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
+            <Route path="businesses" element={FINANCING_POOL_ENABLED ? <Businesses /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
+            <Route path="deals" element={FINANCING_POOL_ENABLED ? <Deals /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
+            <Route path="members" element={FINANCING_POOL_ENABLED ? <Members /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
+            <Route path="settings" element={FINANCING_POOL_ENABLED ? <CooperativeSettings /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
+            <Route index element={<Navigate to="/cooperative/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/cooperative/dashboard" replace />} />
           </Route>
 
           {/* Admin Dashboard Routes */}
@@ -181,13 +164,16 @@ function AppContent() {
           >
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="users" element={<AdminUsers />} />
-            <Route path="investments" element={<AdminInvestments />} />
-            <Route path="pools" element={<AdminPools />} />
+            <Route path="investments" element={FINANCING_POOL_ENABLED ? <AdminInvestments /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
+            <Route path="pools" element={FINANCING_POOL_ENABLED ? <AdminPools /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
             <Route path="tokenization" element={<AdminTokenization />} />
             <Route path="scf" element={<AdminScfOnboarding />} />
             <Route path="compliance" element={<AdminCompliance />} />
             <Route path="settings" element={<AdminSettings />} />
-            <Route path="ops" element={<OwnerOps />} />
+            <Route path="ops" element={FINANCING_POOL_ENABLED ? <OwnerOps /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
+            <Route path="protocol-ops" element={<Navigate to="/admin/ops" replace />} />
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
           </Route>
 
           {/* Default redirect for unmatched dashboard routes */}

@@ -36,6 +36,10 @@ for id in "${ids[@]}"; do
   ln -s "$root/lib" "$work/lib"
   # The mutant imports src via ../../../src/; inside the copy it sits at src/.
   sed -E 's#\.\./\.\./\.\./src/#./#g' "$file" > "$work/$target"
+  # A munged copy of the target (see munge.sh) is what a harness imports, so mutate that too.
+  if [ -f "$work/certora/munged/deposito/$name" ]; then
+    sed 's/bytes32\[\] private _bankIds;/bytes32[] internal _bankIds;/' "$file" > "$work/certora/munged/deposito/$name"
+  fi
 
   verdict="SURVIVED"
   for comp in $comps; do

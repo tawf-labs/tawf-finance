@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/Badge';
 import { InvestmentCard } from '@/components/ui/InvestmentCard';
 import { useMockData } from '@/hooks/useMockData';
 import { mockPools } from '@/data/mockData';
+import { FINANCING_POOL_ENABLED } from '@/config/features';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -192,7 +193,8 @@ export function InvestorDashboard() {
         </motion.div>
       </div>
 
-      {/* Featured Pools */}
+      {/* Featured pools (financing pool flag) or the pilot products */}
+      {FINANCING_POOL_ENABLED ? (
       <motion.div variants={itemVariants}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-serif text-xl text-tawf-green">Featured Investment Pools</h2>
@@ -211,11 +213,34 @@ export function InvestorDashboard() {
           ))}
         </div>
       </motion.div>
+      ) : (
+        <motion.div variants={itemVariants}>
+          <h2 className="font-serif text-xl text-tawf-green mb-4">Pilot products</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Link to="/investor/deposito" className="block bg-white rounded-2xl border border-tawf-green-10 p-6 hover:border-tawf-green-20 hover:shadow-md transition-all">
+              <p className="text-xs uppercase tracking-wide text-tawf-muted mb-1">Tawf Deposito Pool</p>
+              <h3 className="font-serif text-lg text-tawf-green mb-2">Deposito across BPRS in Jawa Barat</h3>
+              <p className="text-sm text-tawf-muted">
+                One token backed by Tawf&apos;s mudharabah deposito at several licensed Islamic rural banks, with a
+                per-bank proof of reserve. Returns follow each bank&apos;s profit share.
+              </p>
+            </Link>
+            <Link to="/investor/scf" className="block bg-white rounded-2xl border border-tawf-green-10 p-6 hover:border-tawf-green-20 hover:shadow-md transition-all">
+              <p className="text-xs uppercase tracking-wide text-tawf-muted mb-1">Urun Dana (SCF)</p>
+              <h3 className="font-serif text-lg text-tawf-green mb-2">Sharia crowdfunding for SMEs</h3>
+              <p className="text-sm text-tawf-muted">
+                SME sukuk through a licensed crowdfunding platform, with your POJK 57/2020 investor limit enforced by
+                the token itself.
+              </p>
+            </Link>
+          </div>
+        </motion.div>
+      )}
 
       {/* Quick Actions */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link
-          to="/investor/pools"
+          to={FINANCING_POOL_ENABLED ? '/investor/pools' : '/investor/deposito'}
           className="flex items-center gap-3 p-4 bg-white rounded-xl border border-tawf-green-10 hover:border-tawf-green-20 hover:shadow-md transition-all"
         >
           <div className="p-3 bg-tawf-green-10 rounded-xl">
@@ -223,7 +248,7 @@ export function InvestorDashboard() {
           </div>
           <div>
             <p className="font-medium text-tawf-green">New Investment</p>
-            <p className="text-xs text-tawf-muted">Browse pools</p>
+            <p className="text-xs text-tawf-muted">{FINANCING_POOL_ENABLED ? 'Browse pools' : 'Deposito Pool'}</p>
           </div>
         </Link>
 
@@ -254,15 +279,15 @@ export function InvestorDashboard() {
         </Link>
 
         <Link
-          to="/investor/impact"
+          to={FINANCING_POOL_ENABLED ? '/investor/impact' : '/investor/scf'}
           className="flex items-center gap-3 p-4 bg-white rounded-xl border border-tawf-green-10 hover:border-tawf-green-20 hover:shadow-md transition-all"
         >
           <div className="p-3 bg-purple-50 rounded-xl">
             <Heart className="w-5 h-5 text-purple-600" />
           </div>
           <div>
-            <p className="font-medium text-tawf-green">Your Impact</p>
-            <p className="text-xs text-tawf-muted">See the difference</p>
+            <p className="font-medium text-tawf-green">{FINANCING_POOL_ENABLED ? 'Your Impact' : 'Urun Dana (SCF)'}</p>
+            <p className="text-xs text-tawf-muted">{FINANCING_POOL_ENABLED ? 'See the difference' : 'Sharia crowdfunding'}</p>
           </div>
         </Link>
       </motion.div>

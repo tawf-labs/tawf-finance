@@ -6,8 +6,10 @@ import {
   addresses,
   isConfigured,
   readableError,
+  seriesTarget,
+  pool,
 } from '../_lib/operator.js'
-import { tawfSeriesAbi, sandboxModuleAbi, trexTokenAbi, trexComplianceAbi, reserveLedgerAbi, mockTokenAbi } from '../_lib/abis.js'
+import { tawfSeriesAbi, sandboxModuleAbi, trexTokenAbi, trexComplianceAbi, reserveLedgerAbi, mockTokenAbi, depositoPoolLedgerAbi } from '../_lib/abis.js'
 import type { Address, Hex } from 'viem'
 
 const MODES = ['PILOT_ONLY', 'SCREENED_GROUP', 'SANDBOX_ADMITTED'] as const
@@ -20,7 +22,10 @@ const MODES = ['PILOT_ONLY', 'SCREENED_GROUP', 'SANDBOX_ADMITTED'] as const
  * wallet is given) that wallet's per-coin pending escrow, holdings, claimable
  * profit (sen) and eligibility.
  *
- *   GET /api/tokenization/series/status?wallet=0x..
+ * `series=pool` selects the regional Deposito Pool: its reserve snapshot comes
+ * from the DepositoPoolLedger, and the response adds the per-bank breakdown.
+ *
+ *   GET /api/tokenization/series/status?wallet=0x..[&series=pool]
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -33,9 +38,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const series = addresses.tawfSeries
-    const token = addresses.tawfSeriesToken
-    const sandbox = addresses.sandboxModule
+    const target = seriesTarget(req)
+    const { series, token, sandbox } = target
 
     const compliance = (await publicClient.readContract({
       address: token,
@@ -61,8 +65,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         publicClient.readContract({ address: series, abi: tawfSeriesAbi, functionName: 'treasury' }) as Promise<Address>,
         publicClient.readContract({ address: sandbox, abi: sandboxModuleAbi, functionName: 'configOf', args: [compliance] }) as Promise<readonly [number, Address, Address, bigint, bigint, bigint, bigint, boolean]>,
         publicClient.readContract({ address: sandbox, abi: sandboxModuleAbi, functionName: 'investorCount', args: [compliance] }) as Promise<bigint>,
-        ledgerClient().readContract({ address: reserveLedgerAddress(), abi: reserveLedgerAbi, functionName: 'latestDepositoReserve', args: [addresses.tawfSeriesId] }) as Promise<{ snapshotAt: bigint; amount: bigint }>,
+        (target.isPool
+          ? Promise.all([
+              publicClient.readContract({ address: pool.ledger, abi: depositoPoolLedgerAbi, functionName: 'snapshotAt' }),
+              publicClient.readContract({ address: pool.ledger, abi: depositoPoolLedgerAbi, functionName: 'totalBalance' }),
+            ]).then(([snapshotAt, amount]) => ({ snapshotAt: BigInt(snapshotAt), amount: amount as bigint }))
+          : ledgerClient().readContract({ address: reserveLedgerAddress(), abi: reserveLedgerAbi, functionName: 'latestDepositoReserve', args: [addresses.tawfSeriesId] })) as Promise<{ snapshotAt: bigint; amount: bigint }>,
       ])
+
+    let banks: { id: Hex; name: string; accountRef: string; balanceSen: string }[] | null = null
+    if (target.isPool) {
+      const [ids, names, refs, bals] = (await publicClient.readContract({
+        address: pool.ledger,
+        abi: depositoPoolLedgerAbi,
+        functionName: 'banks',
+      })) as readonly [readonly Hex[], readonly string[], readonly string[], readonly bigint[]]
+      banks = ids.map((id, i) => ({ id, name: names[i], accountRef: refs[i], balanceSen: bals[i].toString() }))
+    }
 
     // Per-coin: posted rate (+ freshness), treasury balance and series allowance.
     const coins = await Promise.all(
@@ -122,6 +141,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       series,
       token,
       sandboxModule: sandbox,
+      isPool: target.isPool,
+      ledger: target.isPool ? pool.ledger : null,
+      banks,
       compliance,
       treasury,
       seriesId: termsRaw.seriesId,

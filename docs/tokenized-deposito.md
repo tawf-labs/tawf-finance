@@ -83,9 +83,25 @@ The token is ERC-3643 (T-REX), not plain ERC-20. Every holder must have a verifi
 - **FX risk.** The stablecoin→IDR conversion is a real exposure, and it differs per coin: USDC and USDT each carry their own posted rate (no 1:1 peg). The IDR value of a holding is what is backed; the amount an investor receives in USDC or USDT at payout depends on that coin's rate at that moment. Production posts each rate from an IDRX / exchange quote, the same number used for the off-chain conversion of that coin.
 - **Why BPRS and not a koperasi/BMT.** POJK 7/2024 Art 35 lets a BPRS raise in the capital market; a koperasi cannot lawfully issue to non-members. A BPRS is OJK-supervised, LPS-insured, audited, and reports into SLIK.
 
-## Sukuk lifecycle across L2 and L3
+## Regional Tawf Deposito Pool
 
-The sukuk series spans both chains, and every money-moving step on Arbitrum One (L2) is gated by a fact first recorded on the Tawf Network `SukukLedger` (L3) and anchored through `LedgerAnchor`. In order: the bank's officer creates the sukuk on the L3 and the DPS attests it (`SUKUK_APPROVED`); Tawf opens the subscription on L2 against that leaf; investors subscribe in USDC; Tawf closes the subscription and records the outcome on the L3 with `markIssued`; the bank declares each period's realized profit (`SUKUK_DISTRIBUTION`) and Tawf funds exactly that amount on L2; after maturity the bank declares the redemption (`SUKUK_REDEMPTION`) and Tawf settles it on L2. Amounts are in USDC base units (6 decimals) throughout.
+A BPRS cannot issue sukuk in practice. POJK 7/2024 Art 35 requires IDR 80bn core capital and rank-2 ratings, and almost no BPRS clears that. So Tawf does not tokenize a BPRS sukuk. It wraps deposito instead, and a regional pool wraps the deposito of several banks in one region into one token.
+
+- **Product.** "Tawf Deposito Pool: Jawa Barat", token `tDEP-JABAR-1`, 2 decimals, 1 token = IDR 1 claim on Tawf. The name avoids every regulated label: sukuk, obligasi, efek, reksa dana or unit penyertaan, and sertifikat deposito.
+- **Structure.** Tawf holds one dedicated mudharabah deposito account at each BPRS in the pool. The demo uses three fictional banks: BPRS Demo Bandung, Bogor and Cirebon. Investors appoint Tawf to place their funds (two-tier mudharabah, the same as Model B). The token backs onto the sum of the balances.
+- **Contracts.**
+  - The pool is an unmodified `TawfDepositoSeries`. Its anchor is a `DepositoPoolLedger`.
+  - The ledger records Tawf's balance at each bank and adds them up.
+  - Each reserve post opens an epoch holding the aggregate `DEPOSITO_RESERVE` leaf, which the series checks before minting, plus one `DEPOSITO_BANK_BALANCE` leaf per bank, so anyone can check each bank's part.
+  - Profit is recorded per bank and distributed as one pool total. Maturity is recorded the same way.
+- **Trust model.** In the demo the operator attests the balances on the ledger. In production each balance comes from the bank's core banking through the bprs-connector and the Tawf Network ledger.
+- **LPS.** LPS insures Tawf's deposit at each bank up to Rp2bn per bank, and only at or below the LPS rate cap. Spreading the pool across banks therefore raises the insured amount. The investor still holds a claim on Tawf, not an insured deposit **[TBC with OJK]**.
+- **Operating it.**
+  - Admin, Tokenization, Deposito Pool tab (passcode): record bank balances, post rates and approvals per coin, allocate, distribute per-bank profit, settle maturity, mode and caps.
+  - API: `pool/admin` (`reserve`, `allocate`, `distribute`, `settle`), and the `series/*` routes with `series=pool`.
+  - Deploy: `contracts/script/DeployDepositoPool.s.sol` (`--sig "runPool()"`).
+
+The earlier BPRS sukuk demo is retired from the app. Its contracts stay deployed, and `SukukDistributor` is reused for SCF offerings, where an SME issues sukuk through a licensed crowdfunding platform (see [scf-urun-dana.md](scf-urun-dana.md)).
 
 ## See also
 

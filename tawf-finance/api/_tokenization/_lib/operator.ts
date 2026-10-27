@@ -214,6 +214,46 @@ export const addresses = {
   scfId: ((deployments as Record<string, unknown>).scfId ?? ZERO) as Hex,
 }
 
+/** Regional Tawf Deposito Pool (optional): a series whose anchor is a DepositoPoolLedger. */
+const rawDeployments = deployments as Record<string, unknown>
+export const pool = {
+  series: (rawDeployments.depositoPool ?? ZERO) as Address,
+  token: (rawDeployments.depositoPoolToken ?? ZERO) as Address,
+  sandbox: (rawDeployments.depositoPoolSandbox ?? ZERO) as Address,
+  ledger: (rawDeployments.depositoPoolLedger ?? ZERO) as Address,
+  seriesId: (rawDeployments.depositoPoolId ?? ZERO) as Hex,
+}
+
+export function isPoolConfigured(): boolean {
+  return pool.series !== ZERO && pool.ledger !== ZERO
+}
+
+export interface SeriesTarget {
+  series: Address
+  token: Address
+  sandbox: Address
+  seriesId: Hex
+  isPool: boolean
+}
+
+/**
+ * The deposito series a request targets: `series=pool` (query or body)
+ * selects the regional Deposito Pool, anything else the BPRS Demo series 1.
+ */
+export function seriesTarget(req: VercelRequest): SeriesTarget {
+  const pick = String((req.query?.series as string | undefined) ?? (req.body?.series as string | undefined) ?? '')
+  if (pick === 'pool' && isPoolConfigured()) {
+    return { series: pool.series, token: pool.token, sandbox: pool.sandbox, seriesId: pool.seriesId, isPool: true }
+  }
+  return {
+    series: addresses.tawfSeries,
+    token: addresses.tawfSeriesToken,
+    sandbox: addresses.sandboxModule,
+    seriesId: addresses.tawfSeriesId,
+    isPool: false,
+  }
+}
+
 /** Whether the SCF offering is deployed. */
 export function isScfConfigured(): boolean {
   return addresses.scfDistributor !== ZERO && addresses.scfLimitModule !== ZERO && addresses.scfAnchor !== ZERO
@@ -369,6 +409,24 @@ export function readableError(err: unknown, fallback = 'Transaction failed'): st
       return 'The subscription window has closed.'
     case 'SubscriptionStillOpen':
       return 'The subscription is still open and not fully subscribed. Close it after the window ends.'
+    case 'RedemptionAlreadyOpen':
+      return 'Maturity is already settled: redemption is open.'
+    case 'RedemptionNotOpen':
+      return 'Redemption opens at maturity, once it is settled.'
+    case 'ProfitAfterMaturity':
+      return 'Maturity is settled: no more profit periods can be distributed.'
+    case 'ProfitPeriodsOutstanding':
+      return 'Distribute every profit period before settling maturity.'
+    case 'ZeroAmount':
+      return 'Enter an amount greater than zero.'
+    case 'ConversionZero':
+      return 'The amount is too small to convert at the posted rate.'
+    case 'StablecoinAlreadyAdded':
+      return 'That settlement coin is already on the allowlist.'
+    case 'BadBank':
+      return 'Unknown bank for this pool.'
+    case 'StaleSnapshot':
+      return 'A newer bank balance snapshot is already recorded.'
     case 'PeriodNotSequential':
       return 'Distribute the next profit period in order.'
     case 'NothingToClaim':
@@ -430,7 +488,7 @@ export function readableError(err: unknown, fallback = 'Transaction failed'): st
       return 'Below the minimum subscription.'
   }
   if (/Compliance not followed/i.test(anyErr?.message ?? '')) {
-    return 'The token compliance rejected this. For a crowdfunding (SCF) offering, the amount may exceed your yearly POJK 57/2020 investor limit or the offering cap.'
+    return 'The token compliance rules rejected this: it would exceed an investor limit or a cap (for a Deposito Pool the per-investor or series cap, for an SCF offering the yearly POJK 57/2020 limit or the offering cap), or the wallet is not admitted.'
   }
   if (/not verified|not eligible/i.test(anyErr?.message ?? '')) {
     return 'Recipient is not a verified identity. Run the faucet for that wallet first.'

@@ -108,6 +108,7 @@ The script reuses the shared identity registry and mUSDC from `tokenization.depl
 
 ## 7. Known limits of the demo
 
+- **Bound offerings are fixed.** `initOffering` now refuses a compliance that is already bound, so a live offering's treasury (exempt from the limit) and cap cannot be rewritten (Certora finding, see `contracts/certora/notes/pool-scf-review.md`). The module deployed on Arbitrum Sepolia predates this fix. Its owner is the operator, and the next SCF deployment picks up the fix.
 - **Self-declared declarations.** Income and exemptions are self-declared and only signed by the wallet. A licensed platform verifies them (for example the age of the capital-market account) before it admits an exemption.
 - **Fixed periods.** A period is a fixed 365-day bucket from the module deployment, not a calendar year.
 - **Fixed FX rate.** The IDR to USDC rate is fixed when the profile is recorded. A later rate change does not move the stored limit.

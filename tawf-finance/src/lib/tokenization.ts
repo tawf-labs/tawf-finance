@@ -139,11 +139,12 @@ export interface SeriesReserveLine {
   anchorTxHash: `0x${string}` | null;
 }
 
-export interface SukukReserveLine {
-  kind: 'sukuk';
+export interface PoolReserveLine {
+  kind: 'pool';
   label: string;
   symbol: string;
   subject: `0x${string}`;
+  ledger: `0x${string}`;
   supply: string;
   reserve: string;
   ratioBps: number;
@@ -151,12 +152,15 @@ export interface SukukReserveLine {
   snapshotAt: number;
   anchored: boolean;
   epoch: string | null;
+  lastDistributedPeriod: number;
+  banks: { id: `0x${string}`; name: string; accountRef: string; balanceSen: string }[];
   anchorTxHash: `0x${string}` | null;
 }
 
 export interface ReserveResponse {
-  series: SeriesReserveLine;
-  sukuk: SukukReserveLine;
+  /** Null when the Tawf Network ledger is unreachable (e.g. on a preview). */
+  series: SeriesReserveLine | null;
+  pool: PoolReserveLine | null;
   lastSyncAt: string | null;
   ledgerChainId: number;
   anchor: `0x${string}` | null;
@@ -193,6 +197,10 @@ export interface SeriesCoin {
 
 /** The Tawf deposito series snapshot, from GET /api/tokenization/series/status. */
 export interface SeriesStatus {
+  /** Regional Deposito Pool only: the banks and Tawf's balance at each. */
+  isPool?: boolean;
+  ledger?: `0x${string}` | null;
+  banks?: { id: `0x${string}`; name: string; accountRef: string; balanceSen: string }[] | null;
   series: `0x${string}`;
   token: `0x${string}`;
   sandboxModule: `0x${string}`;

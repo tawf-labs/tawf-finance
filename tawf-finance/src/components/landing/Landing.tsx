@@ -7,31 +7,40 @@ import { instrumentCatalog } from '@/data/mockData';
 import { Emblem, Pools } from './Pools';
 import { FADE, FAMILY_TINT } from './tint';
 import { CountUp, Reveal, Words } from './Reveal';
+import { FINANCING_POOL_ENABLED } from '@/config/features';
 
 // ── Copy ───────────────────────────────────────────────────────────────
-// Order follows the contracts: the receipt is minted inside invest().
+// Order follows the contracts of the Tawf Deposito Pool: the series mints only
+// within the total its DepositoPoolLedger records across the banks.
 const STEPS = [
-  { k: 'Capital', t: 'You commit USDC.', b: 'From 10 USDC into the RedemptionVault escrow. The money never sits with Tawf.', c: 'RedemptionVault.invest()' },
-  { k: 'Pool', t: 'It joins one defined pool.', b: 'Registered with its BPRS, funding target, a 30 to 90 day tenor, and a hash of the akad document.', c: 'DealRegistry.getDeal()' },
-  { k: 'Receipt', t: 'A soulbound receipt is minted.', b: 'ERC-1155, in the same transaction. Principal, rate, tenor. Never transferable.', c: 'BondReceiptNFT.getReceiptMeta()' },
-  { k: 'BPRS', t: 'A licensed Shariah bank puts it to work.', b: 'The bank finances traders, farmers, and fishers in its own district, under a sell-down akad its DPS reviewed.', c: 'wakalah bil istithmar / musyarakah' },
-  { k: 'Maturity', t: 'The bank remits what it collected.', b: 'Collections return to the vault and the profit actually remitted is snapshotted for every holder.', c: 'RedemptionVault.repay()' },
-  { k: 'Redemption', t: 'You redeem principal plus your share.', b: 'A pro-rata share of remitted profit, then the receipt is burned. On a default, the testnet contracts return principal only.', c: 'RedemptionVault.redeem()' },
+  { k: 'Subscribe', t: 'You commit stablecoins.', b: 'USDC, USDT or USDG into the pool series escrow. Until allocation you can cancel and get them back.', c: 'TawfDepositoSeries.subscribe()' },
+  { k: 'Place', t: 'Tawf places it at the banks.', b: 'Converted to rupiah and placed in a dedicated mudharabah deposito account at each BPRS in the region.', c: 'off chain, IDRX style conversion' },
+  { k: 'Prove', t: 'Every bank balance is recorded.', b: 'The pool ledger records Tawf\u2019s balance at each bank and adds them up. Anyone can check each part.', c: 'DepositoPoolLedger.postReserve()' },
+  { k: 'Mint', t: 'Tokens are minted within the total.', b: '1 token is a claim on Tawf for IDR 1. Supply can never run above what the banks hold.', c: 'TawfDepositoSeries.allocate()' },
+  { k: 'Profit', t: 'Each bank credits its share.', b: 'The banks credit their nisbah every period. The pool total is distributed and you claim it in the coin you choose.', c: 'distributeProfit() · claim()' },
+  { k: 'Redeem', t: 'You redeem at maturity.', b: 'The banks return the principal, the series opens redemption, and your tokens are burned for your share.', c: 'settleMaturity() · redeem()' },
 ];
 // Each step's card takes the next pastel, so the sticky dial visibly changes chapter.
 const STEP_TINT = ['bg-mint', 'bg-butter', 'bg-peach', 'bg-mint', 'bg-butter', 'bg-peach'];
 
 const RECEIPT = [
-  { s: 'Active', fn: 'invest()', stamp: 'Active', tone: 'text-jade', b: 'Minted inside invest(). Readable by anyone; transfers and approvals revert with Soulbound().' },
-  { s: 'Matured', fn: 'repay()', stamp: 'Matured', tone: 'text-honey', b: 'The pool is repaid and your share of the profit actually received is fixed.' },
-  { s: 'Redeemed', fn: 'redeem()', stamp: 'Burned', tone: 'text-clay', b: 'Paid out, then burned. Repayment is not guaranteed: on a default, principal only.' },
+  { s: 'Pending', fn: 'subscribe()', stamp: 'Escrowed', tone: 'text-honey', b: 'Your stablecoins wait in escrow until Tawf places them at the banks. You can cancel until then.' },
+  { s: 'Allocated', fn: 'allocate()', stamp: 'Backed', tone: 'text-jade', b: 'Minted within the total the banks hold. Each period the banks credit profit and you claim your share.' },
+  { s: 'Redeemed', fn: 'redeem()', stamp: 'Redeemed', tone: 'text-clay', b: 'At maturity the banks return the principal and your tokens are burned for it. Returns are not guaranteed.' },
 ];
-// Specimen tenor elapsed for each receipt state.
-const DAYS = [24, 60, 60];
+// Specimen tenor elapsed (months) for each state.
+const MONTHS = [0, 2, 3];
+// Specimen bank balances (IDR millions) behind the pool card.
+const BANKS = [
+  { n: 'BPRS Demo Bandung', r: 'TAWF-JB-BDG', v: 210 },
+  { n: 'BPRS Demo Bogor', r: 'TAWF-JB-BGR', v: 150 },
+  { n: 'BPRS Demo Cirebon', r: 'TAWF-JB-CRB', v: 150 },
+];
+const BANK_TOTAL = BANKS.reduce((a, b) => a + b.v, 0);
 const WHY = [
-  { t: 'Funding priced outside the district', b: 'A BPRS can only collect deposits in its own operating area.' },
-  { t: 'Capacity released, relationship kept', b: 'A sell-down frees CAR and BMPK headroom; the bank keeps its clients.' },
-  { t: 'The regulator is the attestation layer', b: 'OJK-supervised, LPS-insured, audited, reporting into SLIK.' },
+  { t: 'Funding from outside the district', b: 'A BPRS can only collect deposits in its own operating area. The pool brings it depositors from anywhere.' },
+  { t: 'More insured, bank by bank', b: 'LPS insures Tawf\u2019s deposit at each bank up to Rp2bn. Spreading a pool across banks raises what is insured.' },
+  { t: 'The regulator is the attestation layer', b: 'Every bank in a pool is OJK-supervised, LPS-insured, audited, and reports into SLIK.' },
 ];
 
 const solid = 'inline-flex h-12 items-center rounded-full bg-ink px-6 text-sm font-semibold text-white transition-colors hover:bg-jade';
@@ -45,7 +54,7 @@ const cut = (at: string) =>
 const BODY_CUT = { mask: cut('100%'), WebkitMask: cut('100%') };
 const STUB_CUT = { mask: cut('0'), WebkitMask: cut('0') };
 
-// The product's one physical object. Fields mirror getReceiptMeta(); values are a specimen.
+// The product's one physical object: the pool token, backed bank by bank. Values are a specimen.
 function ReceiptCard({ state = 0, className = '', stub, intro = false }: { state?: number; className?: string; stub?: MotionStyle; intro?: boolean }) {
   const r = RECEIPT[state];
   const burned = state === 2;
@@ -55,22 +64,38 @@ function ReceiptCard({ state = 0, className = '', stub, intro = false }: { state
       <div style={BODY_CUT} className="relative bg-paper">
         <div className={`px-6 pb-6 pt-6 transition-[opacity,filter] duration-500 ${burned ? 'opacity-50 grayscale' : ''}`}>
           <div className="flex items-start justify-between">
-            <Emblem id="kurban-farms" tenor={60} className="h-12 w-12 text-jade" />
+            <Emblem id="tawf-pool-jabar" tenor={90} className="h-12 w-12 text-jade" />
             <div className="text-right">
-              <p className="font-mono text-[11px] text-tawf-muted">Receipt</p>
-              <p className="font-mono text-sm font-medium tabular-nums">#0042</p>
+              <p className="font-mono text-[11px] text-tawf-muted">Pool token</p>
+              <p className="font-mono text-sm font-medium tabular-nums">tDEP-JABAR-1</p>
             </div>
           </div>
-          <p className="mt-6 font-display text-lg font-semibold leading-tight tracking-[-0.02em]">BPRS Barokah Agri Financing Pool</p>
+          <p className="mt-5 font-display text-lg font-semibold leading-tight tracking-[-0.02em]">Tawf Deposito Pool: Jawa Barat</p>
           <p className="mt-1 text-sm text-tawf-muted">
-            Musyarakah <span lang="ar" className="font-arabic">مشاركة</span>
+            Mudharabah deposito <span lang="ar" className="font-arabic">مضاربة</span>
           </p>
-          <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
+          <ul className="mt-4 space-y-2 text-sm">
+            {BANKS.map((b, i) => (
+              <li key={b.r}>
+                <div className="flex justify-between">
+                  <span>{b.n}</span>
+                  <span className={`font-semibold tabular-nums ${burned ? 'line-through decoration-clay/60' : ''}`}>Rp{b.v}m</span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink/[0.07]">
+                  <motion.div
+                    className="h-full rounded-full bg-jade"
+                    initial={false}
+                    animate={{ width: `${(b.v / BANK_TOTAL) * 100}%` }}
+                    transition={{ duration: 0.8, delay: i * 0.08, ease }}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+          <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             {[
-              ['Principal', '250 USDC'],
-              ['Rate', '7–10% ind.'],
-              ['Tenor', '60 days'],
-              ['Standard', 'ERC-1155'],
+              ['Total at banks', `Rp${BANK_TOTAL}m`],
+              ['Backed', '100%'],
             ].map(([k, v]) => (
               <div key={k}>
                 <dt className="text-[11px] text-tawf-muted">{k}</dt>
@@ -78,17 +103,17 @@ function ReceiptCard({ state = 0, className = '', stub, intro = false }: { state
               </div>
             ))}
           </dl>
-          {/* Tenor elapsed: specimen day count for the state shown. */}
+          {/* Tenor elapsed: specimen month count for the state shown. */}
           <div className="mt-5">
             <div className="flex justify-between text-[11px] text-tawf-muted">
-              <span className="tabular-nums">Day {DAYS[state]} of 60</span>
-              <span>{['Running', 'Repaid', 'Paid out'][state]}</span>
+              <span className="tabular-nums">Month {MONTHS[state]} of 3</span>
+              <span>{['Escrowed', 'Earning', 'Paid out'][state]}</span>
             </div>
             <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink/[0.07]">
               <motion.div
-                className={`h-full rounded-full ${state === 0 ? 'bg-jade' : 'bg-honey'}`}
+                className={`h-full rounded-full ${state === 1 ? 'bg-jade' : 'bg-honey'}`}
                 initial={false}
-                animate={{ width: `${(DAYS[state] / 60) * 100}%` }}
+                animate={{ width: `${(MONTHS[state] / 3) * 100}%` }}
                 transition={{ duration: 0.8, ease }}
               />
             </div>
@@ -101,9 +126,9 @@ function ReceiptCard({ state = 0, className = '', stub, intro = false }: { state
               animate={{ scale: 1, opacity: 1, rotate: -12 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ duration: 0.45, ease: 'backOut', delay: 0.25 }}
-              className="absolute left-[18%] top-[38%] rounded-lg border-[3px] border-current bg-paper/70 px-4 py-1.5 font-display text-3xl font-bold uppercase tracking-wide text-clay"
+              className="absolute left-[14%] top-[38%] rounded-lg border-[3px] border-current bg-paper/70 px-4 py-1.5 font-display text-3xl font-bold uppercase tracking-wide text-clay"
             >
-              Burned
+              Redeemed
             </motion.span>
           )}
         </AnimatePresence>
@@ -114,7 +139,7 @@ function ReceiptCard({ state = 0, className = '', stub, intro = false }: { state
         animate={stub ? undefined : burned ? { y: 48, rotate: 9, opacity: 0 } : { y: 0, rotate: 0, opacity: 1 }}
         transition={{ duration: 0.7, ease }}
         className="flex h-[84px] origin-top-left items-center justify-between border-t-2 border-dashed border-ink/15 bg-paper px-6">
-        <p className="max-w-[9rem] text-[11px] leading-snug text-tawf-muted">Soulbound. Transfers revert. Specimen values.</p>
+        <p className="max-w-[9rem] text-[11px] leading-snug text-tawf-muted">Reserve verified bank by bank. Specimen values.</p>
         <AnimatePresence mode="wait" initial={intro}>
           {!burned && (
             <motion.span
@@ -134,7 +159,7 @@ function ReceiptCard({ state = 0, className = '', stub, intro = false }: { state
   );
 }
 
-// Hero object: one receipt, printed into a mihrab arch. Scrolling away tears the stub,
+// Hero object: the pool token, printed into a mihrab arch. Scrolling away tears the stub,
 // the same thing redemption does to the real one.
 function HeroStage({ scroll }: { scroll: MotionValue<number> }) {
   const reduce = useReducedMotion();
@@ -182,7 +207,7 @@ function HeroStage({ scroll }: { scroll: MotionValue<number> }) {
           transition={{ duration: 1.25, delay: 0.55, ease }}
         >
           <motion.div style={{ rotateX: rx, rotateY: ry, transformPerspective: 1000 }}>
-            <ReceiptCard intro stub={{ y: stubY, rotate: stubR }} />
+            <ReceiptCard intro state={1} stub={{ y: stubY, rotate: stubR }} />
           </motion.div>
         </motion.div>
       </motion.div>
@@ -206,7 +231,7 @@ function Hero() {
       <div className="mx-auto grid max-w-7xl gap-14 lg:grid-cols-12 lg:gap-6">
         <div className="relative z-10 lg:col-span-7 lg:pb-24">
           <motion.p {...rise(0)} className="text-sm font-medium text-tawf-muted">
-            Tokenized Shariah bank financing, Indonesia
+            Tokenized Shariah deposito, Indonesia
           </motion.p>
           <h1 className="display mt-6 text-[clamp(3.4rem,10.5vw,9.5rem)]">
             <motion.span {...rise(1)} className="block">Capital,</motion.span>
@@ -229,11 +254,11 @@ function Hero() {
             </motion.span>
           </h1>
           <motion.p {...rise(3)} className="mt-8 max-w-md text-[1.1rem] leading-relaxed text-ink/75">
-            Fund real financing from licensed Indonesian Shariah banks. From 10 USDC, with every position held as an on-chain receipt.
+            Put stablecoins into mudharabah deposito across licensed Indonesian Islamic rural banks, wrapped into one Tawf Deposito Pool, with every bank&apos;s balance shown in the proof of reserve.
           </motion.p>
           <motion.div {...rise(4)} className="mt-9 flex flex-wrap items-center gap-3">
             <a href="https://app.tawf.finance/login" className={solid}>Open the investor app</a>
-            <a href="#how-it-works" className={ghost}>See the lifecycle</a>
+            <a href="/proof-of-reserve" className={ghost}>See the proof of reserve</a>
           </motion.div>
         </div>
 
@@ -245,9 +270,9 @@ function Hero() {
       {/* Facts that hold for every pool, read across like a ledger line. */}
       <dl className="relative z-10 mx-auto mt-4 grid max-w-7xl border-t border-ink/15 sm:grid-cols-3 lg:mt-0">
         {[
-          ['10', 'USDC', 'Minimum ticket per pool'],
-          ['30–90', 'days', 'Tenor, fixed at registration'],
-          ['9', 'akad', 'Mapped to one contract primitive'],
+          ['3', 'BPRS', 'Banks in the first regional pool'],
+          ['1', 'token', 'One claim on Tawf, backed bank by bank'],
+          ['3', 'months', 'Deposito tenor in the pilot'],
         ].map(([n, u, l], i) => (
           <div key={l} className={`py-6 sm:px-6 ${i ? 'border-ink/15 max-sm:border-t sm:border-l' : 'sm:pl-0'}`}>
             <dt className="sr-only">{l}</dt>
@@ -276,10 +301,10 @@ function Lifecycle() {
       <div className="mx-auto max-w-7xl">
         <Reveal className="grid gap-6 lg:grid-cols-12 lg:items-end">
           <h2 className="display text-[clamp(2.4rem,5.4vw,4.8rem)] lg:col-span-8">
-            <Words text="Follow one unit of capital," /> <Words text="from your wallet and back." className="text-jade" delay={0.25} />
+            <Words text="Follow one rupiah," /> <Words text="to the banks and back." className="text-jade" delay={0.25} />
           </h2>
           <p className="text-[1.05rem] leading-relaxed text-tawf-muted lg:col-span-3 lg:col-start-10">
-            Six steps. Each one is a real contract call you can read on-chain.
+            Six steps. Each one is a contract call or a recorded bank balance you can check on-chain.
           </p>
         </Reveal>
 
@@ -343,9 +368,9 @@ function Lifecycle() {
 
 // ── 2 · Receipt: one object, three states, stepped through on the right ─
 const NOTES = [
-  { t: 'Terms fixed at mint', b: 'Principal, rate band and tenor are written when you invest.', c: 'getReceiptMeta()' },
-  { t: 'Readable by anyone', b: 'Any wallet or auditor can check a position without asking Tawf.', c: 'balanceOf()' },
-  { t: 'Soulbound', b: 'Transfers and approvals revert. No secondary market to chase.', c: 'Soulbound()' },
+  { t: 'Backed bank by bank', b: 'Every bank in the pool and Tawf\u2019s balance there is on the pool ledger.', c: 'DepositoPoolLedger.banks()' },
+  { t: 'Readable by anyone', b: 'Any wallet or auditor can check a position and the total behind it without asking Tawf.', c: 'balanceOf()' },
+  { t: 'Verified wallets only', b: 'The token moves only between wallets with a verified identity.', c: 'ERC-3643' },
 ];
 
 function Receipt() {
@@ -355,10 +380,10 @@ function Receipt() {
       <div className="mx-auto max-w-7xl">
         <Reveal className="mx-auto max-w-3xl text-center">
           <h2 className="display text-[clamp(2.6rem,6.4vw,5.6rem)]">
-            <Words text="A receipt," /> <Words text="not a promise." className="text-jade" delay={0.15} />
+            <Words text="One token," /> <Words text="many banks." className="text-jade" delay={0.15} />
           </h2>
           <p className="mx-auto mt-5 max-w-lg text-[1.05rem] leading-relaxed text-ink/75">
-            Your position is one token you can read, never move. It carries the terms you entered on, and it ends when you are paid.
+            Your position is one token, a claim on Tawf, backed by Tawf&apos;s deposito at every bank in the pool. You can see each bank&apos;s part, and it ends when you redeem.
           </p>
         </Reveal>
 
@@ -394,7 +419,7 @@ function Receipt() {
 
           {/* Stepper: the three states a receipt can be in, in order. */}
           <div className="order-2 lg:order-3">
-            <div role="tablist" aria-orientation="vertical" aria-label="Receipt state" className="relative">
+            <div role="tablist" aria-orientation="vertical" aria-label="Position state" className="relative">
               {RECEIPT.map((r, n) => {
                 const on = n === state;
                 const done = n <= state;
@@ -581,7 +606,7 @@ function WhyBprs() {
             <Words text="Rural Shariah banks pay more" /> <Words text="for every rupiah." className="text-jade" delay={0.3} />
           </h2>
           <p className="text-[1.05rem] leading-relaxed text-ink/75 lg:col-span-4 lg:col-start-9">
-            The LPS caps the guaranteed deposit rate higher for BPR and BPRS. That spread is what their funding costs, and the room a sell-down works in.
+            The LPS caps the guaranteed deposit rate higher for BPR and BPRS. That spread is what their deposits cost, and what a Deposito Pool earns from outside their district.
           </p>
         </Reveal>
 
@@ -700,11 +725,11 @@ function Epilogue() {
             <Words text="Put capital where it can be" /> <Words text="held to account." className="text-jade" delay={0.35} />
           </h2>
           <div className="mt-10 flex flex-wrap items-center gap-3">
-            <a href="https://app.tawf.finance/login" className={solid}>Open the investor app</a>
-            <Link to="/contact" className={ghost}>Bring a BPRS pool</Link>
+            <a href="https://app.tawf.finance/login" className={solid}>Open the Deposito Pool</a>
+            <Link to="/contact" className={ghost}>Bring your BPRS into a pool</Link>
           </div>
           <p className="mt-10 max-w-md text-xs leading-relaxed text-ink/70">
-            Arbitrum Sepolia testnet with test USDC. Not an offer of securities. Returns depend on what the BPRS remits and are not guaranteed.
+            Arbitrum Sepolia testnet with test stablecoins. Not an offer of securities. Returns depend on what the banks credit and are not guaranteed.
           </p>
         </Reveal>
       </div>
@@ -720,7 +745,7 @@ export function Landing() {
       <Receipt />
       <Coverage />
       <WhyBprs />
-      <Pools />
+      {FINANCING_POOL_ENABLED && <Pools />}
       <Epilogue />
     </MotionConfig>
   );

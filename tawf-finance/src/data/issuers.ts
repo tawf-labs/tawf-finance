@@ -2,7 +2,9 @@
  * Issuers onboarded on Tawf, by type.
  *
  * - `bprs`: a licensed Indonesian Islamic rural bank (Bank Pembiayaan Rakyat
- *   Syariah). Tawf tokenizes its deposito and sukuk.
+ *   Syariah). Tawf wraps the deposito it places at several BPRS of a region
+ *   into one Tawf Deposito Pool. A BPRS does not issue sukuk here: that needs
+ *   IDR 80bn core capital (POJK 7/2024 Art 35), which almost no BPRS has.
  * - `scf`: a securities crowdfunding platform licensed by OJK under POJK
  *   57/2020 ("Layanan Urun Dana"), such as LBS Urun Dana. The platform lists
  *   sharia sukuk and shares of SMEs (UMKM), and Tawf tokenizes each offering

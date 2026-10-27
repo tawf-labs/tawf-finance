@@ -57,8 +57,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(demoUsers.issuer);
     } else if (email.toLowerCase().includes('cooperative') || email.toLowerCase().includes('bmt')) {
       setUser(demoUsers.cooperative);
-    } else if (email.toLowerCase().includes('business') || email.toLowerCase().includes('msme')) {
-      setUser(demoUsers.business);
     } else if (email.toLowerCase().includes('admin')) {
       setUser(demoUsers.admin);
     } else {
@@ -94,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!isLoading && user && location.pathname === '/login') {
       const redirectPath: Record<UserRole, string> = {
         investor: '/investor/dashboard',
-        business: '/business/dashboard',
+        business: '/investor/dashboard',
         cooperative: '/cooperative/dashboard',
         issuer: '/issuer/ops',
         admin: '/admin/dashboard',

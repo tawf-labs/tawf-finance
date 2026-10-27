@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Check, ArrowRight, ArrowLeft, User, Store, Building, Shield } from 'lucide-react';
+import { Check, ArrowRight, ArrowLeft, User, Building, Shield } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { FINANCING_POOL_ENABLED } from '@/config/features';
 
-type UserRole = 'investor' | 'business' | 'cooperative' | 'issuer';
+type UserRole = 'investor' | 'cooperative' | 'issuer';
 
 interface FormData {
   firstName: string;
@@ -36,14 +37,8 @@ export function Register() {
     investor: {
       title: 'Investor',
       icon: <User className="w-8 h-8" />,
-      description: 'Take exposure to BPRS financing pools',
+      description: 'Invest in Tawf Deposito Pools and sharia crowdfunding offerings',
       color: 'bg-tawf-green',
-    },
-    business: {
-      title: 'Financing Segment',
-      icon: <Store className="w-8 h-8" />,
-      description: 'Manage a BPRS financing segment',
-      color: 'bg-tawf-gold',
     },
     cooperative: {
       title: 'BPRS Originator',
@@ -108,7 +103,7 @@ export function Register() {
               <p className="text-sm text-tawf-muted mb-6">Select your role in the ecosystem</p>
 
               <div className="grid grid-cols-2 gap-4">
-                {(Object.entries(roleInfo) as [UserRole, typeof roleInfo[UserRole]][]).map(([role, info]) => (
+                {(Object.entries(roleInfo) as [UserRole, typeof roleInfo[UserRole]][]).filter(([role]) => FINANCING_POOL_ENABLED || role === 'investor').map(([role, info]) => (
                   <button
                     key={role}
                     onClick={() => handleRoleSelect(role)}
@@ -204,7 +199,7 @@ export function Register() {
                   />
                 </div>
 
-                {(selectedRole === 'business' || selectedRole === 'cooperative' || selectedRole === 'issuer') && (
+                {(selectedRole === 'cooperative' || selectedRole === 'issuer') && (
                   <div>
                     <label className="block text-sm font-medium text-tawf-ink mb-2">Organization/Business Name</label>
                     <input

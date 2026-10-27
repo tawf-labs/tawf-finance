@@ -3,11 +3,11 @@ import { getAddress, isAddress, maxUint256, type Address, type Hex } from 'viem'
 import {
   publicClient,
   walletClient,
-  addresses,
   isConfigured,
   methodGuard,
   requirePasscode,
   readableError,
+  seriesTarget,
 } from '../_lib/operator.js'
 import { mockTokenAbi } from '../_lib/abis.js'
 
@@ -26,6 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
   if (!requirePasscode(req, res)) return
+  const target = seriesTarget(req)
 
   try {
     const rawToken = req.body?.token
@@ -39,10 +40,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       address: token,
       abi: mockTokenAbi,
       functionName: 'approve',
-      args: [addresses.tawfSeries, maxUint256],
+      args: [target.series, maxUint256],
     })) as Hex
     await publicClient.waitForTransactionReceipt({ hash: txHash })
-    res.status(200).json({ txHash, token, spender: addresses.tawfSeries })
+    res.status(200).json({ txHash, token, spender: target.series })
   } catch (err) {
     res.status(500).json({ error: readableError(err) })
   }
