@@ -93,10 +93,10 @@ A second track tokenizes a licensed BPRS's time deposits and a sukuk series as E
 - **Tawf Deposito Series** (`/investor/deposito`): Model B, a wrapped Tawf deposit. One series token (`tDEP-TAWF-S1`, 2 decimals, 1 token = IDR 1 claim on Tawf) backed by Tawf's single dedicated account at the BPRS. Settle in USDC, USDT or USDG (all 6 decimals, each with its own posted FX rate, no 1:1 peg). USDG is offered once the admin adds it to the series allowlist (Admin → Tokenization → "Add mUSDG as settlement coin"): pick a coin and subscribe (approve + subscribe), cancel pending per coin before allocation, then claim profit and redeem after maturity in whichever coin you pick, with the quoted amount shown per coin. A sandbox mode badge (PILOT ONLY / SCREENED GROUP / OJK SANDBOX) and caps are shown, and the disclosures must be acknowledged before subscribing.
 - **Sukuk** (`/investor/sukuk`): subscribe with USDC to the `tSUKUK-DEMO-2026` series, claim periodic profit, redeem at maturity, or refund a cancelled subscription.
 - **Test funds and test KYC (testnet only)**: Settings has a "Get test" faucet for each of mUSDC, mUSDT and mUSDG, and a "Get test funds + verify identity (test KYC)" button that tops up gas, sends all three tokens and registers an ONCHAINID verified identity. The pool page offers the same "Verify with test KYC" button and a "Get test" button for the chosen token, so testers can invest without leaving the page. Real investors verify with Didit.
-- **Admin** (`/admin/tokenization`): a **Tawf treasury** tab (post FX rate per coin with a "use market quote" per coin, list pending subscriptions per coin, show treasury balances and series allowances per coin with an "Approve series" button per coin, place converted funds at the BPRS, allocate, distribute profit, settle maturity, screen wallets, set mode + caps) and a **BPRS** tab (sync, simulate the bank crediting profit and maturing, and the sukuk lifecycle).
+- **Admin** (`/admin/tokenization`, actions need the `DEMO_PASSCODE`): a **Tawf treasury** tab (add a mock coin such as mUSDG to the series allowlist, post FX rate per coin with a "use market quote" per coin, list pending subscriptions per coin, show treasury balances and series allowances per coin with an "Approve series" button per coin, place converted funds at the BPRS, allocate, distribute profit, settle maturity, screen wallets, set mode + caps) and a **BPRS** tab (sync, simulate the bank crediting profit and maturing, and the sukuk lifecycle).
 - **Proof of Reserve** (`/proof-of-reserve`): tokens outstanding on Arbitrum vs Tawf's dedicated account balance at the BPRS (anchored), profits credited vs distributed, and a client-side `LedgerAnchor.verify` check. The sukuk section remains.
 
-The trust path is `core banking → bprs-connector → Tawf Network ledger → LedgerAnchor on Arbitrum → allocate gate`: the series only mints against a Merkle-verified `DEPOSITO_RESERVE` leaf and never beyond the anchored account balance. Server-side operator actions run in the Vercel functions under [`tawf-finance/api/tokenization/`](tawf-finance/api/tokenization/). See [`docs/tokenized-deposito.md`](docs/tokenized-deposito.md).
+The trust path is `core banking → bprs-connector → Tawf Network ledger → LedgerAnchor on Arbitrum → allocate gate`: the series only mints against a Merkle-verified `DEPOSITO_RESERVE` leaf and never beyond the anchored account balance. Server-side operator actions run in one Vercel function, [`tawf-finance/api/tokenization-router.ts`](tawf-finance/api/tokenization-router.ts), with the handlers in [`tawf-finance/api/_tokenization/`](tawf-finance/api/_tokenization/). See [`docs/tokenized-deposito.md`](docs/tokenized-deposito.md).
 
 The sukuk runs the full lifecycle across both chains: its L2 `SukukDistributor` is deployed with the exact sukukId, face value and maturity the Tawf Network `SukukLedger` holds (so the `SUKUK_APPROVED` leaf verifies), subscribe → close records `markIssued` back on the L3, the BPRS then declares each period's realized profit and, after maturity, the redemption on the L3 (via the bprs-connector), and Tawf funds exactly those declared amounts on Arbitrum for holders to claim and redeem. All sukuk amounts, including the reserve snapshot, are in USDC base units (6 decimals), the settlement token's unit.
 
@@ -201,7 +201,22 @@ It deploys DealRegistry, BondReceiptNFT and RedemptionVault (each an implementat
 
 ### 3. Deploy the app
 
-The app reads every contract address from `tokenization.deployments.json`, so there are no address env vars. Deploy to Vercel (`vercel --prod`).
+The app reads every contract address from `tokenization.deployments.json`, so there are no address env vars. Deploy to Vercel (`vercel --prod`). Server and build settings are Vercel environment variables, never committed:
+
+| Variable | Used by | Purpose |
+|---|---|---|
+| `VITE_RPC_URL` | browser build | Arbitrum Sepolia RPC (QuickNode). Built in at build time, so redeploy after changing it. Falls back to the public RPC. |
+| `ARB_SEPOLIA_RPC_URL` | API | Same RPC for the serverless functions |
+| `DEMO_OPERATOR_KEY` | API | Operator wallet `0x1273…313F`: owner of the deposito series, sukuk and identity registry roles, signer for the faucet, test KYC and admin actions |
+| `DEMO_PASSCODE` | API | Required (header `x-demo-passcode`) for every admin action |
+| `DIDIT_API_KEY`, `DIDIT_WORKFLOW_ID`, `DIDIT_CALLBACK_URL`, `DIDIT_WEBHOOK_SECRET` | API | Didit KYC |
+| `TAWF_NETWORK_RPC_URL`, `TAWF_NETWORK_RPC_TOKEN`, `RELAYER_URL`, `CONNECTOR_URL`, `CONNECTOR_API_KEY` | API | Tawf Network ledger, proof relayer and bprs-connector |
+
+Secrets are stored as sensitive variables, which Vercel never shows again. To change one, replace it (`vercel env rm NAME production`, then `vercel env add NAME production`) and redeploy. Keep a private local copy outside the repo (for example in `~/.tawf_sepolia.env` with mode 600, or in the git-ignored `tawf-finance/.env.local` for `vercel dev`). API error responses never include RPC URLs or keys: they go through `readableError` in `api/_tokenization/_lib/operator.ts`.
+
+**Keys and roles on testnet.** The operator `0x1273…313F` holds the deposito, sukuk and identity registry roles. The upgradeable financing pool is administered by a separate key, `0xbE49…16aC` (`ADMIN_ROLE` and `UPGRADER_ROLE`), which should move to a multisig before real funds.
+
+**Enable USDG on the deposito series** (one time, after deploy): on Admin → Tokenization with the passcode, click "Add mUSDG as settlement coin", then "Use market quote" and "Post rate" on the USDG row, then "Approve series" on the USDG row. The Deposito picker then offers USDC, USDT and USDG. Repost rates within a day, since a stale rate blocks allocation, claims and redemptions.
 
 RPC: `https://sepolia-rollup.arbitrum.io/rpc` · Chain ID `421614` · Explorer `https://sepolia.arbiscan.io`.
 
