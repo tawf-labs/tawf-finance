@@ -158,7 +158,7 @@ function AppContent() {
           >
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="users" element={<AdminUsers />} />
-            <Route path="investments" element={<AdminInvestments />} />
+            <Route path="investments" element={FINANCING_POOL_ENABLED ? <AdminInvestments /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
             <Route path="pools" element={FINANCING_POOL_ENABLED ? <AdminPools /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
             <Route path="tokenization" element={<AdminTokenization />} />
             <Route path="scf" element={<AdminScfOnboarding />} />

@@ -133,7 +133,7 @@ function ReserveRow({ line }: { line: RowLine }) {
         </div>
         <div>
           <p className="text-xs text-tawf-muted">Backing ratio</p>
-          <p className="font-medium text-tawf-green">{formatBps(line.ratioBps)}</p>
+          <p className="font-medium text-tawf-green">{line.ratioBps >= 10000 ? (Number(line.supply) === 0 ? 'No supply yet' : 'Over 100%') : formatBps(line.ratioBps)}</p>
         </div>
         <div>
           <p className="text-xs text-tawf-muted">Anchor epoch</p>
@@ -230,7 +230,7 @@ export function ProofOfReserve() {
         ) : data ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {data.pool && <ReserveRow line={poolRow(data.pool)} />}
-            <ReserveRow line={seriesRow(data.series)} />
+            {data.series && <ReserveRow line={seriesRow(data.series)} />}
           </div>
         ) : (
           <p className="text-tawf-muted">No reserve snapshots anchored yet.</p>

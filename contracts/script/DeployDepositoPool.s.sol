@@ -12,7 +12,7 @@ import { SandboxModule } from "../src/deposito/SandboxModule.sol";
  * @dev Deploys a DepositoPoolLedger (the pool's anchor) with three fictional BPRS in Jawa Barat,
  *      then an unmodified TawfDepositoSeries on it ("Tawf Deposito Pool: Jawa Barat",
  *      tDEP-JABAR-1), allowlists mUSDC, mUSDT and mUSDG with their demo rates, sets the sandbox
- *      to SCREENED_GROUP like series 1, and posts an opening reserve per bank. Writes the
+ *      to SCREENED_GROUP like series 1 with a Rp1bn series cap, and posts an opening reserve per bank. Writes the
  *      depositoPool* keys and leaves every other key.
  *
  *      PRIVATE_KEY=.. forge script script/DeployDepositoPool.s.sol:DeployDepositoPool \
@@ -58,6 +58,10 @@ contract DeployDepositoPool is DeployExtra {
         address compliance = IPoolToken(token).compliance();
         IPoolCompliance(compliance).callModuleFunction(
             abi.encodeWithSelector(SandboxModule.setMode.selector, SandboxModule.Mode.SCREENED_GROUP), sandbox
+        );
+        // Room above the opening balances: series cap Rp1bn (sen), other caps unchanged.
+        IPoolCompliance(compliance).callModuleFunction(
+            abi.encodeWithSelector(SandboxModule.setCaps.selector, uint256(0), uint256(0), uint256(100_000_000_000)), sandbox
         );
 
         uint256[] memory balances = new uint256[](3);

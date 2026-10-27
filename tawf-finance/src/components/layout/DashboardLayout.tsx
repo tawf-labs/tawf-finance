@@ -63,7 +63,7 @@ const navConfigs: Record<string, NavItem[]> = {
   admin: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
     { id: 'users', label: 'Users', icon: Users, href: '/admin/users' },
-    { id: 'investments', label: 'Investments', icon: TrendingUp, href: '/admin/investments' },
+    ...(FINANCING_POOL_ENABLED ? [{ id: 'investments', label: 'Investments', icon: TrendingUp, href: '/admin/investments' }] : []),
     ...(FINANCING_POOL_ENABLED ? [{ id: 'pools', label: 'Pools', icon: Briefcase, href: '/admin/pools' }] : []),
     { id: 'tokenization', label: 'Tokenization', icon: Landmark, href: '/admin/tokenization' },
     { id: 'scf', label: 'SCF Onboarding', icon: Store, href: '/admin/scf' },

@@ -158,7 +158,8 @@ export interface PoolReserveLine {
 }
 
 export interface ReserveResponse {
-  series: SeriesReserveLine;
+  /** Null when the Tawf Network ledger is unreachable (e.g. on a preview). */
+  series: SeriesReserveLine | null;
   pool: PoolReserveLine | null;
   lastSyncAt: string | null;
   ledgerChainId: number;

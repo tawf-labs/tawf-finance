@@ -143,6 +143,16 @@ export const tawfSeriesAbi = [
   { type: 'error', name: 'BadDecimals', inputs: [{ name: 'got', type: 'uint8' }] },
   { type: 'error', name: 'ProfitPeriodNotSequential', inputs: [{ name: 'expected', type: 'uint32' }, { name: 'got', type: 'uint32' }] },
   { type: 'error', name: 'NothingToClaim', inputs: [] },
+  { type: 'error', name: 'InvalidAddress', inputs: [] },
+  { type: 'error', name: 'InvalidTerms', inputs: [] },
+  { type: 'error', name: 'ZeroAmount', inputs: [] },
+  { type: 'error', name: 'RedemptionAlreadyOpen', inputs: [] },
+  { type: 'error', name: 'ProfitAfterMaturity', inputs: [] },
+  { type: 'error', name: 'ProfitPeriodsOutstanding', inputs: [{ name: 'distributed', type: 'uint32' }, { name: 'finalPeriod', type: 'uint32' }] },
+  { type: 'error', name: 'RedemptionNotOpen', inputs: [] },
+  { type: 'error', name: 'OnlyModule', inputs: [] },
+  { type: 'error', name: 'StablecoinAlreadyAdded', inputs: [{ name: 'token', type: 'address' }] },
+  { type: 'error', name: 'ConversionZero', inputs: [] },
 ] as const
 
 export const sandboxModuleAbi = [

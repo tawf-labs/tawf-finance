@@ -279,15 +279,15 @@ export function InvestorDashboard() {
         </Link>
 
         <Link
-          to="/investor/impact"
+          to={FINANCING_POOL_ENABLED ? '/investor/impact' : '/investor/scf'}
           className="flex items-center gap-3 p-4 bg-white rounded-xl border border-tawf-green-10 hover:border-tawf-green-20 hover:shadow-md transition-all"
         >
           <div className="p-3 bg-purple-50 rounded-xl">
             <Heart className="w-5 h-5 text-purple-600" />
           </div>
           <div>
-            <p className="font-medium text-tawf-green">Your Impact</p>
-            <p className="text-xs text-tawf-muted">See the difference</p>
+            <p className="font-medium text-tawf-green">{FINANCING_POOL_ENABLED ? 'Your Impact' : 'Urun Dana (SCF)'}</p>
+            <p className="text-xs text-tawf-muted">{FINANCING_POOL_ENABLED ? 'See the difference' : 'Sharia crowdfunding'}</p>
           </div>
         </Link>
       </motion.div>

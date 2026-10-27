@@ -36,53 +36,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const ledger = ledgerClient()
-    const reserve = reserveLedgerAddress()
+    // --- Tawf deposito series (needs the Tawf Network ledger; tolerate it missing) ---
+    let seriesLine: Record<string, unknown> | null = null
+    try {
+      const ledger = ledgerClient()
+      const reserve = reserveLedgerAddress()
 
-    // --- Tawf deposito series ---
-    const [seriesSupply, seriesRatio, seriesBacked, seriesLastPeriod, seriesSnap] = await Promise.all([
-      publicClient.readContract({ address: addresses.tawfSeriesToken, abi: trexTokenAbi, functionName: 'totalSupply' }) as Promise<bigint>,
-      publicClient.readContract({ address: addresses.tawfSeries, abi: tawfSeriesAbi, functionName: 'ratioBps' }) as Promise<bigint>,
-      publicClient.readContract({ address: addresses.tawfSeries, abi: tawfSeriesAbi, functionName: 'isFullyBacked' }) as Promise<boolean>,
-      publicClient.readContract({ address: addresses.tawfSeries, abi: tawfSeriesAbi, functionName: 'lastPeriod' }) as Promise<number>,
-      ledger.readContract({ address: reserve, abi: reserveLedgerAbi, functionName: 'latestDepositoReserve', args: [addresses.tawfSeriesId] }) as Promise<{ snapshotAt: bigint; amount: bigint }>,
-    ])
-    let seriesAnchored = false
-    let seriesEpoch: string | null = null
-    if (seriesSnap.snapshotAt > 0n) {
-      try {
-        const proof = await fetchLeafProof('tawf.deposito.reserve', addresses.tawfSeriesId, seriesSnap.snapshotAt, seriesSnap.amount)
-        if (proof) { seriesAnchored = true; seriesEpoch = proof.epoch }
-      } catch { seriesAnchored = false }
-    }
+      const [seriesSupply, seriesRatio, seriesBacked, seriesLastPeriod, seriesSnap] = await Promise.all([
+        publicClient.readContract({ address: addresses.tawfSeriesToken, abi: trexTokenAbi, functionName: 'totalSupply' }) as Promise<bigint>,
+        publicClient.readContract({ address: addresses.tawfSeries, abi: tawfSeriesAbi, functionName: 'ratioBps' }) as Promise<bigint>,
+        publicClient.readContract({ address: addresses.tawfSeries, abi: tawfSeriesAbi, functionName: 'isFullyBacked' }) as Promise<boolean>,
+        publicClient.readContract({ address: addresses.tawfSeries, abi: tawfSeriesAbi, functionName: 'lastPeriod' }) as Promise<number>,
+        ledger.readContract({ address: reserve, abi: reserveLedgerAbi, functionName: 'latestDepositoReserve', args: [addresses.tawfSeriesId] }) as Promise<{ snapshotAt: bigint; amount: bigint }>,
+      ])
+      let seriesAnchored = false
+      let seriesEpoch: string | null = null
+      if (seriesSnap.snapshotAt > 0n) {
+        try {
+          const proof = await fetchLeafProof('tawf.deposito.reserve', addresses.tawfSeriesId, seriesSnap.snapshotAt, seriesSnap.amount)
+          if (proof) { seriesAnchored = true; seriesEpoch = proof.epoch }
+        } catch { seriesAnchored = false }
+      }
 
-    // Profits credited (from the connector) vs distributed on chain.
-    let profitsCredited: { period: number; amountIdr: number }[] = []
-    if (CONNECTOR_URL) {
-      try {
-        const r = await fetchWithTimeout(`${CONNECTOR_URL}/tawf/status`, { headers: { 'x-api-key': CONNECTOR_API_KEY } })
-        if (r.ok) {
-          const s = (await r.json()) as { account?: { profitCredits?: { period: number; amountIdr: number }[] } }
-          profitsCredited = s.account?.profitCredits ?? []
-        }
-      } catch { profitsCredited = [] }
-    }
+      // Profits credited (from the connector) vs distributed on chain.
+      let profitsCredited: { period: number; amountIdr: number }[] = []
+      if (CONNECTOR_URL) {
+        try {
+          const r = await fetchWithTimeout(`${CONNECTOR_URL}/tawf/status`, { headers: { 'x-api-key': CONNECTOR_API_KEY } })
+          if (r.ok) {
+            const s = (await r.json()) as { account?: { profitCredits?: { period: number; amountIdr: number }[] } }
+            profitsCredited = s.account?.profitCredits ?? []
+          }
+        } catch { profitsCredited = [] }
+      }
 
-    const seriesLine = {
-      kind: 'series' as const,
-      label: 'Tawf Deposito Series 1 (BPRS Demo)',
-      symbol: 'tDEP-TAWF-S1',
-      subject: addresses.tawfSeriesId,
-      supply: seriesSupply.toString(),
-      reserve: seriesSnap.amount.toString(),
-      ratioBps: Number(seriesRatio),
-      fullyBacked: seriesBacked,
-      snapshotAt: Number(seriesSnap.snapshotAt),
-      anchored: seriesAnchored,
-      epoch: seriesEpoch,
-      lastDistributedPeriod: Number(seriesLastPeriod),
-      profitsCredited,
-      anchorTxHash: null as Hex | null,
+      seriesLine = {
+        kind: 'series' as const,
+        label: 'Tawf Deposito Series 1 (BPRS Demo)',
+        symbol: 'tDEP-TAWF-S1',
+        subject: addresses.tawfSeriesId,
+        supply: seriesSupply.toString(),
+        reserve: seriesSnap.amount.toString(),
+        ratioBps: Number(seriesRatio),
+        fullyBacked: seriesBacked,
+        snapshotAt: Number(seriesSnap.snapshotAt),
+        anchored: seriesAnchored,
+        epoch: seriesEpoch,
+        lastDistributedPeriod: Number(seriesLastPeriod),
+        profitsCredited,
+        anchorTxHash: null as Hex | null,
+      }
+    } catch (err) {
+      console.error('[tokenization] series reserve unavailable', err)
+      seriesLine = null
     }
 
     // --- Regional Deposito Pool ---

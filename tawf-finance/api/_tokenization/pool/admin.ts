@@ -65,14 +65,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const chainNow = async () => (await publicClient.getBlock()).timestamp
     const nextEpoch = async () =>
       (await publicClient.readContract({ address: pool.ledger, abi: depositoPoolLedgerAbi, functionName: 'epochs' })) as bigint
+    const knownBanks = async (ids: Hex[]): Promise<boolean> => {
+      const [listed] = (await publicClient.readContract({ address: pool.ledger, abi: depositoPoolLedgerAbi, functionName: 'banks' })) as readonly [readonly Hex[], ...unknown[]]
+      const set = new Set(listed.map((x) => x.toLowerCase()))
+      return ids.every((id) => set.has(id.toLowerCase()))
+    }
     const lastPeriod = async () =>
       Number(await publicClient.readContract({ address: pool.series, abi: tawfSeriesAbi, functionName: 'lastPeriod' }))
 
     switch (action) {
       case 'reserve': {
         const b = perBank(req.body?.balances)
-        if (!b) {
-          res.status(400).json({ error: 'balances must map bank ids to rupiah amounts.' })
+        if (!b || !(await knownBanks(b.ids))) {
+          res.status(400).json({ error: 'balances must map this pool\'s bank ids to rupiah amounts.' })
           return
         }
         const at = await chainNow()
@@ -109,8 +114,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       case 'distribute': {
         const p = perBank(req.body?.profits)
-        if (!p) {
-          res.status(400).json({ error: 'profits must map bank ids to rupiah amounts.' })
+        if (!p || !(await knownBanks(p.ids))) {
+          res.status(400).json({ error: 'profits must map this pool\'s bank ids to rupiah amounts.' })
           return
         }
         const period = (await lastPeriod()) + 1

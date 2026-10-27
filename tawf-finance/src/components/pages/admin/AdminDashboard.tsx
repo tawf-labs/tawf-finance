@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useMockData } from '@/hooks/useMockData';
 import { formatCurrency } from '@/data/mockData';
+import { FINANCING_POOL_ENABLED } from '@/config/features';
 
 export function AdminDashboard() {
   const { adminStats, systemAlerts } = useMockData();
@@ -206,15 +207,15 @@ export function AdminDashboard() {
         </Link>
 
         <Link
-          to="/admin/pools"
+          to={FINANCING_POOL_ENABLED ? '/admin/pools' : '/admin/tokenization'}
           className="flex items-center gap-3 p-4 bg-white rounded-xl border border-tawf-green-10 hover:border-tawf-green-20 hover:shadow-md transition-all"
         >
           <div className="p-3 bg-tawf-gold-10 rounded-xl">
             <TrendingUp className="w-5 h-5 text-tawf-gold" />
           </div>
           <div className="flex-1">
-            <p className="font-medium text-tawf-green">Manage Pools</p>
-            <p className="text-xs text-tawf-muted">Edit pools</p>
+            <p className="font-medium text-tawf-green">{FINANCING_POOL_ENABLED ? 'Manage Pools' : 'Deposito Pools'}</p>
+            <p className="text-xs text-tawf-muted">{FINANCING_POOL_ENABLED ? 'Edit pools' : 'Bank balances, profit, maturity'}</p>
           </div>
         </Link>
 

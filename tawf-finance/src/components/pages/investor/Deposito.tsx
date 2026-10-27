@@ -129,6 +129,7 @@ export function InvestorDeposito() {
     try {
       const { hash } = await subscribe(selectedCoin.address, amount, allowance);
       setTxHash(hash);
+      setSubOpen(false);
       refetch();
       refetchAllowance();
     } catch (e) {
@@ -269,7 +270,7 @@ export function InvestorDeposito() {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
               <Metric icon={<Clock className="w-4 h-4 text-tawf-gold" />} label="Tenor" value={`${state.tenorMonths} months`} />
-              <Metric icon={<PiggyBank className="w-4 h-4 text-tawf-gold" />} label="Investor nisbah" value={formatBps(state.nisbahBps)} />
+              <Metric icon={<PiggyBank className="w-4 h-4 text-tawf-gold" />} label="Bank nisbah to depositor" value={formatBps(state.nisbahBps)} />
               <Metric
                 icon={<ShieldCheck className="w-4 h-4 text-tawf-gold" />}
                 label="Investors"
@@ -278,7 +279,7 @@ export function InvestorDeposito() {
               <Metric
                 icon={<ShieldCheck className="w-4 h-4 text-tawf-gold" />}
                 label="Backing"
-                value={`${Number(state.ratioBps) / 100}%`}
+                value={state.ratioBps >= 10000n ? (state.supply === 0n ? 'No supply yet' : 'Over 100%') : `${Number(state.ratioBps) / 100}%`}
               />
             </div>
 
