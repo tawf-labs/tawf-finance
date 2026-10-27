@@ -207,14 +207,14 @@ The app reads every contract address from `tokenization.deployments.json`, so th
 |---|---|---|
 | `VITE_RPC_URL` | browser build | Arbitrum Sepolia RPC (QuickNode). Built in at build time, so redeploy after changing it. Falls back to the public RPC. |
 | `ARB_SEPOLIA_RPC_URL` | API | Same RPC for the serverless functions |
-| `DEMO_OPERATOR_KEY` | API | Operator wallet `0x1273…313F`: owner of the deposito series, sukuk and identity registry roles, signer for the faucet, test KYC and admin actions |
+| `DEMO_OPERATOR_KEY` | API | Operator wallet `0xbE49…16aC` (the same key as the pool admin): owner of the deposito series, sukuk and identity registry roles, signer for the faucet, test KYC and admin actions |
 | `DEMO_PASSCODE` | API | Required (header `x-demo-passcode`) for every admin action |
 | `DIDIT_API_KEY`, `DIDIT_WORKFLOW_ID`, `DIDIT_CALLBACK_URL`, `DIDIT_WEBHOOK_SECRET` | API | Didit KYC |
 | `TAWF_NETWORK_RPC_URL`, `TAWF_NETWORK_RPC_TOKEN`, `RELAYER_URL`, `CONNECTOR_URL`, `CONNECTOR_API_KEY` | API | Tawf Network ledger, proof relayer and bprs-connector |
 
 Secrets are stored as sensitive variables, which Vercel never shows again. To change one, replace it (`vercel env rm NAME production`, then `vercel env add NAME production`) and redeploy. Keep a private local copy outside the repo (for example in `~/.tawf_sepolia.env` with mode 600, or in the git-ignored `tawf-finance/.env.local` for `vercel dev`). API error responses never include RPC URLs or keys: they go through `readableError` in `api/_tokenization/_lib/operator.ts`.
 
-**Keys and roles on testnet.** The operator `0x1273…313F` holds the deposito, sukuk and identity registry roles. The upgradeable financing pool is administered by a separate key, `0xbE49…16aC` (`ADMIN_ROLE` and `UPGRADER_ROLE`), which should move to a multisig before real funds.
+**Keys and roles on testnet.** The operator `0xbE49…16aC` holds the deposito, sukuk and identity registry roles and also administers the upgradeable financing pool (`ADMIN_ROLE` and `UPGRADER_ROLE`). It is one key for both, so it should move to a multisig before real funds. The previous operator `0x1273…313F` was handed over and its roles are not yet revoked.
 
 **Enable USDG on the deposito series** (one time, after deploy): on Admin → Tokenization with the passcode, click "Add mUSDG as settlement coin", then "Use market quote" and "Post rate" on the USDG row, then "Approve series" on the USDG row. The Deposito picker then offers USDC, USDT and USDG. Repost rates within a day, since a stale rate blocks allocation, claims and redemptions.
 
