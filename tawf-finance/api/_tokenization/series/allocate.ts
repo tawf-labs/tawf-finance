@@ -5,6 +5,7 @@ import {
   walletClient,
   ledgerClient,
   reserveLedgerAddress,
+  account,
   addresses,
   isConfigured,
   methodGuard,
@@ -67,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const args = [investors, BigInt(proof.epoch), snap.snapshotAt, snap.amount, proof.proof] as const
     // Simulate first to surface a clear custom-error message.
     await publicClient.simulateContract({
-      account: addresses.operator,
+      account: account().address,
       address: addresses.tawfSeries,
       abi: tawfSeriesAbi,
       functionName: 'allocate',

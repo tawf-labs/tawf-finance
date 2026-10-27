@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getAddress, isAddress, keccak256, encodeAbiParameters, parseAbi, parseEther, type Address, type Hex } from 'viem'
+import { getAddress, isAddress, keccak256, encodeAbiParameters, encodeFunctionData, parseAbi, parseEther, type Address, type Hex } from 'viem'
 import {
   publicClient,
   walletClient,
@@ -10,12 +10,16 @@ import {
   requirePasscode,
   readableError,
 } from '../_lib/operator.js'
+import { sandboxModuleAbi, modularComplianceAbi } from '../_lib/abis.js'
 import type { IdentityStep } from '../_lib/identity.js'
 import deployments from '../../../src/web3/tokenization.deployments.json' with { type: 'json' }
 
 const ZERO = '0x0000000000000000000000000000000000000000'
 const DEFAULT_ADMIN = `0x${'0'.repeat(64)}` as Hex
-const KEEP_ETH = parseEther('0.003')
+// Left on the old key so it can still sign a re-run or a later revoke.
+const KEEP_ETH = parseEther('0.01')
+const TX_TIMEOUT_MS = 30_000
+const DEAD = '0x000000000000000000000000000000000000dead'
 // Stop starting new transactions after this, so the function returns before
 // the platform limit. The route is idempotent: call it again to continue.
 const BUDGET_MS = 40_000
@@ -36,6 +40,8 @@ const trexAbi = parseAbi([
   'function addAgent(address agent)',
   'function compliance() view returns (address)',
 ])
+const registryAbi = parseAbi(['function identity(address wallet) view returns (address)'])
+const setTreasuryAbi = parseAbi(['function setTreasury(address treasury)'])
 const keysAbi = parseAbi([
   'function keyHasPurpose(bytes32 key, uint256 purpose) view returns (bool)',
   'function addKey(bytes32 key, uint256 purpose, uint256 keyType) returns (bool)',
@@ -62,7 +68,21 @@ const addr = (k: string): Address | null => {
  * Idempotent and resumable: every step checks state first, and the route
  * stops after ~40s with `done: false`. Call it again until `done: true`.
  *
- *   POST /api/tokenization/admin/handover-operator { newOperator, confirm: "HANDOVER" }
+ * `wallets` (optional) lists verified investor wallets whose ONCHAINID the
+ * old operator manages. Each gets the new operator as a management (1) and
+ * claim (3) key, so the new operator can keep adding claims (for example
+ * screening) to existing investors. This needs the old key, so run it before
+ * DEMO_OPERATOR_KEY is switched.
+ *
+ * Guard against a mistyped address: `newOperator` must be an externally owned
+ * account (no code), not zero or dead, and `confirm` must be "HANDOVER-" plus
+ * its last 6 hex characters.
+ *
+ * Not covered: SandboxModule and DistributionCheckpointModule owners are
+ * immutable (the deployer), so keep the old key until those modules are
+ * redeployed. The legacy pool contracts are left on the old operator.
+ *
+ *   POST /api/tokenization/admin/handover-operator { newOperator, confirm: "HANDOVER-<last6>", wallets?: string[] }
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!methodGuard(req, res)) return
@@ -76,11 +96,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const steps: IdentityStep[] = []
   try {
     const rawNew = req.body?.newOperator
-    if (typeof rawNew !== 'string' || !isAddress(rawNew) || req.body?.confirm !== 'HANDOVER') {
-      res.status(400).json({ error: 'Send { newOperator, confirm: "HANDOVER" }.' })
+    if (typeof rawNew !== 'string' || !isAddress(rawNew)) {
+      res.status(400).json({ error: 'Send { newOperator, confirm: "HANDOVER-<last 6 hex of newOperator>" }.' })
       return
     }
     const next = getAddress(rawNew) as Address
+    if (req.body?.confirm !== `HANDOVER-${next.slice(-6).toLowerCase()}`) {
+      res.status(400).json({ error: 'confirm must be "HANDOVER-" plus the last 6 hex characters of newOperator (lowercase).' })
+      return
+    }
+    if (next.toLowerCase() === ZERO || next.toLowerCase() === DEAD) {
+      res.status(400).json({ error: 'newOperator cannot be the zero or dead address.' })
+      return
+    }
+    const code = await publicClient.getCode({ address: next })
+    if (code && code !== '0x') {
+      res.status(400).json({ error: 'newOperator must be a wallet (EOA), not a contract.' })
+      return
+    }
     const me = account().address
     if (next.toLowerCase() === me.toLowerCase()) {
       res.status(400).json({ error: 'newOperator is already the current operator.' })
@@ -94,7 +127,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return
       }
       const hash = await write()
-      await publicClient.waitForTransactionReceipt({ hash })
+      await publicClient.waitForTransactionReceipt({ hash, timeout: TX_TIMEOUT_MS })
       steps.push({ label, txHash: hash })
     }
     const skip = (label: string) => steps.push({ label, skipped: true })
@@ -130,10 +163,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 3. KYC ClaimIssuer keys: management (1) and claim signer (3), ECDSA (1).
     const keyHash = keccak256(encodeAbiParameters([{ type: 'address' }], [next]))
+    // ONCHAINID's keyHasPurpose treats a management key as having every
+    // purpose, so the claim-signer step is usually reported as already set.
     for (const [purpose, label] of [[1n, 'management'], [3n, 'claim signer']] as const) {
       const has = await publicClient.readContract({ address: addresses.claimIssuer, abi: keysAbi, functionName: 'keyHasPurpose', args: [keyHash, purpose] })
       if (has) skip(`ClaimIssuer: ${label} key already set`)
       else await send(`ClaimIssuer: added ${label} key`, () => wc.writeContract({ address: addresses.claimIssuer, abi: keysAbi, functionName: 'addKey', args: [keyHash, purpose, 1n] }))
+    }
+
+    // 3b. Existing investor identities managed by the old operator.
+    const rawWallets: unknown = req.body?.wallets
+    const wallets = Array.isArray(rawWallets) ? rawWallets.filter((w): w is string => typeof w === 'string' && isAddress(w)) : []
+    const meHash = keccak256(encodeAbiParameters([{ type: 'address' }], [me]))
+    for (const w of wallets.slice(0, 200)) {
+      const identity = (await publicClient.readContract({ address: addresses.identityRegistry, abi: registryAbi, functionName: 'identity', args: [getAddress(w)] })) as Address
+      const short = `${w.slice(0, 6)}…${w.slice(-4)}`
+      if (identity === ZERO) {
+        skip(`Identity ${short}: not registered`)
+        continue
+      }
+      const managed = await publicClient.readContract({ address: identity, abi: keysAbi, functionName: 'keyHasPurpose', args: [meHash, 1n] })
+      if (!managed) {
+        skip(`Identity ${short}: not managed by the old operator, left as is`)
+        continue
+      }
+      for (const [purpose, label] of [[1n, 'management'], [3n, 'claim']] as const) {
+        const has = await publicClient.readContract({ address: identity, abi: keysAbi, functionName: 'keyHasPurpose', args: [keyHash, purpose] })
+        if (has) skip(`Identity ${short}: ${label} key already set`)
+        else await send(`Identity ${short}: added ${label} key`, () => wc.writeContract({ address: identity, abi: keysAbi, functionName: 'addKey', args: [keyHash, purpose, 1n] }))
+      }
     }
 
     // 4. Treasury: point the series at the new operator and move the funds.
@@ -151,9 +209,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       else await send(`${symbol}: moved treasury balance`, () => wc.writeContract({ address: token, abi: erc20Abi, functionName: 'transfer', args: [next, bal] }))
     }
 
-    // 5. Ownership last: T-REX registries, factory, tokens and compliances.
     const compliances: Address[] = []
     for (const t of tokens) compliances.push((await publicClient.readContract({ address: t, abi: trexAbi, functionName: 'compliance' })) as Address)
+
+    // 4b. SandboxModule treasury (exempt from mode and caps), per series
+    //     compliance. Set through the compliance, so before ownership moves.
+    for (const [name, token, module] of [
+      ['Deposito series', addr('tawfSeriesToken'), addr('sandboxModule')],
+      ['Deposito series 2', addr('tawfSeries2Token'), addr('tawfSeries2Sandbox')],
+    ] as const) {
+      if (!token || !module) continue
+      const compliance = (await publicClient.readContract({ address: token, abi: trexAbi, functionName: 'compliance' })) as Address
+      const cfg = (await publicClient.readContract({ address: module, abi: sandboxModuleAbi, functionName: 'configOf', args: [compliance] })) as readonly unknown[]
+      const current = String(cfg[1]).toLowerCase()
+      if (current === next.toLowerCase()) skip(`${name}: sandbox treasury already moved`)
+      else if (current !== me.toLowerCase()) skip(`${name}: sandbox treasury is ${cfg[1]}, left as is`)
+      else {
+        const data = encodeFunctionData({ abi: setTreasuryAbi, functionName: 'setTreasury', args: [next] })
+        await send(`${name}: sandbox treasury set to the new operator`, () =>
+          wc.writeContract({ address: compliance, abi: modularComplianceAbi, functionName: 'callModuleFunction', args: [data, module] }),
+        )
+      }
+    }
+
+    // 5. Ownership last: T-REX registries, factory, tokens and compliances.
     const owned: [string, Address | null][] = [
       ['Identity registry', addresses.identityRegistry],
       ['Identity registry storage', addr('identityRegistryStorage')],
