@@ -8,7 +8,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Tabs } from '@/components/ui/Tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { ConnectButton } from '@/components/web3/ConnectButton';
-import { GetTestUsdc } from '@/components/web3/GetTestUsdc';
+import { GetTestTokens } from '@/components/web3/GetTestUsdc';
 import { KycStatusCard } from '@/components/kyc/KycStatusCard';
 import { useIsVerified } from '@/web3/tokenizationHooks';
 import { isTokenizationConfigured } from '@/web3/tokenization';
@@ -230,10 +230,7 @@ export function Settings() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-tawf-muted">Test USDC</span>
-                      <GetTestUsdc />
-                    </div>
+                    <GetTestTokens />
 
                     <div className="flex items-center justify-between pt-2 border-t border-tawf-green-10">
                       <span className="text-sm text-tawf-muted">View on Explorer</span>
@@ -256,7 +253,7 @@ export function Settings() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-medium text-tawf-green">Tokenization (ERC-3643)</h3>
-                      <p className="text-sm text-tawf-muted">Test ETH and mUSDC, plus a verified on-chain identity</p>
+                      <p className="text-sm text-tawf-muted">Test ETH, mUSDC, mUSDT and mUSDG, plus a verified on-chain identity (test KYC, testnet only)</p>
                     </div>
                     <Badge variant={isVerified ? 'success' : 'default'} size="sm">
                       {isVerified ? 'Verified identity' : 'Not verified'}
@@ -264,7 +261,7 @@ export function Settings() {
                   </div>
                   <Button variant="primary" size="md" disabled={!isConnected || faucetBusy} onClick={runFaucet}>
                     {faucetBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Droplets className="w-4 h-4 mr-2" />}
-                    Get test funds + verify identity
+                    Get test funds + verify identity (test KYC)
                   </Button>
                   {faucetError && <p className="text-xs text-red-600">{faucetError}</p>}
                   {faucetResult && (

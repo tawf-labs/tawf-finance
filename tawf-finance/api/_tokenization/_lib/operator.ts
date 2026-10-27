@@ -133,6 +133,8 @@ export const addresses = {
   operator: deployments.operator as Address,
   mockUsdc: deployments.mockUsdc as Address,
   mockUsdt: (deployments.mockUsdt ?? ZERO) as Address,
+  // Mock USDG the pool vault settles in on testnet (a MockUSDC instance, same faucet ABI).
+  mockUsdg: ((deployments as Record<string, unknown>).mockUsdg ?? ZERO) as Address,
   identityRegistry: deployments.identityRegistry as Address,
   claimIssuer: deployments.claimIssuer as Address,
   implementationAuthority: deployments.implementationAuthority as Address,

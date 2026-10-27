@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ConnectButton } from '@/components/web3/ConnectButton';
-import { GetTestUsdc } from '@/components/web3/GetTestUsdc';
+import { GetTestToken } from '@/components/web3/GetTestUsdc';
+import { TestKycButton } from '@/components/web3/TestKycButton';
 import { KycStatusCard } from '@/components/kyc/KycStatusCard';
 import { INVEST_TOKENS, SETTLEMENT_ADDRESS } from '@/web3/constants';
 import { useDeals, useAllowance, useUsdcBalance, useInvest, useDealSettlement } from '@/web3/hooks';
@@ -174,7 +175,8 @@ export function InvestorPools() {
           <p className="text-tawf-muted">Take exposure to real BPRS financing pools from $10</p>
         </div>
         <div className="flex items-center gap-3">
-          <GetTestUsdc />
+          {isConnected && !kycLoading && !isVerified && <TestKycButton />}
+          {token && <GetTestToken token={token} compact />}
           <ConnectButton variant="primary" size="md" />
         </div>
       </div>
@@ -350,6 +352,11 @@ export function InvestorPools() {
               <p className="text-xs text-tawf-muted mt-2">
                 Your balance: <span className="font-medium text-tawf-green">{formatUsdc(balance)}</span>
               </p>
+              {token && balance < BigInt(Math.round(clampedAmount * 1e6)) && (
+                <div className="mt-2">
+                  <GetTestToken token={token} compact />
+                </div>
+              )}
             </div>
 
             <div className="bg-green-50 rounded-xl p-4">
@@ -383,9 +390,13 @@ export function InvestorPools() {
             )}
 
             {isConnected && !kycLoading && !isVerified && (
-              <p className="text-xs text-amber-700">
-                Verify your identity in Settings to invest. Pool receipts are only issued to verified wallets.
-              </p>
+              <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 space-y-2">
+                <p className="text-xs text-amber-700">
+                  Verify your identity to invest. Pool receipts are only issued to verified wallets. Testers can use
+                  test KYC below, real investors verify with Didit in Settings.
+                </p>
+                <TestKycButton />
+              </div>
             )}
 
             <Button
