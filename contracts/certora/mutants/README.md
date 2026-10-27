@@ -49,3 +49,14 @@ and are left unchanged.
   (`AlreadyRedeemed` on a Redeemed receipt, and `_burn` of a zero balance), so
   `noDoubleRedeem` is expected to stay green. If it does, that is the NFT
   backstop, not a weak spec.
+
+## DepositoPoolLedger mutants (M15 to M20)
+
+| Mutant | Change | Expected to be caught by | Spec |
+|---|---|---|---|
+| M15 | `postProfit` loses `onlyOperator` | onlyOperatorMutates | deposito_PoolLedger |
+| M16 | `postReserve` total skips the last bank | postReserveRecordsTotalAndLeaf, totalMatchesSum | deposito_PoolLedger |
+| M17 | `postReserve` accepts an older snapshot time | snapshotNeverDecreases | deposito_PoolLedger |
+| M18 | `postMaturity` does not advance `epochs` | epochsStrictlyIncreaseOnPost | deposito_PoolLedger |
+| M19 | `addBank` accepts a repeated bank id | addBankRejectsZeroAndDuplicates, bankArrayUnique | deposito_PoolLedger |
+| M20 | the reserve leaf names another series id | postReserveRecordsTotalAndLeaf, postReserveOnlyOwnSeriesLeaf | deposito_PoolLedger |

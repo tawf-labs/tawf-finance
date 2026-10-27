@@ -93,6 +93,7 @@ contract ScfInvestorLimitModule is AbstractModule {
     error NotConfigured();
     error ZeroAddress();
     error ZeroCap();
+    error AlreadyBound();
 
     event AgentSet(address indexed agent, bool enabled);
     event OfferingInitialized(address indexed compliance, address treasury, uint256 offeringCap);
@@ -125,11 +126,14 @@ contract ScfInvestorLimitModule is AbstractModule {
         emit AgentSet(agent, enabled);
     }
 
-    /// @notice Configure an offering. Must be called by the deployer before
-    ///         the offering's compliance binds the module.
+    /// @notice Configure an offering. Only the deployer, and only before the
+    ///         offering's compliance binds the module: once an offering is
+    ///         live its treasury (exempt from the limit) and cap cannot be
+    ///         rewritten here. A live cap changes through setOfferingCap.
     function initOffering(address compliance, address treasury, uint256 offeringCap) external {
         if (msg.sender != owner) revert OnlyOwner();
         if (compliance == address(0) || treasury == address(0)) revert ZeroAddress();
+        if (this.isComplianceBound(compliance)) revert AlreadyBound();
         if (offeringCap == 0) revert ZeroCap();
         offeringOf[compliance] = Offering({ treasury: treasury, offeringCap: offeringCap, configured: true });
         emit OfferingInitialized(compliance, treasury, offeringCap);
