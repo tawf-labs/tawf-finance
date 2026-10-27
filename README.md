@@ -348,5 +348,4 @@ Licensed under the [Apache License 2.0](./LICENSE).
 ## Links
 
 - **Website**: [tawf.finance](https://tawf.finance)
-- **Governance**: [Tawf Foundation](https://tawf.foundation)
 - **Identity**: [Tawf ID](https://id.tawf.foundation)

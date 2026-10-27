@@ -22,9 +22,8 @@ const groups: { title: string; links: FooterLink[] }[] = [
     ],
   },
   {
-    title: 'Foundation',
+    title: 'Company',
     links: [
-      { name: 'Tawf Foundation', href: 'https://tawf.foundation' },
       { name: 'About', href: '/about' },
       { name: 'Contact', href: '/contact' },
     ],
