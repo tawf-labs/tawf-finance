@@ -28,6 +28,7 @@ import {
   TAWF_SERIES,
   IDENTITY_REGISTRY_ADDRESS,
   SETTLEMENT_STABLECOINS,
+  type SettlementCoinKey,
   SUKUK_DISTRIBUTOR_ADDRESS,
   SUKUK_TOKEN_ADDRESS,
 } from './tokenization';
@@ -60,7 +61,7 @@ export const SANDBOX_MODE_LABEL: Record<number, string> = {
 
 /** Per-settlement-coin view: posted rate, freshness, and the wallet's pending escrow. */
 export interface SeriesCoinView {
-  key: 'usdc' | 'usdt';
+  key: SettlementCoinKey;
   symbol: string;
   address: `0x${string}`;
   idrPerToken: bigint;
@@ -122,7 +123,7 @@ export function useTawfSeries(address: `0x${string}` | undefined) {
   const compliance = (complianceData as `0x${string}` | undefined) ?? ZERO;
   const who = address ?? ZERO;
 
-  // Fixed-shape batch: 9 series/sandbox/token reads, then per-coin rate + pending.
+  // Fixed-shape batch: series/sandbox/token reads, then per coin: rate, pending, allowlisted.
   const baseContracts = configured
     ? [
         { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'seriesTerms' },
@@ -144,6 +145,7 @@ export function useTawfSeries(address: `0x${string}` | undefined) {
     ? coinCfgs.flatMap((c) => [
         { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'rate', args: [c.address as `0x${string}`] },
         { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'pending', args: [who, c.address as `0x${string}`] },
+        { address: series as `0x${string}`, abi: TawfSeriesAbi as Abi, functionName: 'isStablecoin', args: [c.address as `0x${string}`] },
       ])
     : [];
 
@@ -156,10 +158,15 @@ export function useTawfSeries(address: `0x${string}` | undefined) {
   const terms = read(0) as { tenorMonths?: number; nisbahBps?: number | bigint } | undefined;
   const cfg = read(7) as readonly [number, `0x${string}`, `0x${string}`, bigint, bigint, bigint, bigint, boolean] | undefined;
 
-  const coins: SeriesCoinView[] = coinCfgs.map((c, idx) => {
-    const rate = read(BASE + idx * 2) as readonly [bigint, bigint, bigint, boolean] | undefined;
-    const pendingCoin = read(BASE + idx * 2 + 1) as bigint | undefined;
-    return {
+  // Only coins on the series allowlist are offered (a coin the app knows, like
+  // mock USDG, appears once the admin adds it on chain). A coin with pending
+  // escrow stays visible so it can still be cancelled after removal.
+  const coins: SeriesCoinView[] = coinCfgs.flatMap((c, idx) => {
+    const rate = read(BASE + idx * 3) as readonly [bigint, bigint, bigint, boolean] | undefined;
+    const pendingCoin = read(BASE + idx * 3 + 1) as bigint | undefined;
+    const allowed = read(BASE + idx * 3 + 2) as boolean | undefined;
+    if (!allowed && !(pendingCoin && pendingCoin > 0n)) return [];
+    return [{
       key: c.key,
       symbol: c.symbol,
       address: c.address as `0x${string}`,
@@ -167,7 +174,7 @@ export function useTawfSeries(address: `0x${string}` | undefined) {
       rateUpdatedAt: BigInt((rate?.[1] as bigint | undefined) ?? 0n),
       rateFresh: Boolean(rate?.[3] ?? false),
       pending: pendingCoin ?? 0n,
-    };
+    }];
   });
 
   const state: TawfSeriesState = {
