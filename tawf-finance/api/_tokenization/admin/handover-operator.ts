@@ -36,6 +36,7 @@ const trexAbi = parseAbi([
   'function addAgent(address agent)',
   'function compliance() view returns (address)',
 ])
+const registryAbi = parseAbi(['function identity(address wallet) view returns (address)'])
 const keysAbi = parseAbi([
   'function keyHasPurpose(bytes32 key, uint256 purpose) view returns (bool)',
   'function addKey(bytes32 key, uint256 purpose, uint256 keyType) returns (bool)',
@@ -62,7 +63,13 @@ const addr = (k: string): Address | null => {
  * Idempotent and resumable: every step checks state first, and the route
  * stops after ~40s with `done: false`. Call it again until `done: true`.
  *
- *   POST /api/tokenization/admin/handover-operator { newOperator, confirm: "HANDOVER" }
+ * `wallets` (optional) lists verified investor wallets whose ONCHAINID the
+ * old operator manages. Each gets the new operator as a management (1) and
+ * claim (3) key, so the new operator can keep adding claims (for example
+ * screening) to existing investors. This needs the old key, so run it before
+ * DEMO_OPERATOR_KEY is switched.
+ *
+ *   POST /api/tokenization/admin/handover-operator { newOperator, confirm: "HANDOVER", wallets?: string[] }
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!methodGuard(req, res)) return
@@ -134,6 +141,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const has = await publicClient.readContract({ address: addresses.claimIssuer, abi: keysAbi, functionName: 'keyHasPurpose', args: [keyHash, purpose] })
       if (has) skip(`ClaimIssuer: ${label} key already set`)
       else await send(`ClaimIssuer: added ${label} key`, () => wc.writeContract({ address: addresses.claimIssuer, abi: keysAbi, functionName: 'addKey', args: [keyHash, purpose, 1n] }))
+    }
+
+    // 3b. Existing investor identities managed by the old operator.
+    const rawWallets: unknown = req.body?.wallets
+    const wallets = Array.isArray(rawWallets) ? rawWallets.filter((w): w is string => typeof w === 'string' && isAddress(w)) : []
+    const meHash = keccak256(encodeAbiParameters([{ type: 'address' }], [me]))
+    for (const w of wallets.slice(0, 200)) {
+      const identity = (await publicClient.readContract({ address: addresses.identityRegistry, abi: registryAbi, functionName: 'identity', args: [getAddress(w)] })) as Address
+      const short = `${w.slice(0, 6)}…${w.slice(-4)}`
+      if (identity === ZERO) {
+        skip(`Identity ${short}: not registered`)
+        continue
+      }
+      const managed = await publicClient.readContract({ address: identity, abi: keysAbi, functionName: 'keyHasPurpose', args: [meHash, 1n] })
+      if (!managed) {
+        skip(`Identity ${short}: not managed by the old operator, left as is`)
+        continue
+      }
+      for (const [purpose, label] of [[1n, 'management'], [3n, 'claim']] as const) {
+        const has = await publicClient.readContract({ address: identity, abi: keysAbi, functionName: 'keyHasPurpose', args: [keyHash, purpose] })
+        if (has) skip(`Identity ${short}: ${label} key already set`)
+        else await send(`Identity ${short}: added ${label} key`, () => wc.writeContract({ address: identity, abi: keysAbi, functionName: 'addKey', args: [keyHash, purpose, 1n] }))
+      }
     }
 
     // 4. Treasury: point the series at the new operator and move the funds.
