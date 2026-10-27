@@ -185,6 +185,20 @@ export const sukukDistributorAbi = [
   { name: 'feeRecipient', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'address' }] },
   { name: 'setTawfShare', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'nisbahBps', type: 'uint16' }, { name: 'recipient', type: 'address' }], outputs: [] },
   { type: 'error', name: 'TawfShareLocked', inputs: [] },
+  // Custom errors, so viem decodes reverts into names that readableError maps.
+  { type: 'error', name: 'InvalidAddress', inputs: [] },
+  { type: 'error', name: 'InvalidTerms', inputs: [] },
+  { type: 'error', name: 'NotEligible', inputs: [{ name: 'investor', type: 'address' }] },
+  { type: 'error', name: 'BelowMinimum', inputs: [] },
+  { type: 'error', name: 'ExceedsFaceValue', inputs: [] },
+  { type: 'error', name: 'SubscriptionClosed', inputs: [] },
+  { type: 'error', name: 'SubscriptionStillOpen', inputs: [] },
+  { type: 'error', name: 'PeriodNotSequential', inputs: [{ name: 'expected', type: 'uint16' }, { name: 'got', type: 'uint16' }] },
+  { type: 'error', name: 'OnlyModule', inputs: [] },
+  { type: 'error', name: 'NothingToClaim', inputs: [] },
+  { type: 'error', name: 'StaleReserve', inputs: [{ name: 'latest', type: 'uint64' }, { name: 'got', type: 'uint64' }] },
+  { type: 'error', name: 'InvalidMaxAge', inputs: [] },
+  { type: 'error', name: 'InvalidClaimWindow', inputs: [] },
   { name: 'totalTawfShare', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
   { name: 'status', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint8' }] },
   {
@@ -379,6 +393,9 @@ export const operatorAnchorAbi = [
 
 /** ScfInvestorLimitModule: POJK 57/2020 investor limit and offering cap. */
 export const scfLimitModuleAbi = [
+  { name: 'resetUsage', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'onchainId', type: 'address' }, { name: 'period', type: 'uint256' }], outputs: [] },
+  { name: 'currentPeriod', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+  { name: 'usedOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'onchainId', type: 'address' }, { name: 'period', type: 'uint256' }], outputs: [{ name: '', type: 'uint256' }] },
   {
     name: 'profileOf',
     type: 'function',

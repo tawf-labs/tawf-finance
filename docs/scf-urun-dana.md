@@ -68,10 +68,10 @@ Platform / SME ── facts ──> LedgerAnchor (operator-gated) ──> SukukD
     - The server verifies the signature and the identity (as the faucet does), then computes the limit.
     - It converts the limit from IDR to USDC at the deployment's USDC rate and records it.
   - **`scf/status` (GET).** The offering state, plus a wallet's limit when one is given.
-  - **`scf/admin` (POST, passcode).** Takes one of `reserve`, `close`, `distribute` or `settle`.
+  - **`scf/admin` (POST, passcode).** Takes one of `reserve`, `close`, `distribute`, `settle` or `resetUsage` (with a `wallet`, clears that investor's usage for the current period after a cancelled raise).
 - **Frontend:**
   - `/investor/scf` has three parts: verify and fund, the suitability declaration with a limit meter, and the offering with invest, claim, redeem and refund. The invest amount is capped at the lower of the remaining limit and the offering room.
-  - `/admin/scf` shows the platform and SME profiles, the contracts, the issuer actions and an investor limit lookup.
+  - `/admin/scf` shows the platform and SME profiles, the contracts, the issuer actions and an investor limit lookup with a button to reset that investor's usage for the period.
   - The issuer model lives in `src/data/issuers.ts`, with `issuerType: 'bprs' | 'scf'`.
 
 ## 5. Deployed on Arbitrum Sepolia

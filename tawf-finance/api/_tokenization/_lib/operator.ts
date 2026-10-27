@@ -16,6 +16,7 @@ import {
   createWalletClient,
   defineChain,
   http,
+  nonceManager,
   keccak256,
   encodeAbiParameters,
   stringToHex,
@@ -51,19 +52,65 @@ function operatorKey(): Hex {
   return (k.startsWith('0x') ? k : `0x${k}`) as Hex
 }
 
-export const account = () => privateKeyToAccount(operatorKey())
+/**
+ * The operator account. viem's nonceManager remembers the last nonce it
+ * handed out (per address, for the life of the warm function), so a run of
+ * transactions does not reuse a nonce when the RPC's pending count lags.
+ */
+export const account = () => privateKeyToAccount(operatorKey(), { nonceManager })
 
 export const publicClient = createPublicClient({
   chain: arbitrumSepolia,
   transport: http(ARB_RPC_URL),
 })
 
-export const walletClient = () =>
-  createWalletClient({
-    account: account(),
+const NONCE_RETRIES = 2
+
+/**
+ * Whether the node rejected a transaction because its nonce was already used.
+ * Such a transaction was never accepted, so sending it again with a fresh
+ * nonce cannot double an action. ("already known" is not matched: that one
+ * may already be in the mempool.)
+ */
+export function isNonceTooLow(err: unknown): boolean {
+  for (let e = err as { message?: string; details?: string; cause?: unknown } | undefined, i = 0; e && i < 6; e = e.cause as typeof e, i++) {
+    if (/nonce too low|nonce provided for the transaction is lower than/i.test(`${e.message ?? ''} ${e.details ?? ''}`)) return true
+  }
+  return false
+}
+
+/** Retry `fn` when the node rejects the nonce, after resetting the nonce cache. */
+function withNonceRetry<F extends (...args: never[]) => Promise<unknown>>(fn: F, address: Address): F {
+  return (async (...args: Parameters<F>) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fn(...args)
+      } catch (err) {
+        if (attempt >= NONCE_RETRIES || !isNonceTooLow(err)) throw err
+        nonceManager.reset({ address, chainId: arbitrumSepolia.id })
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)))
+      }
+    }
+  }) as F
+}
+
+/**
+ * Wallet client for the operator. Sends that the node rejects for a stale
+ * nonce are retried (up to twice, with a short backoff) after the nonce cache
+ * is reset, so a lagging public RPC does not fail a multi-step route.
+ */
+export const walletClient = () => {
+  const acct = account()
+  const wc = createWalletClient({
+    account: acct,
     chain: arbitrumSepolia,
     transport: http(ARB_RPC_URL),
   })
+  wc.writeContract = withNonceRetry(wc.writeContract, acct.address)
+  wc.sendTransaction = withNonceRetry(wc.sendTransaction, acct.address)
+  wc.deployContract = withNonceRetry(wc.deployContract, acct.address)
+  return wc
+}
 
 // --- Tawf Network L3 (read-only; behind an optional bearer-token proxy) ------
 
@@ -302,6 +349,7 @@ function isRateLimited(err: unknown): boolean {
 export function readableError(err: unknown, fallback = 'Transaction failed'): string {
   console.error('[tokenization]', err)
   if (isRateLimited(err)) return 'The network is busy (rate limited). Please try again in a few seconds.'
+  if (isNonceTooLow(err)) return 'The network is busy (a previous transaction is still settling). Please try again in a few seconds.'
   const anyErr = err as {
     shortMessage?: string
     message?: string
@@ -321,6 +369,12 @@ export function readableError(err: unknown, fallback = 'Transaction failed'): st
       return 'The subscription window has closed.'
     case 'SubscriptionStillOpen':
       return 'The subscription is still open and not fully subscribed. Close it after the window ends.'
+    case 'PeriodNotSequential':
+      return 'Distribute the next profit period in order.'
+    case 'NothingToClaim':
+      return 'Nothing to claim for this wallet.'
+    case 'InvalidMaxAge':
+      return 'The maximum reserve age must be above zero.'
     case 'NotEligible':
       return 'This wallet is not eligible: it needs a verified identity (run the faucet), and for the Tawf series it must also pass the series mode (PILOT only / screened group / OJK sandbox).'
     case 'NoPending':
