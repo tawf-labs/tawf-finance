@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { CONNECTOR_URL, CONNECTOR_API_KEY, fetchWithTimeout } from '../_lib/operator.js'
+import { CONNECTOR_URL, CONNECTOR_API_KEY, fetchWithTimeout, readableError } from '../_lib/operator.js'
 
 /**
  * The Tawf dedicated account (balance, profit credits, maturity) plus the
@@ -30,6 +30,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('cache-control', 's-maxage=15, stale-while-revalidate=60')
     res.status(200).json(data)
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message ?? 'Status failed' })
+    res.status(500).json({ error: readableError(err, 'Status failed') })
   }
 }

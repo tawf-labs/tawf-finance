@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { CONNECTOR_URL, CONNECTOR_API_KEY, methodGuard, requirePasscode, fetchWithTimeout } from '../_lib/operator.js'
+import { CONNECTOR_URL, CONNECTOR_API_KEY, methodGuard, requirePasscode, fetchWithTimeout, readableError } from '../_lib/operator.js'
 
 /**
  * Tawf places converted funds (USDC -> IDR off chain) into the dedicated
@@ -34,6 +34,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     res.status(200).json(data)
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message ?? 'Deposit failed' })
+    res.status(500).json({ error: readableError(err, 'Deposit failed') })
   }
 }

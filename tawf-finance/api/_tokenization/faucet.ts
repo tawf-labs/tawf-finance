@@ -7,6 +7,7 @@ import {
   addresses,
   isConfigured,
   methodGuard,
+  readableError,
 } from './_lib/operator.js'
 import { mockTokenAbi } from './_lib/abis.js'
 import { ensureVerified, type IdentityStep } from './_lib/identity.js'
@@ -67,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     res.status(200).json({ address: user, steps, isVerified })
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message ?? 'Faucet failed' })
+    res.status(500).json({ error: readableError(err, 'Faucet failed') })
   }
 }
 

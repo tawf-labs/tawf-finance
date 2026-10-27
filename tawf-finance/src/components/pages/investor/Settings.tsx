@@ -12,7 +12,7 @@ import { GetTestTokens } from '@/components/web3/GetTestUsdc';
 import { KycStatusCard } from '@/components/kyc/KycStatusCard';
 import { useIsVerified } from '@/web3/tokenizationHooks';
 import { isTokenizationConfigured } from '@/web3/tokenization';
-import { postPublic, type FaucetResult } from '@/lib/tokenization';
+import { runFaucet as postFaucet, type FaucetResult } from '@/lib/tokenization';
 import { shortAddress } from '@/web3/format';
 import { explorerAddressUrl, explorerTxUrl } from '@/web3/constants';
 
@@ -31,7 +31,7 @@ export function Settings() {
     setFaucetError(null);
     setFaucetResult(null);
     try {
-      const res = await postPublic<FaucetResult>('faucet', { address });
+      const res = await postFaucet(address);
       setFaucetResult(res);
       refetchVerified();
     } catch (e) {

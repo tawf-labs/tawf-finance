@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { RELAYER_URL, fetchWithTimeout } from './_lib/operator.js'
+import { RELAYER_URL, fetchWithTimeout, readableError } from './_lib/operator.js'
 
 /**
  * Public proxy to the relayer's GET /leaf. Lets the browser fetch a Merkle
@@ -36,6 +36,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('cache-control', 's-maxage=15, stale-while-revalidate=60')
     res.status(200).json(data)
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message ?? 'Proof lookup failed' })
+    res.status(500).json({ error: readableError(err, 'Proof lookup failed') })
   }
 }

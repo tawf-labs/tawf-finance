@@ -8,7 +8,9 @@ import {
   isConfigured,
   CONNECTOR_URL,
   CONNECTOR_API_KEY,
-  fetchLeafProof, fetchWithTimeout } from './_lib/operator.js'
+  fetchLeafProof, fetchWithTimeout,
+  readableError,
+} from './_lib/operator.js'
 import { reserveLedgerAbi, sukukDistributorAbi, trexTokenAbi, tawfSeriesAbi } from './_lib/abis.js'
 
 /**
@@ -132,6 +134,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       anchor: addresses.anchor,
     })
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message ?? 'Failed to load reserve' })
+    res.status(500).json({ error: readableError(err, 'Failed to load reserve') })
   }
 }

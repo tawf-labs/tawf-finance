@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { CONNECTOR_URL, CONNECTOR_API_KEY, methodGuard, requirePasscode, fetchWithTimeout } from '../_lib/operator.js'
+import { CONNECTOR_URL, CONNECTOR_API_KEY, methodGuard, requirePasscode, fetchWithTimeout, readableError } from '../_lib/operator.js'
 
 /**
  * Declare the sukuk's redemption amount at maturity on the Tawf Network L3,
@@ -33,6 +33,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     res.status(200).json({ ...(data as object), amount: base.toString() })
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message ?? 'Declare maturity failed' })
+    res.status(500).json({ error: readableError(err, 'Declare maturity failed') })
   }
 }
