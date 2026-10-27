@@ -182,7 +182,18 @@ export function AdminScfOnboarding() {
             className="flex-1 min-w-[260px] px-4 py-2 border border-tawf-green-10 rounded-xl font-mono text-sm"
           />
           <Button size="sm" variant="secondary" disabled={!/^0x[0-9a-fA-F]{40}$/.test(lookup.trim())} onClick={() => void doLookup()}>Look up</Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={busy !== null || !lookedUp || lookedUp.used === '0'}
+            onClick={async () => { await run('Reset usage', { action: 'resetUsage', wallet: lookup.trim() }); await doLookup(); }}
+          >
+            Reset this period&apos;s usage
+          </Button>
         </div>
+        <p className="text-xs text-tawf-muted mt-2">
+          Refunds after a cancelled raise do not free the investor&apos;s yearly limit. Reset the usage for this period to restore it (needs the passcode).
+        </p>
         {lookedUp && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-4">
             <div><p className="text-xs text-tawf-muted">Yearly limit</p><p className="text-tawf-green">{formatUsdc(BigInt(lookedUp.limit))}</p></div>

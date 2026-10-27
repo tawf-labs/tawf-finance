@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { parseAbi, type Address, type Hex } from 'viem'
+import { getAddress, isAddress, parseAbi, type Address, type Hex } from 'viem'
 import {
   publicClient,
   walletClient,
@@ -11,7 +11,7 @@ import {
   kind,
   leafHash,
 } from '../_lib/operator.js'
-import { mockTokenAbi, operatorAnchorAbi, sukukDistributorAbi } from '../_lib/abis.js'
+import { identityRegistryAbi, mockTokenAbi, operatorAnchorAbi, scfLimitModuleAbi, sukukDistributorAbi } from '../_lib/abis.js'
 import type { IdentityStep } from '../_lib/identity.js'
 
 const TX_TIMEOUT_MS = 30_000
@@ -22,7 +22,7 @@ const extraAbi = parseAbi([
   'function approve(address spender, uint256 amount) returns (bool)',
 ])
 
-type Action = 'reserve' | 'close' | 'distribute' | 'settle'
+type Action = 'reserve' | 'close' | 'distribute' | 'settle' | 'resetUsage'
 
 /**
  * Issuer and platform actions for the securities crowdfunding (SCF) offering.
@@ -36,6 +36,11 @@ type Action = 'reserve' | 'close' | 'distribute' | 'settle'
  *   POST /api/tokenization/scf/admin { action: "close" }                   close the subscription
  *   POST /api/tokenization/scf/admin { action: "distribute", amount }      next profit period (USDC)
  *   POST /api/tokenization/scf/admin { action: "settle", amount? }         maturity (default: at par)
+ *   POST /api/tokenization/scf/admin { action: "resetUsage", wallet }      clear an investor's usage this period
+ *
+ * resetUsage is the recovery step after a cancelled raise: refunds burn the
+ * tokens but never reduce the investor's yearly usage, so the platform clears
+ * it explicitly.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!methodGuard(req, res)) return
@@ -109,8 +114,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         )
         break
       }
+      case 'resetUsage': {
+        const w = req.body?.wallet
+        if (typeof w !== 'string' || !isAddress(w)) {
+          res.status(400).json({ error: 'wallet must be a valid address.' })
+          return
+        }
+        const identity = (await publicClient.readContract({
+          address: addresses.identityRegistry,
+          abi: identityRegistryAbi,
+          functionName: 'identity',
+          args: [getAddress(w) as Address],
+        })) as Address
+        if (identity === '0x0000000000000000000000000000000000000000') {
+          res.status(400).json({ error: 'This wallet has no registered identity.' })
+          return
+        }
+        const period = (await publicClient.readContract({ address: addresses.scfLimitModule, abi: scfLimitModuleAbi, functionName: 'currentPeriod' })) as bigint
+        await send(`Usage reset for period ${period}`, () =>
+          wc.writeContract({ address: addresses.scfLimitModule, abi: scfLimitModuleAbi, functionName: 'resetUsage', args: [identity, period] }),
+        )
+        break
+      }
       default:
-        res.status(400).json({ error: 'action must be reserve, close, distribute or settle.' })
+        res.status(400).json({ error: 'action must be reserve, close, distribute, settle or resetUsage.' })
         return
     }
 
