@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { CONNECTOR_URL, CONNECTOR_API_KEY, methodGuard, requirePasscode, fetchWithTimeout } from '../_lib/operator.js'
+import { CONNECTOR_URL, CONNECTOR_API_KEY, methodGuard, requirePasscode, fetchWithTimeout, readableError } from '../_lib/operator.js'
 
 /**
  * Declare the sukuk's realized profit for a period on the Tawf Network L3,
@@ -38,6 +38,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     res.status(200).json({ ...(data as object), period: periodNum, amount: base.toString() })
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message ?? 'Declare distribution failed' })
+    res.status(500).json({ error: readableError(err, 'Declare distribution failed') })
   }
 }

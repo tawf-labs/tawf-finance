@@ -5,6 +5,7 @@ import {
   reserveLedgerAddress,
   addresses,
   isConfigured,
+  readableError,
 } from '../_lib/operator.js'
 import { tawfSeriesAbi, sandboxModuleAbi, trexTokenAbi, trexComplianceAbi, reserveLedgerAbi, mockTokenAbi } from '../_lib/abis.js'
 import type { Address, Hex } from 'viem'
@@ -148,6 +149,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       wallet: walletView,
     })
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message ?? 'Failed to load series' })
+    res.status(500).json({ error: readableError(err, 'Failed to load series') })
   }
 }

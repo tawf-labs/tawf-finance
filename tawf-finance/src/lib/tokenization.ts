@@ -53,6 +53,20 @@ export async function postPublic<T>(path: string, body: unknown): Promise<T> {
   return parse<T>(res);
 }
 
+/**
+ * Demo faucet: gas, test mUSDC/mUSDT/mUSDG and a verified identity. Every step
+ * is idempotent, so a rate-limited run is retried once after a short pause.
+ */
+export async function runFaucet(address: `0x${string}`): Promise<FaucetResult> {
+  try {
+    return await postPublic<FaucetResult>('faucet', { address });
+  } catch (e) {
+    if (!(e instanceof Error) || !/rate limited/i.test(e.message)) throw e;
+    await new Promise((r) => setTimeout(r, 5000));
+    return postPublic<FaucetResult>('faucet', { address });
+  }
+}
+
 /** POST an admin (passcode-gated) tokenization endpoint. */
 export async function postAdmin<T>(path: string, body: unknown, passcode: string): Promise<T> {
   const res = await fetch(`/api/tokenization/${path}`, {

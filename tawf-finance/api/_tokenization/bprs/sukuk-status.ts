@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { CONNECTOR_URL, CONNECTOR_API_KEY, requirePasscode, fetchWithTimeout } from '../_lib/operator.js'
+import { CONNECTOR_URL, CONNECTOR_API_KEY, requirePasscode, fetchWithTimeout, readableError } from '../_lib/operator.js'
 
 /**
  * Read the sukuk's state on the Tawf Network L3 (status, periods,
@@ -29,6 +29,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     res.status(200).json(data)
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message ?? 'Failed to load sukuk status' })
+    res.status(500).json({ error: readableError(err, 'Failed to load sukuk status') })
   }
 }

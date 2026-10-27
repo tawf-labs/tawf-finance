@@ -3,7 +3,7 @@ import { useAccount } from 'wagmi';
 import { BadgeCheck, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useIsVerified } from '@/web3/tokenizationHooks';
-import { postPublic, type FaucetResult } from '@/lib/tokenization';
+import { runFaucet } from '@/lib/tokenization';
 
 /**
  * Testnet-only mock KYC. Calls the demo faucet, which tops up gas, sends test
@@ -29,7 +29,7 @@ export function TestKycButton({ onVerified }: { onVerified?: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await postPublic<FaucetResult>('faucet', { address });
+      const res = await runFaucet(address);
       await refetch();
       if (res.isVerified) onVerified?.();
     } catch (e) {

@@ -247,7 +247,48 @@ export async function fetchProofForLeaf(leaf: Hex): Promise<RelayerProof | null>
 
 // --- Readable custom-error mapping -------------------------------------------
 
-export function readableError(err: unknown): string {
+// Env values that must never reach an API response: RPC URLs carry provider keys.
+const SECRET_ENV = [
+  'ARB_SEPOLIA_RPC_URL',
+  'TAWF_NETWORK_RPC_URL',
+  'TAWF_NETWORK_RPC_TOKEN',
+  'TAWF_NETWORK_DPS_KEY',
+  'TAWF_NETWORK_OPERATOR_KEY',
+  'DEMO_OPERATOR_KEY',
+  'CONNECTOR_API_KEY',
+  'RELAYER_URL',
+  'CONNECTOR_URL',
+  'DIDIT_API_KEY',
+  'DIDIT_WEBHOOK_SECRET',
+  'DEMO_PASSCODE',
+]
+
+/** Strip URLs, secret env values and 32-byte hex keys from text sent to clients. */
+export function redact(text: string): string {
+  let out = text
+  for (const name of SECRET_ENV) {
+    const v = process.env[name]
+    if (v && v.length >= 8) out = out.split(v).join('[redacted]')
+  }
+  return out
+    .replace(/\b(?:https?|wss?):\/\/[^\s"'<>]+/gi, '[rpc]')
+    .replace(/\b(?:0x)?[0-9a-fA-F]{64}\b/g, '[redacted]')
+}
+
+function isRateLimited(err: unknown): boolean {
+  for (let e = err as { status?: number; message?: string; cause?: unknown } | undefined, i = 0; e && i < 6; e = e.cause as typeof e, i++) {
+    if (e.status === 429 || /\b429\b|too many requests|rate limit/i.test(e.message ?? '')) return true
+  }
+  return false
+}
+
+/**
+ * Client-safe error text for an API response. The full error is logged on the
+ * server; the response never carries RPC URLs, keys or request dumps.
+ */
+export function readableError(err: unknown, fallback = 'Transaction failed'): string {
+  console.error('[tokenization]', err)
+  if (isRateLimited(err)) return 'The network is busy (rate limited). Please try again in a few seconds.'
   const anyErr = err as {
     shortMessage?: string
     message?: string
@@ -320,5 +361,7 @@ export function readableError(err: unknown): string {
   if (/not verified|not eligible/i.test(anyErr?.message ?? '')) {
     return 'Recipient is not a verified identity. Run the faucet for that wallet first.'
   }
-  return anyErr?.shortMessage ?? anyErr?.message ?? 'Transaction failed'
+  // viem's shortMessage is the one-line summary; message adds the URL, request body and docs.
+  const text = anyErr?.shortMessage ?? anyErr?.message
+  return text ? redact(text.split('\n')[0]) : fallback
 }
