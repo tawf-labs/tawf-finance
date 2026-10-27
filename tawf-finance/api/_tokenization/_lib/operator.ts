@@ -157,6 +157,19 @@ export const addresses = {
   sukuk2Token: ((deployments as Record<string, unknown>).sukuk2Token ?? ZERO) as Address,
   sukuk2Distributor: ((deployments as Record<string, unknown>).sukuk2Distributor ?? ZERO) as Address,
   sukuk2Id: ((deployments as Record<string, unknown>).sukuk2Id ?? ZERO) as Hex,
+  // Securities crowdfunding (SCF) offering: its own operator-gated anchor and
+  // the POJK 57/2020 investor-limit module (optional).
+  scfAnchor: ((deployments as Record<string, unknown>).scfAnchor ?? ZERO) as Address,
+  scfLimitModule: ((deployments as Record<string, unknown>).scfLimitModule ?? ZERO) as Address,
+  scfToken: ((deployments as Record<string, unknown>).scfToken ?? ZERO) as Address,
+  scfCompliance: ((deployments as Record<string, unknown>).scfCompliance ?? ZERO) as Address,
+  scfDistributor: ((deployments as Record<string, unknown>).scfDistributor ?? ZERO) as Address,
+  scfId: ((deployments as Record<string, unknown>).scfId ?? ZERO) as Hex,
+}
+
+/** Whether the SCF offering is deployed. */
+export function isScfConfigured(): boolean {
+  return addresses.scfDistributor !== ZERO && addresses.scfLimitModule !== ZERO && addresses.scfAnchor !== ZERO
 }
 
 /** The sukuk a request targets: `sukuk=2` (query or body) selects the test sukuk. */
@@ -304,6 +317,10 @@ export function readableError(err: unknown, fallback = 'Transaction failed'): st
       return 'The posted FX rate is stale. Post a fresh USDC/IDR rate first.'
     case 'RateUnset':
       return 'No FX rate is posted yet. Post a USDC/IDR rate first.'
+    case 'SubscriptionClosed':
+      return 'The subscription window has closed.'
+    case 'SubscriptionStillOpen':
+      return 'The subscription is still open and not fully subscribed. Close it after the window ends.'
     case 'NotEligible':
       return 'This wallet is not eligible: it needs a verified identity (run the faucet), and for the Tawf series it must also pass the series mode (PILOT only / screened group / OJK sandbox).'
     case 'NoPending':
@@ -357,6 +374,9 @@ export function readableError(err: unknown, fallback = 'Transaction failed'): st
       return 'This would exceed the sukuk face value.'
     case 'BelowMinimum':
       return 'Below the minimum subscription.'
+  }
+  if (/Compliance not followed/i.test(anyErr?.message ?? '')) {
+    return 'The token compliance rejected this. For a crowdfunding (SCF) offering, the amount may exceed your yearly POJK 57/2020 investor limit or the offering cap.'
   }
   if (/not verified|not eligible/i.test(anyErr?.message ?? '')) {
     return 'Recipient is not a verified identity. Run the faucet for that wallet first.'

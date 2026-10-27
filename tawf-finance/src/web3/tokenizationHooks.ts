@@ -20,6 +20,7 @@ import {
   TrexTokenAbi,
   TrexComplianceAbi,
   IdentityRegistryAbi,
+  ScfLimitModuleAbi,
 } from './tokenizationAbis';
 import {
   TAWF_SERIES_ADDRESS,
@@ -31,6 +32,7 @@ import {
   type SettlementCoinKey,
   SUKUK_DISTRIBUTOR_ADDRESS,
   SUKUK_TOKEN_ADDRESS,
+  SCF_LIMIT_MODULE_ADDRESS,
 } from './tokenization';
 
 // ---------------------------------------------------------------------------
@@ -300,10 +302,13 @@ export interface SukukState {
   claimable: bigint;
 }
 
-export function useSukuk(address: `0x${string}` | undefined) {
-  const distributor = SUKUK_DISTRIBUTOR_ADDRESS as `0x${string}`;
-  const token = SUKUK_TOKEN_ADDRESS as `0x${string}`;
-  const enabled = Boolean(SUKUK_DISTRIBUTOR_ADDRESS && SUKUK_TOKEN_ADDRESS);
+/** Which sukuk offering a hook drives. Defaults to the BPRS demo sukuk. */
+export type SukukTarget = { distributor?: `0x${string}`; token?: `0x${string}` };
+
+export function useSukuk(address: `0x${string}` | undefined, target: SukukTarget = {}) {
+  const distributor = (target.distributor ?? SUKUK_DISTRIBUTOR_ADDRESS) as `0x${string}`;
+  const token = (target.token ?? SUKUK_TOKEN_ADDRESS) as `0x${string}`;
+  const enabled = Boolean(distributor && token);
 
   const { data, isLoading, refetch } = useReadContracts({
     contracts: [
@@ -346,66 +351,75 @@ export function useSukuk(address: `0x${string}` | undefined) {
 // ---------------------------------------------------------------------------
 
 /** Approve USDC to the sukuk distributor if needed, then subscribe. */
-export function useSukukSubscribe() {
+export function useSukukSubscribe(target: SukukTarget = {}) {
   const { write, isPending } = useContractWrite();
+  const distributor = target.distributor ?? SUKUK_DISTRIBUTOR_ADDRESS;
   const subscribe = useCallback(
     async (usdc: `0x${string}`, amount: bigint, currentAllowance: bigint) => {
-      if (!SUKUK_DISTRIBUTOR_ADDRESS) throw new Error('Sukuk not configured');
+      if (!distributor) throw new Error('Sukuk not configured');
       if (currentAllowance < amount) {
         await write({
           address: usdc,
           abi: TrexTokenAbi as Abi,
           functionName: 'approve',
-          args: [SUKUK_DISTRIBUTOR_ADDRESS, amount],
+          args: [distributor, amount],
         });
       }
       return write({
-        address: SUKUK_DISTRIBUTOR_ADDRESS,
+        address: distributor,
         abi: SukukDistributorAbi as Abi,
         functionName: 'subscribe',
         args: [amount],
       });
     },
-    [write],
+    [write, distributor],
   );
   return { subscribe, isPending };
 }
 
-export function useSukukClaim() {
+export function useSukukClaim(target: SukukTarget = {}) {
   const { write, isPending } = useContractWrite();
+  const distributor = target.distributor ?? SUKUK_DISTRIBUTOR_ADDRESS;
   const claim = useCallback(() => {
-    if (!SUKUK_DISTRIBUTOR_ADDRESS) throw new Error('Sukuk not configured');
-    return write({ address: SUKUK_DISTRIBUTOR_ADDRESS, abi: SukukDistributorAbi as Abi, functionName: 'claim' });
-  }, [write]);
+    if (!distributor) throw new Error('Sukuk not configured');
+    return write({ address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'claim' });
+  }, [write, distributor]);
   return { claim, isPending };
 }
 
-export function useSukukRedeem() {
+export function useSukukRedeem(target: SukukTarget = {}) {
   const { write, isPending } = useContractWrite();
+  const distributor = target.distributor ?? SUKUK_DISTRIBUTOR_ADDRESS;
   const redeem = useCallback(() => {
-    if (!SUKUK_DISTRIBUTOR_ADDRESS) throw new Error('Sukuk not configured');
-    return write({ address: SUKUK_DISTRIBUTOR_ADDRESS, abi: SukukDistributorAbi as Abi, functionName: 'redeem' });
-  }, [write]);
+    if (!distributor) throw new Error('Sukuk not configured');
+    return write({ address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'redeem' });
+  }, [write, distributor]);
   return { redeem, isPending };
 }
 
-export function useSukukRefund() {
+export function useSukukRefund(target: SukukTarget = {}) {
   const { write, isPending } = useContractWrite();
+  const distributor = target.distributor ?? SUKUK_DISTRIBUTOR_ADDRESS;
   const refund = useCallback(() => {
-    if (!SUKUK_DISTRIBUTOR_ADDRESS) throw new Error('Sukuk not configured');
-    return write({ address: SUKUK_DISTRIBUTOR_ADDRESS, abi: SukukDistributorAbi as Abi, functionName: 'refund' });
-  }, [write]);
+    if (!distributor) throw new Error('Sukuk not configured');
+    return write({ address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'refund' });
+  }, [write, distributor]);
   return { refund, isPending };
 }
 
 /** USDC allowance of `owner` to the sukuk distributor. */
-export function useSukukAllowance(owner: `0x${string}` | undefined, usdc: `0x${string}` | undefined) {
+export function useSukukAllowance(
+  owner: `0x${string}` | undefined,
+  usdc: `0x${string}` | undefined,
+  target: SukukTarget = {},
+) {
+  const distributor = target.distributor ?? SUKUK_DISTRIBUTOR_ADDRESS;
   const { data, refetch } = useReadContract({
     address: usdc,
     abi: TrexTokenAbi,
     functionName: 'allowance',
-    args: owner && SUKUK_DISTRIBUTOR_ADDRESS ? [owner, SUKUK_DISTRIBUTOR_ADDRESS] : undefined,
-    query: { enabled: Boolean(owner && usdc && SUKUK_DISTRIBUTOR_ADDRESS) },
+    args: owner && distributor ? [owner, distributor] : undefined,
+    query: { enabled: Boolean(owner && usdc && distributor) },
   });
   return { allowance: (data as bigint | undefined) ?? 0n, refetch };
 }
@@ -462,3 +476,28 @@ export function useClaimHeldProfit() {
   return { claimHeld, isPending };
 }
 
+
+// ---------------------------------------------------------------------------
+// Securities crowdfunding (SCF) investor limit
+// ---------------------------------------------------------------------------
+
+export type ScfLimitState = { limit: bigint; used: bigint; remaining: bigint; exemption: number };
+
+/** The wallet's POJK 57/2020 yearly limit, usage and remaining room this period. */
+export function useScfLimit(address: `0x${string}` | undefined) {
+  const { data, isLoading, refetch } = useReadContract({
+    address: SCF_LIMIT_MODULE_ADDRESS,
+    abi: ScfLimitModuleAbi,
+    functionName: 'remainingOf',
+    args: address ? [address] : undefined,
+    query: { enabled: Boolean(address && SCF_LIMIT_MODULE_ADDRESS) },
+  });
+  const r = data as readonly [bigint, bigint, bigint, number] | undefined;
+  const state: ScfLimitState = {
+    limit: r?.[0] ?? 0n,
+    used: r?.[1] ?? 0n,
+    remaining: r?.[2] ?? 0n,
+    exemption: Number(r?.[3] ?? 0),
+  };
+  return { state, isLoading, refetch };
+}

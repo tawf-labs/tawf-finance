@@ -56,7 +56,7 @@ All ids `uuid default gen_random_uuid()` unless noted. Money off-chain is `numer
 - `user_role`: investor, business, cooperative, issuer, admin
 - `account_status`: active, suspended, pending_verification
 - `kyc_status`: not_started, in_progress, approved, declined, in_review, expired
-- `org_kind`: bprs, business, vendor, platform
+- `org_kind`: bprs, business, vendor, platform (`platform` is a securities crowdfunding issuer, see [scf-urun-dana.md](scf-urun-dana.md))
 - `po_status`: draft, submitted, verifying, funded, in_progress, fulfilled, repaid, rejected
 - `pool_status`: draft, bprs_review, dps_review, approved, on_chain — workflow before/after chain; once `on_chain`, `chain_status` (0–6, `DealStatus`) is authoritative
 - `position_status`: active, matured, redeemed, defaulted (mirrors `ReceiptStatus`)

@@ -52,7 +52,7 @@ function StepList({ steps }: { steps: TxStep[] }) {
   );
 }
 
-function ActionFeedback({ busy, error, steps, lastHash }: {
+export function ActionFeedback({ busy, error, steps, lastHash }: {
   busy: string | null;
   error: string | null;
   steps: TxStep[] | null;

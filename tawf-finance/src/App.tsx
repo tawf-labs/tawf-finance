@@ -22,6 +22,7 @@ import {
   InvestorSettings,
   InvestorDeposito,
   InvestorSukuk,
+  InvestorScf,
   CooperativeDashboard,
   Verification,
   Businesses,
@@ -41,6 +42,7 @@ import {
   AdminCompliance,
   AdminSettings,
   AdminTokenization,
+  AdminScfOnboarding,
   OwnerOps,
 } from './components/pages';
 import { RouteErrorBoundary } from '@/components/ErrorBoundary';
@@ -115,6 +117,7 @@ function AppContent() {
             <Route path="pools" element={<InvestorPools />} />
             <Route path="deposito" element={<InvestorDeposito />} />
             <Route path="sukuk" element={<InvestorSukuk />} />
+            <Route path="scf" element={<InvestorScf />} />
             <Route path="portfolio" element={<Portfolio />} />
             <Route path="transactions" element={<Transactions />} />
             <Route path="impact" element={<Impact />} />
@@ -181,6 +184,7 @@ function AppContent() {
             <Route path="investments" element={<AdminInvestments />} />
             <Route path="pools" element={<AdminPools />} />
             <Route path="tokenization" element={<AdminTokenization />} />
+            <Route path="scf" element={<AdminScfOnboarding />} />
             <Route path="compliance" element={<AdminCompliance />} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="ops" element={<OwnerOps />} />
