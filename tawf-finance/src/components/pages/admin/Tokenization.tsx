@@ -25,7 +25,7 @@ import {
   type TawfAccountStatus,
   type FxQuote,
 } from '@/lib/tokenization';
-import { SUKUK_SYMBOL, isTokenizationConfigured } from '@/web3/tokenization';
+import { SUKUK_SYMBOL, isTokenizationConfigured, SETTLEMENT_STABLECOINS } from '@/web3/tokenization';
 import { explorerTxUrl } from '@/web3/constants';
 import { formatIdr, formatUsdc } from '@/web3/format';
 
@@ -199,11 +199,14 @@ function TreasuryTab({ busy, run, passcode, series, tawf }: {
   const nextProfitSen = nextCredit ? nextCredit.amountIdr * 100 : 0;
   const maturity = tawf?.account.maturity;
 
-  const coinLabel = (addr: string): string => {
-    if (series?.coins[0]?.address.toLowerCase() === addr.toLowerCase()) return 'USDC';
-    if (series?.coins[1]?.address.toLowerCase() === addr.toLowerCase()) return 'USDT';
-    return 'COIN';
-  };
+  const coinLabel = (addr: string): string =>
+    SETTLEMENT_STABLECOINS.find((c) => c.address?.toLowerCase() === addr.toLowerCase())?.symbol ?? 'COIN';
+  // App-known coins the series does not list yet (e.g. mock USDG before it is enabled).
+  const addableCoins = series
+    ? SETTLEMENT_STABLECOINS.filter(
+        (c) => c.address && !series.coins.some((sc) => sc.address.toLowerCase() === c.address!.toLowerCase()),
+      )
+    : [];
 
   const rateFor = (addr: string): number => rates[addr.toLowerCase()] ?? 16000;
   const setRateFor = (addr: string, v: number) =>
@@ -212,7 +215,7 @@ function TreasuryTab({ busy, run, passcode, series, tawf }: {
   const applyQuote = async (addr: string) => {
     const q = await getJson<FxQuote>('fx');
     const label = coinLabel(addr);
-    const coin = label === 'USDT' ? q.usdt : q.usdc;
+    const coin = label === 'USDT' ? q.usdt : label === 'USDG' ? (q.usdg ?? q.usdc) : q.usdc;
     setRateFor(addr, coin.idr);
   };
 
@@ -225,6 +228,18 @@ function TreasuryTab({ busy, run, passcode, series, tawf }: {
           Each coin carries its own IDR rate (no 1:1 peg). Production uses an IDRX / exchange quote per coin (the
           number Tawf uses when it converts that coin to IDR off chain).
         </p>
+        {addableCoins.map((c) => (
+          <div key={c.key} className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-tawf-sand-30">
+            <span className="text-sm text-tawf-ink">{c.symbol} is not a settlement coin on this series yet.</span>
+            <Button
+              size="sm"
+              disabled={busy !== null}
+              onClick={() => run(`Add m${c.symbol} as settlement coin`, () => postAdmin('series/add-stablecoin', { token: c.address }, passcode))}
+            >
+              Add m{c.symbol} as settlement coin
+            </Button>
+          </div>
+        ))}
         <div className="space-y-3">
           {(series?.coins ?? []).map((c) => {
             const idr = c.rate.idrPerToken !== '0' ? Number(c.rate.idrPerToken) / 100 : 0;

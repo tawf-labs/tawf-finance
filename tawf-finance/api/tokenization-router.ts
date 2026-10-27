@@ -32,6 +32,7 @@ import h24 from './_tokenization/series/status.js'
 import h25 from './_tokenization/issuer/sukuk/held.js'
 import h26 from './_tokenization/bprs/sukuk-board.js'
 import h27 from './_tokenization/tawf-share.js'
+import h28 from './_tokenization/series/add-stablecoin.js'
 
 type Handler = (req: VercelRequest, res: VercelResponse) => unknown
 
@@ -64,6 +65,7 @@ const routes: Record<string, Handler> = {
   'issuer/sukuk/held': h25,
   'bprs/sukuk-board': h26,
   'tawf-share': h27,
+  'series/add-stablecoin': h28,
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

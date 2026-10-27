@@ -31,12 +31,15 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
 
   const usdc = Math.max(1, usdcBase + driftFor(usdcBase, 0))
   const usdt = Math.max(1, usdtBase + driftFor(usdtBase, 3))
+  // USDG (the pool's mock settlement coin) tracks the USDC base on its own phase.
+  const usdg = Math.max(1, usdcBase + driftFor(usdcBase, 6))
 
   res.setHeader('cache-control', 's-maxage=30, stale-while-revalidate=60')
   res.status(200).json({
     // Per-coin quotes, two-decimal precision: idrPerToken / 100 = IDR per coin.
     usdc: { address: addresses.mockUsdc, idrPerToken: usdc, idr: usdc / 100 },
     usdt: { address: addresses.mockUsdt, idrPerToken: usdt, idr: usdt / 100 },
+    usdg: { address: addresses.mockUsdg, idrPerToken: usdg, idr: usdg / 100 },
     source: 'demo-quote',
     note: 'Demo quotes. Production uses an IDRX / exchange quote per coin for the actual stablecoin->IDR conversion.',
     at: new Date().toISOString(),

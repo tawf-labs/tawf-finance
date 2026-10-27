@@ -67,13 +67,19 @@ export const TOKENIZATION_USDC_ADDRESS = addr(raw.mockUsdc);
 /** MockUSDT settlement token (6 decimals). */
 export const TOKENIZATION_USDT_ADDRESS = addr(raw.mockUsdt);
 
+/** Mock USDG (6 decimals), the pool vault's settlement token, also offered on the series once enabled. */
+export const TOKENIZATION_USDG_ADDRESS = addr(raw.mockUsdg);
+
 /**
- * The settlement stablecoins the series accepts. Both are 6 decimals and each
+ * The settlement stablecoins the app knows. All are 6 decimals and each
  * carries its own posted FX rate (no 1:1 peg). USDC is listed first so it is
- * the default coin in selectors.
+ * the default coin in selectors. The series shows only the coins on its
+ * on-chain allowlist (`isStablecoin`).
  */
+export type SettlementCoinKey = 'usdc' | 'usdt' | 'usdg';
+
 export interface StablecoinConfig {
-  key: 'usdc' | 'usdt';
+  key: SettlementCoinKey;
   symbol: string;
   address: Hex | undefined;
 }
@@ -81,6 +87,7 @@ export interface StablecoinConfig {
 export const SETTLEMENT_STABLECOINS: StablecoinConfig[] = [
   { key: 'usdc', symbol: 'USDC', address: TOKENIZATION_USDC_ADDRESS },
   { key: 'usdt', symbol: 'USDT', address: TOKENIZATION_USDT_ADDRESS },
+  { key: 'usdg', symbol: 'USDG', address: TOKENIZATION_USDG_ADDRESS },
 ];
 
 /** LedgerAnchor on Arbitrum Sepolia that anchors Tawf Network roots. */

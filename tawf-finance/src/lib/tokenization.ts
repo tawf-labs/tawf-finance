@@ -236,6 +236,7 @@ export interface FxCoinQuote {
 export interface FxQuote {
   usdc: FxCoinQuote;
   usdt: FxCoinQuote;
+  usdg?: FxCoinQuote;
   source: string;
   note: string;
   at: string;

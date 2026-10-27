@@ -21,7 +21,7 @@ import {
   type SeriesCoinView,
 } from '@/web3/tokenizationHooks';
 import { formatIdr, formatUsdc, formatBps, getRevertReason } from '@/web3/format';
-import { isTokenizationConfigured, TAWF_SERIES } from '@/web3/tokenization';
+import { isTokenizationConfigured, TAWF_SERIES, type SettlementCoinKey } from '@/web3/tokenization';
 import { explorerTxUrl } from '@/web3/constants';
 import { NisbahNotice } from '@/components/tokenization/NisbahNotice';
 
@@ -30,7 +30,7 @@ const DISCLOSURES = [
   'The token is a claim ON TAWF, backed by Tawf\u2019s own deposit at the BPRS (BPRS Demo Syariah). It is not a direct deposit account in your name.',
   'LPS (deposit insurance) covers Tawf\u2019s deposit at the bank, not each investor individually.',
   'Returns follow the bank\u2019s profit share (nisbah) and are not guaranteed. A period may pay zero.',
-  'Your holding is valued in IDR; that IDR value is what is backed. You subscribe, claim and redeem in USDC or USDT, and the amount you receive in a coin depends on that coin\u2019s posted rate at payout. The two coins carry different rates and FX risk.',
+  'Your holding is valued in IDR; that IDR value is what is backed. You subscribe, claim and redeem in any accepted stablecoin, and the amount you receive in a coin depends on that coin\u2019s posted rate at payout. Each coin carries its own rate and FX risk.',
 ];
 
 function NotConfigured() {
@@ -62,9 +62,13 @@ export function InvestorDeposito() {
   const { redeem, isPending: redeeming } = useSeriesRedeem();
 
   const coins = state.coins;
+  // "USDC, USDT or USDG": the coins the series accepts right now.
+  const symbols = coins.map((c) => c.symbol);
+  const coinNames =
+    symbols.length > 1 ? `${symbols.slice(0, -1).join(', ')} or ${symbols[symbols.length - 1]}` : (symbols[0] ?? 'USDC or USDT');
 
   // Selected coin for subscribe / claim / redeem (default: first coin).
-  const [coinKey, setCoinKey] = useState<'usdc' | 'usdt'>('usdc');
+  const [coinKey, setCoinKey] = useState<SettlementCoinKey>('usdc');
   const selectedCoin: SeriesCoinView | undefined =
     coins.find((c) => c.key === coinKey) ?? coins[0];
 
@@ -160,7 +164,7 @@ export function InvestorDeposito() {
           <h1 className="font-serif text-3xl text-tawf-green mb-2">Tawf Deposito Series</h1>
           <p className="text-tawf-muted">
             A wrapped Tawf deposit (Model B). 1 token = IDR 1 claim on Tawf, backed by Tawf&apos;s dedicated
-            account at the BPRS. Settle in USDC or USDT.
+            account at the BPRS. Settle in {coinNames}.
           </p>
         </div>
         <ConnectButton variant="primary" size="md" />
@@ -221,7 +225,7 @@ export function InvestorDeposito() {
             </div>
             <h3 className="font-serif text-xl text-tawf-green mb-1">{TAWF_SERIES.name}</h3>
             <p className="text-tawf-muted text-sm leading-relaxed mb-4">
-              BPRS Demo Syariah · dedicated account TAWF-S1. Subscribe in USDC or USDT; Tawf converts to IDR
+              BPRS Demo Syariah · dedicated account TAWF-S1. Subscribe in {coinNames}. Tawf converts to IDR
               and places the funds in the account.
             </p>
 
