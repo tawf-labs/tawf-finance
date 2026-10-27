@@ -116,6 +116,8 @@ function AppContent() {
             <Route path="transactions" element={<Transactions />} />
             <Route path="impact" element={FINANCING_POOL_ENABLED ? <Impact /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
             <Route path="settings" element={<InvestorSettings />} />
+            <Route index element={<Navigate to="/investor/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/investor/dashboard" replace />} />
           </Route>
 
           {/* Issuer (Licensed Sekuritas) Routes */}
@@ -128,6 +130,8 @@ function AppContent() {
             }
           >
             <Route path="ops" element={FINANCING_POOL_ENABLED ? <OwnerOps /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
+            <Route index element={<Navigate to="/issuer/ops" replace />} />
+            <Route path="*" element={<Navigate to="/issuer/ops" replace />} />
           </Route>
 
           {/* Cooperative Dashboard Routes */}
@@ -145,6 +149,8 @@ function AppContent() {
             <Route path="deals" element={FINANCING_POOL_ENABLED ? <Deals /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
             <Route path="members" element={FINANCING_POOL_ENABLED ? <Members /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
             <Route path="settings" element={FINANCING_POOL_ENABLED ? <CooperativeSettings /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
+            <Route index element={<Navigate to="/cooperative/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/cooperative/dashboard" replace />} />
           </Route>
 
           {/* Admin Dashboard Routes */}
@@ -165,6 +171,9 @@ function AppContent() {
             <Route path="compliance" element={<AdminCompliance />} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="ops" element={FINANCING_POOL_ENABLED ? <OwnerOps /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
+            <Route path="protocol-ops" element={<Navigate to="/admin/ops" replace />} />
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
           </Route>
 
           {/* Default redirect for unmatched dashboard routes */}
