@@ -273,3 +273,19 @@ export const SUKUK_STATUS_LABEL: Record<number, string> = {
   4: 'Defaulted',
   5: 'Cancelled',
 };
+
+/** ScfInvestorLimitModule: the investor's POJK 57/2020 yearly limit. */
+export const ScfLimitModuleAbi = [
+  {
+    name: 'remainingOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'wallet', type: 'address' }],
+    outputs: [
+      { name: 'limit', type: 'uint256' },
+      { name: 'used', type: 'uint256' },
+      { name: 'remaining', type: 'uint256' },
+      { name: 'exemption', type: 'uint8' },
+    ],
+  },
+] as const;

@@ -106,6 +106,14 @@ export const SUKUK2_DISTRIBUTOR_ADDRESS = addr(raw.sukuk2Distributor);
 
 export const SUKUK_SYMBOL = 'tSUKUK-DEMO-2026';
 
+/** Securities crowdfunding (SCF, "urun dana") offering: sukuk token, distributor and the POJK 57/2020 limit module. */
+export const SCF_TOKEN_ADDRESS = addr((raw as Record<string, unknown>).scfToken as string | undefined);
+export const SCF_DISTRIBUTOR_ADDRESS = addr((raw as Record<string, unknown>).scfDistributor as string | undefined);
+export const SCF_LIMIT_MODULE_ADDRESS = addr((raw as Record<string, unknown>).scfLimitModule as string | undefined);
+export const SCF_ANCHOR_ADDRESS = addr((raw as Record<string, unknown>).scfAnchor as string | undefined);
+export const SCF_SYMBOL = 'tSCF-UMKM-2026';
+export const isScfConfigured = Boolean(SCF_TOKEN_ADDRESS && SCF_DISTRIBUTOR_ADDRESS && SCF_LIMIT_MODULE_ADDRESS);
+
 /** Chain id of the Tawf Network L3 ledger the roots come from. */
 export const LEDGER_CHAIN_ID = Number(raw.ledgerChainId ?? 7142026);
 

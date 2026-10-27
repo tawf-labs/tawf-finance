@@ -129,6 +129,16 @@ guaranteed exit.
 - Travel rule compliance on secondary transfers once they exist.
 - Retail investor caps and risk warnings on every primary subscription.
 
+### 3.8 Second issuer type: securities crowdfunding platforms
+
+Securities crowdfunding platforms (SCF, "Layanan Urun Dana") licensed under POJK 57/2020, as amended by POJK 16/2021, are the second issuer type. Sharia platforms such as LBS Urun Dana list sukuk and sharia shares of SMEs (UMKM).
+- **Who carries the licence.** The platform keeps the licence and the suitability check. Tawf stays the tech vendor, the same split as with a BPRS.
+- **Raise limit.** An SME can raise up to Rp10 billion through SCF.
+- **Investor limit.** A retail investor may invest up to 5% of annual income a year if they earn up to Rp500 million, or 10% above that. Legal entities and investors with a capital-market account held for two years or more are exempt.
+- **How Tawf enforces it.** The limit is enforced on chain by `ScfInvestorLimitModule`, across all of a platform's offerings.
+
+See [scf-urun-dana.md](scf-urun-dana.md).
+
 ## 4. Southeast Asia expansion map
 
 Indonesia is the home market because the BPRS network, the Shariah banking

@@ -42,6 +42,7 @@ BondReceiptNFT.sol (soulbound ERC-1155)   owner: repay() → matured
 | `sukuk/DistributionCheckpointModule.sol` | T-REX compliance module that forwards balance changes to a distributor | No |
 | `deposito/TawfDepositoSeries.sol` | Cash + supply side of the Tawf deposito series (Model B): multi-stablecoin escrow, per-coin FX, sen accounting, allocate/distribute/redeem | Yes |
 | `deposito/SandboxModule.sol` | T-REX compliance module enforcing the series sandbox mode + caps | No |
+| `scf/ScfInvestorLimitModule.sol` | T-REX compliance module for securities crowdfunding offerings: POJK 57/2020 yearly investor limit across a platform's offerings, exemptions, offering cap | No |
 | `interfaces/ITawfIdentityRegistry.sol` | `isVerified` view onto the shared T-REX IdentityRegistry | n/a |
 | `interfaces/ITrexToken.sol` | `mint`/`burn`/`balanceOf`/`totalSupply` view onto a T-REX token | n/a |
 | `lib/LedgerLeaf.sol` | Canonical ledger-leaf encoding + leaf kinds | n/a |

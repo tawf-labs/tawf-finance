@@ -370,3 +370,48 @@ export const ledgerAnchorAbi = [
     ],
   },
 ] as const
+
+/** Operator-gated LedgerAnchor used by the SCF offering (single-leaf roots). */
+export const operatorAnchorAbi = [
+  { name: 'push', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'root', type: 'bytes32' }], outputs: [{ name: 'epoch', type: 'uint256' }] },
+  { name: 'epochs', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] },
+] as const
+
+/** ScfInvestorLimitModule: POJK 57/2020 investor limit and offering cap. */
+export const scfLimitModuleAbi = [
+  {
+    name: 'setProfile',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'onchainId', type: 'address' },
+      { name: 'annualLimit', type: 'uint128' },
+      { name: 'bracket', type: 'uint8' },
+      { name: 'exemption', type: 'uint8' },
+    ],
+    outputs: [],
+  },
+  {
+    name: 'remainingOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'wallet', type: 'address' }],
+    outputs: [
+      { name: 'limit', type: 'uint256' },
+      { name: 'used', type: 'uint256' },
+      { name: 'remaining', type: 'uint256' },
+      { name: 'exemption', type: 'uint8' },
+    ],
+  },
+  {
+    name: 'offeringOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'compliance', type: 'address' }],
+    outputs: [
+      { name: 'treasury', type: 'address' },
+      { name: 'offeringCap', type: 'uint256' },
+      { name: 'configured', type: 'bool' },
+    ],
+  },
+] as const

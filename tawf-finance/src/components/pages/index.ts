@@ -22,6 +22,7 @@ export { Impact } from './investor/Impact';
 export { Settings as InvestorSettings } from './investor/Settings';
 export { InvestorDeposito } from './investor/Deposito';
 export { InvestorSukuk } from './investor/Sukuk';
+export { InvestorScf } from './investor/Scf';
 
 // Vendor Pages removed (replaced by issuer role)
 
@@ -50,3 +51,4 @@ export { OwnerOps } from './admin/OwnerOps';
 export { AdminCompliance } from './admin/Compliance';
 export { AdminSettings } from './admin/AdminSettings';
 export { AdminTokenization } from './admin/Tokenization';
+export { AdminScfOnboarding } from './admin/ScfOnboarding';

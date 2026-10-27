@@ -94,6 +94,7 @@ A second track tokenizes a licensed BPRS's time deposits and a sukuk series as E
 - **Sukuk** (`/investor/sukuk`): subscribe with USDC to the `tSUKUK-DEMO-2026` series, claim periodic profit, redeem at maturity, or refund a cancelled subscription.
 - **Test funds and test KYC (testnet only)**: Settings has a "Get test" faucet for each of mUSDC, mUSDT and mUSDG, and a "Get test funds + verify identity (test KYC)" button that tops up gas, sends all three tokens and registers an ONCHAINID verified identity. The pool page offers the same "Verify with test KYC" button and a "Get test" button for the chosen token, so testers can invest without leaving the page. Real investors verify with Didit.
 - **Admin** (`/admin/tokenization`, actions need the `DEMO_PASSCODE`): a **Tawf treasury** tab (add a mock coin such as mUSDG to the series allowlist, post FX rate per coin with a "use market quote" per coin, list pending subscriptions per coin, show treasury balances and series allowances per coin with an "Approve series" button per coin, place converted funds at the BPRS, allocate, distribute profit, settle maturity, screen wallets, set mode + caps) and a **BPRS** tab (sync, simulate the bank crediting profit and maturing, and the sukuk lifecycle).
+- **Urun Dana / SCF** (`/investor/scf`): the second issuer type, a securities crowdfunding platform (fictional "Demo Urun Dana Syariah") listing a sukuk mudharabah of an SME. Verify with test KYC, declare your annual income (signed by your wallet), and the token enforces your POJK 57/2020 yearly limit (5% of income up to Rp500m, 10% above, exemptions for legal entities and 2-year capital-market accounts) across all of the platform's offerings. Admin at `/admin/scf`. See [`docs/scf-urun-dana.md`](docs/scf-urun-dana.md).
 - **Proof of Reserve** (`/proof-of-reserve`): tokens outstanding on Arbitrum vs Tawf's dedicated account balance at the BPRS (anchored), profits credited vs distributed, and a client-side `LedgerAnchor.verify` check. The sukuk section remains.
 
 The trust path is `core banking → bprs-connector → Tawf Network ledger → LedgerAnchor on Arbitrum → allocate gate`: the series only mints against a Merkle-verified `DEPOSITO_RESERVE` leaf and never beyond the anchored account balance. Server-side operator actions run in one Vercel function, [`tawf-finance/api/tokenization-router.ts`](tawf-finance/api/tokenization-router.ts), with the handlers in [`tawf-finance/api/_tokenization/`](tawf-finance/api/_tokenization/). See [`docs/tokenized-deposito.md`](docs/tokenized-deposito.md).
@@ -104,7 +105,7 @@ The sukuk runs the full lifecycle across both chains: its L2 `SukukDistributor` 
 
 ## Smart Contracts
 
-`contracts/`: Solidity 0.8.24 (T-REX and ONCHAINID files on 0.8.17), Foundry, OpenZeppelin v5 (v4.8.3 for T-REX). 223 tests pass (`forge test`). The pool contracts (DealRegistry, BondReceiptNFT, RedemptionVault, PooledFinancingVault) are UUPS-upgradeable behind ERC1967 proxies. Only `UPGRADER_ROLE` can upgrade them.
+`contracts/`: Solidity 0.8.24 (T-REX and ONCHAINID files on 0.8.17), Foundry, OpenZeppelin v5 (v4.8.3 for T-REX). 242 tests pass (`forge test`). The pool contracts (DealRegistry, BondReceiptNFT, RedemptionVault, PooledFinancingVault) are UUPS-upgradeable behind ERC1967 proxies. Only `UPGRADER_ROLE` can upgrade them.
 
 | Contract | Role |
 |---|---|
@@ -116,6 +117,7 @@ The sukuk runs the full lifecycle across both chains: its L2 `SukukDistributor` 
 | `SandboxModule` | T-REX compliance module enforcing the series sandbox policy: mode (PILOT_ONLY / SCREENED_GROUP / SANDBOX_ADMITTED) by reading ONCHAINID screening claims, and caps (max investors, per-investor balance, series cap, series end). |
 | `DistributionCheckpointModule` | Compliance module bound to each ERC-3643 token so profit follows the holder of record across transfers. |
 | `SukukDistributor` | Sukuk primary subscription, periodic profit, and redemption at maturity or default, each gated by a Merkle-verified ledger fact. |
+| `ScfInvestorLimitModule` | Compliance module for securities crowdfunding offerings: the POJK 57/2020 yearly investor limit per ONCHAINID across all of a platform's offerings, exemptions, and the offering cap. |
 | `MockUSDC` / `MockUSDT` | 6-decimal test USDC and USDT, each with a faucet (10,000 tokens). Swap for real test stablecoins in production. |
 
 Key invariants (all test-covered): deals can only be invested while `Mintable`. Receipts are soulbound. Redemption returns `principal + principal·apyBps·days/36500` and burns the receipt. Double-claim is impossible. Repayments are owner/vault-guarded. The contracts are reentrancy-safe.
@@ -188,6 +190,10 @@ npm run build   # tsc + vite build
 ### 1. Deploy the shared ERC-3643 stack, deposito and sukuk
 
 `script/DeployTokenization.s.sol` deploys the T-REX identity registry, MockUSDC/MockUSDT, the Tawf deposito series and the sukuk, and writes every address to `tawf-finance/src/web3/tokenization.deployments.json`. See [docs/tokenized-deposito.md](docs/tokenized-deposito.md).
+
+### 1b. Deploy a securities crowdfunding (SCF) offering
+
+`script/DeployScf.s.sol` (`--sig "runScf()"`) deploys the investor-limit module, an SCF sukuk token, its distributor and an operator-gated anchor on the shared identity registry, opens the subscription and writes the `scf*` keys. See [docs/scf-urun-dana.md](docs/scf-urun-dana.md).
 
 ### 2. Deploy the financing pool
 
@@ -279,6 +285,15 @@ The previous non-upgradeable pool (DealRegistry `0x691F811ac97B23cC471E96114c017
 | Sukuk 2 token | `0x2efcf0e6B33726E95e393FdFF4127145Db15415f` |
 | LedgerAnchor | `0xA91985E62abDF7B884E4637fa23DdD974953C2Cd` |
 
+### Securities crowdfunding (SCF) offering
+
+| Contract | Address |
+|---|---|
+| ScfInvestorLimitModule | [`0x4d7126A053a7a04bb76dB5ddc001165FF1e84BD5`](https://sepolia.arbiscan.io/address/0x4d7126A053a7a04bb76dB5ddc001165FF1e84BD5) |
+| SCF SukukDistributor | [`0x751896413AC330F3895F2387b5Fc0C66e4078fb0`](https://sepolia.arbiscan.io/address/0x751896413AC330F3895F2387b5Fc0C66e4078fb0) |
+| SCF sukuk token `tSCF-UMKM-2026` | `0xCfeAAeEFC9b4320c77AF478bA69740e66B7eb39f` |
+| SCF LedgerAnchor (operator-gated) | `0xda325a9B272419cb0fA3646E7C4698aE892eeE5e` |
+
 ---
 
 ## Tech Stack
@@ -336,6 +351,7 @@ Headings: Cormorant Garamond (serif) · Body/UI: Inter (sans-serif).
 - [`docs/pitch-outline.md`](docs/pitch-outline.md): pitch narrative
 - [`docs/buildathon-submission.md`](docs/buildathon-submission.md): submission copy
 - [`docs/didit-kyc.md`](docs/didit-kyc.md): KYC integration notes
+- [`docs/scf-urun-dana.md`](docs/scf-urun-dana.md): securities crowdfunding platforms as an issuer type
 
 --- 
 
