@@ -3,13 +3,14 @@ import { motion, AnimatePresence, useMotionValueEvent, useReducedMotion, useScro
 import { Menu, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { FINANCING_POOL_ENABLED } from '@/config/features';
 
 const homeLinks = [
   { name: 'Lifecycle', id: 'how-it-works' },
-  { name: 'Receipt', id: 'receipt' },
+  { name: 'Pool token', id: 'receipt' },
   { name: 'Coverage', id: 'instruments' },
   { name: 'Why BPRS', id: 'impact' },
-  { name: 'Pools', id: 'pools' },
+  ...(FINANCING_POOL_ENABLED ? [{ name: 'Pools', id: 'pools' }] : []),
 ];
 
 const pageLinks = [
