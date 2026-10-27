@@ -26,12 +26,6 @@ export { InvestorScf } from './investor/Scf';
 // Vendor Pages removed (replaced by issuer role)
 
 // Cooperative Pages
-export { CooperativeDashboard } from './cooperative/CooperativeDashboard';
-export { Verification } from './cooperative/Verification';
-export { Businesses } from './cooperative/Businesses';
-export { Deals } from './cooperative/Deals';
-export { Members } from './cooperative/Members';
-export { CooperativeSettings } from './cooperative/CooperativeSettings';
 
 // Business Pages
 

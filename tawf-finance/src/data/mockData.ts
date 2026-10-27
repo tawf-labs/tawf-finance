@@ -951,7 +951,7 @@ export const mockNotifications: Notification[] = [
     type: 'info',
     read: false,
     createdAt: '2024-03-28T11:00:00Z',
-    actionUrl: '/cooperative/verification',
+    actionUrl: '/admin/tokenization',
   },
   {
     id: 'notif-005',

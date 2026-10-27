@@ -103,7 +103,7 @@ Deposito Pools and SCF offerings are ERC-3643 (T-REX) tokens, gated by proof of 
 
 The trust path is `core banking → bprs-connector → Tawf Network ledger → LedgerAnchor on Arbitrum → allocate gate`: the series only mints against a Merkle-verified `DEPOSITO_RESERVE` leaf and never beyond the anchored account balance. Server-side operator actions run in one Vercel function, [`tawf-finance/api/tokenization-router.ts`](tawf-finance/api/tokenization-router.ts), with the handlers in [`tawf-finance/api/_tokenization/`](tawf-finance/api/_tokenization/). See [`docs/tokenized-deposito.md`](docs/tokenized-deposito.md).
 
-The financing sell-down pool, the BPRS originator role and the issuer and admin pool pages are behind `VITE_FEATURE_FINANCING_POOL` (off by default). Their contracts stay deployed and tested. The purchase-order and invoice style business pages are removed.
+The financing sell-down pool and the issuer and admin pool pages are behind `VITE_FEATURE_FINANCING_POOL` (off by default). Their contracts stay deployed and tested. The mock BPRS originator (cooperative) pages are removed: they were not wired to any contract, and pool operations run from Admin, Tokenization. The purchase-order and invoice style business pages are removed.
 
 ---
 
@@ -221,7 +221,7 @@ The app reads every contract address from `tokenization.deployments.json`, so th
 | Variable | Used by | Purpose |
 |---|---|---|
 | `VITE_RPC_URL` | browser build | Arbitrum Sepolia RPC (QuickNode). Built in at build time, so redeploy after changing it. Falls back to the public RPC. |
-| `VITE_FEATURE_FINANCING_POOL` | browser build | `true` shows the financing sell-down pool, the BPRS originator role and the pool admin pages. Unset (the default) for the pilot. |
+| `VITE_FEATURE_FINANCING_POOL` | browser build | `true` shows the financing sell-down pool and the pool admin pages. Unset (the default) for the pilot. |
 | `ARB_SEPOLIA_RPC_URL` | API | Same RPC for the serverless functions |
 | `DEMO_OPERATOR_KEY` | API | Operator wallet `0xbE49…16aC` (the same key as the pool admin): owner of the deposito series, sukuk and identity registry roles, signer for the faucet, test KYC and admin actions |
 | `DEMO_PASSCODE` | API | Required (header `x-demo-passcode`) for every admin action. Stored as a normal (readable) variable, so the team can read it in the Vercel dashboard or with `vercel env pull`. |

@@ -22,12 +22,6 @@ import {
   InvestorSettings,
   InvestorDeposito,
   InvestorScf,
-  CooperativeDashboard,
-  Verification,
-  Businesses,
-  Deals,
-  Members,
-  CooperativeSettings as CooperativeSettings,
   AdminDashboard,
   AdminUsers,
   AdminInvestments,
@@ -67,7 +61,6 @@ function AppContent() {
   const isAppHost = window.location.hostname === 'app.tawf.finance';
   const isDashboardPage = location.pathname.includes('/investor') ||
                           location.pathname.includes('/issuer') ||
-                          location.pathname.includes('/cooperative') ||
                           location.pathname.includes('/admin');
 
   return (
@@ -132,25 +125,6 @@ function AppContent() {
             <Route path="ops" element={FINANCING_POOL_ENABLED ? <OwnerOps /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
             <Route index element={<Navigate to="/issuer/ops" replace />} />
             <Route path="*" element={<Navigate to="/issuer/ops" replace />} />
-          </Route>
-
-          {/* Cooperative Dashboard Routes */}
-          <Route
-            path="/cooperative/*"
-            element={
-              <ProtectedRoute>
-                <DashboardLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="dashboard" element={FINANCING_POOL_ENABLED ? <CooperativeDashboard /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
-            <Route path="verification" element={FINANCING_POOL_ENABLED ? <Verification /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
-            <Route path="businesses" element={FINANCING_POOL_ENABLED ? <Businesses /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
-            <Route path="deals" element={FINANCING_POOL_ENABLED ? <Deals /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
-            <Route path="members" element={FINANCING_POOL_ENABLED ? <Members /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
-            <Route path="settings" element={FINANCING_POOL_ENABLED ? <CooperativeSettings /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
-            <Route index element={<Navigate to="/cooperative/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/cooperative/dashboard" replace />} />
           </Route>
 
           {/* Admin Dashboard Routes */}
