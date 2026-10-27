@@ -398,17 +398,20 @@ export function useDefaultDeal() {
   return { defaultDeal, isPending };
 }
 
-/** MockUSDC faucet, testnet-only convenience (10,000 mUSDC). */
-export function useFaucet() {
+/**
+ * Mock stablecoin faucet, testnet-only convenience (10,000 tokens). MockUSDC,
+ * MockUSDT and the pool's mock USDG share the `faucetMax` signature.
+ */
+export function useFaucet(token: `0x${string}` | undefined = USDC_ADDRESS) {
   const { write, isPending } = useContractWrite();
   const faucet = useCallback(() => {
-    if (!USDC_ADDRESS) throw new Error('Contracts not configured');
+    if (!token) throw new Error('Contracts not configured');
     return write({
-      address: USDC_ADDRESS,
+      address: token,
       abi: MockUsdcAbi,
       functionName: 'faucetMax',
     });
-  }, [write]);
+  }, [write, token]);
   return { faucet, isPending };
 }
 

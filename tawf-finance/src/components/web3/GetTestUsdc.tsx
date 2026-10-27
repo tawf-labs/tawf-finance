@@ -4,13 +4,13 @@ import { Droplets, Loader2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useFaucet, useUsdcBalance } from '@/web3/hooks';
 import { formatUsdc, getRevertReason } from '@/web3/format';
-import { explorerTxUrl } from '@/web3/constants';
+import { explorerTxUrl, INVEST_TOKENS, USDC_ADDRESS, type InvestToken } from '@/web3/constants';
 
-/** Mint 10,000 test USDC from the MockUSDC faucet (Arbitrum Sepolia only). */
-export function GetTestUsdc() {
+/** Mint 10,000 of one mock stablecoin from its faucet (Arbitrum Sepolia only). */
+export function GetTestToken({ token, compact = false }: { token: InvestToken; compact?: boolean }) {
   const { address } = useAccount();
-  const { balance, refetch } = useUsdcBalance(address);
-  const { faucet, isPending } = useFaucet();
+  const { balance, refetch } = useUsdcBalance(address, token.address);
+  const { faucet, isPending } = useFaucet(token.address);
   const [tx, setTx] = useState<`0x${string}` | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,12 +30,14 @@ export function GetTestUsdc() {
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-      <div className="px-3 py-2 rounded-xl bg-tawf-green-10 text-tawf-green text-sm font-medium">
-        {formatUsdc(balance)} test USDC
-      </div>
+      {!compact && (
+        <div className="px-3 py-2 rounded-xl bg-tawf-green-10 text-tawf-green text-sm font-medium">
+          {formatUsdc(balance)} test {token.symbol}
+        </div>
+      )}
       <Button variant="secondary" size="sm" onClick={handleFaucet} disabled={isPending}>
         {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Droplets className="w-4 h-4 mr-2" />}
-        Get test USDC
+        Get test {token.symbol}
       </Button>
       {tx && (
         <a
@@ -50,4 +52,24 @@ export function GetTestUsdc() {
       {error && <span className="text-xs text-red-600">{error}</span>}
     </div>
   );
+}
+
+/** One faucet row per stablecoin the pool accepts (USDC, USDT, USDG). */
+export function GetTestTokens() {
+  return (
+    <div className="space-y-3">
+      {INVEST_TOKENS.map((t) => (
+        <div key={t.symbol} className="flex items-center justify-between gap-3">
+          <span className="text-sm text-tawf-muted">Test {t.symbol}</span>
+          <GetTestToken token={t} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Mint 10,000 test USDC from the MockUSDC faucet (Arbitrum Sepolia only). */
+export function GetTestUsdc() {
+  if (!USDC_ADDRESS) return null;
+  return <GetTestToken token={{ symbol: 'USDC', address: USDC_ADDRESS }} />;
 }

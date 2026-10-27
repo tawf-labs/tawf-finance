@@ -18,7 +18,7 @@ const MIN_OPERATOR_ETH = parseEther('0.01')
 const ZERO = '0x0000000000000000000000000000000000000000'
 
 /**
- * Faucet: fund gas, mint test mUSDC, and verify the wallet's ERC-3643
+ * Faucet: fund gas, mint test mUSDC, mUSDT and mUSDG, and verify the wallet's ERC-3643
  * identity. No passcode: this is a demo convenience for any connected wallet.
  * Idempotent, a wallet that already has funds and a verified identity is left
  * untouched.
@@ -55,10 +55,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       steps.push({ label: 'ETH balance sufficient — no top-up needed', skipped: true })
     }
 
-    // 2. Mint test settlement tokens (MockUSDC + MockUSDT). The faucet mints
+    // 2. Mint test settlement tokens (MockUSDC, MockUSDT and the pool's mock USDG). The faucet mints
     //    to the operator, which then transfers to the user.
     await mintAndTransfer(addresses.mockUsdc, user, steps, 'mUSDC', wc)
     await mintAndTransfer(addresses.mockUsdt, user, steps, 'mUSDT', wc)
+    await mintAndTransfer(addresses.mockUsdg, user, steps, 'mUSDG', wc)
 
     // 3. Ensure the wallet is a verified ERC-3643 holder (idempotent).
     const { steps: idSteps, isVerified } = await ensureVerified(user)
