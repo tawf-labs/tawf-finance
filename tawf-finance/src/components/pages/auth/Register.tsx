@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Check, ArrowRight, ArrowLeft, User, Building, Shield } from 'lucide-react';
+import { Check, ArrowRight, ArrowLeft, User, Shield } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FINANCING_POOL_ENABLED } from '@/config/features';
 
-type UserRole = 'investor' | 'cooperative' | 'issuer';
+type UserRole = 'investor' | 'issuer';
 
 interface FormData {
   firstName: string;
@@ -39,12 +39,6 @@ export function Register() {
       icon: <User className="w-8 h-8" />,
       description: 'Invest in Tawf Deposito Pools and sharia crowdfunding offerings',
       color: 'bg-tawf-green',
-    },
-    cooperative: {
-      title: 'BPRS Originator',
-      icon: <Building className="w-8 h-8" />,
-      description: 'Originate, service, and sell down financing',
-      color: 'bg-blue-500',
     },
     issuer: {
       title: 'Licensed Issuer',
@@ -199,7 +193,7 @@ export function Register() {
                   />
                 </div>
 
-                {(selectedRole === 'cooperative' || selectedRole === 'issuer') && (
+                {selectedRole === 'issuer' && (
                   <div>
                     <label className="block text-sm font-medium text-tawf-ink mb-2">Organization/Business Name</label>
                     <input

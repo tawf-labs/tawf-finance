@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, ArrowRight, User, Building, Landmark, Shield } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, ArrowRight, User, Landmark, Shield } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FINANCING_POOL_ENABLED } from '@/config/features';
@@ -67,14 +67,6 @@ export function Login() {
               </button>
               {FINANCING_POOL_ENABLED && (
                 <>
-              <button
-                onClick={() => handleDemoLogin('cooperative')}
-                disabled={isLoading}
-                className="p-3 border border-tawf-green-10 rounded-xl hover:border-tawf-green hover:bg-tawf-green-5 transition-colors text-center disabled:opacity-50"
-              >
-                <Building className="w-6 h-6 mx-auto mb-1 text-tawf-green" />
-                <p className="text-sm font-medium text-tawf-green">BPRS Originator</p>
-              </button>
               <button
                 onClick={() => handleDemoLogin('issuer')}
                 disabled={isLoading}

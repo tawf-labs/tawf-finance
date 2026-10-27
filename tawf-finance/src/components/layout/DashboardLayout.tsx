@@ -12,10 +12,8 @@ import {
   LogOut,
   Store,
   Users,
-  CheckCircle,
   Shield,
   LayoutDashboard,
-  DollarSign,
   Briefcase,
   Search,
   ChevronLeft,
@@ -52,14 +50,6 @@ const navConfigs: Record<string, NavItem[]> = {
     { id: 'settings', label: 'Settings', icon: Settings, href: '/investor/settings' },
   ],
   issuer: FINANCING_POOL_ENABLED ? [{ id: 'ops', label: 'Issuance & Settlement', icon: Wrench, href: '/issuer/ops' }] : [],
-  cooperative: !FINANCING_POOL_ENABLED ? [] : [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/cooperative/dashboard' },
-    { id: 'verification', label: 'Pool Approval', icon: CheckCircle, href: '/cooperative/verification' },
-    { id: 'businesses', label: 'Segments', icon: Store, href: '/cooperative/businesses' },
-    { id: 'deals', label: 'Sell-Downs', icon: DollarSign, href: '/cooperative/deals' },
-    { id: 'members', label: 'Bank Staff', icon: Users, href: '/cooperative/members' },
-    { id: 'settings', label: 'Settings', icon: Settings, href: '/cooperative/settings' },
-  ],
   admin: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
     { id: 'users', label: 'Users', icon: Users, href: '/admin/users' },
@@ -75,7 +65,6 @@ const navConfigs: Record<string, NavItem[]> = {
 
 const roleLabels: Record<string, string> = {
   investor: 'Investor',
-  cooperative: 'Cooperative',
   issuer: 'Licensed Issuer',
   admin: 'Admin',
 };

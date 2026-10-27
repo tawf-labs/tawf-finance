@@ -55,8 +55,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(demoUsers.investor);
     } else if (email.toLowerCase().includes('issuer') || email.toLowerCase().includes('sekuritas')) {
       setUser(demoUsers.issuer);
-    } else if (email.toLowerCase().includes('cooperative') || email.toLowerCase().includes('bmt')) {
-      setUser(demoUsers.cooperative);
     } else if (email.toLowerCase().includes('admin')) {
       setUser(demoUsers.admin);
     } else {
@@ -93,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const redirectPath: Record<UserRole, string> = {
         investor: '/investor/dashboard',
         business: '/investor/dashboard',
-        cooperative: '/cooperative/dashboard',
+        cooperative: '/investor/dashboard',
         issuer: '/issuer/ops',
         admin: '/admin/dashboard',
       };

@@ -2,7 +2,7 @@
  * Feature flags, read from Vite env at build time.
  *
  * VITE_FEATURE_FINANCING_POOL: the BPRS financing sell-down pool (DealRegistry,
- * RedemptionVault, /investor/pools and the BPRS originator role). Off by
+ * RedemptionVault, /investor/pools and the pool admin pages). Off by
  * default: the pilot launches with the Deposito Pool and SCF only. The pool's
  * contracts stay deployed and tested, so it can be switched back on later.
  */

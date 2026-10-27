@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Check, ArrowRight, TrendingUp, FileText, Heart, Sprout, Store, Building, Shield } from 'lucide-react';
+import { Check, ArrowRight, TrendingUp, FileText, Heart, Sprout, Store, Shield } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -128,53 +128,6 @@ export function Onboarding() {
         ),
       },
     ],
-    cooperative: [
-      {
-        title: 'Welcome to Tawf Finance!',
-        description: 'Let\'s set up your BPRS originator dashboard.',
-        content: (
-          <div className="text-center py-8">
-            <div className="w-24 h-24 mx-auto mb-6 bg-tawf-green-10 rounded-full flex items-center justify-center">
-              <Building className="w-12 h-12 text-tawf-green" />
-            </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Widen Your Funding Channel</h3>
-            <p className="text-tawf-muted max-w-md mx-auto">
-              Sell down pools of the financing you originate and service to an outside investor pool.
-            </p>
-          </div>
-        ),
-      },
-      {
-        title: 'Structure & Fund Pools',
-        description: 'Assemble pools and get DPS sign-off.',
-        content: (
-          <div className="text-center py-8">
-            <div className="w-24 h-24 mx-auto mb-6 bg-blue-50 rounded-full flex items-center justify-center">
-              <Check className="w-12 h-12 text-blue-600" />
-            </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Release Capacity, Keep Servicing</h3>
-            <p className="text-tawf-muted max-w-md mx-auto">
-              Sell down a defined pool through a compliant akad while retaining origination and servicing revenue.
-            </p>
-          </div>
-        ),
-      },
-      {
-        title: 'You\'re All Set!',
-        description: 'Start supporting local businesses.',
-        content: (
-          <div className="text-center py-8">
-            <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-tawf-green to-tawf-gold rounded-full flex items-center justify-center text-white">
-              <Check className="w-12 h-12" />
-            </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Ready to Make an Impact?</h3>
-            <p className="text-tawf-muted max-w-md mx-auto">
-              You have {3} businesses pending verification. Start reviewing them now!
-            </p>
-          </div>
-        ),
-      },
-    ],
     issuer: [
       {
         title: 'Welcome to Tawf Finance!',
@@ -235,7 +188,7 @@ export function Onboarding() {
       const redirectMap: Record<string, string> = {
         investor: '/investor/dashboard',
         business: '/investor/dashboard',
-        cooperative: '/cooperative/dashboard',
+        cooperative: '/investor/dashboard',
         issuer: '/issuer/ops',
         admin: '/admin/dashboard',
       };
@@ -247,7 +200,7 @@ export function Onboarding() {
     const redirectMap: Record<string, string> = {
       investor: '/investor/dashboard',
       business: '/investor/dashboard',
-      cooperative: '/cooperative/dashboard',
+      cooperative: '/investor/dashboard',
       issuer: '/issuer/ops',
       admin: '/admin/dashboard',
     };
