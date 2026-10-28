@@ -15,6 +15,15 @@ const metadata = {
 };
 
 /**
+ * Skip a connector's eager setup. wagmi runs every connector's setup() when the
+ * config is created, and the MetaMask and WalletConnect setups download their
+ * SDKs (about 900 kB) on every page load. Without it they load on connect().
+ */
+function lazy(fn: CreateConnectorFn): CreateConnectorFn {
+  return (params) => ({ ...fn(params), setup: undefined });
+}
+
+/**
  * Wagmi client.
  * - injected: browser extensions (MetaMask, Rabby) and wallet in-app browsers.
  * - metaMask: the MetaMask app on a phone (deep link), the extension on desktop.
@@ -24,11 +33,11 @@ const metadata = {
  */
 const connectors: CreateConnectorFn[] = [
   injected(),
-  metaMask({ dappMetadata: { name: metadata.name, url: appUrl } }),
-  coinbaseWallet({ appName: metadata.name, appLogoUrl: metadata.icons[0] }),
+  lazy(metaMask({ dappMetadata: { name: metadata.name, url: appUrl } })),
+  lazy(coinbaseWallet({ appName: metadata.name, appLogoUrl: metadata.icons[0] })),
 ];
 if (WALLETCONNECT_PROJECT_ID) {
-  connectors.splice(2, 0, walletConnect({ projectId: WALLETCONNECT_PROJECT_ID, metadata, showQrModal: true }));
+  connectors.splice(2, 0, lazy(walletConnect({ projectId: WALLETCONNECT_PROJECT_ID, metadata, showQrModal: true })));
 }
 
 export const config = createConfig({
