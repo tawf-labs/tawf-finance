@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Shield, AlertTriangle, CheckCircle, Loader2, RefreshCw } from 'lucide-react';
+import { Shield, AlertTriangle, CheckCircle, Loader2, RefreshCw, ExternalLink } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
 import { getJson, type SeriesStatus } from '@/lib/tokenization';
 import { getScfStatus, type ScfStatus } from '@/lib/scf';
-import { INVEST_TOKENS } from '@/web3/constants';
+import { useActivity, ACTIVITY_LABEL, PRODUCT_LABEL, eventAmount, timeAgo } from '@/lib/activity';
+import { INVEST_TOKENS, explorerTxUrl } from '@/web3/constants';
 import { formatIdr, formatUsdc } from '@/web3/format';
 
 const MODE_LABEL: Record<string, string> = {
@@ -217,14 +218,51 @@ export function AdminCompliance() {
           )}
 
           {activeTab === 'events' && (
-            <div className="p-4 rounded-xl border border-dashed border-tawf-green-10 bg-tawf-sand-30">
-              <h3 className="font-medium text-tawf-green mb-1">Event log (from the activity API)</h3>
-              {/* TODO(lead): fill from useActivity */}
-              <p className="text-sm text-tawf-muted">Placeholder. The on-chain event feed will be shown here.</p>
-            </div>
+            <EventLog />
           )}
         </div>
       </Card>
+    </div>
+  );
+}
+
+const LOG_KINDS = new Set(['ReserveRecorded', 'ProfitRecorded', 'ProfileSet', 'MaturitySettled', 'ProfitDistributed', 'IdentityRegistered']);
+
+function EventLog() {
+  const { events, loading, error, refresh } = useActivity(undefined, { admin: true });
+  const rows = events.filter((e) => LOG_KINDS.has(e.kind)).slice(0, 50);
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-medium text-tawf-green">Event log</h3>
+        <Button variant="secondary" size="sm" onClick={() => void refresh()} disabled={loading}>
+          <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} /> Refresh
+        </Button>
+      </div>
+      {error && <p className="text-sm text-red-600 mb-2">Could not load events: {error}</p>}
+      {rows.length === 0 ? (
+        <p className="text-sm text-tawf-muted">{loading ? 'Loading events...' : 'No events yet.'}</p>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((e) => (
+            <div key={e.id} className="flex items-center gap-3 p-3 rounded-xl border border-tawf-green-10 bg-white">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-tawf-green">
+                  {ACTIVITY_LABEL[e.kind] ?? e.kind}
+                  {e.period ? <span className="text-tawf-muted font-normal"> (period {e.period})</span> : null}
+                  {eventAmount(e, false) && <span className="text-tawf-muted font-normal"> {eventAmount(e, false)}</span>}
+                </p>
+                <p className="text-xs text-tawf-muted truncate">
+                  {PRODUCT_LABEL[e.product]}{e.investor ? ` · ${e.investor.slice(0, 6)}...${e.investor.slice(-4)}` : ''} · {timeAgo(e.timestamp)}
+                </p>
+              </div>
+              <a href={explorerTxUrl(e.txHash)} target="_blank" rel="noopener noreferrer" className="text-tawf-muted hover:text-tawf-green shrink-0" title="View transaction">
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
