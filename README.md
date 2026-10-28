@@ -117,7 +117,7 @@ The Discover plan allows Streams, the Key-Value Store and Webhooks, but caps `et
 - **`GET /api/tokenization/activity`** reads the index first when `QUICKNODE_API_KEY` is set and `lastBlock` is within about 2,000 blocks of the chain head (so a stream that is still backfilling, paused or stuck is ignored). Otherwise it scans Arbiscan (`ETHERSCAN_API_KEY`), then the RPC. The response has the same shape either way, with `source: "index"` when the index served it.
 - **Webhook** `tawf-alerts` (template `evmContractEvents`, ProfitDistributed and MaturitySettled on both series) delivers to `POST /api/tokenization/qn/alert` (`QN_ALERT_TOKEN`), which keeps the newest 20 in KV `tawf:alerts`.
 
-Set up or change them with `npx tsx scripts/quicknode-setup.ts` (plan only), `--apply` (create or update the stream, paused), `--activate` (run it), `--webhooks` (also the alert webhook) and `--base <url>` (deployment to deliver to). It is idempotent: each object is found by name first. A new Webhook starts active, so create it only once the handler is deployed.
+Set up or change them with `npx tsx scripts/quicknode-setup.ts` (plan only), `--apply` (create or update the stream, kept paused, no webhook), `--activate` (run the stream and create or update the alert webhook) and `--base <url>` (deployment to deliver to). It is idempotent: each object is found by name first. A new Webhook starts active, so only `--activate` creates it, and it should be run once the handlers and the tokens are deployed. The stream starts at the oldest deploy block, so history backfills when it is activated.
 
 ## Smart Contracts
 

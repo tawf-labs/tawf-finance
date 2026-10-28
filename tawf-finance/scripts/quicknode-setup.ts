@@ -3,9 +3,9 @@
  * Idempotent: each is found by name first and updated in place. Without --apply it only prints the plan.
  *
  *   npx tsx scripts/quicknode-setup.ts                       plan only
- *   npx tsx scripts/quicknode-setup.ts --apply               create or update the stream (paused)
- *   npx tsx scripts/quicknode-setup.ts --apply --activate    and run it
- *   npx tsx scripts/quicknode-setup.ts --apply --webhooks    also create or update the alert webhook
+ *   npx tsx scripts/quicknode-setup.ts --apply               create or update the stream, kept paused (no webhook)
+ *   npx tsx scripts/quicknode-setup.ts --apply --activate    run the stream and create or update the alert webhook
+ *                                                            (a new webhook is active at once, so only --activate makes it)
  *   --base <url>   deployment to deliver to (default https://app.tawf.finance)
  *
  * Env: QUICKNODE_API_KEY, QN_STREAM_TOKEN, QN_ALERT_TOKEN (the static x-tawf-token the handlers check).
@@ -142,5 +142,5 @@ async function setupWebhook() {
 }
 
 await setupStream()
-if (flag('--webhooks')) await setupWebhook()
+if (flag('--activate')) await setupWebhook()
 if (!apply) console.log('Plan only. Re-run with --apply to make the changes.')
