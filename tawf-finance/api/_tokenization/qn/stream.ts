@@ -2,15 +2,21 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { decodeEventLog, getAddress, type Address, type Hex, type Log } from 'viem'
 import { publicClient, readableError } from '../_lib/operator.js'
 import { hasToken } from '../_lib/qn-auth.js'
-import { kvGetJson, kvSetJson, kvEnabled } from '../_lib/qn-kv.js'
+import { kvEnabled, kvListAdd, kvPool, kvRaiseLast, kvSetJson, padBlock } from '../_lib/qn-kv.js'
 import { hexBig, normalize, sources, type ActivityEvent } from '../_lib/activity-core.js'
 
-/** Newest events kept per key (a KV value holds about 64 KB). */
-const KEEP = 150
+// Index layout in the QuickNode KV store. Writes are server-side appends only (no read-modify-write),
+// so overlapping or retried deliveries cannot lose events or lower the last block:
+//   tawf:ev:<txHash>:<logIndex>   set    the event JSON (a unique key, rewriting it is harmless)
+//   tawf:act:<wallet>             list   items "<block 12 digits>:<txHash>:<logIndex>" of the wallet's events
+//   tawf:act:global               list   same, for pool-wide events (no investor)
+//   tawf:act:admin                list   same, for every event
+//   tawf:act:last:<bucket>        list   padded block numbers seen (the max is the last block)
 export const actKey = (wallet: string) => `tawf:act:${wallet.toLowerCase()}`
 export const ADMIN_KEY = 'tawf:act:admin'
 export const GLOBAL_KEY = 'tawf:act:global'
-export const LAST_BLOCK_KEY = 'tawf:act:lastBlock'
+export const eventKey = (id: string) => `tawf:ev:${id}`
+export const listItem = (e: ActivityEvent) => `${padBlock(e.blockNumber)}:${e.id}`
 
 interface RawLog {
   address: Address
@@ -23,13 +29,6 @@ interface RawLog {
 }
 
 const num = (v: Hex | number | string): bigint => (typeof v === 'string' ? hexBig(v.startsWith('0x') ? v : `0x${BigInt(v).toString(16)}`) : BigInt(v))
-
-/** Merge new events into a stored list: dedupe by id, newest block first, capped. */
-function merge(old: ActivityEvent[], add: ActivityEvent[]): ActivityEvent[] {
-  const byId = new Map(old.map((e) => [e.id, e]))
-  for (const e of add) byId.set(e.id, e)
-  return [...byId.values()].sort((x, y) => Number(BigInt(y.blockNumber) - BigInt(x.blockNumber))).slice(0, KEEP)
-}
 
 /**
  * QuickNode Stream destination. The stream's filter function keeps only logs from our
@@ -100,24 +99,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     )
     for (const e of events) e.timestamp = times.get(e.blockNumber) ?? e.timestamp
 
-    if (events.length > 0) {
-      const perKey = new Map<string, ActivityEvent[]>()
-      const push = (k: string, e: ActivityEvent) => perKey.set(k, [...(perKey.get(k) ?? []), e])
-      for (const e of events) {
-        push(ADMIN_KEY, e)
-        if (e.investor) push(actKey(getAddress(e.investor)), e)
-        else if (e.product === 'pool' || e.product === 'series1' || e.product === 'scf') push(GLOBAL_KEY, e)
-      }
-      for (const [k, add] of perKey) {
-        const old = await kvGetJson<ActivityEvent[]>(k, [])
-        await kvSetJson(k, merge(old, add))
-      }
+    // Bodies first (unique keys), then the list items that point at them.
+    await kvPool(events, 8, (e) => kvSetJson(eventKey(e.id), e))
+    const adds: [string, string][] = []
+    for (const e of events) {
+      const item = listItem(e)
+      adds.push([ADMIN_KEY, item])
+      if (e.investor) adds.push([actKey(getAddress(e.investor)), item])
+      else if (e.product === 'pool' || e.product === 'series1' || e.product === 'scf') adds.push([GLOBAL_KEY, item])
     }
+    await kvPool(adds, 8, ([k, item]) => kvListAdd(k, item))
 
-    if (last > 0n) {
-      const prev = BigInt(await kvGetJson<string>(LAST_BLOCK_KEY, '0'))
-      if (last > prev) await kvSetJson(LAST_BLOCK_KEY, last.toString())
-    }
+    // Only after the events are stored, so a fresh last block never points past missing data.
+    if (last > 0n) await kvRaiseLast(last)
     res.status(200).json({ received: items.length, events: events.length, lastBlock: last.toString() })
   } catch (err) {
     res.status(500).json({ error: readableError(err, 'Could not index the stream payload') })

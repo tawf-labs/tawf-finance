@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createPublicClient, decodeEventLog, getAddress, http, isAddress, pad, toEventSelector, type AbiEvent, type Address, type Hex, type Log } from 'viem'
 import { arbitrumSepolia } from 'viem/chains'
 import { readableError } from './_lib/operator.js'
-import { kvEnabled, kvGetJson } from './_lib/qn-kv.js'
+import { kvEnabled, kvGetJson, kvLastBlock, kvListGet, kvPool } from './_lib/qn-kv.js'
 import { GLOBAL, hexBig, isInvestorEvent, normalize, sources, type ActivityEvent, type Source } from './_lib/activity-core.js'
 
 /**
@@ -29,21 +29,36 @@ const isRangeError = (err: unknown) =>
 
 /** The stream's KV index counts as current when it has seen a block this recently (about 8 minutes). */
 const INDEX_MAX_LAG = 2_000n
+/** Newest events returned from the index. */
+const INDEX_KEEP = 150
 
 /**
  * Fast path: the activity the QuickNode Stream wrote to the KV store (see qn/stream.ts).
- * Returns null when the index is missing or behind, so the caller scans the chain instead.
+ * Returns null when the index is missing, behind, or does not reach back as far as the request,
+ * so the caller scans the chain instead.
  */
 async function readIndex(wallet: Address | null, from: bigint, head: bigint): Promise<{ events: ActivityEvent[]; lastBlock: bigint } | null> {
   try {
-    const last = BigInt(await kvGetJson<string>('tawf:act:lastBlock', '0'))
+    const last = await kvLastBlock(head)
     if (last === 0n || head - last > INDEX_MAX_LAG) return null
-    const lists = wallet
-      ? await Promise.all([kvGetJson<ActivityEvent[]>(`tawf:act:${wallet.toLowerCase()}`, []), kvGetJson<ActivityEvent[]>('tawf:act:global', [])])
-      : [await kvGetJson<ActivityEvent[]>('tawf:act:admin', [])]
-    const byId = new Map(lists.flat().map((e) => [e.id, e]))
-    const events = [...byId.values()].filter((e) => BigInt(e.blockNumber) >= from)
-    return { events, lastBlock: last }
+    // The index holds everything from the stream's start block. A request that begins earlier
+    // than the oldest contract's deploy block cannot be missing anything, one that begins
+    // before the stream started could be.
+    const start = BigInt(await kvGetJson<string>('tawf:act:startBlock', '-1'))
+    const oldest = sources().reduce((m, x) => (x.from < m ? x.from : m), head)
+    if (start < 0n || start > (from > oldest ? from : oldest)) return null
+
+    const keys = wallet ? [`tawf:act:${wallet.toLowerCase()}`, 'tawf:act:global'] : ['tawf:act:admin']
+    const items = (await Promise.all(keys.map((k) => kvListGet(k)))).flat()
+    const ids = [...new Set(items)]
+      .filter((it) => BigInt(it.slice(0, 12)) >= from)
+      .sort((x, y) => (x < y ? 1 : x > y ? -1 : 0))
+      .slice(0, INDEX_KEEP)
+      .map((it) => it.slice(13))
+    const bodies = await kvPool(ids, 10, (id) => kvGetJson<ActivityEvent | null>(`tawf:ev:${id}`, null))
+    // A list item without its body means a write is still in flight: do not serve a partial index.
+    if (bodies.some((b) => b === null)) return null
+    return { events: bodies as ActivityEvent[], lastBlock: last }
   } catch {
     return null
   }
@@ -295,6 +310,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
   try {
+    if (req.query.alerts === '1') {
+      // Read-only: the newest ProfitDistributed / MaturitySettled alerts recorded by the QuickNode webhook.
+      const items = kvEnabled() ? await kvListGet('tawf:alerts').catch(() => [] as string[]) : []
+      const alerts = items
+        .sort((x, y) => (x < y ? 1 : x > y ? -1 : 0))
+        .slice(0, 10)
+        .map((it) => {
+          const [block, txHash, logIndex, kind, product] = it.split(':')
+          return { id: `${txHash}:${logIndex}`, blockNumber: BigInt(block).toString(), txHash, kind, product }
+        })
+      res.setHeader('cache-control', 's-maxage=30, stale-while-revalidate=60')
+      res.status(200).json({ alerts })
+      return
+    }
     const q = req.query.wallet
     if (q !== undefined && (typeof q !== 'string' || !isAddress(q))) {
       res.status(400).json({ error: 'wallet must be a single valid address.' })

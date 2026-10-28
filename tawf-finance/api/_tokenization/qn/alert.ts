@@ -2,18 +2,17 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { decodeEventLog, type Hex } from 'viem'
 import { readableError } from '../_lib/operator.js'
 import { hasToken } from '../_lib/qn-auth.js'
-import { kvGetJson, kvSetJson, kvEnabled } from '../_lib/qn-kv.js'
+import { kvEnabled, kvListAdd, padBlock } from '../_lib/qn-kv.js'
 import { sources } from '../_lib/activity-core.js'
 
 export const ALERTS_KEY = 'tawf:alerts'
 
 interface Alert {
-  id: string
   kind: string
   product: string
   txHash: string
+  logIndex: string
   blockNumber: string
-  at: number
 }
 
 /**
@@ -52,23 +51,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const d = decodeEventLog({ abi: src.events, data: l.data as Hex, topics: l.topics as [Hex, ...Hex[]], strict: false })
         if (d.eventName !== 'ProfitDistributed' && d.eventName !== 'MaturitySettled') continue
         found.push({
-          id: `${l.transactionHash}:${l.logIndex}`,
+          logIndex: BigInt(l.logIndex ?? '0x0').toString(),
           kind: d.eventName,
           product: src.product,
           txHash: String(l.transactionHash),
           blockNumber: BigInt(l.blockNumber ?? '0x0').toString(),
-          at: Math.floor(Date.now() / 1000),
         })
       } catch {
         // not an alert event
       }
     }
-    if (found.length > 0) {
-      const old = await kvGetJson<Alert[]>(ALERTS_KEY, [])
-      const byId = new Map(old.map((a) => [a.id, a]))
-      for (const a of found) byId.set(a.id, a)
-      await kvSetJson(ALERTS_KEY, [...byId.values()].sort((x, y) => Number(BigInt(y.blockNumber) - BigInt(x.blockNumber))).slice(0, 20))
-    }
+    // One append per alert (atomic, a duplicate is ignored). The reader keeps the newest.
+    for (const a of found) await kvListAdd(ALERTS_KEY, `${padBlock(a.blockNumber)}:${a.txHash}:${a.logIndex}:${a.kind}:${a.product}`)
     res.status(200).json({ received: items.length, alerts: found.length })
   } catch (err) {
     res.status(500).json({ error: readableError(err, 'Could not record the alert') })

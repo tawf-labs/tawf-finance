@@ -114,6 +114,12 @@ async function setupStream() {
   }
 }
 
+/** The index covers the chain from the stream's start block. The activity route checks this before it trusts the index. */
+async function recordStartBlock() {
+  const r = await qn('POST', '/kv/rest/v1/sets', { key: 'tawf:act:startBlock', value: JSON.stringify(String(startBlock)) })
+  console.log(`  index start block ${startBlock} recorded: HTTP ${r.status}`)
+}
+
 async function setupWebhook() {
   const token = process.env.QN_ALERT_TOKEN
   if (apply && (!token || token.length < 32)) throw new Error('QN_ALERT_TOKEN must be set (32+ characters).')
@@ -142,5 +148,6 @@ async function setupWebhook() {
 }
 
 await setupStream()
+if (flag('--activate') && apply) await recordStartBlock()
 if (flag('--activate')) await setupWebhook()
 if (!apply) console.log('Plan only. Re-run with --apply to make the changes.')

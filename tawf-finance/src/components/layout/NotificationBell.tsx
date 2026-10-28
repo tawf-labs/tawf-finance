@@ -6,6 +6,7 @@ import { useTawfSeries, useSukuk, useScfLimit, useIsVerified } from '@/web3/toke
 import { DEPOSITO_POOL, SCF_DISTRIBUTOR_ADDRESS, SCF_TOKEN_ADDRESS } from '@/web3/tokenization';
 import { CHAIN_ID, explorerTxUrl } from '@/web3/constants';
 import { formatIdr, formatUsdc } from '@/web3/format';
+import { getJson } from '@/lib/tokenization';
 import { useActivity, ACTIVITY_LABEL, PRODUCT_LABEL, readNotifyPrefs, eventAmount, eventLabel, relevantEvents, timeAgo } from '@/lib/activity';
 
 const POOL_TARGET = { series: DEPOSITO_POOL.series, token: DEPOSITO_POOL.token, sandbox: DEPOSITO_POOL.sandbox, seriesId: DEPOSITO_POOL.seriesId };
@@ -64,6 +65,7 @@ export function NotificationBell({ role }: { role: string }) {
   const who = isAdmin ? 'admin' : address ?? '';
   const { events, loading, refresh } = useActivity(isAdmin ? undefined : address, { admin: isAdmin });
   const alerts = useInvestorAlerts(!isAdmin);
+  const [platform, setPlatform] = useState<{ id: string; kind: string; product: string; txHash: `0x${string}` }[]>([]);
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState<number>(() => Number(localStorage.getItem(seenKey(who)) ?? 0));
   const ref = useRef<HTMLDivElement>(null);
@@ -96,7 +98,13 @@ export function NotificationBell({ role }: { role: string }) {
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={() => { setOpen((o) => !o); if (!open) void refresh(); }}
+        onClick={() => {
+          setOpen((o) => !o);
+          if (!open) {
+            void refresh();
+            getJson<{ alerts: typeof platform }>('activity?alerts=1').then((r) => setPlatform(r.alerts.slice(0, 3))).catch(() => setPlatform([]));
+          }
+        }}
         className="relative p-2 rounded-full hover:bg-tawf-green-10 text-tawf-green"
         aria-label={count ? `Notifications, ${count} new` : 'Notifications'}
         aria-expanded={open}
@@ -125,6 +133,18 @@ export function NotificationBell({ role }: { role: string }) {
                   <span className="inline-block w-2 h-2 rounded-full bg-tawf-gold mr-2 align-middle" />
                   {a.text}
                 </Link>
+              ))}
+            </div>
+          )}
+
+          {platform.length > 0 && (
+            <div className="px-2 py-2 border-b border-line">
+              <p className="px-2 pb-1 text-xs uppercase tracking-wide text-tawf-muted">Platform alerts</p>
+              {platform.map((a) => (
+                <a key={a.id} href={explorerTxUrl(a.txHash)} target="_blank" rel="noopener noreferrer" className="block px-2 py-1.5 rounded-lg text-sm text-tawf-ink hover:bg-tawf-green-5">
+                  {a.kind === 'MaturitySettled' ? 'Pool maturity settled' : 'Pool profit distributed'}
+                  <span className="text-xs text-tawf-muted"> · {PRODUCT_LABEL[a.product as keyof typeof PRODUCT_LABEL] ?? a.product}</span>
+                </a>
               ))}
             </div>
           )}
