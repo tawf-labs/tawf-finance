@@ -9,6 +9,12 @@ import { getScfStatus, type ScfStatus } from '@/lib/scf';
 import { INVEST_TOKENS } from '@/web3/constants';
 import { formatIdr, formatUsdc } from '@/web3/format';
 
+const MODE_LABEL: Record<string, string> = {
+  PILOT_ONLY: 'Pilot only',
+  SCREENED_GROUP: 'Screened group',
+  SANDBOX_ADMITTED: 'OJK sandbox admitted',
+};
+
 const SERIES_NAME = { series: 'Tawf Deposito Pool: BPRS Demo', pool: 'Tawf Deposito Pool: Jawa Barat' } as const;
 
 interface Alert {
@@ -35,7 +41,7 @@ function sandboxLine(label: string, s: SeriesStatus | null) {
     <div key={label} className="p-4 border border-tawf-green-10 rounded-xl space-y-2">
       <div className="flex items-center justify-between gap-3">
         <p className="font-medium text-tawf-green">{label}</p>
-        <Badge variant="info" size="sm">Sandbox mode {s.sandbox.mode}</Badge>
+        <Badge variant="info" size="sm">Sandbox mode: {MODE_LABEL[s.sandbox.mode] ?? s.sandbox.mode}</Badge>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
         <div><p className="text-xs text-tawf-muted">Investors</p><p className="text-tawf-green">{s.sandbox.investorCount} of {s.sandbox.maxInvestors}</p></div>

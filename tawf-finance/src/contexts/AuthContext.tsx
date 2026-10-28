@@ -85,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: email.trim() || base.email,
       status: 'active',
       joinedAt: new Date().toISOString(),
+      tier: undefined,
       kycVerified: false,
       walletAddress: undefined,
       phoneNumber: undefined,

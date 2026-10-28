@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button';
 import { FINANCING_POOL_ENABLED } from '@/config/features';
 import { useAuth } from '@/hooks/useAuth';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 type UserRole = 'investor' | 'issuer';
 
 interface FormData {
@@ -26,6 +28,7 @@ export function Register() {
   const { register } = useAuth();
   const [step, setStep] = useState(1);
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormData>({
     firstName: '',
     lastName: '',
@@ -58,7 +61,13 @@ export function Register() {
   const handleSubmit = () => {
     // Pilot: a demo profile kept in this browser, no backend.
     if (!selectedRole) return;
-    register(`${formData.firstName} ${formData.lastName}`, formData.email, selectedRole);
+    const first = formData.firstName.trim();
+    const last = formData.lastName.trim();
+    if (!first || !last) return setError('Enter your first and last name.');
+    if (!EMAIL_RE.test(formData.email.trim())) return setError('Enter a valid email address, for example name@example.com.');
+    if (formData.password.length < 8) return setError('The password must be at least 8 characters.');
+    setError(null);
+    register(`${first} ${last}`, formData.email, selectedRole);
     navigate('/onboarding');
   };
 
@@ -216,6 +225,7 @@ export function Register() {
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
+                    minLength={8}
                     required
                   />
                   <p className="text-xs text-tawf-muted mt-1">Must be at least 8 characters</p>
@@ -237,6 +247,8 @@ export function Register() {
                     <a href="/about" target="_blank" rel="noopener noreferrer" className="text-tawf-gold hover:underline">Privacy Policy</a>
                   </label>
                 </div>
+
+                {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
                 <Button type="submit" size="lg" className="w-full" disabled={!formData.agreeTerms}>
                   Create Account

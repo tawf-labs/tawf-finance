@@ -11,8 +11,44 @@ import { shortAddress } from '@/web3/format';
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
-/** `tawfSeriesToken` becomes "Tawf series token". */
+/** Readable names for the deployment keys, so each contract says which product it belongs to. */
+const LABELS: Record<string, string> = {
+  tawfSeries: 'BPRS Demo pool: series',
+  tawfSeriesToken: 'BPRS Demo pool: token',
+  tawfSeries2: 'BPRS Demo pool 2: series',
+  tawfSeries2Token: 'BPRS Demo pool 2: token',
+  tawfSeries2Sandbox: 'BPRS Demo pool 2: sandbox module',
+  sandboxModule: 'BPRS Demo pool: sandbox module',
+  depositoPool: 'Deposito Pool (Jawa Barat): series',
+  depositoPoolToken: 'Deposito Pool (Jawa Barat): token',
+  depositoPoolSandbox: 'Deposito Pool (Jawa Barat): sandbox module',
+  depositoPoolLedger: 'Deposito Pool (Jawa Barat): reserve ledger',
+  scfToken: 'SCF: token',
+  scfDistributor: 'SCF: distributor',
+  scfCompliance: 'SCF: compliance',
+  scfLimitModule: 'SCF: investor limit module',
+  scfAnchor: 'SCF: ledger anchor',
+  anchor: 'Reserve anchor',
+  idFactory: 'Identity factory',
+  usdg: 'USDG (real)',
+  mockUsdg: 'Mock USDG (settlement token)',
+  mockUsdc: 'Mock USDC',
+  mockUsdt: 'Mock USDT',
+  sukukToken: 'Sukuk 1: token',
+  sukukDistributor: 'Sukuk 1: distributor',
+  sukuk2Token: 'Sukuk 2: token',
+  sukuk2Distributor: 'Sukuk 2: distributor',
+  legacyPoolDealRegistry: 'Legacy financing pool: deal registry',
+  legacyPoolBondReceiptNft: 'Legacy financing pool: receipt NFT',
+  legacyPoolRedemptionVault: 'Legacy financing pool: redemption vault',
+  dealRegistry: 'Financing pool: deal registry',
+  bondReceiptNft: 'Financing pool: receipt NFT',
+  redemptionVault: 'Financing pool: redemption vault',
+};
+
+/** `tawfSeriesToken` becomes "Tawf series token" when there is no entry in LABELS. */
 function labelOf(key: string): string {
+  if (LABELS[key]) return LABELS[key];
   const words = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
@@ -52,7 +88,8 @@ export function AdminSettings() {
   const contracts = useMemo(
     () =>
       Object.entries(deployments as Record<string, unknown>)
-        .filter(([key, value]) => typeof value === 'string' && ADDRESS.test(value) && key !== 'operator')
+        // settlementToken repeats the address of the token it points to, so it is listed once under that token.
+        .filter(([key, value]) => typeof value === 'string' && ADDRESS.test(value) && key !== 'operator' && key !== 'settlementToken')
         .map(([key, value]) => ({ key, address: value as `0x${string}` })),
     [],
   );

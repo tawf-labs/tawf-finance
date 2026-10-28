@@ -143,12 +143,12 @@ export function Login() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap">
                   <input type="checkbox" className="rounded text-tawf-green focus:ring-tawf-gold" />
                   <span className="text-sm text-tawf-muted">Remember me</span>
                 </label>
-                <span className="text-xs text-tawf-muted text-right">
+                <span className="text-xs text-tawf-muted">
                   The pilot uses a demo login, no password to reset.
                 </span>
               </div>

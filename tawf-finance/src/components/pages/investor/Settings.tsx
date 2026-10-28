@@ -16,6 +16,7 @@ import { runFaucet as postFaucet, type FaucetResult } from '@/lib/tokenization';
 import { shortAddress } from '@/web3/format';
 import { explorerAddressUrl, explorerTxUrl } from '@/web3/constants';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NOTIFY_KEY = 'tawf.notifyPrefs';
 const WAGMI_KEYS = ['wagmi.store', 'wagmi.recentConnectorId'];
 
@@ -48,20 +49,28 @@ export function Settings() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: user?.name ?? '', email: user?.email ?? '', phone: user?.phoneNumber ?? '' });
   const [saved, setSaved] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<NotifyPrefs>(loadPrefs);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const startEdit = () => {
     setForm({ name: user?.name ?? '', email: user?.email ?? '', phone: user?.phoneNumber ?? '' });
     setSaved(false);
+    setFormError(null);
     setEditing(true);
   };
   const cancelEdit = () => {
     setForm({ name: user?.name ?? '', email: user?.email ?? '', phone: user?.phoneNumber ?? '' });
+    setFormError(null);
     setEditing(false);
   };
   const saveProfile = () => {
-    updateUser({ name: form.name.trim() || user?.name, email: form.email.trim() || user?.email, phoneNumber: form.phone.trim() || undefined });
+    const name = form.name.trim();
+    const email = form.email.trim();
+    if (!name) return setFormError('Enter your full name.');
+    if (!EMAIL_RE.test(email)) return setFormError('Enter a valid email address, for example name@example.com.');
+    updateUser({ name, email, phoneNumber: form.phone.trim() || undefined });
+    setFormError(null);
     setEditing(false);
     setSaved(true);
   };
@@ -163,18 +172,18 @@ export function Settings() {
           {activeTab === 'profile' && (
             <div className="space-y-6">
               {/* Profile Header */}
-              <div className="flex items-center gap-6 p-6 bg-tawf-sand-30 rounded-xl">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6 p-4 sm:p-6 bg-tawf-sand-30 rounded-xl">
                 <Avatar name={user?.name} size="xl" />
-                <div className="flex-1">
-                  <h3 className="font-serif text-xl text-tawf-green">{user?.name}</h3>
-                  <p className="text-tawf-muted">{user?.email}</p>
+                <div className="flex-1 min-w-[12rem]">
+                  <h3 className="font-serif text-xl text-tawf-green break-words">{user?.name}</h3>
+                  <p className="text-tawf-muted break-all">{user?.email}</p>
                   <div className="flex items-center gap-2 mt-2">
                     <Badge variant={user?.status === 'active' ? 'success' : 'warning'} size="sm">
                       {user?.status}
                     </Badge>
-                    {user?.tier && (
+                    {user && (
                       <Badge variant="info" size="sm" className="capitalize">
-                        {user.tier} Investor
+                        {user.tier ? `${user.tier} ${user.role}` : user.role}
                       </Badge>
                     )}
                   </div>
@@ -245,6 +254,7 @@ export function Settings() {
                 </div>
               </div>
 
+              {formError && <p role="alert" className="text-sm text-red-600 text-right">{formError}</p>}
               {editing ? (
                 <div className="flex justify-end gap-3">
                   <Button variant="ghost" size="md" onClick={cancelEdit}>Cancel</Button>
@@ -258,7 +268,7 @@ export function Settings() {
 
           {activeTab === 'notifications' && (
             <div className="space-y-4">
-              <p className="text-sm text-tawf-muted">Choose which events show in the bell. Saved on this device.</p>
+              <p className="text-sm text-tawf-muted">Choose which alerts show in the bell, such as profit ready to claim or a wrong network. Saved on this device.</p>
               {NOTIFY_ITEMS.map((item) => (
                 <div key={item.key} className="flex items-center justify-between gap-4 p-4 border border-tawf-green-10 rounded-xl">
                   <div>
