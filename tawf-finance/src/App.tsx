@@ -9,6 +9,7 @@ import {
   About,
   HowItWorks,
   Glossary,
+  NotFound,
   Instruments,
   ProofOfReserve,
   Login,
@@ -155,6 +156,9 @@ function AppContent() {
             path="/dashboard"
             element={<Navigate to="/investor/dashboard" replace />}
           />
+
+          {/* Anything else */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
 
