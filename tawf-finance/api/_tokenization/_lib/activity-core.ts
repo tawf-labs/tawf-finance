@@ -1,3 +1,4 @@
+import { gunzipSync } from 'node:zlib'
 import { getAddress, isAddress, parseAbi, type AbiEvent, type Address, type Hex, type Log } from 'viem'
 import { addresses, pool } from './operator.js'
 import deployments from '../../../src/web3/tokenization.deployments.json' with { type: 'json' }
@@ -133,11 +134,54 @@ export function compareEvents(x: { blockNumber: string; id: string }, y: { block
 }
 
 /**
+ * A request body as JSON. The platform only parses a body for a JSON content type, so a delivery
+ * that arrives as a string or bytes (any other content type, or newline separated JSON) is decoded
+ * here. Already parsed values are returned as they are.
+ */
+export function parseBody(raw: unknown): unknown {
+  let text: string | null = null
+  if (typeof raw === 'string') text = raw
+  else if (raw instanceof Uint8Array) {
+    let bytes: Uint8Array = raw
+    if (bytes.length > 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) bytes = gunzipSync(bytes)
+    text = Buffer.from(bytes).toString('utf8')
+  }
+  if (text === null) return raw
+  text = text.trim()
+  if (!text) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    const lines: unknown[] = []
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue
+      try {
+        lines.push(JSON.parse(line))
+      } catch {
+        return null
+      }
+    }
+    return lines
+  }
+}
+
+/** What a delivery body looks like, with no values: a short type and key description for the logs. */
+export function describeBody(raw: unknown): string {
+  if (raw === undefined || raw === null) return String(raw)
+  if (typeof raw === 'string') return `string(${raw.length})`
+  if (raw instanceof Uint8Array) return `bytes(${raw.length})`
+  if (Array.isArray(raw)) return `array(${raw.length})`
+  if (typeof raw === 'object') return `object{${Object.keys(raw as object).slice(0, 8).join(',')}}`
+  return typeof raw
+}
+
+/**
  * The logs in a QuickNode delivery, whatever the shape: a bare log, an array of logs, or either
  * wrapped in { data } / { data: [...] } (one or more levels, optionally in an array of wrappers).
  * A { heartbeat } marker from our filter function is kept as is.
  */
-export function unwrapLogs(body: unknown): Record<string, unknown>[] {
+export function unwrapLogs(raw: unknown): Record<string, unknown>[] {
+  const body = parseBody(raw)
   const out: Record<string, unknown>[] = []
   const walk = (x: unknown, depth: number) => {
     if (depth > 6 || x === null || typeof x !== 'object') return
