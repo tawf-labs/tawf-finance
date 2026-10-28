@@ -35,10 +35,19 @@ interface ApiError {
   error?: string;
 }
 
+/** An API failure that keeps the HTTP status (429 means rate limited). */
+export class HttpError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function parse<T>(res: Response): Promise<T> {
   const data = (await res.json().catch(() => ({}))) as T & ApiError;
   if (!res.ok) {
-    throw new Error(data.error ?? `Request failed (${res.status})`);
+    throw new HttpError(data.error ?? `Request failed (${res.status})`, res.status);
   }
   return data as T;
 }

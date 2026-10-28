@@ -4,7 +4,7 @@
  * only new blocks are fetched after the first visit.
  */
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import { getJson } from '@/lib/tokenization';
+import { getJson, HttpError } from '@/lib/tokenization';
 import { formatIdr, formatUsdc } from '@/web3/format';
 
 export type ActivityProduct = 'pool' | 'series1' | 'scf' | 'ledger' | 'identity';
@@ -138,7 +138,9 @@ function loadActivity(wallet: `0x${string}` | undefined): Promise<void> {
       setStore(k, { events: merged, loading: false });
       again = r.partial === true && BigInt(toBlock) > BigInt(cached?.toBlock ?? '0');
     } catch (e) {
-      setStore(k, { loading: false, error: e instanceof Error ? e.message : 'Could not load activity' });
+      // Rate limited: keep the cached events, show no error, and let the next refresh try again.
+      const limited = e instanceof HttpError && e.status === 429;
+      setStore(k, { loading: false, error: limited ? null : e instanceof Error ? e.message : 'Could not load activity' });
     } finally {
       inflight.delete(k);
     }

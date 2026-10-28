@@ -3,6 +3,7 @@ import { createPublicClient, decodeEventLog, getAddress, http, isAddress, pad, t
 import { arbitrumSepolia } from 'viem/chains'
 import { readableError } from './_lib/operator.js'
 import { safeEqual } from './_lib/qn-auth.js'
+import { SlidingWindow, allowRequest } from './_lib/rate-limit.js'
 import { kvEnabled, kvGetJson, kvLastBlock, kvListGet, kvPool } from './_lib/qn-kv.js'
 import { GLOBAL, compareEvents, hexBig, isInvestorEvent, normalize, sources, type ActivityEvent, type Source } from './_lib/activity-core.js'
 
@@ -320,11 +321,18 @@ async function pooled<T, R>(items: T[], limit: number, fn: (item: T) => Promise<
  *
  *   GET /api/tokenization/activity?wallet=0x..&from=<block>
  */
+/** Per IP, per warm instance: every request, and a tighter budget for the ones that reach the log scan. */
+const requestWindow = new SlidingWindow(30, 60_000)
+const scanWindow = new SlidingWindow(6, 60_000)
+/** `from` is rounded down to this many blocks so CDN-cached responses are shared more often. */
+const FROM_BUCKET = 1000n
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
+  if (!allowRequest(req, res, requestWindow, 'activity requests')) return
   try {
     if (req.query.alerts === '1') {
       // Read-only: the newest ProfitDistributed / MaturitySettled alerts recorded by the QuickNode webhook.
@@ -369,7 +377,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(400).json({ error: 'from must be a non-negative integer block number.' })
       return
     }
-    const fromParam = typeof f === 'string' ? BigInt(f) : 0n
+    // Rounded down: the client merges by id, so the extra events are harmless and the URL repeats across clients.
+    const fromParam = typeof f === 'string' ? (BigInt(f) / FROM_BUCKET) * FROM_BUCKET : 0n
     const toBlock = await publicClient.getBlockNumber()
     if (kvEnabled()) {
       const idx = await readIndex(w, fromParam, toBlock)
@@ -383,6 +392,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return
       }
     }
+    // From here on the request scans Arbiscan or the RPC, so it draws from the tighter budget.
+    if (!allowRequest(req, res, scanWindow, 'activity scans')) return
     const defaultSpan = 1_000_000
     const budget: Budget = { deadline: Date.now() + 24_000, span: BigInt(Number(process.env.ACTIVITY_LOG_SPAN ?? defaultSpan)) }
 

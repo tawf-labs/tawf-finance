@@ -6,7 +6,7 @@ import { useTawfSeries, useSukuk, useScfLimit, useIsVerified } from '@/web3/toke
 import { DEPOSITO_POOL, SCF_DISTRIBUTOR_ADDRESS, SCF_TOKEN_ADDRESS } from '@/web3/tokenization';
 import { CHAIN_ID, explorerTxUrl } from '@/web3/constants';
 import { formatIdr, formatUsdc } from '@/web3/format';
-import { getJson } from '@/lib/tokenization';
+import { getJson, HttpError } from '@/lib/tokenization';
 import { useActivity, ACTIVITY_LABEL, PRODUCT_LABEL, readNotifyPrefs, eventAmount, eventLabel, relevantEvents, timeAgo } from '@/lib/activity';
 
 const POOL_TARGET = { series: DEPOSITO_POOL.series, token: DEPOSITO_POOL.token, sandbox: DEPOSITO_POOL.sandbox, seriesId: DEPOSITO_POOL.seriesId };
@@ -102,7 +102,7 @@ export function NotificationBell({ role }: { role: string }) {
           setOpen((o) => !o);
           if (!open) {
             void refresh();
-            getJson<{ alerts: typeof platform }>('activity?alerts=1').then((r) => setPlatform(r.alerts.slice(0, 3))).catch(() => setPlatform([]));
+            getJson<{ alerts: typeof platform }>('activity?alerts=1').then((r) => setPlatform(r.alerts.slice(0, 3))).catch((e) => { if (!(e instanceof HttpError && e.status === 429)) setPlatform([]); });
           }
         }}
         className="relative p-2 rounded-full hover:bg-tawf-green-10 text-tawf-green"
