@@ -77,10 +77,25 @@ function sources(): Source[] {
   return list
 }
 
+const errText = (err: unknown) => `${(err as Error)?.message ?? ''} ${(err as { details?: string })?.details ?? ''} ${(err as { shortMessage?: string })?.shortMessage ?? ''}`
+
+const isRateLimit = (err: unknown) => /429|rate.?limit|too many requests|busy|throttl|capacity/i.test(errText(err))
+
+/**
+ * Providers refuse a log query for a block span or result size, with messages that differ
+ * per vendor (QuickNode: "eth_getLogs is limited to a 10,000 range", sometimes only a
+ * generic "Request failed"). Anything that is not a rate limit is treated as a range problem.
+ */
 const isRangeError = (err: unknown) =>
-  /range|limit|exceed|too (many|large)|block|response size|10000|query returned more/i.test(
-    `${(err as Error)?.message ?? ''} ${(err as { details?: string })?.details ?? ''}`,
-  )
+  /range|limit|exceed|too (many|large)|block|response size|10,?000|more than|query returned|request failed|invalid params/i.test(errText(err))
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/** Shared by one request: the time budget and the block span the provider has shown it accepts. */
+interface Budget {
+  deadline: number
+  span: bigint
+}
 
 type Scope = 'wallet' | 'global' | 'all'
 
@@ -115,17 +130,26 @@ function topicsFor(src: Source, scope: Scope, wallet: Address | null): (Hex | He
 }
 
 /**
- * Read logs in [from, to], splitting the range whenever the RPC refuses it
- * (providers cap eth_getLogs by block span or by result size).
+ * Read logs in [from, to] chunk by chunk. Rate limits are retried with backoff, a
+ * refused span halves the shared span, and when the time budget runs out it stops
+ * and reports how far it got (`doneTo`) so the caller can return a partial result.
  */
-async function scan(src: Source, from: bigint, to: bigint, span: bigint, scope: Scope, wallet: Address | null): Promise<Log[]> {
+async function scan(
+  src: Source,
+  from: bigint,
+  to: bigint,
+  budget: Budget,
+  scope: Scope,
+  wallet: Address | null,
+): Promise<{ logs: Log[]; doneTo: bigint }> {
   const topics = topicsFor(src, scope, wallet)
-  if (!topics) return []
+  if (!topics) return { logs: [], doneTo: to }
   const out: Log[] = []
   let start = from
-  let step = span
+  let tries = 0
   while (start <= to) {
-    const end = start + step - 1n > to ? to : start + step - 1n
+    if (Date.now() > budget.deadline) return { logs: out, doneTo: start - 1n }
+    const end = start + budget.span - 1n > to ? to : start + budget.span - 1n
     try {
       const raws = (await publicClient.request({
         method: 'eth_getLogs',
@@ -146,12 +170,32 @@ async function scan(src: Source, from: bigint, to: bigint, span: bigint, scope: 
         }
       }
       start = end + 1n
-      if (step < span) step *= 2n
+      tries = 0
     } catch (err) {
-      if (!isRangeError(err) || step <= 2_000n) throw err
-      step /= 2n
+      if (isRateLimit(err)) {
+        if (++tries > 3) throw err
+        await sleep(400 * 3 ** (tries - 1))
+        continue
+      }
+      if (!isRangeError(err) || budget.span <= 1_000n) throw err
+      budget.span /= 2n
     }
   }
+  return { logs: out, doneTo: to }
+}
+
+/** Run async jobs with at most `limit` in flight. */
+async function pooled<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length)
+  let next = 0
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++
+        out[i] = await fn(items[i])
+      }
+    }),
+  )
   return out
 }
 
@@ -225,18 +269,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const fromParam = typeof f === 'string' ? BigInt(f) : 0n
     const toBlock = await publicClient.getBlockNumber()
     const defaultSpan = process.env.ARB_SEPOLIA_RPC_URL ? 2_000_000 : 500_000
-    const span = BigInt(Number(process.env.ACTIVITY_LOG_SPAN ?? defaultSpan))
+    const budget: Budget = { deadline: Date.now() + 24_000, span: BigInt(Number(process.env.ACTIVITY_LOG_SPAN ?? defaultSpan)) }
 
     const srcs = sources().filter((s) => !w || !s.admin)
-    const results = await Promise.all(
-      srcs.map(async (s) => {
-        const from = fromParam > s.from ? fromParam : s.from
-        if (from > toBlock) return [] as ActivityEvent[]
-        const scopes: Scope[] = w ? ['wallet', 'global'] : ['all']
-        const parts = await Promise.all(scopes.map((sc) => scan(s, from, toBlock, span, sc, w)))
-        return parts.flat().map((l) => normalize(s.product, l as Log & { eventName?: string; args?: Record<string, unknown> }))
-      }),
-    )
+    const scopes: Scope[] = w ? ['wallet', 'global'] : ['all']
+    const jobs = srcs.flatMap((s) => scopes.map((sc) => ({ s, sc })))
+    let scannedTo = toBlock
+    const results = await pooled(jobs, 2, async ({ s, sc }) => {
+      const from = fromParam > s.from ? fromParam : s.from
+      if (from > toBlock) return [] as ActivityEvent[]
+      const r = await scan(s, from, toBlock, budget, sc, w)
+      if (r.doneTo < scannedTo) scannedTo = r.doneTo
+      return r.logs.map((l) => normalize(s.product, l as Log & { eventName?: string; args?: Record<string, unknown> }))
+    })
+    const partial = scannedTo < toBlock
     let events = results.flat()
     events.sort((x, y) => (BigInt(y.blockNumber) > BigInt(x.blockNumber) ? 1 : BigInt(y.blockNumber) < BigInt(x.blockNumber) ? -1 : 0))
     events = events.slice(0, 300)
@@ -253,7 +299,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const e of events) if (e.timestamp === null && times.has(e.blockNumber)) e.timestamp = times.get(e.blockNumber)!
 
     res.setHeader('cache-control', 's-maxage=20, stale-while-revalidate=60')
-    res.status(200).json({ toBlock: toBlock.toString(), wallet: w, events })
+    // A partial result reports the last block every scan finished, so the client continues from there.
+    res.status(200).json({ toBlock: (partial ? scannedTo : toBlock).toString(), partial, wallet: w, events })
   } catch (err) {
     res.status(500).json({ error: readableError(err, 'Could not read the activity') })
   }

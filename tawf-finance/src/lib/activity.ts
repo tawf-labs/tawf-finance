@@ -29,6 +29,8 @@ export interface ActivityEvent {
 
 interface ActivityResponse {
   toBlock: string;
+  /** The server ran out of time, `toBlock` is the last block fully scanned. */
+  partial?: boolean;
   wallet: `0x${string}` | null;
   events: ActivityEvent[];
 }
@@ -117,6 +119,7 @@ function loadActivity(wallet: `0x${string}` | undefined): Promise<void> {
   const cached = readCache(wallet);
   setStore(k, { loading: true, error: null });
   const p = (async () => {
+    let again = false;
     try {
       const from = cached ? (BigInt(cached.toBlock) + 1n).toString() : undefined;
       const q = new URLSearchParams();
@@ -128,11 +131,14 @@ function loadActivity(wallet: `0x${string}` | undefined): Promise<void> {
       merged.sort((x, y) => Number(BigInt(y.blockNumber) - BigInt(x.blockNumber)));
       writeCache(wallet, { toBlock: r.toBlock, events: merged });
       setStore(k, { events: merged, loading: false });
+      again = r.partial === true && BigInt(r.toBlock) > BigInt(cached?.toBlock ?? '0');
     } catch (e) {
       setStore(k, { loading: false, error: e instanceof Error ? e.message : 'Could not load activity' });
     } finally {
       inflight.delete(k);
     }
+    // the server stopped early, keep going from where it got to
+    if (again) void loadActivity(wallet);
   })();
   inflight.set(k, p);
   return p;
