@@ -121,7 +121,9 @@ function loadActivity(wallet: `0x${string}` | undefined): Promise<void> {
   const p = (async () => {
     let again = false;
     try {
-      const from = cached ? (BigInt(cached.toBlock) + 1n).toString() : undefined;
+      // Rounded down to a 1000-block window (the server does the same), so every mount in the same window
+      // sends one URL and the CDN cache answers instead of a fresh scan. Events merge by id, so overlap is harmless.
+      const from = cached ? (((BigInt(cached.toBlock) + 1n) / 1000n) * 1000n).toString() : undefined;
       const q = new URLSearchParams();
       if (wallet) q.set('wallet', wallet);
       if (from) q.set('from', from);
