@@ -6,7 +6,16 @@
  *   npx tsx scripts/quicknode-setup.ts --apply               create or update the stream, kept paused (no webhook)
  *   npx tsx scripts/quicknode-setup.ts --apply --activate    run the stream and create or update the alert webhook
  *                                                            (a new webhook is active at once, so only --activate makes it)
+ *   npx tsx scripts/quicknode-setup.ts --recreate           plan only: shows the stream that would be replaced
+ *   npx tsx scripts/quicknode-setup.ts --apply --recreate --activate
+ *                                                            replay the whole history: delete the stream by name and create it
+ *                                                            fresh from the oldest deploy block (a stream's block range is fixed at
+ *                                                            creation, so a rewind needs a new stream). The index is append-only,
+ *                                                            so replayed events overwrite themselves and nothing is duplicated.
  *   --base <url>   deployment to deliver to (default https://app.tawf.finance)
+ *
+ * An active stream cannot be updated or deleted through the API, so the script pauses it first and waits for it to report paused,
+ * then updates (or deletes) it, and activates it again only with --activate (a plain --apply leaves it paused).
  *
  * Env: QUICKNODE_API_KEY, QN_STREAM_TOKEN, QN_ALERT_TOKEN (the static x-tawf-token the handlers check).
  * Nothing secret is printed.
@@ -93,6 +102,46 @@ const filterFunction = `function main(stream) {
   return out;
 }`
 
+/** Plan mode for --recreate: read the current stream (GET only) and say what would be replaced. */
+async function planRecreate(from: number) {
+  const list = await qn<{ data?: { id: string; name: string; status?: string; start_range?: number; sequence?: number }[] }>('GET', '/streams/rest/v1/streams')
+  const cur = list.json.data?.find((s) => s.name === STREAM_NAME)
+  if (!cur) {
+    console.log(`  --recreate: no stream named ${STREAM_NAME} exists, --apply would create it from block ${from}.`)
+    return
+  }
+  console.log(`  --recreate: --apply would delete ${cur.id} (status ${cur.status}, start ${cur.start_range}, at block ${cur.sequence}) and create it again from block ${from}, so the whole history is replayed.`)
+  console.log('  The index is append-only, so replayed events overwrite themselves. It pauses the stream first, then deletes it. With --activate it also starts the stream and records the index start block.')
+}
+
+type StreamRow = { id: string; name: string; status?: string }
+
+/** The API refuses to update (or delete) an active stream, so pause it first and wait until it reports paused. */
+async function pauseStream(id: string) {
+  const r = await qn('POST', `/streams/rest/v1/streams/${id}/pause`)
+  console.log(`  paused ${id}: HTTP ${r.status}`)
+  if (r.status >= 300) {
+    console.log(`  ${redact(JSON.stringify(r.json))}`)
+    throw new Error('The stream could not be paused, nothing was changed.')
+  }
+  for (let i = 0; i < 15; i++) {
+    const g = await qn<{ status?: string; data?: { status?: string } }>('GET', `/streams/rest/v1/streams/${id}`)
+    const st = g.json.data?.status ?? g.json.status
+    if (st && st !== 'active') return
+    await new Promise((res) => setTimeout(res, 2000))
+  }
+  throw new Error('The stream still reports active after the pause, nothing was changed.')
+}
+
+async function activateStream(id: string) {
+  const r = await qn('POST', `/streams/rest/v1/streams/${id}/activate`)
+  console.log(`  activated ${id}: HTTP ${r.status}`)
+  if (r.status >= 300) {
+    console.log(`  ${redact(JSON.stringify(r.json))}`)
+    throw new Error('The stream could not be activated.')
+  }
+}
+
 async function setupStream() {
   const token = process.env.QN_STREAM_TOKEN
   if (apply && (!token || token.length < 32)) throw new Error('QN_STREAM_TOKEN must be set (32+ characters).')
@@ -120,15 +169,44 @@ async function setupStream() {
     },
   }
   console.log(`stream ${STREAM_NAME}: ${addresses.length} contracts, ${topic0s.length} topics, from block ${startBlock}, status ${payload.status}, delivers to ${payload.destination_attributes.url}`)
-  if (!apply) return
-  const list = await qn<{ data: { id: string; name: string }[] }>('GET', '/streams/rest/v1/streams')
-  const existing = list.json.data?.find((s) => s.name === STREAM_NAME)
+  if (!apply) {
+    if (flag('--recreate')) await planRecreate(startBlock)
+    return
+  }
+  const list = await qn<{ data: StreamRow[] }>('GET', '/streams/rest/v1/streams')
+  let existing = list.json.data?.find((s) => s.name === STREAM_NAME)
+  if (existing && flag('--recreate')) {
+    // The range cannot be changed on a stream, so a replay deletes it and creates it again below.
+    if (existing.status === 'active') await pauseStream(existing.id)
+    const del = await qn('DELETE', `/streams/rest/v1/streams/${existing.id}`)
+    console.log(`  deleted ${existing.id}: HTTP ${del.status}`)
+    if (del.status >= 300) {
+      console.log(`  ${redact(JSON.stringify(del.json))}`)
+      throw new Error('The stream was not deleted, nothing was recreated.')
+    }
+    // Wait until the name is free (the delete can take a moment).
+    for (let i = 0; i < 15; i++) {
+      const again = await qn<{ data: { id: string; name: string }[] }>('GET', '/streams/rest/v1/streams')
+      if (!again.json.data?.some((s) => s.name === STREAM_NAME)) break
+      await new Promise((r) => setTimeout(r, 2000))
+    }
+    existing = undefined
+  }
   if (existing) {
     // Block range, region and dataset are fixed at creation, so only the mutable parts are updated.
-    const { name, status, filter_function, destination_attributes } = payload
-    const r = await qn('PATCH', `/streams/rest/v1/streams/${existing.id}`, { name, status, filter_function, destination_attributes })
+    // An active stream cannot be updated: pause it, patch it, then activate only when asked (--apply alone keeps it paused).
+    const wasActive = existing.status === 'active'
+    if (wasActive) await pauseStream(existing.id)
+    const { name, filter_function, destination_attributes } = payload
+    const r = await qn('PATCH', `/streams/rest/v1/streams/${existing.id}`, { name, filter_function, destination_attributes })
     console.log(`  updated ${existing.id}: HTTP ${r.status}`)
-    if (r.status >= 300) console.log(`  ${redact(JSON.stringify(r.json))}`)
+    if (r.status >= 300) {
+      console.log(`  ${redact(JSON.stringify(r.json))}`)
+      // leave the stream running as it was found rather than paused by a failed update
+      if (wasActive) await activateStream(existing.id)
+      throw new Error('The stream was not updated.')
+    }
+    if (flag('--activate')) await activateStream(existing.id)
   } else {
     const r = await qn<{ id?: string }>('POST', '/streams/rest/v1/streams', payload)
     console.log(`  created ${r.json.id ?? ''}: HTTP ${r.status}`)
