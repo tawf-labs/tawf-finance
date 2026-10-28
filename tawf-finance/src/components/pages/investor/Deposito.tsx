@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { motion } from 'framer-motion';
-import { Loader2, ExternalLink, ShieldCheck, Wallet, Clock, PiggyBank, Lock, Landmark } from 'lucide-react';
+import { Loader2, ExternalLink, BadgeCheck, ShieldCheck, Wallet, Clock, PiggyBank, Lock, Landmark } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +9,7 @@ import { Modal } from '@/components/ui/Modal';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ConnectButton } from '@/components/web3/ConnectButton';
 import { KycStatusCard } from '@/components/kyc/KycStatusCard';
+import { runFaucet } from '@/lib/tokenization';
 import {
   useTawfSeries,
   useIsVerified,
@@ -70,6 +71,8 @@ export function InvestorDeposito() {
   const { state, isLoading, refetch, configured } = useTawfSeries(address, target);
   const { banks } = usePoolBanks(product?.ledger);
   const { isVerified } = useIsVerified(address);
+  const [screening, setScreening] = useState(false);
+  const [screenError, setScreenError] = useState<string | null>(null);
   const { subscribe, isPending: subscribing } = useSeriesSubscribe(target);
   const { cancel, isPending: cancelling } = useSeriesCancel(target);
   const { claim, isPending: claiming } = useSeriesClaim(target);
@@ -400,11 +403,38 @@ export function InvestorDeposito() {
             )}
 
             {isConnected && !state.eligible && (
-              <div className="bg-blue-50 rounded-xl border border-blue-200 p-3 mb-4">
+              <div className="bg-blue-50 rounded-xl border border-blue-200 p-3 mb-4 space-y-2">
                 <p className="text-xs text-blue-700">
-                  Your wallet is not eligible under the current mode ({modeLabel}). In PILOT ONLY only Tawf may
-                  hold; in SCREENED GROUP / OJK SANDBOX you need a Tawf screening claim.
+                  {!isVerified
+                    ? 'Verify your identity first.'
+                    : state.mode === 0
+                      ? 'This pool is in PILOT ONLY mode, only Tawf may hold.'
+                      : 'Your wallet needs a Tawf screening claim to hold this pool.'}
                 </p>
+                {isVerified && state.mode !== 0 && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={screening}
+                    onClick={async () => {
+                      if (!address) return;
+                      setScreening(true);
+                      setScreenError(null);
+                      try {
+                        await runFaucet(address);
+                        refetch();
+                      } catch (e) {
+                        setScreenError(e instanceof Error ? e.message : 'Screening failed');
+                      } finally {
+                        setScreening(false);
+                      }
+                    }}
+                  >
+                    {screening ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <BadgeCheck className="w-4 h-4 mr-2" />}
+                    {screening ? 'Screening, about 20s…' : 'Get screened (test)'}
+                  </Button>
+                )}
+                {screenError && <p className="text-xs text-red-600">{screenError}</p>}
               </div>
             )}
 

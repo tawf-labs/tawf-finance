@@ -10,7 +10,7 @@ import {
   readableError,
 } from './_lib/operator.js'
 import { mockTokenAbi } from './_lib/abis.js'
-import { ensureVerified, type IdentityStep } from './_lib/identity.js'
+import { ensureVerified, hasValidScreeningClaim, issueScreeningClaim, type IdentityStep } from './_lib/identity.js'
 
 const MIN_USER_ETH = parseEther('0.002')
 const TOP_UP = parseEther('0.002')
@@ -18,9 +18,12 @@ const MIN_OPERATOR_ETH = parseEther('0.01')
 
 const ZERO = '0x0000000000000000000000000000000000000000'
 
+/** Compromised burner: never funded and never screened. */
+const BLOCKED = new Set(['0x6155aecb5eab7719804f67de1e4ef878f0226f87'])
+
 /**
- * Faucet: fund gas, mint test mUSDC, mUSDT and mUSDG, and verify the wallet's ERC-3643
- * identity. No passcode: this is a demo convenience for any connected wallet.
+ * Faucet: fund gas, mint test mUSDC, mUSDT and mUSDG, verify the wallet's ERC-3643
+ * identity and issue the testnet TAWF_SCREENED claim (so it can hold both Deposito Pools). No passcode: this is a demo convenience for any connected wallet.
  * Idempotent, a wallet that already has funds and a verified identity is left
  * untouched.
  */
@@ -38,6 +41,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return
     }
     const user = getAddress(address) as Address
+    if (BLOCKED.has(user.toLowerCase())) {
+      res.status(400).json({ error: 'This wallet is blocked on the testnet faucet.' })
+      return
+    }
     const steps: IdentityStep[] = []
     const wc = walletClient()
 
@@ -65,6 +72,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 3. Ensure the wallet is a verified ERC-3643 holder (idempotent).
     const { steps: idSteps, isVerified } = await ensureVerified(user)
     steps.push(...idSteps)
+
+    // 4. Testnet self-service screening (topic 2) so the wallet may hold both Deposito Pools.
+    //    The claim is identity wide. Skipped when a valid one is already there.
+    if (isVerified) {
+      if (await hasValidScreeningClaim(user, addresses.tawfScreenedTopic)) {
+        steps.push({ label: 'Already screened (TAWF_SCREENED claim present)', skipped: true })
+      } else {
+        const screen = await issueScreeningClaim(user, addresses.tawfScreenedTopic, 'testnet self-service screening')
+        steps.push(...screen.steps)
+      }
+    }
 
     res.status(200).json({ address: user, steps, isVerified })
   } catch (err) {
