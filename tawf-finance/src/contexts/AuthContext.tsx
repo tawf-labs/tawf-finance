@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import { useNavigate, useLocation } from 'react-router-dom';
 import type { UserRole, User } from '@/data/mockData';
 import { demoUsers } from '@/data/mockData';
+import { ROLE_HOME } from '@/contexts/roleHome';
 
 interface AuthContextType {
   user: User | null;
@@ -105,14 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Redirect based on role
   useEffect(() => {
     if (!isLoading && user && location.pathname === '/login') {
-      const redirectPath: Record<UserRole, string> = {
-        investor: '/investor/dashboard',
-        business: '/investor/dashboard',
-        cooperative: '/investor/dashboard',
-        issuer: '/issuer/ops',
-        admin: '/admin/dashboard',
-      };
-      navigate(redirectPath[user.role], { replace: true });
+      navigate(ROLE_HOME[user.role], { replace: true });
     }
   }, [user, isLoading, location.pathname, navigate]);
 

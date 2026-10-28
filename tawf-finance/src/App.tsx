@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ROLE_HOME } from '@/contexts/roleHome';
 import { Web3Provider } from '@/components/web3/Web3Provider';
 import { Navigation, Footer, DashboardLayout } from './components/layout';
 import {
@@ -39,8 +40,8 @@ import { FINANCING_POOL_ENABLED, FINANCING_POOL_SOON } from '@/config/features';
 import { useAuth } from '@/hooks/useAuth';
 
 // Protected Route Wrapper
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+function ProtectedRoute({ children, area }: { children: React.ReactNode; area?: 'investor' | 'issuer' | 'admin' }) {
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -52,6 +53,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // A role may only open its own area, anything else goes to its home.
+  if (area && user && !ROLE_HOME[user.role].startsWith(`/${area}/`)) {
+    return <Navigate to={ROLE_HOME[user.role]} replace />;
   }
 
   return <>{children}</>;
@@ -96,7 +102,7 @@ function AppContent() {
           <Route
             path="/investor/*"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute area="investor">
                 <DashboardLayout />
               </ProtectedRoute>
             }
@@ -118,7 +124,7 @@ function AppContent() {
           <Route
             path="/issuer/*"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute area="issuer">
                 <DashboardLayout />
               </ProtectedRoute>
             }
@@ -132,7 +138,7 @@ function AppContent() {
           <Route
             path="/admin/*"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute area="admin">
                 <DashboardLayout />
               </ProtectedRoute>
             }
