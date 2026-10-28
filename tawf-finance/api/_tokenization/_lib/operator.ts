@@ -351,6 +351,9 @@ export async function fetchProofForLeaf(leaf: Hex): Promise<RelayerProof | null>
 const SECRET_ENV = [
   'ARB_SEPOLIA_RPC_URL',
   'ETHERSCAN_API_KEY',
+  'QUICKNODE_API_KEY',
+  'QN_STREAM_TOKEN',
+  'QN_ALERT_TOKEN',
   'ACTIVITY_RPC_URL',
   'TAWF_NETWORK_RPC_URL',
   'TAWF_NETWORK_RPC_TOKEN',

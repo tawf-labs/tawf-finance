@@ -107,6 +107,18 @@ The financing sell-down pool and the issuer and admin pool pages are behind `VIT
 
 ---
 
+
+## QuickNode
+
+The Discover plan allows Streams, the Key-Value Store and Webhooks, but caps `eth_getLogs` at 5 blocks, so activity history cannot be scanned over RPC. A Stream builds the index instead.
+
+- **Stream** `tawf-activity` (Arbitrum Sepolia, dataset `logs`, backfill from the oldest deploy block, then live). Its filter function keeps only logs from our six contracts and the event topics in `api/_tokenization/_lib/activity-core.ts`, and sends a small heartbeat about every 500 blocks. It delivers to `POST /api/tokenization/qn/stream`, which checks the `x-tawf-token` header against `QN_STREAM_TOKEN` in constant time.
+- **KV index**: the handler decodes each log and writes a JSON list of the newest 150 events per wallet (`tawf:act:<wallet>`), one for pool-wide events (`tawf:act:global`) and one for the admin feed (`tawf:act:admin`), deduped by event id, plus `tawf:act:lastBlock`.
+- **`GET /api/tokenization/activity`** reads the index first when `QUICKNODE_API_KEY` is set and `lastBlock` is within about 2,000 blocks of the chain head (so a stream that is still backfilling, paused or stuck is ignored). Otherwise it scans Arbiscan (`ETHERSCAN_API_KEY`), then the RPC. The response has the same shape either way, with `source: "index"` when the index served it.
+- **Webhook** `tawf-alerts` (template `evmContractEvents`, ProfitDistributed and MaturitySettled on both series) delivers to `POST /api/tokenization/qn/alert` (`QN_ALERT_TOKEN`), which keeps the newest 20 in KV `tawf:alerts`.
+
+Set up or change them with `npx tsx scripts/quicknode-setup.ts` (plan only), `--apply` (create or update the stream, paused), `--activate` (run it), `--webhooks` (also the alert webhook) and `--base <url>` (deployment to deliver to). It is idempotent: each object is found by name first. A new Webhook starts active, so create it only once the handler is deployed.
+
 ## Smart Contracts
 
 `contracts/`: Solidity 0.8.24 (T-REX and ONCHAINID files on 0.8.17), Foundry, OpenZeppelin v5 (v4.8.3 for T-REX). 250 tests pass (`forge test`). The pool contracts (DealRegistry, BondReceiptNFT, RedemptionVault, PooledFinancingVault) are UUPS-upgradeable behind ERC1967 proxies. Only `UPGRADER_ROLE` can upgrade them.
@@ -226,6 +238,9 @@ The app reads every contract address from `tokenization.deployments.json`, so th
 | `ARB_SEPOLIA_RPC_URL` | API | Same RPC for the serverless functions |
 | `DEMO_OPERATOR_KEY` | API | Operator wallet `0xbE49…16aC` (the same key as the pool admin): owner of the deposito series, sukuk and identity registry roles, signer for the faucet, test KYC and admin actions |
 | `DEMO_PASSCODE` | API | Required (header `x-demo-passcode`) for every admin action. Stored as a normal (readable) variable, so the team can read it in the Vercel dashboard or with `vercel env pull`. |
+| `ETHERSCAN_API_KEY` | API | Arbiscan (Etherscan v2) key the activity route reads logs with when the QuickNode index is not ready. Sensitive. |
+| `QUICKNODE_API_KEY` | API | QuickNode account key: the activity route reads the KV index, and `scripts/quicknode-setup.ts` manages the Stream and Webhook. Sensitive. |
+| `QN_STREAM_TOKEN`, `QN_ALERT_TOKEN` | API | Static `x-tawf-token` secrets that the Stream and the alert Webhook send to `/api/tokenization/qn/stream` and `/qn/alert`. 32+ characters, sensitive. |
 | `DIDIT_API_KEY`, `DIDIT_WORKFLOW_ID`, `DIDIT_CALLBACK_URL`, `DIDIT_WEBHOOK_SECRET` | API | Didit KYC |
 | `TAWF_NETWORK_RPC_URL`, `TAWF_NETWORK_RPC_TOKEN`, `RELAYER_URL`, `CONNECTOR_URL`, `CONNECTOR_API_KEY` | API | Tawf Network ledger, proof relayer and bprs-connector |
 
