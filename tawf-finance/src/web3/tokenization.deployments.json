@@ -57,5 +57,8 @@
   "depositoPoolToken": "0xB6E99Bd6B05F142f7Aa75dab3bff817bC9a32f1C",
   "depositoPoolSandbox": "0xbAE93bF211e75c98EeC2B73Bf3124DcEAa03d0fa",
   "depositoPoolLedger": "0xEC729090D07Ec3f234D9a663CB2A81192D5CA3b5",
-  "depositoPoolId": "0xf74c3ee352bb9e5868601a53924b9d1793e2f85327c6245d193af3e56385b141"
+  "depositoPoolId": "0xf74c3ee352bb9e5868601a53924b9d1793e2f85327c6245d193af3e56385b141",
+  "tawfSeriesBlock": 321094445,
+  "scfBlock": 323322232,
+  "depositoPoolBlock": 323376145
 }

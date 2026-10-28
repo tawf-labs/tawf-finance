@@ -28,6 +28,7 @@ import h30 from './_tokenization/scf/profile.js'
 import h31 from './_tokenization/scf/status.js'
 import h32 from './_tokenization/scf/admin.js'
 import h33 from './_tokenization/pool/admin.js'
+import h34 from './_tokenization/activity.js'
 
 type Handler = (req: VercelRequest, res: VercelResponse) => unknown
 
@@ -56,6 +57,7 @@ const routes: Record<string, Handler> = {
   'scf/status': h31,
   'scf/admin': h32,
   'pool/admin': h33,
+  'activity': h34,
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
