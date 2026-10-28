@@ -22,6 +22,7 @@ import h22 from './_tokenization/series/screen.js'
 import h23 from './_tokenization/series/settle-maturity.js'
 import h24 from './_tokenization/series/status.js'
 import h27 from './_tokenization/tawf-share.js'
+import h35 from './_tokenization/cron/post-rates.js'
 import h28 from './_tokenization/series/add-stablecoin.js'
 import h29 from './_tokenization/admin/handover-operator.js'
 import h30 from './_tokenization/scf/profile.js'
@@ -58,6 +59,7 @@ const routes: Record<string, Handler> = {
   'scf/admin': h32,
   'pool/admin': h33,
   'activity': h34,
+  'cron/post-rates': h35,
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

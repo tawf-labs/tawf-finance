@@ -1,6 +1,24 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { addresses } from './_lib/operator.js'
 
+/** The current demo quote per settlement coin (two-decimal IDR per coin). Shared with the rate cron. */
+export function fxQuotes() {
+  const usdcBase = addresses.fxInitialRateUsdc > 0n ? Number(addresses.fxInitialRateUsdc) : 1_625_000
+  const usdtBase = addresses.fxInitialRateUsdt > 0n ? Number(addresses.fxInitialRateUsdt) : 1_624_000
+  const minute = Math.floor(Date.now() / 60_000)
+
+  // Deterministic small drift (+/- up to ~0.25%) so the demo quotes change.
+  // The two coins drift on slightly different phases so they rarely match.
+  const driftFor = (base: number, phase: number) =>
+    (((minute + phase) % 9) - 4) * Math.round(base * 0.0005)
+
+  const usdc = Math.max(1, usdcBase + driftFor(usdcBase, 0))
+  const usdt = Math.max(1, usdtBase + driftFor(usdtBase, 3))
+  // USDG (the pool's mock settlement coin) tracks the USDC base on its own phase.
+  const usdg = Math.max(1, usdcBase + driftFor(usdcBase, 6))
+  return { usdc, usdt, usdg }
+}
+
 /**
  * Demo FX quotes: an IDR rate per settlement stablecoin for the "use market
  * quote" buttons, two-decimal precision (idrPerToken, e.g. 16,250.00 IDR ->
@@ -20,19 +38,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  const usdcBase = addresses.fxInitialRateUsdc > 0n ? Number(addresses.fxInitialRateUsdc) : 1_625_000
-  const usdtBase = addresses.fxInitialRateUsdt > 0n ? Number(addresses.fxInitialRateUsdt) : 1_624_000
-  const minute = Math.floor(Date.now() / 60_000)
-
-  // Deterministic small drift (+/- up to ~0.25%) so the demo quotes change.
-  // The two coins drift on slightly different phases so they rarely match.
-  const driftFor = (base: number, phase: number) =>
-    (((minute + phase) % 9) - 4) * Math.round(base * 0.0005)
-
-  const usdc = Math.max(1, usdcBase + driftFor(usdcBase, 0))
-  const usdt = Math.max(1, usdtBase + driftFor(usdtBase, 3))
-  // USDG (the pool's mock settlement coin) tracks the USDC base on its own phase.
-  const usdg = Math.max(1, usdcBase + driftFor(usdcBase, 6))
+  const { usdc, usdt, usdg } = fxQuotes()
 
   res.setHeader('cache-control', 's-maxage=30, stale-while-revalidate=60')
   res.status(200).json({
