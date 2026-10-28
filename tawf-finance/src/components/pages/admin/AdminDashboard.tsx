@@ -20,12 +20,15 @@ export function AdminDashboard() {
   const [pool, setPool] = useState<SeriesStatus | null>(null);
   const [s1, setS1] = useState<SeriesStatus | null>(null);
   const [scf, setScf] = useState<ScfStatus | null>(null);
+  const [statusLoaded, setStatusLoaded] = useState(false);
   const [nowSec] = useState(() => Math.floor(Date.now() / 1000));
 
   useEffect(() => {
-    getJson<SeriesStatus>('series/status?series=pool').then(setPool).catch(() => setPool(null));
-    getJson<SeriesStatus>('series/status').then(setS1).catch(() => setS1(null));
-    getScfStatus().then(setScf).catch(() => setScf(null));
+    void Promise.allSettled([
+      getJson<SeriesStatus>('series/status?series=pool').then(setPool),
+      getJson<SeriesStatus>('series/status').then(setS1),
+      getScfStatus().then(setScf),
+    ]).then(() => setStatusLoaded(true));
   }, []);
 
   const verified = useMemo(() => new Set(events.filter((e) => e.kind === 'IdentityRegistered' && e.investor).map((e) => e.investor!.toLowerCase())).size, [events]);
@@ -74,12 +77,12 @@ export function AdminDashboard() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total at the banks" value={pool ? formatIdr(atBanks) : '...'} icon={<DollarSign className="w-5 h-5" />} color="gold" />
-        <StatCard title="Token supply (both pools)" value={pool || s1 ? formatIdr(supply) : '...'} icon={<TrendingUp className="w-5 h-5" />} color="green" />
-        <StatCard title="SCF raised" value={scf?.configured ? formatUsdc(BigInt(scf.raised ?? '0')) : scf ? 'Not live' : '...'} icon={<Activity className="w-5 h-5" />} color="blue" />
-        <StatCard title="Verified wallets" value={verified} icon={<Users className="w-5 h-5" />} color="purple" />
+        <StatCard title="Total at the banks" value={pool ? formatIdr(atBanks) : statusLoaded ? 'Unavailable' : '...'} icon={<DollarSign className="w-5 h-5" />} color="gold" />
+        <StatCard title="Token supply (both pools)" value={pool || s1 ? formatIdr(supply) : statusLoaded ? 'Unavailable' : '...'} icon={<TrendingUp className="w-5 h-5" />} color="green" />
+        <StatCard title="SCF raised" value={scf?.configured ? formatUsdc(BigInt(scf.raised ?? '0')) : scf ? 'Not live' : statusLoaded ? 'Unavailable' : '...'} icon={<Activity className="w-5 h-5" />} color="blue" />
+        <StatCard title="Verified wallets" value={loading && events.length === 0 ? '...' : verified} icon={<Users className="w-5 h-5" />} color="purple" />
       </div>
-      <p className="text-sm text-tawf-muted -mt-4">{investors} distinct investor(s) have subscribed.</p>
+      <p className="text-sm text-tawf-muted -mt-4">{loading && events.length === 0 ? 'Loading investors...' : `${investors} distinct investor(s) have subscribed.`}</p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="p-6">
@@ -112,7 +115,8 @@ export function AdminDashboard() {
             <Link to="/admin/compliance" className="text-sm text-tawf-gold hover:underline">View All</Link>
           </div>
           <div className="space-y-3">
-            {alerts.length === 0 && (
+            {!statusLoaded && <p className="text-sm text-tawf-muted">Checking rates, reserves and allowances...</p>}
+            {statusLoaded && alerts.length === 0 && (
               <div className="p-4 rounded-xl border border-tawf-green-10 bg-tawf-sand-30 flex items-center gap-2 text-sm text-tawf-green">
                 <CheckCircle className="w-4 h-4" /> All clear. Rates are fresh, reserves cover supply and allowances are set.
               </div>

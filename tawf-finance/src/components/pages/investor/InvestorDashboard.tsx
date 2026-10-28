@@ -40,10 +40,10 @@ type PoolShare = { investorsPercent: number; tawfPercent: number; nisbahBps: num
 
 export function InvestorDashboard() {
   const { address, isConnected } = useAccount();
-  const { state: s1 } = useTawfSeries(address);
-  const { state: pool } = useTawfSeries(address, POOL_TARGET);
-  const { state: scf } = useSukuk(address, SCF_TARGET);
-  const { banks } = usePoolBanks(DEPOSITO_POOL.ledger);
+  const { state: s1, isLoading: s1Loading } = useTawfSeries(address);
+  const { state: pool, isLoading: poolLoading } = useTawfSeries(address, POOL_TARGET);
+  const { state: scf, isLoading: scfLoading } = useSukuk(address, SCF_TARGET);
+  const { banks, isLoading: banksLoading } = usePoolBanks(DEPOSITO_POOL.ledger);
   const { events, loading: activityLoading } = useActivity(address);
   const [share, setShare] = useState<PoolShare | null>(null);
   const [scfStatus, setScfStatus] = useState<ScfStatus | null>(null);
@@ -53,6 +53,8 @@ export function InvestorDashboard() {
     getScfStatus().then(setScfStatus).catch(() => setScfStatus(null));
   }, []);
 
+  // Show a placeholder, not 0, until the on-chain reads have resolved.
+  const idrLoading = poolLoading || s1Loading;
   const hasPool = Boolean(DEPOSITO_POOL.series);
   const poolHolding = hasPool ? pool.balance : 0n;
   const holdingsSen = poolHolding + s1.balance;
@@ -65,8 +67,8 @@ export function InvestorDashboard() {
 
   // Holdings by product: IDR products share one scale, SCF is in USDC so shown on its own scale.
   const idrBars = [
-    ...(hasPool ? [{ label: DEPOSITO_POOL.name, value: pool.balance, text: formatIdr(pool.balance) }] : []),
-    { label: 'Tawf Deposito Pool: BPRS Demo', value: s1.balance, text: formatIdr(s1.balance) },
+    ...(hasPool ? [{ label: DEPOSITO_POOL.name, value: pool.balance, text: idrLoading ? '...' : formatIdr(pool.balance) }] : []),
+    { label: 'Tawf Deposito Pool: BPRS Demo', value: s1.balance, text: idrLoading ? '...' : formatIdr(s1.balance) },
   ];
   const idrMax = idrBars.reduce((m, b) => (b.value > m ? b.value : m), 0n);
 
@@ -88,12 +90,12 @@ export function InvestorDashboard() {
       ) : (
         <>
           <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard title="Deposito holdings" value={formatIdr(holdingsSen)} icon={<TrendingUp className="w-5 h-5" />} color="green" />
-            <StatCard title="Claimable profit" value={formatIdr(claimableSen)} icon={<DollarSign className="w-5 h-5" />} color="gold" />
-            <StatCard title="Pending subscriptions" value={formatUsdc(pending)} icon={<Clock className="w-5 h-5" />} color="blue" />
+            <StatCard title="Deposito holdings" value={idrLoading ? '...' : formatIdr(holdingsSen)} icon={<TrendingUp className="w-5 h-5" />} color="green" />
+            <StatCard title="Claimable profit" value={idrLoading ? '...' : formatIdr(claimableSen)} icon={<DollarSign className="w-5 h-5" />} color="gold" />
+            <StatCard title="Pending subscriptions" value={idrLoading ? '...' : formatUsdc(pending)} icon={<Clock className="w-5 h-5" />} color="blue" />
             <StatCard
               title="Urun Dana holding"
-              value={hasScf ? formatUsdc(scf.balance) : 'Not available'}
+              value={!hasScf ? 'Not available' : scfLoading ? '...' : formatUsdc(scf.balance)}
               icon={<Heart className="w-5 h-5" />}
               color="purple"
             />
@@ -131,7 +133,7 @@ export function InvestorDashboard() {
                     </div>
                   </div>
                 )}
-                {holdingsSen === 0n && scf.balance === 0n && (
+                {!idrLoading && !scfLoading && holdingsSen === 0n && scf.balance === 0n && (
                   <p className="text-sm text-tawf-muted">No holdings yet.</p>
                 )}
               </div>
@@ -171,7 +173,8 @@ export function InvestorDashboard() {
                     claimable={formatUsdc(scf.claimable)}
                   />
                 )}
-                {holdingsSen === 0n && scf.balance === 0n && (
+                {(idrLoading || scfLoading) && <Card className="p-6 text-sm text-tawf-muted">Loading positions...</Card>}
+                {!idrLoading && !scfLoading && holdingsSen === 0n && scf.balance === 0n && (
                   <Card className="p-6 text-sm text-tawf-muted">No positions yet. Subscribe to the Deposito Pool or invest in Urun Dana.</Card>
                 )}
               </div>
@@ -217,9 +220,9 @@ export function InvestorDashboard() {
               <p className="text-xs uppercase tracking-wide text-tawf-muted mb-1">Tawf Deposito Pool</p>
               <h3 className="font-serif text-lg text-tawf-green mb-3">Deposito across BPRS in Jawa Barat</h3>
               <dl className="grid grid-cols-2 gap-3 text-sm">
-                <div><dt className="text-tawf-muted">Banks</dt><dd className="font-medium text-tawf-green">{banks.length}</dd></div>
-                <div><dt className="text-tawf-muted">Total at the banks</dt><dd className="font-medium text-tawf-green">{formatIdr(bankTotalSen)}</dd></div>
-                <div><dt className="text-tawf-muted">Supply</dt><dd className="font-medium text-tawf-green">{formatIdr(pool.supply)}</dd></div>
+                <div><dt className="text-tawf-muted">Banks</dt><dd className="font-medium text-tawf-green">{banksLoading ? '...' : banks.length}</dd></div>
+                <div><dt className="text-tawf-muted">Total at the banks</dt><dd className="font-medium text-tawf-green">{banksLoading ? '...' : formatIdr(bankTotalSen)}</dd></div>
+                <div><dt className="text-tawf-muted">Supply</dt><dd className="font-medium text-tawf-green">{poolLoading ? '...' : formatIdr(pool.supply)}</dd></div>
                 <div><dt className="text-tawf-muted">Your share of profit</dt><dd className="font-medium text-tawf-green">{share ? `${share.investorsPercent}%` : '...'}</dd></div>
               </dl>
             </Link>
