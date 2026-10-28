@@ -248,9 +248,9 @@ export function InvestorDeposito() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Series card */}
           <Card className="p-6 lg:col-span-2">
-            <div className="flex items-start justify-between mb-3">
+            <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
               <Badge variant="info" size="sm">{product?.symbol}</Badge>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Badge variant={state.mode === 0 ? 'warning' : 'success'} size="sm">
                   <Lock className="w-3 h-3" /> {modeLabel}
                 </Badge>

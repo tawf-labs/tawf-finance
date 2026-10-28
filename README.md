@@ -221,6 +221,7 @@ The app reads every contract address from `tokenization.deployments.json`, so th
 | Variable | Used by | Purpose |
 |---|---|---|
 | `VITE_RPC_URL` | browser build | Arbitrum Sepolia RPC (QuickNode). Built in at build time, so redeploy after changing it. Falls back to the public RPC. |
+| `VITE_WALLETCONNECT_PROJECT_ID` | browser build | Reown (WalletConnect) Cloud project id (public). Enables WalletConnect so phone wallets (Trust, Rainbow, OKX and others) can connect. MetaMask app and Coinbase Wallet work without it. |
 | `VITE_FEATURE_FINANCING_POOL` | browser build | `true` shows the financing sell-down pool and the pool admin pages. Unset (the default) for the pilot. |
 | `ARB_SEPOLIA_RPC_URL` | API | Same RPC for the serverless functions |
 | `DEMO_OPERATOR_KEY` | API | Operator wallet `0xbE49…16aC` (the same key as the pool admin): owner of the deposito series, sukuk and identity registry roles, signer for the faucet, test KYC and admin actions |
