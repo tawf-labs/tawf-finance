@@ -302,6 +302,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // A partial result reports the last block every scan finished, so the client continues from there.
     res.status(200).json({ toBlock: (partial ? scannedTo : toBlock).toString(), partial, wallet: w, events })
   } catch (err) {
-    res.status(500).json({ error: readableError(err, 'Could not read the activity') })
+    // ?debug=1 adds the provider's own message (URLs stripped, they carry the key) to help diagnose RPC limits.
+    const detail = req.query.debug === '1' ? String((err as { details?: string })?.details ?? (err as Error)?.message ?? '').replace(/https?:\/\/\S+/g, '[url]').slice(0, 300) : undefined
+    res.status(500).json({ error: readableError(err, 'Could not read the activity'), ...(detail ? { detail } : {}) })
   }
 }
