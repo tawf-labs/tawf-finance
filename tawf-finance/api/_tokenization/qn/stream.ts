@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { decodeEventLog, getAddress, type Address, type Hex, type Log } from 'viem'
 import { publicClient, readableError } from '../_lib/operator.js'
 import { hasToken } from '../_lib/qn-auth.js'
+import { announcedBody, BodyTooLarge, requestBody } from '../_lib/raw-body.js'
 import { kvEnabled, kvListAdd, kvPool, kvRaiseLast, kvSetJson, padBlock } from '../_lib/qn-kv.js'
 import { GLOBAL, describeBody, hexBig, normalize, sources, unwrapLogs, type ActivityEvent } from '../_lib/activity-core.js'
 
@@ -56,7 +57,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const items = unwrapLogs(req.body) as unknown as (RawLog | { heartbeat?: number })[]
+    let raw: { body: unknown; bytes: number }
+    try {
+      raw = await requestBody(req)
+    } catch (e) {
+      if (e instanceof BodyTooLarge) {
+        res.status(413).json({ error: 'The delivery body is too large.' })
+        return
+      }
+      throw e
+    }
+    // A delivery that announced a body but gave us none to read is a failure, not an empty batch: say so (QuickNode stops and retries).
+    if (raw.body === undefined && announcedBody(req)) {
+      console.error('[qn/stream] announced a body but none could be read unusable')
+      res.status(422).json({ error: 'The delivery body could not be read.' })
+      return
+    }
+    const items = unwrapLogs(raw.body) as unknown as (RawLog | { heartbeat?: number })[]
 
     const srcByAddr = new Map(sources().map((s) => [s.address.toLowerCase(), s]))
     const events: ActivityEvent[] = []
@@ -97,8 +114,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // A delivery that carried something but gave us no event and no heartbeat is a failure to read it, not an
     // empty batch. Say so with a status code (QuickNode retries) and a log line, instead of a silent 200.
-    const summary = `[qn/stream] body=${describeBody(req.body)} type=${String(req.headers['content-type'] ?? '').split(';')[0].slice(0, 40)} items=${items.length} logs=${logsSeen} undecoded=${undecoded} heartbeat=${last > 0n ? 'yes' : 'no'}`
-    const hasBody = req.body !== undefined && req.body !== null && !(Array.isArray(req.body) && req.body.length === 0) && !(typeof req.body === 'string' && req.body.trim() === '')
+    const summary = `[qn/stream] body=${describeBody(raw.body)} type=${String(req.headers['content-type'] ?? '').split(';')[0].slice(0, 40)} items=${items.length} logs=${logsSeen} undecoded=${undecoded} heartbeat=${last > 0n ? 'yes' : 'no'}`
+    const hasBody = raw.bytes !== 0 && raw.body !== undefined && raw.body !== null && !(Array.isArray(raw.body) && raw.body.length === 0)
     if (hasBody && events.length === 0 && last === 0n) {
       console.error(`${summary} unusable`)
       res.status(422).json({ error: 'The delivery held no readable log or heartbeat.', received: items.length, logs: logsSeen })
