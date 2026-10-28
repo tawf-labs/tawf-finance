@@ -56,7 +56,7 @@ function NotConfigured() {
 /** sen -> coin base units (6dp) at a coin's rate: sen * 1e6 / idrPerToken. */
 function coinApprox(senBaseUnits: bigint, idrPerToken: bigint): bigint {
   if (idrPerToken === 0n) return 0n;
-  return (senBaseUnits * 1_000_000n) / idrPerToken;
+  return (senBaseUnits * 1_000_000n + idrPerToken / 2n) / idrPerToken;
 }
 
 export function InvestorDeposito() {
