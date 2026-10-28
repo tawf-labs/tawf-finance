@@ -238,14 +238,14 @@ function PoolTab({ busy, run, passcode, pool, events }: {
         <div className="space-y-2">
           {banks.map((b) => (
             <div key={b.id} className="flex flex-wrap items-center gap-2">
-              <span className="w-48 text-sm text-tawf-green">{b.name}</span>
+              <span className="w-48 max-w-full text-sm text-tawf-green">{b.name}</span>
               <span className="w-28 text-xs font-mono text-tawf-muted">{b.accountRef}</span>
               <input
                 type="number"
                 min={0}
                 value={idrOf(b)}
                 onChange={(e) => setBalances((p) => ({ ...p, [b.id]: Number(e.target.value) }))}
-                className="px-3 py-2 border border-tawf-green-10 rounded-xl w-48 text-sm"
+                className="px-3 py-2 border border-tawf-green-10 rounded-xl w-48 max-w-full text-sm"
               />
               <span className="text-xs text-tawf-muted">IDR (now {formatIdr(BigInt(b.balanceSen))})</span>
             </div>
@@ -287,7 +287,7 @@ function PoolTab({ busy, run, passcode, pool, events }: {
             return run('Allocate', () => postAdmin('pool/admin', { action: 'allocate', investors }, passcode));
           }}
         >
-          Allocate
+          Allocate listed wallets (pool)
         </Button>
       </Card>
 
@@ -310,13 +310,13 @@ function PoolTab({ busy, run, passcode, pool, events }: {
         <div className="space-y-2">
           {banks.map((b) => (
             <div key={b.id} className="flex flex-wrap items-center gap-2">
-              <span className="w-48 text-sm text-tawf-green">{b.name}</span>
+              <span className="w-48 max-w-full text-sm text-tawf-green">{b.name}</span>
               <input
                 type="number"
                 min={0}
                 value={profits[b.id] ?? 0}
                 onChange={(e) => setProfits((p) => ({ ...p, [b.id]: Number(e.target.value) }))}
-                className="px-3 py-2 border border-tawf-green-10 rounded-xl w-48 text-sm"
+                className="px-3 py-2 border border-tawf-green-10 rounded-xl w-48 max-w-full text-sm"
               />
               <span className="text-xs text-tawf-muted">IDR credited by the bank</span>
             </div>
@@ -406,7 +406,7 @@ function TreasuryTab({ busy, run, passcode, series, tawf, events }: {
             return run('Allocate', () => postAdmin('series/allocate', { investors }, passcode));
           }}
         >
-          Allocate
+          Allocate listed wallets (BPRS Demo)
         </Button>
       </Card>
 
@@ -507,7 +507,7 @@ function PendingList({ events, product, onFill }: {
         ))}
       </ul>
       <Button size="sm" variant="secondary" onClick={() => onFill(pending.map((p) => p.investor).join('\n'))}>
-        Allocate all ({pending.length}): fill the list
+        Fill list with all pending ({pending.length})
       </Button>
     </div>
   );
@@ -534,7 +534,7 @@ function ScreeningCard({ busy, run, passcode, target, wallet, setWallet, note, s
       <input type="text" value={wallet} onChange={(e) => setWallet(e.target.value)} placeholder="Wallet 0x…" aria-label="Wallet to screen" className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl font-mono text-sm" />
       <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Verified in person by … on …" aria-label="Verification note" className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl text-sm" />
       <div className="flex flex-wrap gap-2 items-center">
-        <select value={topic} onChange={(e) => setTopic(e.target.value)} aria-label="Claim topic" className="px-4 py-3 border border-tawf-green-10 rounded-xl">
+        <select value={topic} onChange={(e) => setTopic(e.target.value)} aria-label="Claim topic" className="max-w-full min-w-0 px-4 py-3 border border-tawf-green-10 rounded-xl">
           <option value="2">TAWF_SCREENED (topic 2)</option>
           <option value="3">OJK_SANDBOX_PARTICIPANT (topic 3)</option>
         </select>
@@ -815,7 +815,7 @@ function TawfShareCard({ busy, run, passcode }: { busy: string | null; run: RunF
       <div className="flex flex-wrap gap-2 items-center">
         <input type="number" min={0} max={50} value={percent} onChange={(e) => setPercent(Number(e.target.value))} className="w-24 px-3 py-2 border border-tawf-green-10 rounded-xl text-sm" />
         <span className="text-sm text-tawf-muted">% of profit</span>
-        <input value={recipient} placeholder="fee wallet 0x… (default FEE_RECIPIENT)" onChange={(e) => setRecipient(e.target.value)} className="w-80 px-3 py-2 border border-tawf-green-10 rounded-xl font-mono text-xs" />
+        <input value={recipient} placeholder="fee wallet 0x… (default FEE_RECIPIENT)" onChange={(e) => setRecipient(e.target.value)} className="w-80 max-w-full min-w-0 px-3 py-2 border border-tawf-green-10 rounded-xl font-mono text-xs" />
         <Button size="sm" variant="secondary" disabled={busy !== null || Boolean(series?.locked)} onClick={() => act('Set BPRS Demo pool nisbah', { product: 'series', action: 'set', percent })}>Set on BPRS Demo pool</Button>
         <Button size="sm" disabled={busy !== null || series?.accruedSen === series?.paidSen} onClick={() => act('Collect BPRS Demo pool share', { product: 'series', action: 'claim', coin: 'usdc' })}>Collect BPRS Demo pool share (USDC)</Button>
         <Button size="sm" disabled={busy !== null || pool?.accruedSen === pool?.paidSen} onClick={() => act('Collect regional pool share', { product: 'pool', action: 'claim', coin: 'usdc' })}>Collect regional pool share (USDC)</Button>
