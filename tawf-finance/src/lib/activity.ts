@@ -22,6 +22,8 @@ export interface ActivityEvent {
   coin: string | null;
   /** IDR sen (2 decimals). */
   sen: string | null;
+  /** SCF annual limit in coin base units (ProfileSet only). */
+  limit: string | null;
   period: number | null;
 }
 
@@ -141,8 +143,9 @@ export function readNotifyPrefs(): NotifyPrefs {
 
 /** The amount an event moved, formatted (coin for transfers, IDR for ledger facts). */
 export function eventAmount(e: ActivityEvent): string {
-  if (e.coin && e.product !== 'ledger') return formatUsdc(BigInt(e.coin));
-  if (e.sen) return formatIdr(BigInt(e.sen));
+  if (e.coin != null && e.product !== 'ledger') return formatUsdc(BigInt(e.coin));
+  if (e.limit != null) return formatUsdc(BigInt(e.limit));
+  if (e.sen != null) return formatIdr(BigInt(e.sen));
   return '';
 }
 

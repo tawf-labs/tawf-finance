@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getAddress, isAddress, parseAbi, type AbiEvent, type Address, type Hex, type Log } from 'viem'
+import { decodeEventLog, getAddress, isAddress, pad, parseAbi, toEventSelector, type AbiEvent, type Address, type Hex, type Log } from 'viem'
 import { publicClient, addresses, pool, readableError } from './_lib/operator.js'
 import deployments from '../../src/web3/tokenization.deployments.json' with { type: 'json' }
 
@@ -59,6 +59,8 @@ export interface ActivityEvent {
   coin: string | null
   /** IDR sen (2 decimals) when the event carries a rupiah amount. */
   sen: string | null
+  /** SCF annual limit in settlement-token base units (ProfileSet only). */
+  limit: string | null
   period: number | null
 }
 
@@ -80,19 +82,69 @@ const isRangeError = (err: unknown) =>
     `${(err as Error)?.message ?? ''} ${(err as { details?: string })?.details ?? ''}`,
   )
 
+type Scope = 'wallet' | 'global' | 'all'
+
+const GLOBAL = new Set(['ProfitDistributed', 'MaturitySettled'])
+
+/** Events whose first indexed argument is the investor (so the wallet can be a topic filter). */
+const isInvestorEvent = (e: AbiEvent) => {
+  const first = e.inputs[0]
+  return Boolean(first && first.indexed && (first.name === 'investor' || first.name === 'investorAddress'))
+}
+
+interface RawLog {
+  address: Address
+  topics: Hex[]
+  data: Hex
+  blockNumber: Hex
+  transactionHash: Hex
+  logIndex: Hex
+  blockTimestamp?: Hex
+}
+
+/** Topic filter for a scope: wallet-scoped investor events, global events by topic0 only, or everything. */
+function topicsFor(src: Source, scope: Scope, wallet: Address | null): (Hex | Hex[])[] | null {
+  const sel = (evs: readonly AbiEvent[]) => evs.map((e) => toEventSelector(e))
+  if (scope === 'all') return [sel(src.events)]
+  if (scope === 'global') {
+    const g = src.events.filter((e) => GLOBAL.has(e.name))
+    return g.length ? [sel(g)] : null
+  }
+  const inv = src.events.filter(isInvestorEvent)
+  return inv.length && wallet ? [sel(inv), pad(wallet, { size: 32 })] : null
+}
+
 /**
  * Read logs in [from, to], splitting the range whenever the RPC refuses it
  * (providers cap eth_getLogs by block span or by result size).
  */
-async function scan(src: Source, from: bigint, to: bigint, span: bigint): Promise<Log[]> {
+async function scan(src: Source, from: bigint, to: bigint, span: bigint, scope: Scope, wallet: Address | null): Promise<Log[]> {
+  const topics = topicsFor(src, scope, wallet)
+  if (!topics) return []
   const out: Log[] = []
   let start = from
   let step = span
   while (start <= to) {
     const end = start + step - 1n > to ? to : start + step - 1n
     try {
-      const logs = await publicClient.getLogs({ address: src.address, events: src.events, fromBlock: start, toBlock: end, strict: false })
-      out.push(...(logs as Log[]))
+      const raws = (await publicClient.request({
+        method: 'eth_getLogs',
+        params: [{ address: src.address, topics, fromBlock: `0x${start.toString(16)}`, toBlock: `0x${end.toString(16)}` }],
+      } as never)) as unknown as RawLog[]
+      for (const r of raws) {
+        try {
+          const d = decodeEventLog({ abi: src.events, data: r.data, topics: r.topics as [Hex, ...Hex[]], strict: false })
+          out.push({
+            ...(d as object),
+            transactionHash: r.transactionHash,
+            blockNumber: BigInt(r.blockNumber),
+            logIndex: Number(BigInt(r.logIndex)),
+            blockTimestamp: r.blockTimestamp ? BigInt(r.blockTimestamp) : undefined,
+          } as unknown as Log)
+        } catch {
+          // a log the ABI cannot decode is not one of ours
+        }
+      }
       start = end + 1n
       if (step < span) step *= 2n
     } catch (err) {
@@ -110,10 +162,14 @@ function normalize(product: Product, log: Log & { eventName?: string; args?: Rec
   const name = log.eventName ?? 'Unknown'
   let coin: string | null = null
   let sen: string | null = null
+  let limit: string | null = null
   if (product === 'scf') {
     coin = big('amount') ?? big('principalPaid') ?? null
     if (name === 'Redeemed') coin = ((a.principalPaid as bigint) + (a.profitPaid as bigint)).toString()
-    if (name === 'ProfileSet') coin = big('annualLimit')
+    if (name === 'ProfileSet') {
+      coin = null
+      limit = big('annualLimit')
+    }
   } else if (product === 'ledger') {
     sen = big('total')
   } else {
@@ -133,11 +189,10 @@ function normalize(product: Product, log: Log & { eventName?: string; args?: Rec
     token: (a.token as Address | undefined) ?? null,
     coin,
     sen,
+    limit,
     period: typeof a.period === 'number' || typeof a.period === 'bigint' ? Number(a.period) : null,
   }
 }
-
-const GLOBAL = new Set(['ProfitDistributed', 'MaturitySettled'])
 
 /**
  * On-chain activity for the investor and admin pages: the wallet's own
@@ -156,22 +211,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
   try {
-    const w = typeof req.query.wallet === 'string' && isAddress(req.query.wallet) ? getAddress(req.query.wallet) : null
-    const fromParam = typeof req.query.from === 'string' && /^\d+$/.test(req.query.from) ? BigInt(req.query.from) : 0n
+    const q = req.query.wallet
+    if (q !== undefined && (typeof q !== 'string' || !isAddress(q))) {
+      res.status(400).json({ error: 'wallet must be a single valid address.' })
+      return
+    }
+    const w = typeof q === 'string' ? getAddress(q) : null
+    const f = req.query.from
+    if (f !== undefined && (typeof f !== 'string' || !/^\d+$/.test(f))) {
+      res.status(400).json({ error: 'from must be a non-negative integer block number.' })
+      return
+    }
+    const fromParam = typeof f === 'string' ? BigInt(f) : 0n
     const toBlock = await publicClient.getBlockNumber()
-    const span = BigInt(Number(process.env.ACTIVITY_LOG_SPAN ?? 500_000))
+    const defaultSpan = process.env.ARB_SEPOLIA_RPC_URL ? 2_000_000 : 500_000
+    const span = BigInt(Number(process.env.ACTIVITY_LOG_SPAN ?? defaultSpan))
 
     const srcs = sources().filter((s) => !w || !s.admin)
     const results = await Promise.all(
       srcs.map(async (s) => {
         const from = fromParam > s.from ? fromParam : s.from
         if (from > toBlock) return [] as ActivityEvent[]
-        const logs = await scan(s, from, toBlock, span)
-        return logs.map((l) => normalize(s.product, l as Log & { eventName?: string; args?: Record<string, unknown> }))
+        const scopes: Scope[] = w ? ['wallet', 'global'] : ['all']
+        const parts = await Promise.all(scopes.map((sc) => scan(s, from, toBlock, span, sc, w)))
+        return parts.flat().map((l) => normalize(s.product, l as Log & { eventName?: string; args?: Record<string, unknown> }))
       }),
     )
     let events = results.flat()
-    if (w) events = events.filter((e) => GLOBAL.has(e.kind) || e.investor === w)
     events.sort((x, y) => (BigInt(y.blockNumber) > BigInt(x.blockNumber) ? 1 : BigInt(y.blockNumber) < BigInt(x.blockNumber) ? -1 : 0))
     events = events.slice(0, 300)
 
