@@ -227,7 +227,7 @@ async function etherscanEvent(
   address: Address,
   from: bigint,
   to: bigint,
-  topic0: Hex,
+  topic0: Hex | null,
   wallet: Address | null,
   budget: Budget,
 ): Promise<EtherscanLog[] | null> {
@@ -240,14 +240,14 @@ async function etherscanEvent(
       address,
       fromBlock: from.toString(),
       toBlock: to.toString(),
-      topic0,
       page: String(page),
       offset: '1000',
       apikey: key,
     })
+    if (topic0) q.set('topic0', topic0)
     if (wallet) {
       q.set('topic1', pad(wallet, { size: 32 }))
-      q.set('topic0_1_opr', 'and')
+      if (topic0) q.set('topic0_1_opr', 'and')
     }
     let body: { status: string; message: string; result: unknown } | null = null
     for (let tries = 0; tries < 4; tries++) {
@@ -290,11 +290,18 @@ async function scanEtherscan(
   scope: Scope,
   wallet: Address | null,
 ): Promise<{ logs: Log[]; doneTo: bigint }> {
-  const evs = scope === 'all' ? src.events : scope === 'global' ? src.events.filter((e) => GLOBAL.has(e.name)) : src.events.filter(isInvestorEvent)
-  if (evs.length === 0 || (scope === 'wallet' && !wallet)) return { logs: [], doneTo: to }
+  if (scope === 'wallet' && !wallet) return { logs: [], doneTo: to }
+  // Fewest calls: the wallet scope is one call on topic1 (every investor event has the investor there),
+  // the admin scope one call with no topic filter, and the pool-wide events one call per topic0.
+  const queries: { topic0: Hex | null; wallet: Address | null }[] =
+    scope === 'all'
+      ? [{ topic0: null, wallet: null }]
+      : scope === 'wallet'
+        ? [{ topic0: null, wallet }]
+        : src.events.filter((e) => GLOBAL.has(e.name)).map((e) => ({ topic0: toEventSelector(e), wallet: null }))
   const out: Log[] = []
-  for (const ev of evs) {
-    const rows = await etherscanEvent(key, src.address, from, to, toEventSelector(ev), scope === 'wallet' ? wallet : null, budget)
+  for (const qy of queries) {
+    const rows = await etherscanEvent(key, src.address, from, to, qy.topic0, qy.wallet, budget)
     if (rows === null) return { logs: out, doneTo: from - 1n }
     for (const r of rows) {
       try {
@@ -435,8 +442,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // A partial result reports the last block every scan finished, so the client continues from there.
     res.status(200).json({ toBlock: (partial ? scannedTo : toBlock).toString(), partial, wallet: w, events })
   } catch (err) {
-    // ?debug=1 adds the provider's own message (URLs stripped, they carry the key) to help diagnose RPC limits.
-    const detail = req.query.debug === '1' ? String((err as { details?: string })?.details ?? (err as Error)?.message ?? '').replace(/https?:\/\/\S+/g, '[url]').slice(0, 300) : undefined
+    // ?debug=1 with the admin passcode adds the provider's own message (URLs stripped) to help diagnose RPC limits.
+    const isAdminDebug = req.query.debug === '1' && Boolean(process.env.DEMO_PASSCODE) && req.headers['x-demo-passcode'] === process.env.DEMO_PASSCODE
+    const detail = isAdminDebug ? String((err as { details?: string })?.details ?? (err as Error)?.message ?? '').replace(/https?:\/\/\S+/g, '[url]').slice(0, 300) : undefined
     res.status(500).json({ error: readableError(err, 'Could not read the activity'), ...(detail ? { detail } : {}) })
   }
 }
