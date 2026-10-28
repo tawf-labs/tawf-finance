@@ -24,6 +24,7 @@ import {
   type Hex,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
+import { safeEqual } from './qn-auth.js'
 import { arbitrumSepolia } from 'viem/chains'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import deployments from '../../../src/web3/tokenization.deployments.json' with { type: 'json' }
@@ -286,7 +287,7 @@ export function methodGuard(req: VercelRequest, res: VercelResponse, method = 'P
 export function requirePasscode(req: VercelRequest, res: VercelResponse): boolean {
   const expected = process.env.DEMO_PASSCODE
   const got = req.headers['x-demo-passcode']
-  if (!expected || got !== expected) {
+  if (!safeEqual(got, expected)) {
     res.status(401).json({ error: 'Invalid or missing demo passcode' })
     return false
   }

@@ -1,3 +1,4 @@
+import { safeEqual } from '../_lib/qn-auth.js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getAddress, type Address, type Hex } from 'viem'
 import { publicClient, walletClient, addresses, pool, isConfigured, isPoolConfigured, readableError } from '../_lib/operator.js'
@@ -18,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
   const secret = process.env.CRON_SECRET
-  if (!secret || req.headers.authorization !== `Bearer ${secret}`) {
+  if (!secret || !safeEqual(req.headers.authorization, secret ? `Bearer ${secret}` : undefined)) {
     res.status(401).json({ error: 'Unauthorized' })
     return
   }

@@ -1,3 +1,4 @@
+import { arbitrumSepolia } from 'viem/chains'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getAddress, isAddress, parseEther, type Address, type Hex } from 'viem'
 import {
@@ -10,7 +11,7 @@ import {
   readableError,
 } from './_lib/operator.js'
 import { mockTokenAbi } from './_lib/abis.js'
-import { ensureVerified, hasValidScreeningClaim, issueScreeningClaim, type IdentityStep } from './_lib/identity.js'
+import { ensureVerified, hasValidScreeningClaim, issueScreeningClaim, isBlockedWallet, BLOCKED_WALLET_MESSAGE, type IdentityStep } from './_lib/identity.js'
 
 const MIN_USER_ETH = parseEther('0.002')
 const TOP_UP = parseEther('0.002')
@@ -18,8 +19,6 @@ const MIN_OPERATOR_ETH = parseEther('0.01')
 
 const ZERO = '0x0000000000000000000000000000000000000000'
 
-/** Compromised burner: never funded and never screened. */
-const BLOCKED = new Set(['0x6155aecb5eab7719804f67de1e4ef878f0226f87'])
 
 /**
  * Faucet: fund gas, mint test mUSDC, mUSDT and mUSDG, verify the wallet's ERC-3643
@@ -41,8 +40,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return
     }
     const user = getAddress(address) as Address
-    if (BLOCKED.has(user.toLowerCase())) {
-      res.status(400).json({ error: 'This wallet is blocked on the testnet faucet.' })
+    if (isBlockedWallet(user)) {
+      res.status(400).json({ error: BLOCKED_WALLET_MESSAGE })
       return
     }
     const steps: IdentityStep[] = []
@@ -75,7 +74,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 4. Testnet self-service screening (topic 2) so the wallet may hold both Deposito Pools.
     //    The claim is identity wide. Skipped when a valid one is already there.
-    if (isVerified) {
+    //    Testnet only: skipped unless the deployment is on Arbitrum Sepolia.
+    if (isVerified && addresses.chainId === arbitrumSepolia.id) {
       if (await hasValidScreeningClaim(user, addresses.tawfScreenedTopic)) {
         steps.push({ label: 'Already screened (TAWF_SCREENED claim present)', skipped: true })
       } else {

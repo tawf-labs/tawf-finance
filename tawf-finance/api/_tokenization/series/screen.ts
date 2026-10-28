@@ -7,7 +7,7 @@ import {
   requirePasscode,
   readableError,
 } from '../_lib/operator.js'
-import { issueScreeningClaim } from '../_lib/identity.js'
+import { issueScreeningClaim, isBlockedWallet, BLOCKED_WALLET_MESSAGE } from '../_lib/identity.js'
 
 /**
  * Issue a screening claim to a wallet so it may hold the Tawf deposito series
@@ -39,6 +39,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     if (typeof note !== 'string' || note.trim().length < 5) {
       res.status(400).json({ error: 'A verification note is required (e.g. "verified in person by ... on ...").' })
+      return
+    }
+    if (isBlockedWallet(wallet)) {
+      res.status(400).json({ error: BLOCKED_WALLET_MESSAGE })
       return
     }
     const topicNum = topic === 3 || topic === '3' ? 3n : addresses.tawfScreenedTopic

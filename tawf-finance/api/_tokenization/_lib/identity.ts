@@ -26,6 +26,16 @@ import {
 import { identityAbi, identityRegistryAbi, identityProxyAbi, claimIssuerAbi } from './abis.js'
 
 const COUNTRY_ID = 360 // Indonesia
+
+/** Compromised testnet burners: never verified, funded or screened. Shared by the faucet, KYC and screening paths. */
+const BLOCKED_WALLETS = new Set(['0x6155aecb5eab7719804f67de1e4ef878f0226f87'])
+export const BLOCKED_WALLET_MESSAGE = 'This wallet is blocked on the testnet faucet.'
+export function isBlockedWallet(user: string): boolean {
+  return BLOCKED_WALLETS.has(user.toLowerCase())
+}
+function assertNotBlocked(user: string): void {
+  if (isBlockedWallet(user)) throw new Error(BLOCKED_WALLET_MESSAGE)
+}
 const ZERO = '0x0000000000000000000000000000000000000000'
 
 export interface IdentityStep {
@@ -54,6 +64,7 @@ async function signKycClaim(identity: Address, topic: bigint, data: Hex): Promis
  * the final verified status. Throws if the identity proxy bytecode is missing.
  */
 export async function ensureVerified(user: Address): Promise<{ steps: IdentityStep[]; isVerified: boolean }> {
+  assertNotBlocked(user)
   const steps: IdentityStep[] = []
   const wc = walletClient()
 
@@ -140,6 +151,7 @@ export async function issueScreeningClaim(
   topic: bigint,
   note?: string,
 ): Promise<{ steps: IdentityStep[]; identity: Address }> {
+  assertNotBlocked(user)
   const steps: IdentityStep[] = []
   const wc = walletClient()
 
