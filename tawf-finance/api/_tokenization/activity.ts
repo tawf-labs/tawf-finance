@@ -21,9 +21,10 @@ const errText = (err: unknown) => `${(err as Error)?.message ?? ''} ${(err as { 
 const isRateLimit = (err: unknown) => /429|rate.?limit|too many requests|busy|throttl|capacity/i.test(errText(err))
 
 /**
- * Providers refuse a log query for a block span or result size, with messages that differ
- * per vendor (QuickNode: "eth_getLogs is limited to a 10,000 range", sometimes only a
- * generic "Request failed"). Anything that is not a rate limit is treated as a range problem.
+ * Providers refuse a log query for a block span or result size, with messages that differ per
+ * vendor (QuickNode: "eth_getLogs is limited to a 5 range"). Only explicit range or size messages
+ * count: anything else, including a plain "Request failed", is surfaced instead of being retried
+ * with smaller and smaller ranges.
  */
 const isRangeError = (err: unknown) =>
   /block range|range (is )?too|limited to a? ?\d[\d,]* ?(block|range)|exceed(s|ed)? .*(range|limit|size|results)|too many (results|logs)|response size|query returned more than|result window|more than \d[\d,]* results/i.test(errText(err))
@@ -328,7 +329,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.query.alerts === '1') {
       // Read-only: the newest ProfitDistributed / MaturitySettled alerts recorded by the QuickNode webhook.
       const items = kvEnabled() ? await kvListGet('tawf:alerts').catch(() => [] as string[]) : []
-      const alerts = items
+      // The same alert can be stored twice (block time unknown first, known on a retry): keep the newest item per id.
+      const byId = new Map<string, string>()
+      for (const it of [...items].sort((x, y) => (x < y ? 1 : x > y ? -1 : 0))) {
+        const [, tx, idx] = it.split(':')
+        const id = `${tx}:${idx}`
+        const have = byId.get(id)
+        // prefer the item that has a block time
+        if (!have || (!have.split(':')[6] && it.split(':')[6])) byId.set(id, it)
+      }
+      const alerts = [...byId.values()]
         .sort((x, y) => (x < y ? 1 : x > y ? -1 : 0))
         .slice(0, 10)
         .map((it) => {

@@ -49,16 +49,27 @@ export const kvSetJson = (key: string, value: unknown) => kvSet(key, JSON.string
 
 const LISTS = 'https://api.quicknode.com/kv/rest/v1/lists'
 
-/** Append one item. Creates the list when missing, ignores a duplicate item, and never reads first. */
+/**
+ * Append one item. The live API creates the list when it is missing and ignores a duplicate item,
+ * but the documented contract is "add to an existing list", so a 404 falls back to creating the
+ * list with the item, and a "list exists" answer to that create retries the add.
+ */
 export async function kvListAdd(key: string, item: string): Promise<void> {
   if (item.length > 128) throw new Error('A key-value list item is longer than 128 characters.')
-  let r: Response
-  try {
-    r = await fetch(`${LISTS}/${encodeURIComponent(key)}/items`, { method: 'POST', headers: headers(), body: JSON.stringify({ item }) })
-  } catch {
-    throw new Error('The key-value store is unreachable.')
+  const call = async (url: string, body: unknown): Promise<number> => {
+    try {
+      return (await fetch(url, { method: 'POST', headers: headers(), body: JSON.stringify(body) })).status
+    } catch {
+      throw new Error('The key-value store is unreachable.')
+    }
   }
-  if (!r.ok) throw new Error(`The key-value store refused the list write (${r.status}).`)
+  const add = () => call(`${LISTS}/${encodeURIComponent(key)}/items`, { item })
+  let status = await add()
+  if (status === 404) {
+    status = await call(LISTS, { key, items: [item] })
+    if (status === 409) status = await add()
+  }
+  if (status < 200 || status >= 300) throw new Error(`The key-value store refused the list write (${status}).`)
 }
 
 export async function kvListGet(key: string): Promise<string[]> {

@@ -131,8 +131,12 @@ async function setupStream() {
 
 /** The index covers the chain from the stream's start block. The activity route checks this before it trusts the index. */
 async function recordStartBlock() {
-  const r = await qn('POST', '/kv/rest/v1/sets', { key: 'tawf:act:startBlock', value: JSON.stringify(String(startBlock)) })
-  console.log(`  index start block ${startBlock} recorded: HTTP ${r.status}`)
+  // The start range the API reports for the stream, not a recomputed value (an existing stream keeps its own).
+  const list = await qn<{ data: { name: string; start_range?: number }[] }>('GET', '/streams/rest/v1/streams')
+  const actual = list.json.data?.find((s) => s.name === STREAM_NAME)?.start_range
+  if (typeof actual !== 'number' || actual <= 0) throw new Error('Could not read the stream start range from the API, the index start block was not recorded.')
+  const r = await qn('POST', '/kv/rest/v1/sets', { key: 'tawf:act:startBlock', value: JSON.stringify(String(actual)) })
+  console.log(`  index start block ${actual} recorded: HTTP ${r.status}`)
 }
 
 async function setupWebhook() {
