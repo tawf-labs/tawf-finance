@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useDisconnect } from 'wagmi';
 import { User, Bell, Shield, LogOut, ExternalLink, Loader2, CheckCircle2, Droplets } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -16,10 +16,104 @@ import { runFaucet as postFaucet, type FaucetResult } from '@/lib/tokenization';
 import { shortAddress } from '@/web3/format';
 import { explorerAddressUrl, explorerTxUrl } from '@/web3/constants';
 
+const NOTIFY_KEY = 'tawf.notifyPrefs';
+const WAGMI_KEYS = ['wagmi.store', 'wagmi.recentConnectorId'];
+
+type NotifyPrefs = { profit: boolean; allocation: boolean; maturity: boolean; kyc: boolean; network: boolean };
+const DEFAULT_PREFS: NotifyPrefs = { profit: true, allocation: true, maturity: true, kyc: true, network: true };
+
+const NOTIFY_ITEMS: { key: keyof NotifyPrefs; title: string; desc: string }[] = [
+  { key: 'profit', title: 'Profit distributions', desc: 'When a profit period is posted for a pool or offering you hold' },
+  { key: 'allocation', title: 'Allocations', desc: 'When Tawf allocates your escrowed subscription to the pool' },
+  { key: 'maturity', title: 'Maturity and redemption', desc: 'When a series or offering matures and can be redeemed' },
+  { key: 'kyc', title: 'Identity and screening', desc: 'When your on-chain identity or screening claim changes' },
+  { key: 'network', title: 'Network status', desc: 'When your wallet is on the wrong network' },
+];
+
+function loadPrefs(): NotifyPrefs {
+  try {
+    const raw = localStorage.getItem(NOTIFY_KEY);
+    if (raw) return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
+  } catch {
+    /* storage blocked or corrupt, use defaults */
+  }
+  return DEFAULT_PREFS;
+}
+
 export function Settings() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const { address, isConnected } = useAccount();
+  const { disconnectAsync } = useDisconnect();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ name: user?.name ?? '', email: user?.email ?? '', phone: user?.phoneNumber ?? '' });
+  const [saved, setSaved] = useState(false);
+  const [prefs, setPrefs] = useState<NotifyPrefs>(loadPrefs);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const startEdit = () => {
+    setForm({ name: user?.name ?? '', email: user?.email ?? '', phone: user?.phoneNumber ?? '' });
+    setSaved(false);
+    setEditing(true);
+  };
+  const cancelEdit = () => {
+    setForm({ name: user?.name ?? '', email: user?.email ?? '', phone: user?.phoneNumber ?? '' });
+    setEditing(false);
+  };
+  const saveProfile = () => {
+    updateUser({ name: form.name.trim() || user?.name, email: form.email.trim() || user?.email, phoneNumber: form.phone.trim() || undefined });
+    setEditing(false);
+    setSaved(true);
+  };
+
+  const togglePref = (key: keyof NotifyPrefs) => {
+    const next = { ...prefs, [key]: !prefs[key] };
+    setPrefs(next);
+    try {
+      localStorage.setItem(NOTIFY_KEY, JSON.stringify(next));
+    } catch {
+      /* storage blocked, the toggle still works for this session */
+    }
+  };
+
+  // wagmi writes its store again when it disconnects, so clear the keys after that has settled.
+  const clearWagmi = () => {
+    try {
+      WAGMI_KEYS.forEach((k) => localStorage.removeItem(k));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const disconnectWallet = async () => {
+    try {
+      await disconnectAsync();
+    } catch {
+      /* already disconnected */
+    }
+    clearWagmi();
+    setTimeout(clearWagmi, 300);
+  };
+
+  const deleteAccount = async () => {
+    try {
+      await disconnectAsync();
+    } catch {
+      /* already disconnected */
+    }
+    try {
+      const doomed: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('tawf.') || k === 'tawf_user' || WAGMI_KEYS.includes(k))) doomed.push(k);
+      }
+      doomed.forEach((k) => localStorage.removeItem(k));
+    } catch {
+      /* ignore */
+    }
+    setTimeout(clearWagmi, 300);
+    logout();
+  };
   const { isVerified, refetch: refetchVerified } = useIsVerified(address);
   const [faucetBusy, setFaucetBusy] = useState(false);
   const [faucetResult, setFaucetResult] = useState<FaucetResult | null>(null);
@@ -85,9 +179,11 @@ export function Settings() {
                     )}
                   </div>
                 </div>
-                <Button variant="secondary" size="md">
-                  Edit Profile
-                </Button>
+                {!editing && (
+                  <Button variant="secondary" size="md" onClick={startEdit}>
+                    Edit Profile
+                  </Button>
+                )}
               </div>
 
               {/* Profile Fields */}
@@ -98,8 +194,10 @@ export function Settings() {
                   </label>
                   <input
                     type="text"
-                    defaultValue={user?.name}
-                    className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
+                    value={editing ? form.name : user?.name ?? ''}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    disabled={!editing}
+                    className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold disabled:bg-gray-50 disabled:text-tawf-muted"
                   />
                 </div>
                 <div>
@@ -108,8 +206,10 @@ export function Settings() {
                   </label>
                   <input
                     type="email"
-                    defaultValue={user?.email}
-                    className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
+                    value={editing ? form.email : user?.email ?? ''}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    disabled={!editing}
+                    className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold disabled:bg-gray-50 disabled:text-tawf-muted"
                   />
                 </div>
                 <div>
@@ -118,9 +218,11 @@ export function Settings() {
                   </label>
                   <input
                     type="tel"
-                    defaultValue={user?.phoneNumber || ''}
+                    value={editing ? form.phone : user?.phoneNumber ?? ''}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    disabled={!editing}
                     placeholder="Add phone number"
-                    className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
+                    className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold disabled:bg-gray-50 disabled:text-tawf-muted"
                   />
                 </div>
                 <div>
@@ -143,29 +245,35 @@ export function Settings() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3">
-                <Button variant="ghost" size="md">Cancel</Button>
-                <Button variant="primary" size="md">Save Changes</Button>
-              </div>
+              {editing ? (
+                <div className="flex justify-end gap-3">
+                  <Button variant="ghost" size="md" onClick={cancelEdit}>Cancel</Button>
+                  <Button variant="primary" size="md" onClick={saveProfile}>Save Changes</Button>
+                </div>
+              ) : (
+                saved && <p className="text-sm text-green-700 text-right">Profile saved on this device.</p>
+              )}
             </div>
           )}
 
           {activeTab === 'notifications' && (
             <div className="space-y-4">
-              {[
-                { title: 'Investment Returns', desc: 'Get notified when your investments generate returns' },
-                { title: 'New Pool Alerts', desc: 'Be the first to know when new investment pools open' },
-                { title: 'Maturity Reminders', desc: 'Reminders before your investments mature' },
-                { title: 'Marketing Updates', desc: 'News and updates from Tawf Finance' },
-                { title: 'Impact Reports', desc: 'Monthly impact stories and metrics' },
-              ].map((item, index) => (
-                <div key={index} className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">
+              <p className="text-sm text-tawf-muted">Choose which events show in the bell. Saved on this device.</p>
+              {NOTIFY_ITEMS.map((item) => (
+                <div key={item.key} className="flex items-center justify-between gap-4 p-4 border border-tawf-green-10 rounded-xl">
                   <div>
                     <h4 className="font-medium text-tawf-green">{item.title}</h4>
                     <p className="text-sm text-tawf-muted">{item.desc}</p>
                   </div>
-                  <button className={`w-12 h-6 rounded-full transition-colors ${index < 3 ? 'bg-tawf-green' : 'bg-gray-200'} relative`}>
-                    <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${index < 3 ? 'left-7' : 'left-1'}`} />
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={prefs[item.key]}
+                    aria-label={item.title}
+                    onClick={() => togglePref(item.key)}
+                    className={`w-12 h-6 shrink-0 rounded-full transition-colors ${prefs[item.key] ? 'bg-tawf-green' : 'bg-gray-200'} relative`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${prefs[item.key] ? 'left-7' : 'left-1'}`} />
                   </button>
                 </div>
               ))}
@@ -174,36 +282,32 @@ export function Settings() {
 
           {activeTab === 'security' && (
             <div className="space-y-6">
-              <div>
-                <h3 className="font-medium text-tawf-green mb-4">Password</h3>
-                <div className="space-y-4 max-w-md">
-                  <div>
-                    <label className="block text-sm font-medium text-tawf-ink mb-2">Current Password</label>
-                    <input type="password" className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-tawf-ink mb-2">New Password</label>
-                    <input type="password" className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-tawf-ink mb-2">Confirm Password</label>
-                    <input type="password" className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl" />
-                  </div>
-                  <Button variant="primary" size="md">Update Password</Button>
-                </div>
+              <div className="p-4 bg-tawf-sand-30 rounded-xl">
+                <h3 className="font-medium text-tawf-green mb-1">Your wallet is your account</h3>
+                <p className="text-sm text-tawf-muted">
+                  The pilot sign-in is a demo login with no password. What protects your holdings is your wallet and the
+                  on-chain identity (ONCHAINID) attached to it. Keep your wallet keys private.
+                </p>
               </div>
 
-              <hr className="border-tawf-green-10" />
-
-              <div>
-                <h3 className="font-medium text-tawf-green mb-4">Two-Factor Authentication</h3>
-                <div className="flex items-center justify-between p-4 bg-tawf-sand-30 rounded-xl max-w-md">
-                  <div>
-                    <p className="font-medium">2FA is not enabled</p>
-                    <p className="text-sm text-tawf-muted">Add an extra layer of security</p>
-                  </div>
-                  <Button variant="secondary" size="sm">Enable</Button>
+              <div className="space-y-3 max-w-md">
+                <div className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">
+                  <span className="text-sm text-tawf-muted">Connected wallet</span>
+                  {isConnected && address ? (
+                    <span className="font-mono text-sm text-tawf-green">{shortAddress(address)}</span>
+                  ) : (
+                    <Badge variant="default" size="sm">Not connected</Badge>
+                  )}
                 </div>
+                <div className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">
+                  <span className="text-sm text-tawf-muted">On-chain identity</span>
+                  <Badge variant={isVerified ? 'success' : 'default'} size="sm">
+                    {!isConnected ? 'Connect a wallet' : isVerified ? 'Verified identity' : 'Not verified'}
+                  </Badge>
+                </div>
+                <Button variant="secondary" size="md" onClick={() => void disconnectWallet()} disabled={!isConnected}>
+                  Disconnect wallet
+                </Button>
               </div>
             </div>
           )}
@@ -310,9 +414,24 @@ export function Settings() {
           Irreversible actions that affect your account
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button variant="ghost" size="md" className="text-red-600 hover:bg-red-50">
-            Delete Account
-          </Button>
+          {confirmDelete ? (
+            <div className="w-full p-4 border border-red-200 bg-red-50 rounded-xl space-y-3">
+              <p className="text-sm text-red-700">
+                This clears your profile, preferences and wallet connection from this device and signs you out. On-chain
+                holdings are not affected.
+              </p>
+              <div className="flex gap-3">
+                <Button variant="ghost" size="md" onClick={() => setConfirmDelete(false)}>Keep my account</Button>
+                <Button variant="ghost" size="md" className="text-red-600 hover:bg-red-100" onClick={() => void deleteAccount()}>
+                  Yes, delete my local account
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="ghost" size="md" className="text-red-600 hover:bg-red-50" onClick={() => setConfirmDelete(true)}>
+              Delete Account
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="md"

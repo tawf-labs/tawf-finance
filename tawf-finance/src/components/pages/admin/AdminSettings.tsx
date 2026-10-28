@@ -1,147 +1,125 @@
-import { Settings, Bell, Shield, Database } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ExternalLink, Globe, Shield, Database } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 import { Tabs } from '@/components/ui/Tabs';
+import deployments from '@/web3/tokenization.deployments.json';
+import { CHAIN_ID, EXPLORER_URL, RPC_URL, explorerAddressUrl } from '@/web3/constants';
+import { WALLETCONNECT_PROJECT_ID } from '@/web3/config';
+import { FINANCING_POOL_ENABLED } from '@/config/features';
+import { shortAddress } from '@/web3/format';
+
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
+/** `tawfSeriesToken` becomes "Tawf series token". */
+function labelOf(key: string): string {
+  const words = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 p-3 border border-tawf-green-10 rounded-xl">
+      <span className="text-sm text-tawf-muted">{label}</span>
+      <span className="text-sm text-tawf-green text-right">{children}</span>
+    </div>
+  );
+}
+
+function AddressLink({ address }: { address: `0x${string}` }) {
+  return (
+    <a
+      href={explorerAddressUrl(address)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 font-mono hover:underline"
+      title={address}
+    >
+      {shortAddress(address)} <ExternalLink className="w-3 h-3" />
+    </a>
+  );
+}
 
 export function AdminSettings() {
+  const [activeTab, setActiveTab] = useState('deployment');
+
   const tabs = [
-    { id: 'general', label: 'General', content: null, icon: <Settings className="w-4 h-4" /> },
-    { id: 'notifications', label: 'Notifications', content: null, icon: <Bell className="w-4 h-4" /> },
-    { id: 'security', label: 'Security', content: null, icon: <Shield className="w-4 h-4" /> },
-    { id: 'integrations', label: 'Integrations', content: null, icon: <Database className="w-4 h-4" /> },
+    { id: 'deployment', label: 'Deployment', content: null, icon: <Database className="w-4 h-4" /> },
+    { id: 'network', label: 'Network and features', content: null, icon: <Globe className="w-4 h-4" /> },
+    { id: 'access', label: 'Access', content: null, icon: <Shield className="w-4 h-4" /> },
   ];
+
+  const contracts = useMemo(
+    () =>
+      Object.entries(deployments as Record<string, unknown>)
+        .filter(([key, value]) => typeof value === 'string' && ADDRESS.test(value) && key !== 'operator')
+        .map(([key, value]) => ({ key, address: value as `0x${string}` })),
+    [],
+  );
+  const operator = (deployments as { operator?: string }).operator;
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div>
         <h1 className="font-serif text-3xl text-tawf-green mb-2">Platform Settings</h1>
-        <p className="text-tawf-muted">Configure platform-wide settings and preferences</p>
+        <p className="text-tawf-muted">What the platform is running on. This page is read only, deployment changes go through the deploy scripts.</p>
       </div>
 
-      {/* Tabs */}
       <Card className="p-6">
-        <Tabs tabs={tabs} defaultTab="general" variant="underline" />
+        <Tabs tabs={tabs} defaultTab="deployment" variant="underline" onChange={setActiveTab} />
 
-        <div className="mt-8 space-y-6">
-          {/* Platform Info */}
-          <div>
-            <h3 className="font-medium text-tawf-green mb-4">Platform Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-tawf-ink mb-2">Platform Name</label>
-                <input
-                  type="text"
-                  defaultValue="Tawf Finance"
-                  className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-tawf-ink mb-2">Support Email</label>
-                <input
-                  type="email"
-                  defaultValue="support@tawf.finance"
-                  className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Fee Structure */}
-          <div>
-            <h3 className="font-medium text-tawf-green mb-4">Fee Structure</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-tawf-ink mb-2">Platform Fee (%)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  defaultValue="2.5"
-                  className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
-                />
-                <p className="text-xs text-tawf-muted mt-1">Fee charged on all transactions</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-tawf-ink mb-2">Servicing Fee (%)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  defaultValue="1.0"
-                  className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
-                />
-                <p className="text-xs text-tawf-muted mt-1">Fee retained by the BPRS servicer</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-tawf-ink mb-2">Min Investment ($)</label>
-                <input
-                  type="number"
-                  defaultValue="10"
-                  className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-tawf-gold"
-                />
-                <p className="text-xs text-tawf-muted mt-1">Minimum investment per pool</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Sharia Compliance Settings */}
-          <div>
-            <h3 className="font-medium text-tawf-green mb-4">Shariah Alignment Settings</h3>
+        <div className="mt-8">
+          {activeTab === 'deployment' && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">
-                <div>
-                  <p className="font-medium text-tawf-green">Require Shariah Review</p>
-                  <p className="text-sm text-tawf-muted">All pools must be Shariah-aligned</p>
-                </div>
-                <div className="w-12 h-6 bg-tawf-green rounded-full relative">
-                  <span className="absolute top-1 left-7 w-4 h-4 bg-white rounded-full" />
-                </div>
-              </div>
-              <div className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">
-                <div>
-                  <p className="font-medium text-tawf-green">Shariah Board Approval</p>
-                  <p className="text-sm text-tawf-muted">Require board approval for new pools</p>
-                </div>
-                <div className="w-12 h-6 bg-tawf-green rounded-full relative">
-                  <span className="absolute top-1 left-7 w-4 h-4 bg-white rounded-full" />
-                </div>
+              <p className="text-sm text-tawf-muted">
+                Contract addresses from <span className="font-mono">tokenization.deployments.json</span> on chain {CHAIN_ID} (Arbitrum Sepolia).
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {contracts.map((c) => (
+                  <Row key={c.key} label={labelOf(c.key)}>
+                    <AddressLink address={c.address} />
+                  </Row>
+                ))}
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Maintenance Mode */}
-          <div>
-            <h3 className="font-medium text-tawf-green mb-4">System Status</h3>
-            <div className="flex items-center justify-between p-4 border border-tawf-green-10 rounded-xl">
-              <div>
-                <p className="font-medium text-tawf-green">Maintenance Mode</p>
-                <p className="text-sm text-tawf-muted">Temporarily disable platform for maintenance</p>
-              </div>
-              <div className="w-12 h-6 bg-gray-200 rounded-full relative">
-                <span className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full" />
-              </div>
+          {activeTab === 'network' && (
+            <div className="space-y-3 max-w-2xl">
+              <Row label="Chain">Arbitrum Sepolia ({CHAIN_ID})</Row>
+              <Row label="Explorer">
+                <a href={EXPLORER_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">
+                  {EXPLORER_URL.replace(/^https?:\/\//, '')} <ExternalLink className="w-3 h-3" />
+                </a>
+              </Row>
+              <Row label="Browser RPC">{RPC_URL.includes('sepolia-rollup.arbitrum.io') ? 'Public Arbitrum endpoint' : 'Dedicated endpoint'}</Row>
+              <Row label="Operator">
+                {operator && ADDRESS.test(operator) ? <AddressLink address={operator as `0x${string}`} /> : <Badge variant="default" size="sm">Not set</Badge>}
+              </Row>
+              <Row label="Financing sell-down pool">
+                <Badge variant={FINANCING_POOL_ENABLED ? 'success' : 'default'} size="sm">{FINANCING_POOL_ENABLED ? 'Enabled' : 'Off in this build'}</Badge>
+              </Row>
+              <Row label="WalletConnect">
+                <Badge variant={WALLETCONNECT_PROJECT_ID ? 'success' : 'warning'} size="sm">{WALLETCONNECT_PROJECT_ID ? 'Configured' : 'Not configured'}</Badge>
+              </Row>
             </div>
-          </div>
+          )}
 
-          {/* Save Button */}
-          <div className="flex justify-end pt-4 border-t border-tawf-green-10">
-            <Button variant="primary" size="md">Save Changes</Button>
-          </div>
-        </div>
-      </Card>
-
-      {/* Danger Zone */}
-      <Card className="p-6 border-red-200">
-        <h3 className="font-medium text-red-600 mb-4">Danger Zone</h3>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-red-50 rounded-xl">
-            <div>
-              <p className="font-medium text-red-700">Reset All Data</p>
-              <p className="text-sm text-red-600">Permanently delete all platform data (cannot be undone)</p>
+          {activeTab === 'access' && (
+            <div className="space-y-4 max-w-2xl">
+              <div className="p-4 bg-tawf-sand-30 rounded-xl">
+                <h3 className="font-medium text-tawf-green mb-1">Pilot access model</h3>
+                <p className="text-sm text-tawf-muted">
+                  Sign-in is a demo login. Admin actions that write to the chain (reserve posts, closes, distributions, settlements, screening)
+                  are checked on the server with the demo passcode and signed by the operator key, which never reaches the browser.
+                </p>
+              </div>
+              <Row label="Operator">
+                {operator && ADDRESS.test(operator) ? <AddressLink address={operator as `0x${string}`} /> : <Badge variant="default" size="sm">Not set</Badge>}
+              </Row>
+              <Row label="Admin write actions">Server side passcode</Row>
             </div>
-            <Button variant="ghost" size="md" className="text-red-600 hover:bg-red-100">
-              Reset Platform
-            </Button>
-          </div>
+          )}
         </div>
       </Card>
     </div>

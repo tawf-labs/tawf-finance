@@ -5,6 +5,7 @@ import { Check, ArrowRight, ArrowLeft, User, Shield } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FINANCING_POOL_ENABLED } from '@/config/features';
+import { useAuth } from '@/hooks/useAuth';
 
 type UserRole = 'investor' | 'issuer';
 
@@ -22,6 +23,7 @@ interface FormData {
 
 export function Register() {
   const navigate = useNavigate();
+  const { register } = useAuth();
   const [step, setStep] = useState(1);
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [formData, setFormData] = useState<FormData>({
@@ -54,8 +56,9 @@ export function Register() {
   };
 
   const handleSubmit = () => {
-    // In a real app, would submit to backend
-    console.log('Registration data:', { ...formData, role: selectedRole });
+    // Pilot: a demo profile kept in this browser, no backend.
+    if (!selectedRole) return;
+    register(`${formData.firstName} ${formData.lastName}`, formData.email, selectedRole);
     navigate('/onboarding');
   };
 
@@ -229,9 +232,9 @@ export function Register() {
                   />
                   <label htmlFor="terms" className="text-sm text-tawf-muted">
                     I agree to the{' '}
-                    <a href="#" className="text-tawf-gold hover:underline">Terms of Service</a>
+                    <a href="/about" target="_blank" rel="noopener noreferrer" className="text-tawf-gold hover:underline">Terms of Service</a>
                     {' '}and{' '}
-                    <a href="#" className="text-tawf-gold hover:underline">Privacy Policy</a>
+                    <a href="/about" target="_blank" rel="noopener noreferrer" className="text-tawf-gold hover:underline">Privacy Policy</a>
                   </label>
                 </div>
 
