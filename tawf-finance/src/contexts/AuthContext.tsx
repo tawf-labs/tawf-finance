@@ -9,6 +9,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string) => Promise<void>;
   loginAsDemo: (role: UserRole) => Promise<void>;
+  register: (name: string, email: string, role: UserRole) => void;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
 }
@@ -73,6 +74,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   };
 
+  /** Demo registration: a local profile on top of the demo user of that role. No backend. */
+  const register = (name: string, email: string, role: UserRole) => {
+    const base = demoUsers[role];
+    setUser({
+      ...base,
+      id: `user-${Date.now()}`,
+      name: name.trim() || base.name,
+      email: email.trim() || base.email,
+      status: 'active',
+      joinedAt: new Date().toISOString(),
+      kycVerified: false,
+      walletAddress: undefined,
+      phoneNumber: undefined,
+    });
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem('tawf_user');
@@ -107,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         loginAsDemo,
+        register,
         logout,
         updateUser,
       }}

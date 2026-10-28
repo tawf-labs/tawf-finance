@@ -1264,15 +1264,6 @@ export function getInvestmentsByUserId(userId: string): Investment[] {
   return mockInvestments.filter(i => i.userId === userId);
 }
 
-export function getPurchaseOrdersByBusinessId(businessId: string): PurchaseOrder[] {
-  return mockPurchaseOrders.filter(po => po.businessId === businessId);
-}
-
-export function getPurchaseOrdersByCooperative(): PurchaseOrder[] {
-  // In a real system, this would check which BPRS originator is assigned
-  return mockPurchaseOrders.filter(po => po.status === 'verifying' || po.status === 'funded');
-}
-
 export function getTransactionsByUserId(userId: string): Transaction[] {
   return mockTransactions.filter(t => t.userId === userId);
 }
@@ -1293,16 +1284,8 @@ export function getPartnershipsByVendorId(vendorId: string): Partnership[] {
   return mockPartnerships.filter(p => p.vendorId === vendorId);
 }
 
-export function getPartnershipsByCooperativeId(cooperativeId: string): Partnership[] {
-  return mockPartnerships.filter(p => p.cooperativeId === cooperativeId);
-}
-
 export function getComplianceDocumentsByUserId(userId: string): ComplianceDocument[] {
   return mockComplianceDocuments.filter(d => d.userId === userId);
-}
-
-export function getBusinessProfileByUserId(userId: string): BusinessProfile | undefined {
-  return mockBusinessProfiles.find(b => b.userId === userId);
 }
 
 // Format currency

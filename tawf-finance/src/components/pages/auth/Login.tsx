@@ -148,9 +148,9 @@ export function Login() {
                   <input type="checkbox" className="rounded text-tawf-green focus:ring-tawf-gold" />
                   <span className="text-sm text-tawf-muted">Remember me</span>
                 </label>
-                <a href="#" className="text-sm text-tawf-gold hover:underline">
-                  Forgot password?
-                </a>
+                <span className="text-xs text-tawf-muted text-right">
+                  The pilot uses a demo login, no password to reset.
+                </span>
               </div>
 
               <Button
