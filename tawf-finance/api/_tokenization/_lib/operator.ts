@@ -350,6 +350,8 @@ export async function fetchProofForLeaf(leaf: Hex): Promise<RelayerProof | null>
 // Env values that must never reach an API response: RPC URLs carry provider keys.
 const SECRET_ENV = [
   'ARB_SEPOLIA_RPC_URL',
+  'ETHERSCAN_API_KEY',
+  'ACTIVITY_RPC_URL',
   'TAWF_NETWORK_RPC_URL',
   'TAWF_NETWORK_RPC_TOKEN',
   'TAWF_NETWORK_DPS_KEY',

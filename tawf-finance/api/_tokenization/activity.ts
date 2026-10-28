@@ -196,6 +196,126 @@ async function scan(
   return { logs: out, doneTo: to }
 }
 
+// --- Etherscan v2 (Arbiscan) log source --------------------------------------
+
+const ETHERSCAN = 'https://api.etherscan.io/v2/api'
+let nextSlot = 0
+
+/** Spread calls out to about 4 per second (the free tier allows 5). */
+async function throttle() {
+  const now = Date.now()
+  const at = Math.max(now, nextSlot)
+  nextSlot = at + 260
+  if (at > now) await sleep(at - now)
+}
+
+interface EtherscanLog {
+  address: Address
+  topics: (Hex | null)[]
+  data: Hex
+  blockNumber: Hex
+  timeStamp: Hex
+  transactionHash: Hex
+  logIndex: Hex
+}
+
+const hexBig = (h: string | undefined) => (!h || h === '0x' ? 0n : BigInt(h))
+
+/** One event type (topic0), optionally for one wallet (topic1), all pages. */
+async function etherscanEvent(
+  key: string,
+  address: Address,
+  from: bigint,
+  to: bigint,
+  topic0: Hex,
+  wallet: Address | null,
+  budget: Budget,
+): Promise<EtherscanLog[] | null> {
+  const out: EtherscanLog[] = []
+  for (let page = 1; page <= 10; page++) {
+    const q = new URLSearchParams({
+      chainid: '421614',
+      module: 'logs',
+      action: 'getLogs',
+      address,
+      fromBlock: from.toString(),
+      toBlock: to.toString(),
+      topic0,
+      page: String(page),
+      offset: '1000',
+      apikey: key,
+    })
+    if (wallet) {
+      q.set('topic1', pad(wallet, { size: 32 }))
+      q.set('topic0_1_opr', 'and')
+    }
+    let body: { status: string; message: string; result: unknown } | null = null
+    for (let tries = 0; tries < 4; tries++) {
+      if (Date.now() > budget.deadline) return null
+      await throttle()
+      try {
+        const r = await fetch(`${ETHERSCAN}?${q}`)
+        body = (await r.json()) as { status: string; message: string; result: unknown }
+      } catch {
+        // never surface the error text, the URL carries the API key
+        throw new Error('The log index is unreachable, try again shortly.')
+      }
+      const text = `${body.message} ${typeof body.result === 'string' ? body.result : ''}`
+      if (body.status === '0' && /rate limit/i.test(text)) {
+        await sleep(600 * (tries + 1))
+        body = null
+        continue
+      }
+      break
+    }
+    if (!body) throw new Error('The log index is rate limited, try again shortly.')
+    if (body.status === '0') {
+      if (/no records found/i.test(body.message)) break
+      throw new Error('The log index could not be read.')
+    }
+    const rows = body.result as EtherscanLog[]
+    out.push(...rows)
+    if (rows.length < 1000) break
+  }
+  return out
+}
+
+/** Same contract as scan(), reading logs from the Etherscan v2 API. */
+async function scanEtherscan(
+  key: string,
+  src: Source,
+  from: bigint,
+  to: bigint,
+  budget: Budget,
+  scope: Scope,
+  wallet: Address | null,
+): Promise<{ logs: Log[]; doneTo: bigint }> {
+  const evs = scope === 'all' ? src.events : scope === 'global' ? src.events.filter((e) => GLOBAL.has(e.name)) : src.events.filter(isInvestorEvent)
+  if (evs.length === 0 || (scope === 'wallet' && !wallet)) return { logs: [], doneTo: to }
+  const out: Log[] = []
+  for (const ev of evs) {
+    const rows = await etherscanEvent(key, src.address, from, to, toEventSelector(ev), scope === 'wallet' ? wallet : null, budget)
+    if (rows === null) return { logs: out, doneTo: from - 1n }
+    for (const r of rows) {
+      try {
+        const topics = r.topics.filter((t): t is Hex => Boolean(t))
+        const d = decodeEventLog({ abi: src.events, data: r.data, topics: topics as [Hex, ...Hex[]], strict: false })
+        out.push({
+          ...(d as object),
+          transactionHash: r.transactionHash,
+          blockNumber: hexBig(r.blockNumber),
+          logIndex: Number(hexBig(r.logIndex)),
+          blockTimestamp: hexBig(r.timeStamp),
+        } as unknown as Log)
+      } catch {
+        // not one of ours
+      }
+    }
+  }
+  return { logs: out, doneTo: to }
+}
+
+
 /** Run async jobs with at most `limit` in flight. */
 async function pooled<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length)
@@ -287,10 +407,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const scopes: Scope[] = w ? ['wallet', 'global'] : ['all']
     const jobs = srcs.flatMap((s) => scopes.map((sc) => ({ s, sc })))
     let scannedTo = toBlock
-    const results = await pooled(jobs, 2, async ({ s, sc }) => {
+    const results = await pooled(jobs, process.env.ETHERSCAN_API_KEY ? 4 : 2, async ({ s, sc }) => {
       const from = fromParam > s.from ? fromParam : s.from
       if (from > toBlock) return [] as ActivityEvent[]
-      const r = await scan(s, from, toBlock, budget, sc, w)
+      const key = process.env.ETHERSCAN_API_KEY
+      const r = key ? await scanEtherscan(key, s, from, toBlock, budget, sc, w) : await scan(s, from, toBlock, budget, sc, w)
       if (r.doneTo < scannedTo) scannedTo = r.doneTo
       return r.logs.map((l) => normalize(s.product, l as Log & { eventName?: string; args?: Record<string, unknown> }))
     })
