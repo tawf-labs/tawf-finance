@@ -62,7 +62,7 @@ async function readIndex(wallet: Address | null, from: bigint, head: bigint): Pr
     // A list item without its body means a write is still in flight: do not serve a partial index.
     if (bodies.some((b) => b === null)) return null
     // Pool-wide rows are only ProfitDistributed / MaturitySettled, never another wallet's data.
-    const wanted = (bodies as ActivityEvent[]).filter((e) => (wallet ? e.investor === wallet || (e.investor === null && GLOBAL.has(e.kind)) : true))
+    const wanted = (bodies as ActivityEvent[]).filter((e) => (wallet ? (e.investor === wallet && !['identity', 'ledger'].includes(e.product)) || (e.investor === null && GLOBAL.has(e.kind)) : true))
     // Block times that could not be read when the event was indexed.
     const missing = [...new Set(wanted.filter((e) => e.timestamp === null).map((e) => e.blockNumber))].slice(0, 60)
     const times = new Map<string, number>()

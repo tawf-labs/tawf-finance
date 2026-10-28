@@ -14,6 +14,7 @@ import { GLOBAL, hexBig, normalize, sources, unwrapLogs, type ActivityEvent } fr
 //   tawf:act:last:<bucket>        list   padded block numbers seen (the max is the last block)
 /** Parallel KV writes per delivery (each is a small REST call). */
 const WRITE_CONCURRENCY = 24
+const WALLET_PRODUCTS = new Set(['pool', 'series1', 'scf'])
 export const actKey = (wallet: string) => `tawf:act:${wallet.toLowerCase()}`
 export const ADMIN_KEY = 'tawf:act:admin'
 export const GLOBAL_KEY = 'tawf:act:global'
@@ -102,7 +103,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const e of events) {
       const item = listItem(e)
       adds.push([ADMIN_KEY, item])
-      if (e.investor) adds.push([actKey(getAddress(e.investor)), item])
+      // Identity and ledger rows are admin-only: the Arbiscan wallet scan never returns them either.
+      if (e.investor) {
+        if (WALLET_PRODUCTS.has(e.product)) adds.push([actKey(getAddress(e.investor)), item])
+      }
       else if (GLOBAL.has(e.kind) && (e.product === 'pool' || e.product === 'series1' || e.product === 'scf')) adds.push([GLOBAL_KEY, item])
     }
     await kvPool(adds, WRITE_CONCURRENCY, ([k, item]) => kvListAdd(k, item))
