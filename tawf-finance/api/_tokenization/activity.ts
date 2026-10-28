@@ -323,7 +323,7 @@ async function pooled<T, R>(items: T[], limit: number, fn: (item: T) => Promise<
  */
 /** Per IP, per warm instance: every request, and a tighter budget for the ones that reach the log scan. */
 const requestWindow = new SlidingWindow(30, 60_000)
-const scanWindow = new SlidingWindow(6, 60_000)
+const scanWindow = new SlidingWindow(12, 60_000)
 /** `from` is rounded down to this many blocks so CDN-cached responses are shared more often. */
 const FROM_BUCKET = 1000n
 

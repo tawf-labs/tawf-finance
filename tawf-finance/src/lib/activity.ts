@@ -92,6 +92,8 @@ interface Store {
 const stores = new Map<string, Store>();
 const listeners = new Map<string, Set<() => void>>();
 const inflight = new Map<string, Promise<void>>();
+/** Keys waiting out a 429, so other mounts do not fire more requests meanwhile. */
+const waiting = new Set<string>();
 const NONE: Store = { events: [], loading: false, error: null };
 
 /** One in-memory store per wallet key, seeded from the localStorage cache, shared by every hook. */
@@ -112,10 +114,12 @@ function setStore(k: string, patch: Partial<Store>) {
 }
 
 /** Fetch new events for a key. Concurrent callers share one request. */
-function loadActivity(wallet: `0x${string}` | undefined): Promise<void> {
+function loadActivity(wallet: `0x${string}` | undefined, retried = false): Promise<void> {
   const k = KEY(wallet);
   const running = inflight.get(k);
   if (running) return running;
+  if (waiting.has(k) && !retried) return Promise.resolve();
+  waiting.delete(k);
   const cached = readCache(wallet);
   setStore(k, { loading: true, error: null });
   const p = (async () => {
@@ -140,9 +144,18 @@ function loadActivity(wallet: `0x${string}` | undefined): Promise<void> {
       setStore(k, { events: merged, loading: false });
       again = r.partial === true && BigInt(toBlock) > BigInt(cached?.toBlock ?? '0');
     } catch (e) {
-      // Rate limited: keep the cached events, show no error, and let the next refresh try again.
       const limited = e instanceof HttpError && e.status === 429;
-      setStore(k, { loading: false, error: limited ? null : e instanceof Error ? e.message : 'Could not load activity' });
+      if (limited && !retried) {
+        // Rate limited: keep the cached events and stay in the loading state (so a first load does not read as
+        // "no activity"), then retry once after the server's Retry-After.
+        const wait = Math.min(Math.max(e.retryAfter ?? 10, 1), 65);
+        setStore(k, { loading: true, error: null });
+        waiting.add(k);
+        setTimeout(() => void loadActivity(wallet, true), wait * 1000);
+      } else {
+        // A second 429 stops quietly (no red error, cached events stay), anything else is a real error.
+        setStore(k, { loading: false, error: limited ? null : e instanceof Error ? e.message : 'Could not load activity' });
+      }
     } finally {
       inflight.delete(k);
     }
