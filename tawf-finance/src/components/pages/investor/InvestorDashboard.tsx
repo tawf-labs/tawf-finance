@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { ConnectButton } from '@/components/web3/ConnectButton';
 import { PositionRow } from '@/components/pages/investor/Portfolio';
 import { useTawfSeries, useSukuk, usePoolBanks } from '@/web3/tokenizationHooks';
-import { useActivity, ACTIVITY_LABEL, PRODUCT_LABEL, eventAmount, timeAgo } from '@/lib/activity';
+import { useActivity, ACTIVITY_LABEL, PRODUCT_LABEL, eventAmount, timeAgo, ownEvents } from '@/lib/activity';
 import { getJson } from '@/lib/tokenization';
 import { getScfStatus, type ScfStatus } from '@/lib/scf';
 import { formatIdr, formatUsdc } from '@/web3/format';
@@ -61,7 +61,7 @@ export function InvestorDashboard() {
   const hasScf = Boolean(SCF_DISTRIBUTOR_ADDRESS);
 
   const bankTotalSen = banks.reduce((s, b) => s + b.balanceSen, 0n);
-  const recent = events.slice(0, 5);
+  const recent = ownEvents(events).slice(0, 5);
 
   // Holdings by product: IDR products share one scale, SCF is in USDC so shown on its own scale.
   const idrBars = [
@@ -220,7 +220,7 @@ export function InvestorDashboard() {
                 <div><dt className="text-tawf-muted">Banks</dt><dd className="font-medium text-tawf-green">{banks.length}</dd></div>
                 <div><dt className="text-tawf-muted">Total at the banks</dt><dd className="font-medium text-tawf-green">{formatIdr(bankTotalSen)}</dd></div>
                 <div><dt className="text-tawf-muted">Supply</dt><dd className="font-medium text-tawf-green">{formatIdr(pool.supply)}</dd></div>
-                <div><dt className="text-tawf-muted">Investor nisbah</dt><dd className="font-medium text-tawf-green">{share ? `${share.investorsPercent}%` : '...'}</dd></div>
+                <div><dt className="text-tawf-muted">Your share of profit</dt><dd className="font-medium text-tawf-green">{share ? `${share.investorsPercent}%` : '...'}</dd></div>
               </dl>
             </Link>
             <Link to="/investor/scf" className="block bg-white rounded-2xl border border-tawf-green-10 p-6 hover:border-tawf-green-20 hover:shadow-md transition-all">

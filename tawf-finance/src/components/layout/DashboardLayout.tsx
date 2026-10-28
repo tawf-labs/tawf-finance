@@ -20,7 +20,10 @@ import {
   PiggyBank,
   Landmark,
 } from 'lucide-react';
+import { useAccount } from 'wagmi';
 import { useAuth } from '@/hooks/useAuth';
+import { shortAddress } from '@/web3/format';
+import { CHAIN_ID } from '@/web3/constants';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { QuickSearch } from '@/components/layout/QuickSearch';
@@ -73,6 +76,7 @@ const roleLabels: Record<string, string> = {
 export function DashboardLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const { address, isConnected, chainId } = useAccount();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -285,6 +289,14 @@ export function DashboardLayout() {
 
               {/* Notifications */}
               <NotificationBell role={user.role} />
+
+              {/* Wallet chip on phones (the full button is sm and up) */}
+              {isConnected && address && (
+                <span className="sm:hidden inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-tawf-green-10 text-tawf-green text-xs font-medium">
+                  <span className={cn('w-2 h-2 rounded-full', chainId === CHAIN_ID ? 'bg-green-500' : 'bg-amber-500')} />
+                  {shortAddress(address)}
+                </span>
+              )}
 
               {/* Wallet */}
               <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-tawf-green-10">

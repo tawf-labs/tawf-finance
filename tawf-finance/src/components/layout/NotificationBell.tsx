@@ -6,7 +6,7 @@ import { useTawfSeries, useSukuk, useScfLimit, useIsVerified } from '@/web3/toke
 import { DEPOSITO_POOL, SCF_DISTRIBUTOR_ADDRESS, SCF_TOKEN_ADDRESS } from '@/web3/tokenization';
 import { CHAIN_ID, explorerTxUrl } from '@/web3/constants';
 import { formatIdr, formatUsdc } from '@/web3/format';
-import { useActivity, ACTIVITY_LABEL, PRODUCT_LABEL, readNotifyPrefs, eventAmount, timeAgo } from '@/lib/activity';
+import { useActivity, ACTIVITY_LABEL, PRODUCT_LABEL, readNotifyPrefs, eventAmount, eventLabel, relevantEvents, timeAgo } from '@/lib/activity';
 
 const POOL_TARGET = { series: DEPOSITO_POOL.series, token: DEPOSITO_POOL.token, sandbox: DEPOSITO_POOL.sandbox, seriesId: DEPOSITO_POOL.seriesId };
 const SCF_TARGET = { distributor: SCF_DISTRIBUTOR_ADDRESS, token: SCF_TOKEN_ADDRESS };
@@ -82,8 +82,9 @@ export function NotificationBell({ role }: { role: string }) {
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
   }, [open]);
 
-  const recent = events.slice(0, 8);
-  const unreadEvents = events.filter((e) => (e.timestamp ?? 0) * 1000 > seen).length;
+  const shown = isAdmin ? events : relevantEvents(events);
+  const recent = shown.slice(0, 8);
+  const unreadEvents = shown.filter((e) => (e.timestamp ?? 0) * 1000 > seen).length;
   const count = alerts.length + unreadEvents;
 
   const markRead = () => {
@@ -109,12 +110,12 @@ export function NotificationBell({ role }: { role: string }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto rounded-2xl bg-white shadow-lift ring-1 ring-line z-50">
+        <div className="fixed left-4 right-4 top-full mt-2 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:w-[22rem] max-h-[70vh] overflow-y-auto rounded-2xl bg-white shadow-lift ring-1 ring-line z-50">
           <div className="flex items-center justify-between px-4 py-3 border-b border-line">
             <p className="font-medium text-tawf-green">Notifications</p>
-            <button onClick={markRead} className="inline-flex items-center gap-1 text-xs text-tawf-muted hover:text-tawf-green">
+            {unreadEvents > 0 && <button onClick={markRead} className="inline-flex items-center gap-1 text-xs text-tawf-muted hover:text-tawf-green">
               <CheckCheck className="w-3.5 h-3.5" /> Mark all read
-            </button>
+            </button>}
           </div>
 
           {alerts.length > 0 && (
@@ -141,7 +142,7 @@ export function NotificationBell({ role }: { role: string }) {
                   <a key={e.id} href={explorerTxUrl(e.txHash)} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 px-2 py-2 rounded-lg hover:bg-tawf-green-5">
                     <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${unread ? 'bg-red-500' : 'bg-transparent'}`} />
                     <span className="flex-1 min-w-0">
-                      <span className="block text-sm text-tawf-ink">{ACTIVITY_LABEL[e.kind] ?? e.kind}{e.period ? ` (period ${e.period})` : ''} <span className="text-tawf-muted">{eventAmount(e)}</span></span>
+                      <span className="block text-sm text-tawf-ink">{isAdmin ? ACTIVITY_LABEL[e.kind] ?? e.kind : eventLabel(e)}{e.period ? ` (period ${e.period})` : ''} <span className="text-tawf-muted">{eventAmount(e, !isAdmin)}</span></span>
                       <span className="block text-xs text-tawf-muted">{PRODUCT_LABEL[e.product]} · {timeAgo(e.timestamp)}</span>
                     </span>
                     <ExternalLink className="w-3.5 h-3.5 text-tawf-muted mt-1 shrink-0" />

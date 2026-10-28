@@ -92,7 +92,7 @@ export function AdminDashboard() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-tawf-green">
                     {ACTIVITY_LABEL[e.kind] ?? e.kind}
-                    {eventAmount(e) && <span className="text-tawf-muted font-normal"> {eventAmount(e)}</span>}
+                    {eventAmount(e, false) && <span className="text-tawf-muted font-normal"> {eventAmount(e, false)}</span>}
                   </p>
                   <p className="text-xs text-tawf-muted truncate">
                     {PRODUCT_LABEL[e.product]}{e.investor ? ` · ${e.investor.slice(0, 6)}...${e.investor.slice(-4)}` : ''} · {timeAgo(e.timestamp)}

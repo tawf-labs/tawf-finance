@@ -3,7 +3,7 @@
  * from GET /api/tokenization/activity, cached per wallet in localStorage so
  * only new blocks are fetched after the first visit.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { getJson } from '@/lib/tokenization';
 import { formatIdr, formatUsdc } from '@/web3/format';
 
@@ -81,21 +81,42 @@ export const PRODUCT_LABEL: Record<ActivityProduct, string> = {
   identity: 'Identity registry',
 };
 
-/**
- * The wallet's activity (or the admin feed when `wallet` is undefined and
- * `admin` is true). Returns cached events at once, then merges new ones.
- */
-export function useActivity(wallet: `0x${string}` | undefined, { admin = false } = {}) {
-  const enabled = Boolean(wallet) || admin;
-  const [events, setEvents] = useState<ActivityEvent[]>(() => (enabled ? readCache(wallet)?.events ?? [] : []));
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+interface Store {
+  events: ActivityEvent[];
+  loading: boolean;
+  error: string | null;
+}
 
-  const load = useCallback(async () => {
-    if (!enabled) return;
-    const cached = readCache(wallet);
-    setLoading(true);
-    setError(null);
+const stores = new Map<string, Store>();
+const listeners = new Map<string, Set<() => void>>();
+const inflight = new Map<string, Promise<void>>();
+const NONE: Store = { events: [], loading: false, error: null };
+
+/** One in-memory store per wallet key, seeded from the localStorage cache, shared by every hook. */
+function getStore(wallet: string | undefined, enabled: boolean): Store {
+  if (!enabled) return NONE;
+  const k = KEY(wallet);
+  let st = stores.get(k);
+  if (!st) {
+    st = { events: readCache(wallet as `0x${string}` | undefined)?.events ?? [], loading: false, error: null };
+    stores.set(k, st);
+  }
+  return st;
+}
+
+function setStore(k: string, patch: Partial<Store>) {
+  stores.set(k, { ...(stores.get(k) ?? NONE), ...patch });
+  listeners.get(k)?.forEach((fn) => fn());
+}
+
+/** Fetch new events for a key. Concurrent callers share one request. */
+function loadActivity(wallet: `0x${string}` | undefined): Promise<void> {
+  const k = KEY(wallet);
+  const running = inflight.get(k);
+  if (running) return running;
+  const cached = readCache(wallet);
+  setStore(k, { loading: true, error: null });
+  const p = (async () => {
     try {
       const from = cached ? (BigInt(cached.toBlock) + 1n).toString() : undefined;
       const q = new URLSearchParams();
@@ -106,21 +127,78 @@ export function useActivity(wallet: `0x${string}` | undefined, { admin = false }
       const merged = [...r.events, ...(cached?.events ?? []).filter((e) => !seen.has(e.id))];
       merged.sort((x, y) => Number(BigInt(y.blockNumber) - BigInt(x.blockNumber)));
       writeCache(wallet, { toBlock: r.toBlock, events: merged });
-      setEvents(merged);
+      setStore(k, { events: merged, loading: false });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load activity');
+      setStore(k, { loading: false, error: e instanceof Error ? e.message : 'Could not load activity' });
     } finally {
-      setLoading(false);
+      inflight.delete(k);
     }
+  })();
+  inflight.set(k, p);
+  return p;
+}
+
+/**
+ * The wallet's activity (or the admin feed when `wallet` is undefined and
+ * `admin` is true). Every hook for the same wallet shares one store and one
+ * in-flight request, shows the cached events at once, then merges new ones.
+ */
+export function useActivity(wallet: `0x${string}` | undefined, { admin = false } = {}) {
+  const enabled = Boolean(wallet) || admin;
+  const k = KEY(wallet);
+  const store = useSyncExternalStore(
+    (fn) => {
+      let set = listeners.get(k);
+      if (!set) listeners.set(k, (set = new Set()));
+      set.add(fn);
+      return () => set.delete(fn);
+    },
+    () => getStore(wallet, enabled),
+  );
+
+  const refresh = useCallback(async () => {
+    if (enabled) await loadActivity(wallet);
   }, [wallet, enabled]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- show the cache for this wallet, then refresh
-    setEvents(enabled ? readCache(wallet)?.events ?? [] : []);
-    void load();
-  }, [wallet, enabled, load]);
+    if (enabled) void loadActivity(wallet);
+  }, [wallet, enabled]);
 
-  return { events, loading, error, refresh: load };
+  return { events: store.events, loading: store.loading, error: store.error, refresh };
+}
+
+const GLOBAL_KINDS = new Set(['ProfitDistributed', 'MaturitySettled']);
+
+/** Pool-wide events (no investor): they are not the wallet's own transactions. */
+export const isPoolEvent = (e: ActivityEvent) => e.investor === null && GLOBAL_KINDS.has(e.kind);
+
+/** The wallet's own events only. */
+export const ownEvents = (events: ActivityEvent[]) => events.filter((e) => !isPoolEvent(e));
+
+/**
+ * The wallet's own events plus the pool-wide ones that happened while it held
+ * that product (its first Subscribed or Allocated for the product is earlier).
+ */
+export function relevantEvents(events: ActivityEvent[]): ActivityEvent[] {
+  const first = new Map<string, bigint>();
+  for (const e of events) {
+    if (isPoolEvent(e) || (e.kind !== 'Subscribed' && e.kind !== 'Allocated')) continue;
+    const b = BigInt(e.blockNumber);
+    const cur = first.get(e.product);
+    if (cur === undefined || b < cur) first.set(e.product, b);
+  }
+  return events.filter((e) => {
+    if (!isPoolEvent(e)) return true;
+    const f = first.get(e.product);
+    return f !== undefined && f < BigInt(e.blockNumber);
+  });
+}
+
+/** The label for an event. Pool-wide ones are named so they do not read as the wallet's own money. */
+export function eventLabel(e: ActivityEvent): string {
+  if (e.kind === 'ProfitDistributed' && isPoolEvent(e)) return 'Pool profit distributed';
+  if (e.kind === 'MaturitySettled' && isPoolEvent(e)) return 'Pool maturity settled';
+  return ACTIVITY_LABEL[e.kind] ?? e.kind;
 }
 
 /** Notification preferences written by Settings (all on by default). */
@@ -142,7 +220,14 @@ export function readNotifyPrefs(): NotifyPrefs {
 }
 
 /** The amount an event moved, formatted (coin for transfers, IDR for ledger facts). */
-export function eventAmount(e: ActivityEvent): string {
+/** `forWallet` false (admin feed) keeps the pool-wide figures, which are not any one wallet's money. */
+export function eventAmount(e: ActivityEvent, forWallet = true): string {
+  if (forWallet && isPoolEvent(e)) return '';
+  if (e.product !== 'ledger' && e.product !== 'scf') {
+    // A claim is sub-cent in coin terms, so show the rupiah figure.
+    if (e.kind === 'ProfitClaimed' && e.sen != null) return formatIdr(BigInt(e.sen));
+    if (e.kind === 'Allocated' && e.coin != null && e.sen != null) return `${formatUsdc(BigInt(e.coin))} for ${formatIdr(BigInt(e.sen))}`;
+  }
   if (e.coin != null && e.product !== 'ledger') return formatUsdc(BigInt(e.coin));
   if (e.limit != null) return formatUsdc(BigInt(e.limit));
   if (e.sen != null) return formatIdr(BigInt(e.sen));

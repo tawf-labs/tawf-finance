@@ -9,7 +9,7 @@ import { RECEIPT_STATUS_LABEL, type ReceiptStatus } from '@/web3/types';
 import { formatUsdc, formatTimestamp } from '@/web3/format';
 import { RECEIPT_NFT_ADDRESS, explorerAddressUrl, explorerTxUrl } from '@/web3/constants';
 import { Button } from '@/components/ui/Button';
-import { useActivity, ACTIVITY_LABEL, PRODUCT_LABEL, eventAmount, timeAgo, type ActivityProduct } from '@/lib/activity';
+import { useActivity, ACTIVITY_LABEL, PRODUCT_LABEL, eventAmount, timeAgo, ownEvents, type ActivityProduct } from '@/lib/activity';
 import { FINANCING_POOL_ENABLED } from '@/config/features';
 import { cn } from '@/utils/cn';
 
@@ -143,7 +143,8 @@ export function Transactions() {
   const [type, setType] = useState('all');
 
   const kinds = TYPE_FILTERS.find((t) => t.id === type)?.kinds ?? [];
-  const rows = events.filter((e) => (product === 'all' || e.product === product) && (kinds.length === 0 || kinds.includes(e.kind)));
+  const own = ownEvents(events);
+  const rows = own.filter((e) => (product === 'all' || e.product === product) && (kinds.length === 0 || kinds.includes(e.kind)));
 
   return (
     <div className="space-y-8">
@@ -186,14 +187,14 @@ export function Transactions() {
               </div>
             )}
 
-            {loading && events.length === 0 ? (
+            {loading && own.length === 0 ? (
               <div className="flex items-center justify-center py-16 text-tawf-muted">
                 <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading history...
               </div>
             ) : rows.length === 0 ? (
               <div className="text-center py-16">
                 <p className="text-tawf-muted">
-                  {events.length === 0 ? 'No activity yet. Your subscriptions and profit appear here.' : 'Nothing matches these filters.'}
+                  {own.length === 0 ? 'No activity yet. Your subscriptions and profit appear here.' : 'Nothing matches these filters.'}
                 </p>
               </div>
             ) : (
