@@ -124,3 +124,10 @@ export function normalize(product: Product, log: Log & { eventName?: string; arg
     period: typeof a.period === 'number' || typeof a.period === 'bigint' ? Number(a.period) : null,
   }
 }
+
+/** Newest first: by block, then by log index within the block. */
+export function compareEvents(x: { blockNumber: string; id: string }, y: { blockNumber: string; id: string }): number {
+  const b = BigInt(y.blockNumber) - BigInt(x.blockNumber)
+  if (b !== 0n) return b > 0n ? 1 : -1
+  return Number(y.id.split(':')[1] ?? 0) - Number(x.id.split(':')[1] ?? 0)
+}

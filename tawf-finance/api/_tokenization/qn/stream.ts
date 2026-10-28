@@ -3,7 +3,7 @@ import { decodeEventLog, getAddress, type Address, type Hex, type Log } from 'vi
 import { publicClient, readableError } from '../_lib/operator.js'
 import { hasToken } from '../_lib/qn-auth.js'
 import { kvEnabled, kvListAdd, kvPool, kvRaiseLast, kvSetJson, padBlock } from '../_lib/qn-kv.js'
-import { hexBig, normalize, sources, type ActivityEvent } from '../_lib/activity-core.js'
+import { GLOBAL, hexBig, normalize, sources, type ActivityEvent } from '../_lib/activity-core.js'
 
 // Index layout in the QuickNode KV store. Writes are server-side appends only (no read-modify-write),
 // so overlapping or retried deliveries cannot lose events or lower the last block:
@@ -106,7 +106,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const item = listItem(e)
       adds.push([ADMIN_KEY, item])
       if (e.investor) adds.push([actKey(getAddress(e.investor)), item])
-      else if (e.product === 'pool' || e.product === 'series1' || e.product === 'scf') adds.push([GLOBAL_KEY, item])
+      else if (GLOBAL.has(e.kind) && (e.product === 'pool' || e.product === 'series1' || e.product === 'scf')) adds.push([GLOBAL_KEY, item])
     }
     await kvPool(adds, 8, ([k, item]) => kvListAdd(k, item))
 

@@ -21,10 +21,24 @@ const WEBHOOK_NAME = 'tawf-alerts'
 const args = process.argv.slice(2)
 const flag = (f: string) => args.includes(f)
 const base = (args[args.indexOf('--base') + 1] && args.includes('--base') ? args[args.indexOf('--base') + 1] : 'https://app.tawf.finance').replace(/\/$/, '')
+// Tokens are sent to --base, so only our own hosts are accepted.
+const host = (() => {
+  try {
+    const u = new URL(base)
+    return u.protocol === 'https:' ? u.hostname : ''
+  } catch {
+    return ''
+  }
+})()
+if (!(host === 'app.tawf.finance' || /^tawf-finance(-[a-z0-9-]+)?-muhammad-zidan-fatonies-projects\.vercel\.app$/.test(host))) {
+  throw new Error('--base must be https://app.tawf.finance or a Vercel deployment of this project.')
+}
 const apply = flag('--apply')
 
 const key = process.env.QUICKNODE_API_KEY
 if (!key) throw new Error('QUICKNODE_API_KEY is not set.')
+/** Printed text never carries a secret. */
+const redact = (t: string) => [key, process.env.QN_STREAM_TOKEN, process.env.QN_ALERT_TOKEN].reduce((a, v) => (v ? a.replaceAll(v, '[hidden]') : a), t)
 
 async function qn<T>(method: string, path: string, body?: unknown): Promise<{ status: number; json: T }> {
   const r = await fetch(`${API}${path}`, {
@@ -107,10 +121,11 @@ async function setupStream() {
     const { name, status, filter_function, destination_attributes } = payload
     const r = await qn('PATCH', `/streams/rest/v1/streams/${existing.id}`, { name, status, filter_function, destination_attributes })
     console.log(`  updated ${existing.id}: HTTP ${r.status}`)
+    if (r.status >= 300) console.log(`  ${redact(JSON.stringify(r.json))}`)
   } else {
     const r = await qn<{ id?: string }>('POST', '/streams/rest/v1/streams', payload)
     console.log(`  created ${r.json.id ?? ''}: HTTP ${r.status}`)
-    if (r.status >= 300) console.log(`  ${JSON.stringify(r.json).replace(token ?? '\u0000', '[token]')}`)
+    if (r.status >= 300) console.log(`  ${redact(JSON.stringify(r.json))}`)
   }
 }
 
@@ -123,7 +138,7 @@ async function recordStartBlock() {
 async function setupWebhook() {
   const token = process.env.QN_ALERT_TOKEN
   if (apply && (!token || token.length < 32)) throw new Error('QN_ALERT_TOKEN must be set (32+ characters).')
-  const series = srcs.filter((s) => s.product === 'pool' || s.product === 'series1')
+  const series = srcs.filter((s) => (s.product === 'pool' || s.product === 'series1' || s.product === 'scf') && s.events.some((e) => GLOBAL.has(e.name)))
   const contracts = [...new Set(series.map((s) => s.address))]
   const eventHashes = [...new Set(series.flatMap((s) => s.events.filter((e) => GLOBAL.has(e.name)).map((e) => toEventSelector(e))))]
   const payload = {
@@ -137,13 +152,14 @@ async function setupWebhook() {
   const list = await qn<{ data: { id: string; name: string }[] }>('GET', '/webhooks/rest/v1/webhooks')
   const existing = list.json.data?.find((w) => w.name === WEBHOOK_NAME)
   if (existing) {
-    const r = await qn('PATCH', `/webhooks/rest/v1/webhooks/${existing.id}`, { name: WEBHOOK_NAME, destination_attributes: payload.destination_attributes })
+    const r = await qn('PATCH', `/webhooks/rest/v1/webhooks/${existing.id}`, { name: WEBHOOK_NAME, templateArgs: payload.templateArgs, destination_attributes: payload.destination_attributes })
     console.log(`  updated ${existing.id}: HTTP ${r.status}`)
+    if (r.status >= 300) console.log(`  ${redact(JSON.stringify(r.json))}`)
   } else {
     // A new webhook starts active.
     const r = await qn<{ id?: string }>('POST', '/webhooks/rest/v1/webhooks/template/evmContractEvents', payload)
     console.log(`  created ${r.json.id ?? ''}: HTTP ${r.status}`)
-    if (r.status >= 300) console.log(`  ${JSON.stringify(r.json).replace(token ?? '\u0000', '[token]')}`)
+    if (r.status >= 300) console.log(`  ${redact(JSON.stringify(r.json))}`)
   }
 }
 

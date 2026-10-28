@@ -128,10 +128,15 @@ function loadActivity(wallet: `0x${string}` | undefined): Promise<void> {
       const r = await getJson<ActivityResponse>(`activity${q.toString() ? `?${q}` : ''}`);
       const seen = new Set(r.events.map((e) => e.id));
       const merged = [...r.events, ...(cached?.events ?? []).filter((e) => !seen.has(e.id))];
-      merged.sort((x, y) => Number(BigInt(y.blockNumber) - BigInt(x.blockNumber)));
-      writeCache(wallet, { toBlock: r.toBlock, events: merged });
+      merged.sort((x, y) => {
+        const b = BigInt(y.blockNumber) - BigInt(x.blockNumber);
+        return b !== 0n ? (b > 0n ? 1 : -1) : Number(y.id.split(':')[1] ?? 0) - Number(x.id.split(':')[1] ?? 0);
+      });
+      // never move the cache mark backwards (the index path reports the stream's last block)
+      const toBlock = cached && BigInt(cached.toBlock) > BigInt(r.toBlock) ? cached.toBlock : r.toBlock;
+      writeCache(wallet, { toBlock, events: merged });
       setStore(k, { events: merged, loading: false });
-      again = r.partial === true && BigInt(r.toBlock) > BigInt(cached?.toBlock ?? '0');
+      again = r.partial === true && BigInt(toBlock) > BigInt(cached?.toBlock ?? '0');
     } catch (e) {
       setStore(k, { loading: false, error: e instanceof Error ? e.message : 'Could not load activity' });
     } finally {

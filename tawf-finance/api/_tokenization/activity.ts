@@ -3,7 +3,7 @@ import { createPublicClient, decodeEventLog, getAddress, http, isAddress, pad, t
 import { arbitrumSepolia } from 'viem/chains'
 import { readableError } from './_lib/operator.js'
 import { kvEnabled, kvGetJson, kvLastBlock, kvListGet, kvPool } from './_lib/qn-kv.js'
-import { GLOBAL, hexBig, isInvestorEvent, normalize, sources, type ActivityEvent, type Source } from './_lib/activity-core.js'
+import { GLOBAL, compareEvents, hexBig, isInvestorEvent, normalize, sources, type ActivityEvent, type Source } from './_lib/activity-core.js'
 
 /**
  * Logs are read over their own endpoint. The app's keyed RPC (QuickNode Discover) limits
@@ -50,15 +50,29 @@ async function readIndex(wallet: Address | null, from: bigint, head: bigint): Pr
 
     const keys = wallet ? [`tawf:act:${wallet.toLowerCase()}`, 'tawf:act:global'] : ['tawf:act:admin']
     const items = (await Promise.all(keys.map((k) => kvListGet(k)))).flat()
-    const ids = [...new Set(items)]
-      .filter((it) => BigInt(it.slice(0, 12)) >= from)
-      .sort((x, y) => (x < y ? 1 : x > y ? -1 : 0))
-      .slice(0, INDEX_KEEP)
-      .map((it) => it.slice(13))
+    const byTime = (a: string, b: string) => compareEvents({ blockNumber: BigInt(a.slice(0, 12)).toString(), id: a.slice(13) }, { blockNumber: BigInt(b.slice(0, 12)).toString(), id: b.slice(13) })
+    const matched = [...new Set(items)].filter((it) => BigInt(it.slice(0, 12)) >= from).sort(byTime)
+    // More matches than we return means the oldest part of the requested range is missing. Do not
+    // serve a truncated history as complete: the Arbiscan scan answers this request instead.
+    if (matched.length > INDEX_KEEP) return null
+    const ids = matched.map((it) => it.slice(13))
     const bodies = await kvPool(ids, 10, (id) => kvGetJson<ActivityEvent | null>(`tawf:ev:${id}`, null))
     // A list item without its body means a write is still in flight: do not serve a partial index.
     if (bodies.some((b) => b === null)) return null
-    return { events: bodies as ActivityEvent[], lastBlock: last }
+    // Pool-wide rows are only ProfitDistributed / MaturitySettled, never another wallet's data.
+    const wanted = (bodies as ActivityEvent[]).filter((e) => (wallet ? e.investor === wallet || (e.investor === null && GLOBAL.has(e.kind)) : true))
+    // Block times that could not be read when the event was indexed.
+    const missing = [...new Set(wanted.filter((e) => e.timestamp === null).map((e) => e.blockNumber))].slice(0, 60)
+    const times = new Map<string, number>()
+    await Promise.all(
+      missing.map(async (bn) => {
+        const blk = await publicClient.getBlock({ blockNumber: BigInt(bn) }).catch(() => null)
+        if (blk) times.set(bn, Number(blk.timestamp))
+      }),
+    )
+    for (const e of wanted) if (e.timestamp === null && times.has(e.blockNumber)) e.timestamp = times.get(e.blockNumber)!
+    const bodiesOut = wanted
+    return { events: bodiesOut, lastBlock: last }
   } catch {
     return null
   }
@@ -341,7 +355,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const idx = await readIndex(w, fromParam, toBlock)
       if (idx) {
         const events = idx.events
-          .sort((x, y) => Number(BigInt(y.blockNumber) - BigInt(x.blockNumber)))
+          .sort(compareEvents)
           .slice(0, 300)
           .map((e) => ({ ...e, limit: e.limit ?? null }))
         res.setHeader('cache-control', 's-maxage=10, stale-while-revalidate=30')
@@ -366,7 +380,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
     const partial = scannedTo < toBlock
     let events = results.flat()
-    events.sort((x, y) => (BigInt(y.blockNumber) > BigInt(x.blockNumber) ? 1 : BigInt(y.blockNumber) < BigInt(x.blockNumber) ? -1 : 0))
+    events.sort(compareEvents)
     events = events.slice(0, 300)
 
     // Fill timestamps the RPC did not include (one block read per distinct block).
