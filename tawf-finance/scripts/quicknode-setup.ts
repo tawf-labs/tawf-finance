@@ -75,9 +75,16 @@ const filterFunction = `function main(stream) {
   var hit = logs.filter(function (l) {
     return ADDR.indexOf(String(l.address).toLowerCase()) >= 0 && l.topics && T0.indexOf(l.topics[0]) >= 0;
   });
-  var end = Number(m.batch_end_range || 0);
-  var start = Number(m.batch_start_range || end);
-  var beat = end > 0 && Math.floor(start / 500) !== Math.floor(end / 500);
+  // The batch range comes from the stream metadata. Without it, fall back to the block numbers of the
+  // logs themselves (a batch is 5 blocks), so the heartbeat never depends on the metadata being there.
+  var num = function (v) { return typeof v === 'string' ? parseInt(v, v.indexOf('0x') === 0 ? 16 : 10) : Number(v); };
+  var top = 0;
+  logs.forEach(function (l) { var b = num(l.blockNumber); if (b > top) top = b; });
+  var end = Number(m.batch_end_range || 0) || top;
+  var start = Number(m.batch_start_range || 0) || (end > 0 ? end - 4 : 0);
+  // True when the batch holds a block that is a multiple of 500. Batches are aligned to 5 and 500 is a
+  // multiple of 5, so comparing floor(start / 500) with floor(end / 500) alone would never be true.
+  var beat = end > 0 && Math.floor(end / 500) !== Math.floor((start - 1) / 500);
   if (hit.length === 0 && !beat) return null;
   var out = hit.map(function (l) {
     return { address: l.address, topics: l.topics, data: l.data, blockNumber: l.blockNumber, transactionHash: l.transactionHash, logIndex: l.logIndex, removed: l.removed };

@@ -3,7 +3,7 @@ import { decodeEventLog, getAddress, type Address, type Hex, type Log } from 'vi
 import { publicClient, readableError } from '../_lib/operator.js'
 import { hasToken } from '../_lib/qn-auth.js'
 import { kvEnabled, kvListAdd, kvPool, kvRaiseLast, kvSetJson, padBlock } from '../_lib/qn-kv.js'
-import { GLOBAL, hexBig, normalize, sources, unwrapLogs, type ActivityEvent } from '../_lib/activity-core.js'
+import { GLOBAL, describeBody, hexBig, normalize, sources, unwrapLogs, type ActivityEvent } from '../_lib/activity-core.js'
 
 // Index layout in the QuickNode KV store. Writes are server-side appends only (no read-modify-write),
 // so overlapping or retried deliveries cannot lose events or lower the last block:
@@ -61,6 +61,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const srcByAddr = new Map(sources().map((s) => [s.address.toLowerCase(), s]))
     const events: ActivityEvent[] = []
     let last = 0n
+    let logsSeen = 0
+    let undecoded = 0
     for (const it of items) {
       if (!it || typeof it !== 'object') continue
       if ('heartbeat' in it && typeof it.heartbeat === 'number') {
@@ -69,8 +71,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       const l = it as RawLog
       if (l.removed || !l.address || !Array.isArray(l.topics)) continue
+      logsSeen++
       const src = srcByAddr.get(l.address.toLowerCase())
-      if (!src) continue
+      if (!src) {
+        undecoded++
+        continue
+      }
       try {
         const d = decodeEventLog({ abi: src.events, data: l.data, topics: l.topics as [Hex, ...Hex[]], strict: false })
         const blockNumber = num(l.blockNumber)
@@ -85,7 +91,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (blockNumber > last) last = blockNumber
       } catch {
         // a log the ABI cannot decode is not one of ours
+        undecoded++
       }
+    }
+
+    // A delivery that carried something but gave us no event and no heartbeat is a failure to read it, not an
+    // empty batch. Say so with a status code (QuickNode retries) and a log line, instead of a silent 200.
+    const summary = `[qn/stream] body=${describeBody(req.body)} type=${String(req.headers['content-type'] ?? '').split(';')[0].slice(0, 40)} items=${items.length} logs=${logsSeen} undecoded=${undecoded} heartbeat=${last > 0n ? 'yes' : 'no'}`
+    const hasBody = req.body !== undefined && req.body !== null && !(Array.isArray(req.body) && req.body.length === 0) && !(typeof req.body === 'string' && req.body.trim() === '')
+    if (hasBody && events.length === 0 && last === 0n) {
+      console.error(`${summary} unusable`)
+      res.status(422).json({ error: 'The delivery held no readable log or heartbeat.', received: items.length, logs: logsSeen })
+      return
     }
 
     // Block times, one read per distinct block.
@@ -113,6 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Only after the events are stored, so a fresh last block never points past missing data.
     if (last > 0n) await kvRaiseLast(last)
+    console.log(`${summary} events=${events.length} last=${last.toString()}`)
     res.status(200).json({ received: items.length, events: events.length, lastBlock: last.toString() })
   } catch (err) {
     res.status(500).json({ error: readableError(err, 'Could not index the stream payload') })
