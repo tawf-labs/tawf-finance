@@ -24,6 +24,7 @@ import {
   type Hex,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
+import { safeEqual } from './qn-auth.js'
 import { arbitrumSepolia } from 'viem/chains'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import deployments from '../../../src/web3/tokenization.deployments.json' with { type: 'json' }
@@ -286,7 +287,7 @@ export function methodGuard(req: VercelRequest, res: VercelResponse, method = 'P
 export function requirePasscode(req: VercelRequest, res: VercelResponse): boolean {
   const expected = process.env.DEMO_PASSCODE
   const got = req.headers['x-demo-passcode']
-  if (!expected || got !== expected) {
+  if (!safeEqual(got, expected)) {
     res.status(401).json({ error: 'Invalid or missing demo passcode' })
     return false
   }
@@ -350,6 +351,11 @@ export async function fetchProofForLeaf(leaf: Hex): Promise<RelayerProof | null>
 // Env values that must never reach an API response: RPC URLs carry provider keys.
 const SECRET_ENV = [
   'ARB_SEPOLIA_RPC_URL',
+  'ETHERSCAN_API_KEY',
+  'QUICKNODE_API_KEY',
+  'QN_STREAM_TOKEN',
+  'QN_ALERT_TOKEN',
+  'ACTIVITY_RPC_URL',
   'TAWF_NETWORK_RPC_URL',
   'TAWF_NETWORK_RPC_TOKEN',
   'TAWF_NETWORK_DPS_KEY',

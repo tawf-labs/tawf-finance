@@ -117,6 +117,7 @@
       "permanent": true
     }
   ],
+  "crons": [{ "path": "/api/tokenization/cron/post-rates", "schedule": "0 0 * * *" }],
   "functions": {
     "api/tokenization-router.ts": { "maxDuration": 60 }
   },

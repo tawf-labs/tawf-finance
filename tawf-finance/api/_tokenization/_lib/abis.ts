@@ -25,6 +25,35 @@ export const identityAbi = [
     ],
     outputs: [{ name: 'claimRequestId', type: 'bytes32' }],
   },
+  {
+    name: 'getClaim',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: '_claimId', type: 'bytes32' }],
+    outputs: [
+      { name: 'topic', type: 'uint256' },
+      { name: 'scheme', type: 'uint256' },
+      { name: 'issuer', type: 'address' },
+      { name: 'signature', type: 'bytes' },
+      { name: 'data', type: 'bytes' },
+      { name: 'uri', type: 'string' },
+    ],
+  },
+] as const
+
+export const claimIssuerAbi = [
+  {
+    name: 'isClaimValid',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: '_identity', type: 'address' },
+      { name: 'claimTopic', type: 'uint256' },
+      { name: 'sig', type: 'bytes' },
+      { name: 'data', type: 'bytes' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
 ] as const
 
 // IdentityProxy constructor is (implementationAuthority, initialManagementKey).

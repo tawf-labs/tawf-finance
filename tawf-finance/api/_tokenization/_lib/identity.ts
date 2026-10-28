@@ -23,9 +23,19 @@ import {
   account,
   addresses,
 } from './operator.js'
-import { identityAbi, identityRegistryAbi, identityProxyAbi } from './abis.js'
+import { identityAbi, identityRegistryAbi, identityProxyAbi, claimIssuerAbi } from './abis.js'
 
 const COUNTRY_ID = 360 // Indonesia
+
+/** Compromised testnet burners: never verified, funded or screened. Shared by the faucet, KYC and screening paths. */
+const BLOCKED_WALLETS = new Set(['0x6155aecb5eab7719804f67de1e4ef878f0226f87'])
+export const BLOCKED_WALLET_MESSAGE = 'This wallet is blocked on the testnet faucet.'
+export function isBlockedWallet(user: string): boolean {
+  return BLOCKED_WALLETS.has(user.toLowerCase())
+}
+function assertNotBlocked(user: string): void {
+  if (isBlockedWallet(user)) throw new Error(BLOCKED_WALLET_MESSAGE)
+}
 const ZERO = '0x0000000000000000000000000000000000000000'
 
 export interface IdentityStep {
@@ -54,6 +64,7 @@ async function signKycClaim(identity: Address, topic: bigint, data: Hex): Promis
  * the final verified status. Throws if the identity proxy bytecode is missing.
  */
 export async function ensureVerified(user: Address): Promise<{ steps: IdentityStep[]; isVerified: boolean }> {
+  assertNotBlocked(user)
   const steps: IdentityStep[] = []
   const wc = walletClient()
 
@@ -140,6 +151,7 @@ export async function issueScreeningClaim(
   topic: bigint,
   note?: string,
 ): Promise<{ steps: IdentityStep[]; identity: Address }> {
+  assertNotBlocked(user)
   const steps: IdentityStep[] = []
   const wc = walletClient()
 
@@ -170,4 +182,35 @@ export async function issueScreeningClaim(
   })
 
   return { steps, identity }
+}
+
+/** True when `user`'s ONCHAINID already holds a Tawf claim of `topic` that the ClaimIssuer still accepts. */
+export async function hasValidScreeningClaim(user: Address, topic: bigint): Promise<boolean> {
+  const identity = (await publicClient.readContract({
+    address: addresses.identityRegistry,
+    abi: identityRegistryAbi,
+    functionName: 'identity',
+    args: [user],
+  })) as Address
+  if (identity === ZERO) return false
+  const claimId = keccak256(
+    encodeAbiParameters([{ type: 'address' }, { type: 'uint256' }], [addresses.claimIssuer, topic]),
+  )
+  try {
+    const [, , issuer, signature, data] = (await publicClient.readContract({
+      address: identity,
+      abi: identityAbi,
+      functionName: 'getClaim',
+      args: [claimId],
+    })) as readonly [bigint, bigint, Address, Hex, Hex, string]
+    if (issuer === ZERO) return false
+    return (await publicClient.readContract({
+      address: addresses.claimIssuer,
+      abi: claimIssuerAbi,
+      functionName: 'isClaimValid',
+      args: [identity, topic, signature, data],
+    })) as boolean
+  } catch {
+    return false
+  }
 }

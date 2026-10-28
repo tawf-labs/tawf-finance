@@ -4,15 +4,11 @@ import {
   mockInvestments,
   mockPurchaseOrders,
   mockComplianceDocuments,
-  mockBusinessProfiles,
   mockSystemAlerts,
   getInvestmentsByUserId,
   getTransactionsByUserId,
   getNotificationsByUserId,
-  getPurchaseOrdersByBusinessId,
-  getPartnershipsByCooperativeId,
   getComplianceDocumentsByUserId,
-  getBusinessProfileByUserId,
   formatCurrency,
   formatDate,
   daysRemaining,
@@ -42,24 +38,9 @@ export function useMockData() {
     return notifications.filter(n => !n.read).length;
   }, [notifications]);
 
-  const purchaseOrders = useMemo(() => {
-    if (!user) return [];
-    return getPurchaseOrdersByBusinessId(user.id);
-  }, [user]);
-
-  const cooperativePartnerships = useMemo(() => {
-    if (!user) return [];
-    return getPartnershipsByCooperativeId(user.id);
-  }, [user]);
-
   const complianceDocuments = useMemo(() => {
     if (!user) return [];
     return getComplianceDocumentsByUserId(user.id);
-  }, [user]);
-
-  const businessProfile = useMemo(() => {
-    if (!user) return undefined;
-    return getBusinessProfileByUserId(user.id);
   }, [user]);
 
   // Calculate portfolio stats for investors
@@ -81,48 +62,6 @@ export function useMockData() {
       completedInvestments: investments.filter(i => i.status === 'completed').length,
     };
   }, [user, investments]);
-
-  // Calculate cooperative stats
-  const cooperativeStats = useMemo(() => {
-    if (!user || user.role !== 'cooperative') return null;
-
-    const pendingVerifications = mockPurchaseOrders.filter(po => po.status === 'verifying').length;
-    const fundedDeals = mockPurchaseOrders.filter(po => po.status === 'funded' || po.status === 'in_progress').length;
-    const totalDisbursed = mockPurchaseOrders
-      .filter(po => po.status === 'funded' || po.status === 'in_progress' || po.status === 'fulfilled' || po.status === 'repaid')
-      .reduce((sum, po) => sum + po.amount, 0);
-
-    return {
-      pendingVerifications,
-      activeDeals: fundedDeals,
-      totalDisbursed,
-      verifiedBusinesses: mockBusinessProfiles.filter(b => b.verifiedBy.includes(user.id)).length,
-      memberCount: 195, // Mock member count (deterministic)
-    };
-  }, [user]);
-
-  // Calculate business stats
-  const businessStats = useMemo(() => {
-    if (!user || user.role !== 'business') return null;
-
-    const activePOs = purchaseOrders.filter(po => po.status === 'funded' || po.status === 'in_progress').length;
-    const totalFunding = purchaseOrders
-      .filter(po => po.status === 'funded' || po.status === 'in_progress' || po.status === 'fulfilled' || po.status === 'repaid')
-      .reduce((sum, po) => sum + po.amount, 0);
-    const pendingPOs = purchaseOrders.filter(po => po.status === 'submitted' || po.status === 'verifying').length;
-
-    return {
-      activePOs,
-      totalFunding,
-      pendingPOs,
-      completedPOs: purchaseOrders.filter(po => po.status === 'repaid').length,
-      tawfScore: businessProfile?.tawfScore || 0,
-      nextPaymentDue: purchaseOrders
-        .filter(po => po.status === 'funded' || po.status === 'in_progress')
-        .sort((a, b) => new Date(a.repaymentDue || '').getTime() - new Date(b.repaymentDue || '').getTime())[0]
-        ?.repaymentDue,
-    };
-  }, [user, purchaseOrders, businessProfile]);
 
   // Calculate admin stats
   const adminStats = useMemo(() => {
@@ -149,12 +88,8 @@ export function useMockData() {
     transactions,
     notifications,
     unreadNotificationCount,
-    purchaseOrders,
-    cooperativePartnerships,
     complianceDocuments,
-    businessProfile,
     allPurchaseOrders: mockPurchaseOrders,
-    allBusinessProfiles: mockBusinessProfiles,
     allUsers: [],
     allInvestments: mockInvestments,
     allPools: [],
@@ -162,8 +97,6 @@ export function useMockData() {
 
     // Stats
     portfolioStats,
-    cooperativeStats,
-    businessStats,
     adminStats,
 
     // Utility functions

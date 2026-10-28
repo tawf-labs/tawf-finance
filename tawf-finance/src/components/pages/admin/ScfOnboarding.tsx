@@ -87,9 +87,9 @@ export function AdminScfOnboarding() {
         </div>
       )}
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 gap-6 [&>*]:min-w-0 [&_p]:break-words [&_h3]:break-words">
         <Card className="p-6">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
             <Scale className="w-5 h-5 text-tawf-gold" />
             <Badge variant="info" size="sm">{ISSUER_TYPE_LABEL[SCF_PLATFORM.type]}</Badge>
             {SCF_PLATFORM.demo && <Badge variant="warning" size="sm">Fictional demo</Badge>}
@@ -100,7 +100,7 @@ export function AdminScfOnboarding() {
           <p className="text-xs text-tawf-muted">Shariah oversight: {SCF_PLATFORM.shariahBoard}</p>
         </Card>
         <Card className="p-6">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
             <Store className="w-5 h-5 text-tawf-gold" />
             <Badge variant="default" size="sm">SME issuer</Badge>
           </div>
@@ -112,7 +112,7 @@ export function AdminScfOnboarding() {
       </div>
 
       <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <div>
             <Badge variant="info" size="sm" className="mb-1">{SCF_SYMBOL}</Badge>
             <p className="font-medium text-tawf-green">Offering</p>
@@ -120,7 +120,7 @@ export function AdminScfOnboarding() {
           {st && <Badge variant="default" size="md">{st}</Badge>}
         </div>
         {status?.configured && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4 [&>*]:min-w-0 [&_p]:break-words">
             <div><p className="text-xs text-tawf-muted">Size</p><p className="text-tawf-green">{formatUsdc(BigInt(status.faceValue ?? '0'))}</p></div>
             <div><p className="text-xs text-tawf-muted">Raised</p><p className="text-tawf-green">{formatUsdc(BigInt(status.raised ?? '0'))}</p></div>
             <div><p className="text-xs text-tawf-muted">Minimum raise</p><p className="text-tawf-green">{formatUsdc(BigInt(status.minRaise ?? '0'))}</p></div>
@@ -179,7 +179,7 @@ export function AdminScfOnboarding() {
             value={lookup}
             onChange={(e) => setLookup(e.target.value)}
             placeholder="0x wallet address"
-            className="flex-1 min-w-[260px] px-4 py-2 border border-tawf-green-10 rounded-xl font-mono text-sm"
+            className="flex-1 min-w-0 sm:min-w-[260px] w-full px-4 py-2 border border-tawf-green-10 rounded-xl font-mono text-sm"
           />
           <Button size="sm" variant="secondary" disabled={!/^0x[0-9a-fA-F]{40}$/.test(lookup.trim())} onClick={() => void doLookup()}>Look up</Button>
           <Button
@@ -195,7 +195,7 @@ export function AdminScfOnboarding() {
           Refunds after a cancelled raise do not free the investor&apos;s yearly limit. Reset the usage for this period to restore it (needs the passcode).
         </p>
         {lookedUp && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-4 [&>*]:min-w-0 [&_p]:break-words">
             <div><p className="text-xs text-tawf-muted">Yearly limit</p><p className="text-tawf-green">{formatUsdc(BigInt(lookedUp.limit))}</p></div>
             <div><p className="text-xs text-tawf-muted">Used this period</p><p className="text-tawf-green">{formatUsdc(BigInt(lookedUp.used))}</p></div>
             <div><p className="text-xs text-tawf-muted">Remaining</p><p className="text-tawf-green">{lookedUp.remaining === MAX_UINT ? 'No limit (exempt)' : formatUsdc(BigInt(lookedUp.remaining))}</p></div>

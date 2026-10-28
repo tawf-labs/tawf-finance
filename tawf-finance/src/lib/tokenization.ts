@@ -33,12 +33,27 @@ export function savePasscode(value: string): void {
 
 interface ApiError {
   error?: string;
+  retryAfter?: number;
+}
+
+/** An API failure that keeps the HTTP status (429 means rate limited). */
+export class HttpError extends Error {
+  status: number;
+  /** Seconds to wait before retrying (429 only), from the JSON body or the Retry-After header. */
+  retryAfter?: number;
+  constructor(message: string, status: number, retryAfter?: number) {
+    super(message);
+    this.status = status;
+    this.retryAfter = retryAfter;
+  }
 }
 
 async function parse<T>(res: Response): Promise<T> {
   const data = (await res.json().catch(() => ({}))) as T & ApiError;
   if (!res.ok) {
-    throw new Error(data.error ?? `Request failed (${res.status})`);
+    const header = Number(res.headers.get('retry-after'));
+    const wait = Number(data.retryAfter) || (Number.isFinite(header) && header > 0 ? header : undefined);
+    throw new HttpError(data.error ?? `Request failed (${res.status})`, res.status, wait);
   }
   return data as T;
 }

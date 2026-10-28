@@ -25,7 +25,7 @@ export function Onboarding() {
             </div>
             <h3 className="font-serif text-2xl text-tawf-green mb-3">Verifiable Islamic Bank Financing</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Tawf Finance connects investors like you with licensed Indonesian BPRS financing pools, following Shariah principles.
+              Tawf Finance connects investors like you with Shariah deposito at licensed Indonesian BPRS and sharia crowdfunding for SMEs, with every position recorded on chain.
             </p>
           </div>
         ),

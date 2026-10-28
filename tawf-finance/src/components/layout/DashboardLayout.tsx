@@ -6,7 +6,6 @@ import {
   CreditCard,
   Heart,
   Settings,
-  Bell,
   Menu,
   X,
   LogOut,
@@ -15,16 +14,21 @@ import {
   Shield,
   LayoutDashboard,
   Briefcase,
-  Search,
   ChevronLeft,
   ChevronRight,
   Wrench,
   PiggyBank,
   Landmark,
 } from 'lucide-react';
+import { useAccount } from 'wagmi';
 import { useAuth } from '@/hooks/useAuth';
+import { shortAddress } from '@/web3/format';
+import { CHAIN_ID } from '@/web3/constants';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
+import { QuickSearch } from '@/components/layout/QuickSearch';
+import { NotificationBell } from '@/components/layout/NotificationBell';
+import { ProfileMenu } from '@/components/layout/ProfileMenu';
 import { ConnectButton } from '@/components/web3/ConnectButton';
 import { cn } from '@/utils/cn';
 import { FINANCING_POOL_ENABLED } from '@/config/features';
@@ -72,10 +76,17 @@ const roleLabels: Record<string, string> = {
 export function DashboardLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const { address, isConnected, chainId } = useAccount();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = user ? navConfigs[user.role] || [] : [];
+  const searchItems = [
+    ...navItems.map((i) => ({ label: i.label, hint: 'Page', to: i.href })),
+    { label: 'Deposito Pool', hint: 'Product', to: '/investor/deposito' },
+    { label: 'Urun Dana', hint: 'Product', to: '/investor/scf' },
+    { label: 'Proof of Reserve', hint: 'Product', to: '/proof-of-reserve' },
+  ];
 
   // Get page title from current path
   const getPageTitle = () => {
@@ -162,6 +173,17 @@ export function DashboardLayout() {
               </div>
             )}
           </div>
+          <button
+            onClick={logout}
+            title="Sign out"
+            className={cn(
+              'mt-3 flex items-center gap-3 w-full px-4 py-2 rounded-xl text-tawf-sand-70 hover:bg-tawf-green-20 hover:text-tawf-sand transition-colors',
+              sidebarCollapsed ? 'justify-center px-0' : ''
+            )}
+          >
+            <LogOut className="w-5 h-5 shrink-0" />
+            {!sidebarCollapsed && <span className="text-sm">Sign Out</span>}
+          </button>
         </div>
       </aside>
 
@@ -238,7 +260,7 @@ export function DashboardLayout() {
       </motion.aside>
 
       {/* Main Content */}
-      <div className={cn('transition-all duration-300', 'lg:ml-64')}>
+      <div className={cn('transition-all duration-300', sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64')}>
         {/* Top Bar */}
         <header className="sticky top-0 z-30 bg-tawf-sand/90 backdrop-blur-md border-b border-tawf-green-10">
           <div className="flex items-center justify-between px-4 lg:px-8 h-16">
@@ -263,20 +285,18 @@ export function DashboardLayout() {
 
             <div className="flex items-center gap-3">
               {/* Search */}
-              <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-tawf-green-10">
-                <Search className="w-4 h-4 text-tawf-muted" />
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  className="bg-transparent border-none outline-none text-sm w-40"
-                />
-              </div>
+              <QuickSearch items={searchItems} />
 
               {/* Notifications */}
-              <button className="relative p-2 rounded-full hover:bg-tawf-green-10 text-tawf-green">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-              </button>
+              <NotificationBell role={user.role} />
+
+              {/* Wallet chip on phones (the full button is sm and up) */}
+              {isConnected && address && (
+                <span className="sm:hidden inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-tawf-green-10 text-tawf-green text-xs font-medium">
+                  <span className={cn('w-2 h-2 rounded-full', chainId === CHAIN_ID ? 'bg-green-500' : 'bg-amber-500')} />
+                  {shortAddress(address)}
+                </span>
+              )}
 
               {/* Wallet */}
               <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-tawf-green-10">
@@ -284,19 +304,13 @@ export function DashboardLayout() {
               </div>
 
               {/* User Menu */}
-              <div className="hidden md:flex items-center gap-3 pl-3 border-l border-tawf-green-10">
-                <Avatar name={user.name} size="sm" />
-                <div className="text-sm">
-                  <p className="font-medium text-tawf-ink">{user.name}</p>
-                  <p className="text-xs text-tawf-muted">{roleLabels[user.role] || user.role}</p>
-                </div>
-                <button
-                  onClick={logout}
-                  className="p-2 rounded-lg hover:bg-tawf-green-10 text-tawf-muted hover:text-red-600 transition-colors"
-                  title="Sign out"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
+              <div className="pl-3 border-l border-tawf-green-10">
+                <ProfileMenu
+                  name={user.name}
+                  roleLabel={roleLabels[user.role] || user.role}
+                  settingsPath={`/${user.role}/settings`}
+                  onSignOut={logout}
+                />
               </div>
             </div>
           </div>

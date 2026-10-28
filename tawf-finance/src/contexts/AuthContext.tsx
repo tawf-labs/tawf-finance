@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import { useNavigate, useLocation } from 'react-router-dom';
 import type { UserRole, User } from '@/data/mockData';
 import { demoUsers } from '@/data/mockData';
+import { ROLE_HOME } from '@/contexts/roleHome';
 
 interface AuthContextType {
   user: User | null;
@@ -9,6 +10,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string) => Promise<void>;
   loginAsDemo: (role: UserRole) => Promise<void>;
+  register: (name: string, email: string, role: UserRole) => void;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
 }
@@ -73,6 +75,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   };
 
+  /** Demo registration: a local profile on top of the demo user of that role. No backend. */
+  const register = (name: string, email: string, role: UserRole) => {
+    const base = demoUsers[role];
+    setUser({
+      ...base,
+      id: `user-${Date.now()}`,
+      name: name.trim() || base.name,
+      email: email.trim() || base.email,
+      status: 'active',
+      joinedAt: new Date().toISOString(),
+      tier: undefined,
+      kycVerified: false,
+      walletAddress: undefined,
+      phoneNumber: undefined,
+    });
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem('tawf_user');
@@ -88,14 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Redirect based on role
   useEffect(() => {
     if (!isLoading && user && location.pathname === '/login') {
-      const redirectPath: Record<UserRole, string> = {
-        investor: '/investor/dashboard',
-        business: '/investor/dashboard',
-        cooperative: '/investor/dashboard',
-        issuer: '/issuer/ops',
-        admin: '/admin/dashboard',
-      };
-      navigate(redirectPath[user.role], { replace: true });
+      navigate(ROLE_HOME[user.role], { replace: true });
     }
   }, [user, isLoading, location.pathname, navigate]);
 
@@ -107,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         loginAsDemo,
+        register,
         logout,
         updateUser,
       }}

@@ -341,7 +341,7 @@ export function Portfolio() {
   );
 }
 
-function PositionRow({ symbol, badge, note, holding, claimable }: {
+export function PositionRow({ symbol, badge, note, holding, claimable }: {
   symbol: string;
   badge: string;
   note: string;
