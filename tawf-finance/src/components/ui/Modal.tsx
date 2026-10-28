@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
@@ -59,7 +60,11 @@ export function Modal({
     };
   }, [isOpen]);
 
-  return (
+  // Rendered into document.body: an ancestor with a transform, filter or
+  // backdrop-filter (like the sticky dashboard header) would otherwise become
+  // the containing block of the fixed overlay and squeeze the dialog.
+  if (typeof document === 'undefined') return null;
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <>
@@ -112,6 +117,7 @@ export function Modal({
           </div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

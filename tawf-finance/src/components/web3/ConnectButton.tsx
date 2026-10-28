@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAccount, useConnect, useDisconnect, useSwitchChain, type Connector } from 'wagmi';
 import { arbitrumSepolia } from 'wagmi/chains';
 import { Wallet, LogOut, Loader2, AlertTriangle, ChevronRight, Smartphone, QrCode, Globe } from 'lucide-react';
@@ -36,7 +36,7 @@ interface Option {
 export function ConnectButton({ variant = 'primary', size = 'md' }: { variant?: 'primary' | 'secondary' | 'ghost'; size?: 'sm' | 'md' | 'lg' }) {
   // The wallet's real chain. useChainId() only ever returns a configured chain, so it hid a wrong network.
   const { address, isConnected, chainId } = useAccount();
-  const { connectAsync, connectors, isPending } = useConnect();
+  const { connectAsync, connectors, reset } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: switching } = useSwitchChain();
   const [open, setOpen] = useState(false);
@@ -73,8 +73,20 @@ export function ConnectButton({ variant = 'primary', size = 'md' }: { variant?: 
     return list;
   }, [connectors, mobile]);
 
+  // A wallet app can leave the request pending (the user went to MetaMask and
+  // came back without answering). Never lock the picker on it: after a while
+  // show a hint, and any row can start a fresh attempt.
+  useEffect(() => {
+    if (!busy) return;
+    const t = setTimeout(() => {
+      setError('Still waiting for your wallet. Approve it there, or pick a wallet again.');
+    }, 20_000);
+    return () => clearTimeout(t);
+  }, [busy]);
+
   const pick = async (o: Option) => {
     setError(null);
+    reset();
     setBusy(o.key);
     try {
       await connectAsync({ connector: o.connector, chainId: arbitrumSepolia.id });
@@ -82,7 +94,7 @@ export function ConnectButton({ variant = 'primary', size = 'md' }: { variant?: 
     } catch (e) {
       setError(errorText(e));
     } finally {
-      setBusy(null);
+      setBusy((b) => (b === o.key ? null : b));
     }
   };
 
@@ -97,15 +109,15 @@ export function ConnectButton({ variant = 'primary', size = 'md' }: { variant?: 
   if (isConnected) {
     return (
       <div className="flex flex-col items-end gap-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {onWrongChain && (
-            <Button variant="secondary" size={size} onClick={onSwitch} disabled={switching}>
+            <Button variant="secondary" size="sm" onClick={onSwitch} disabled={switching}>
               <AlertTriangle className="w-4 h-4 mr-1.5" />
               <span className="sm:hidden">Switch network</span>
               <span className="hidden sm:inline">Switch to Arbitrum Sepolia</span>
             </Button>
           )}
-          <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-tawf-green-10 text-tawf-green text-sm font-medium">
+          <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-tawf-green-10 text-tawf-green text-sm font-medium whitespace-nowrap">
             <span className="w-2 h-2 rounded-full bg-green-500" />
             {shortAddress(address)}
           </span>
@@ -125,8 +137,8 @@ export function ConnectButton({ variant = 'primary', size = 'md' }: { variant?: 
 
   return (
     <>
-      <Button variant={variant} size={size} onClick={() => { setError(null); setOpen(true); }} disabled={isPending}>
-        {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wallet className="w-4 h-4 mr-2" />}
+      <Button variant={variant} size={size} onClick={() => { setError(null); setOpen(true); }}>
+        {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wallet className="w-4 h-4 mr-2" />}
         Connect Wallet
       </Button>
 
@@ -137,7 +149,7 @@ export function ConnectButton({ variant = 'primary', size = 'md' }: { variant?: 
               key={o.key}
               type="button"
               onClick={() => void pick(o)}
-              disabled={busy !== null}
+              disabled={busy === o.key}
               className="w-full min-h-14 flex items-center gap-3 px-4 py-3 rounded-xl border border-tawf-green-10 hover:border-tawf-green hover:bg-tawf-green-5 text-left transition-colors disabled:opacity-60"
             >
               <span className="text-tawf-green shrink-0">{o.icon}</span>
