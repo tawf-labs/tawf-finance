@@ -42,6 +42,8 @@ export function useWalletDetails(wallet: `0x${string}`) {
     poolBalance: DEPOSITO_POOL.series ? pool.balance : 0n,
     series1Balance: s1.balance,
     scfLimit: limit,
+    // Eligible on a series means the sandbox accepted the wallet's screening claim (in a screened mode).
+    screened: (DEPOSITO_POOL.series && pool.eligible) || s1.eligible,
     isLoading: l1 || l2,
     refetch: () => {
       void r1();

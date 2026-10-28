@@ -56,9 +56,13 @@ function WalletRow({ w }: { w: VerifiedWallet }) {
           {d.scfLimit.limit > 0n ? `${formatUsdc(d.scfLimit.remaining)} of ${formatUsdc(d.scfLimit.limit)}` : 'No limit set'}
         </td>
         <td className="py-4 px-4">
-          <Button variant="secondary" size="sm" onClick={() => setScreening((v) => !v)}>
-            <ShieldCheck className="w-4 h-4 mr-1" /> Screen
-          </Button>
+          {d.screened ? (
+            <Badge variant="success" size="sm">Screened</Badge>
+          ) : (
+            <Button variant="secondary" size="sm" onClick={() => setScreening((v) => !v)}>
+              <ShieldCheck className="w-4 h-4 mr-1" /> Screen
+            </Button>
+          )}
         </td>
       </tr>
       {(screening || msg) && (
