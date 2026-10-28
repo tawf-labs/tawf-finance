@@ -13,3 +13,9 @@ export const FINANCING_POOL_SOON = {
   title: 'Financing sell-down pool: coming soon',
   body: 'The BPRS financing sell-down pool is not part of the pilot. The pilot starts with the Tawf Deposito Pool and sharia crowdfunding (SCF) offerings through a licensed partner platform.',
 };
+
+/** Impact reporting follows the financing sell-down pool, so it has its own copy. */
+export const IMPACT_SOON = {
+  title: 'Impact reporting: coming soon',
+  body: 'Impact reporting follows the BPRS financing sell-down pool, which is not part of the pilot. The pilot starts with the Tawf Deposito Pool and sharia crowdfunding (SCF) offerings through a licensed partner platform.',
+};

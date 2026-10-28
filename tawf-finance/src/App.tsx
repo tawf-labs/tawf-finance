@@ -36,7 +36,7 @@ import {
 } from './components/pages';
 import { RouteErrorBoundary } from '@/components/ErrorBoundary';
 import { ComingSoon } from '@/components/ComingSoon';
-import { FINANCING_POOL_ENABLED, FINANCING_POOL_SOON } from '@/config/features';
+import { FINANCING_POOL_ENABLED, FINANCING_POOL_SOON, IMPACT_SOON } from '@/config/features';
 import { useAuth } from '@/hooks/useAuth';
 
 // Protected Route Wrapper
@@ -114,7 +114,7 @@ function AppContent() {
             <Route path="scf" element={<InvestorScf />} />
             <Route path="portfolio" element={<Portfolio />} />
             <Route path="transactions" element={<Transactions />} />
-            <Route path="impact" element={FINANCING_POOL_ENABLED ? <Impact /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
+            <Route path="impact" element={FINANCING_POOL_ENABLED ? <Impact /> : <ComingSoon {...IMPACT_SOON} />} />
             <Route path="settings" element={<InvestorSettings />} />
             <Route index element={<Navigate to="/investor/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/investor/dashboard" replace />} />
