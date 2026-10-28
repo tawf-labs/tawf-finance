@@ -26,7 +26,7 @@ A reference sample in which two branches of one bank (Bank ABC Canada and Bank A
 | Identity | None in the contracts, the signer registry is the only gate | ONCHAINID claims through the T-REX identity registry (KYC topic 1, TAWF_SCREENED topic 2, OJK sandbox topic 3) checked by the sandbox module |
 | Lifecycle and idempotency | CSI states, an idempotency key, a unique instruction id marked executed on chain | Direct admin calls. Each reserve post opens a new epoch. Re-posting a stale snapshot is rejected (`StaleSnapshot`), there is no per request idempotency key |
 | FX | Rate snapshot at redemption, stored on the instruction | Posted rate per settlement coin, rejected when older than `maxRateAge` in `TawfDepositoSeries` |
-| Reconciliation | Reconciliation records, `MATCHED` or `MISMATCH`, per burn | Read-only checks in `eval/qa/e2e/invariants.py` (supply not above reserve, rates fresh, treasury covers claimable and par redemption), run by hand and diffed between runs |
+| Reconciliation | Reconciliation records, `MATCHED` or `MISMATCH`, per burn | Read-only on-chain invariant checks that the QA agents run by hand and diff between runs (pool total equals the sum of bank balances, supply not above reserve, SCF raised within cap, rates fresh, treasury covers claims) |
 | Sharia layer | None | Nisbah fixed before the sale, per-investor screening, no principal charge, framed against DSN-MUI guidance |
 
 ## 3. Where Tawf is already stronger or different
@@ -111,9 +111,9 @@ What this buys: one compromised operator key can no longer invent a reserve. To 
 
 - **KMS-held operator key.** Move `DEMO_OPERATOR_KEY` from an environment variable to a cloud KMS key, so the operator key never sits in server memory.
 - **Instruction lifecycle with idempotency keys.** Give each admin action an instruction id and an idempotency key, with an audit trail, like the CSI states and `idempotencyKey` in `csi.ts`.
-- **Reconciliation page.** Turn the checks in `eval/qa/e2e/invariants.py` into a scheduled run that writes a MATCHED or MISMATCH record per period and shows it to the admin.
+- **Reconciliation page.** Turn the on-chain invariant checks the QA agents run (pool total equals the sum of bank balances, supply not above reserve, SCF raised within cap, treasury covers claims) into a scheduled run that writes a MATCHED or MISMATCH record per period and shows it to the admin.
 
 ## 6. Sources
 
 - AWS sample: https://github.com/aws-samples/sample-tokenized-deposits (`README.md`, `tokenized-cash/contracts/SettlementConsumer.sol`, `tokenized-cash/contracts/KeyRegistry.sol`, `tokenized-cash/contracts/Token.sol`, `tokenized-cash/lib/csi.ts`, `tokenized-cash/lib/kmsSigner.ts`)
-- Tawf: `contracts/src/deposito/DepositoPoolLedger.sol`, `contracts/src/lib/LedgerLeaf.sol`, `contracts/src/sukuk/ILedgerAnchor.sol`, `contracts/src/deposito/TawfDepositoSeries.sol`, `eval/qa/e2e/invariants.py`, `docs/fhenix-ledger-design.md`, `docs/regulation.md`
+- Tawf: `contracts/src/deposito/DepositoPoolLedger.sol`, `contracts/src/lib/LedgerLeaf.sol`, `contracts/src/sukuk/ILedgerAnchor.sol`, `contracts/src/deposito/TawfDepositoSeries.sol`, `docs/fhenix-ledger-design.md`, `docs/regulation.md`
