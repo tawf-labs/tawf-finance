@@ -75,6 +75,7 @@ export function InvestorScf() {
   const room = state.faceValue > state.supply ? state.faceValue - state.supply : 0n;
   const maxBase = exempt || limit.remaining === MAX_UINT ? room : limit.remaining < room ? limit.remaining : room;
   const maxInvest = usdcToNumber(maxBase);
+  const overMax = Number.isFinite(amount) && BigInt(Math.round(amount * 1e6)) > maxBase;
   const minSub = usdcToNumber(state.minSubscription);
 
   const isSubscription = state.status === 1;
@@ -304,8 +305,9 @@ export function InvestorScf() {
           <p className="text-xs text-tawf-muted">
             USDC approval is handled automatically if needed. Funds go to the issuer only if the minimum raise is met when the subscription closes, otherwise you can claim a full refund.
           </p>
+          {overMax && <p className="text-sm text-red-600">That is above what you can invest now ({formatUsdc(maxBase)}).</p>}
           {error && <div className="bg-red-50 rounded-xl p-4 border border-red-200"><p className="text-sm text-red-600">{error}</p></div>}
-          <Button size="lg" className="w-full" disabled={subscribing || amount < minSub} onClick={runSubscribe}>
+          <Button size="lg" className="w-full" disabled={subscribing || amount < minSub || overMax} onClick={runSubscribe}>
             {subscribing ? <><Loader2 className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" /> Confirming…</> : `Invest ${formatUsdc(amount)}`}
           </Button>
         </div>

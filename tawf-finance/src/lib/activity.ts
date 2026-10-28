@@ -158,3 +158,30 @@ export function timeAgo(ts: number | null): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
+
+export interface PendingSubscriber {
+  investor: `0x${string}`;
+  /** Escrowed coin base units still to allocate, keyed by lowercase coin address. */
+  coins: Record<string, bigint>;
+}
+
+/**
+ * Investors with escrow still waiting for allocation on one product: per
+ * investor and coin, Subscribed minus Allocated minus SubscriptionCancelled.
+ */
+export function pendingSubscribers(events: ActivityEvent[], product: ActivityProduct): PendingSubscriber[] {
+  const net = new Map<string, PendingSubscriber>();
+  for (const e of events) {
+    if (e.product !== product || !e.investor || !e.token || e.coin == null) continue;
+    const sign = e.kind === 'Subscribed' ? 1n : e.kind === 'Allocated' || e.kind === 'SubscriptionCancelled' ? -1n : 0n;
+    if (sign === 0n) continue;
+    const key = e.investor.toLowerCase();
+    const row = net.get(key) ?? { investor: e.investor, coins: {} };
+    const coin = e.token.toLowerCase();
+    row.coins[coin] = (row.coins[coin] ?? 0n) + sign * BigInt(e.coin);
+    net.set(key, row);
+  }
+  return [...net.values()]
+    .map((r) => ({ ...r, coins: Object.fromEntries(Object.entries(r.coins).filter(([, v]) => v > 0n)) }))
+    .filter((r) => Object.keys(r.coins).length > 0);
+}

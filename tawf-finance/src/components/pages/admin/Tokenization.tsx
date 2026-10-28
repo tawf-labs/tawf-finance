@@ -13,6 +13,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
+import { useActivity, pendingSubscribers, type ActivityProduct, type ActivityEvent } from '@/lib/activity';
 import { ConnectButton } from '@/components/web3/ConnectButton';
 import {
   loadPasscode,
@@ -88,16 +89,22 @@ export function AdminTokenization() {
   const [steps, setSteps] = useState<TxStep[] | null>(null);
   const [lastHash, setLastHash] = useState<`0x${string}` | null>(null);
 
+  const activity = useActivity(undefined, { admin: true });
+  const refreshActivity = activity.refresh;
+
+  // The status endpoint is edge cached, so admin reads add a throwaway param to always see the chain now.
   const refreshAll = useCallback(async () => {
+    const t = Date.now();
     try {
-      const s = await getJson<SeriesStatus>(`series/status${address ? `?wallet=${address}` : ''}`);
+      const s = await getJson<SeriesStatus>(`series/status?t=${t}${address ? `&wallet=${address}` : ''}`);
       setSeries(s);
     } catch { setSeries(null); }
     try { setTawf(await getJson<TawfAccountStatus>('bprs/tawf-status')); } catch { setTawf(null); }
     if (DEPOSITO_POOL.series) {
-      try { setPoolStatus(await getJson<SeriesStatus>('series/status?series=pool')); } catch { setPoolStatus(null); }
+      try { setPoolStatus(await getJson<SeriesStatus>(`series/status?series=pool&t=${t}`)); } catch { setPoolStatus(null); }
     }
-  }, [address]);
+    void refreshActivity();
+  }, [address, refreshActivity]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load series, pool and treasury state on mount
@@ -129,14 +136,14 @@ export function AdminTokenization() {
           id: 'pool',
           label: 'Deposito Pool: Jawa Barat',
           icon: <Landmark className="w-4 h-4" />,
-          content: <PoolTab busy={busy} run={run} passcode={passcode} pool={poolStatus} />,
+          content: <PoolTab busy={busy} run={run} passcode={passcode} pool={poolStatus} events={activity.events} />,
         }]
       : []),
     {
       id: 'treasury',
       label: 'BPRS Demo pool (series 1)',
       icon: <Landmark className="w-4 h-4" />,
-      content: <TreasuryTab busy={busy} run={run} passcode={passcode} series={series} tawf={tawf} />,
+      content: <TreasuryTab busy={busy} run={run} passcode={passcode} series={series} tawf={tawf} events={activity.events} />,
     },
     {
       id: 'bprs',
@@ -195,16 +202,25 @@ const coinLabel = (addr: string): string =>
  * ledger, whose total backs the token), allocation, per-bank profit and
  * maturity, plus the shared coin, approval and sandbox controls.
  */
-function PoolTab({ busy, run, passcode, pool }: {
+function PoolTab({ busy, run, passcode, pool, events }: {
   busy: string | null;
   run: RunFn;
   passcode: string;
   pool: SeriesStatus | null;
+  events: ActivityEvent[];
 }) {
   const banks = pool?.banks ?? [];
   const [balances, setBalances] = useState<Record<string, number>>({});
   const [profits, setProfits] = useState<Record<string, number>>({});
   const [allocateList, setAllocateList] = useState('');
+  const [screenWallet, setScreenWallet] = useState('');
+  const [screenNote, setScreenNote] = useState('');
+  const [screenTopic, setScreenTopic] = useState('2');
+  const lastPeriod = pool?.lastPeriod;
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a new period was distributed, clear the typed profits so it cannot be sent twice
+    setProfits({});
+  }, [lastPeriod]);
   const total = banks.reduce((a, b) => a + BigInt(b.balanceSen), 0n);
   const nextPeriod = pool ? pool.lastPeriod + 1 : 1;
   const idrOf = (b: { id: string; balanceSen: string }) => balances[b.id] ?? Number(BigInt(b.balanceSen) / 100n);
@@ -255,6 +271,7 @@ function PoolTab({ busy, run, passcode, pool }: {
           Converts each investor&apos;s escrowed coins to IDR at the posted rates and mints the pool token, within the
           total recorded across the banks.
         </p>
+        <PendingList events={events} product="pool" onFill={setAllocateList} />
         <textarea
           value={allocateList}
           onChange={(e) => setAllocateList(e.target.value)}
@@ -273,6 +290,20 @@ function PoolTab({ busy, run, passcode, pool }: {
           Allocate
         </Button>
       </Card>
+
+      <ScreeningCard
+        busy={busy}
+        run={run}
+        passcode={passcode}
+        target={{ series: 'pool' }}
+        wallet={screenWallet}
+        setWallet={setScreenWallet}
+        note={screenNote}
+        setNote={setScreenNote}
+        topic={screenTopic}
+        setTopic={setScreenTopic}
+        intro="Issue a screening claim so a wallet may hold the pool under SCREENED GROUP / OJK SANDBOX. The claim is identity wide, so one claim also covers the BPRS Demo pool. The required verification note is stored off chain only, never on chain."
+      />
 
       <Card className="p-6 space-y-3">
         <p className="font-medium text-tawf-green">Profit for period {nextPeriod}, per bank</p>
@@ -318,12 +349,13 @@ function PoolTab({ busy, run, passcode, pool }: {
   );
 }
 
-function TreasuryTab({ busy, run, passcode, series, tawf }: {
+function TreasuryTab({ busy, run, passcode, series, tawf, events }: {
   busy: string | null;
   run: RunFn;
   passcode: string;
   series: SeriesStatus | null;
   tawf: TawfAccountStatus | null;
+  events: ActivityEvent[];
 }) {
   const [depositIdr, setDepositIdr] = useState<number>(0);
   const [screenWallet, setScreenWallet] = useState('');
@@ -358,6 +390,7 @@ function TreasuryTab({ busy, run, passcode, series, tawf }: {
           escrowed USDC and USDT to sen at each coin&apos;s posted rate, mints the series token, and forwards the coins
           to the treasury. It proves the latest anchored account balance; place funds at the BPRS first.
         </p>
+        <PendingList events={events} product="series1" onFill={setAllocateList} />
         <textarea
           value={allocateList}
           onChange={(e) => setAllocateList(e.target.value)}
@@ -430,25 +463,19 @@ function TreasuryTab({ busy, run, passcode, series, tawf }: {
         </div>
       </Card>
 
-      {/* Screening */}
-      <Card className="p-6 space-y-3">
-        <p className="font-medium text-tawf-green">Screening (issue claim)</p>
-        <p className="text-xs text-tawf-muted">
-          Issue a screening claim so a wallet may hold the series under SCREENED GROUP / OJK SANDBOX. The required
-          verification note is stored off chain only (in the response and logs), never on chain.
-        </p>
-        <input type="text" value={screenWallet} onChange={(e) => setScreenWallet(e.target.value)} placeholder="Wallet 0x…" className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl font-mono text-sm" />
-        <input type="text" value={screenNote} onChange={(e) => setScreenNote(e.target.value)} placeholder="Verified in person by … on …" className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl text-sm" />
-        <div className="flex flex-wrap gap-2 items-center">
-          <select value={screenTopic} onChange={(e) => setScreenTopic(e.target.value)} className="px-4 py-3 border border-tawf-green-10 rounded-xl">
-            <option value="2">TAWF_SCREENED (topic 2)</option>
-            <option value="3">OJK_SANDBOX_PARTICIPANT (topic 3)</option>
-          </select>
-          <Button size="sm" disabled={busy !== null || !screenWallet || screenNote.trim().length < 5} onClick={() => run('Issue screening claim', () => postAdmin('series/screen', { wallet: screenWallet, note: screenNote, topic: Number(screenTopic) }, passcode))}>
-            Issue claim
-          </Button>
-        </div>
-      </Card>
+      <ScreeningCard
+        busy={busy}
+        run={run}
+        passcode={passcode}
+        target={{}}
+        wallet={screenWallet}
+        setWallet={setScreenWallet}
+        note={screenNote}
+        setNote={setScreenNote}
+        topic={screenTopic}
+        setTopic={setScreenTopic}
+        intro="Issue a screening claim so a wallet may hold the series under SCREENED GROUP / OJK SANDBOX. The claim is identity wide, so one claim also covers the Jawa Barat pool. The required verification note is stored off chain only (in the response and logs), never on chain."
+      />
 
       {/* Mode + caps */}
       <SandboxControls busy={busy} run={run} passcode={passcode} series={series} />
@@ -456,6 +483,68 @@ function TreasuryTab({ busy, run, passcode, series, tawf }: {
   );
 }
 
+
+/** Investors with escrow waiting for allocation, derived from the admin activity feed, with a one-click fill. */
+function PendingList({ events, product, onFill }: {
+  events: ActivityEvent[];
+  product: ActivityProduct;
+  onFill: (list: string) => void;
+}) {
+  const pending = pendingSubscribers(events, product);
+  if (pending.length === 0) {
+    return <p className="text-xs text-tawf-muted">No pending subscriptions found in the activity feed.</p>;
+  }
+  return (
+    <div className="space-y-2">
+      <ul className="text-sm text-tawf-ink space-y-1">
+        {pending.map((p) => (
+          <li key={p.investor} className="flex flex-wrap gap-x-3">
+            <span className="font-mono text-xs break-all">{p.investor}</span>
+            <span>
+              {Object.entries(p.coins).map(([coin, v]) => `${formatUsdc(v)} ${coinLabel(coin)}`).join(', ')}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <Button size="sm" variant="secondary" onClick={() => onFill(pending.map((p) => p.investor).join('\n'))}>
+        Allocate all ({pending.length}): fill the list
+      </Button>
+    </div>
+  );
+}
+
+/** Identity-wide screening claim form, shared by both deposito tabs. */
+function ScreeningCard({ busy, run, passcode, target, wallet, setWallet, note, setNote, topic, setTopic, intro }: {
+  busy: string | null;
+  run: RunFn;
+  passcode: string;
+  target: Record<string, string>;
+  wallet: string;
+  setWallet: (v: string) => void;
+  note: string;
+  setNote: (v: string) => void;
+  topic: string;
+  setTopic: (v: string) => void;
+  intro: string;
+}) {
+  return (
+    <Card className="p-6 space-y-3">
+      <p className="font-medium text-tawf-green">Screening (issue claim)</p>
+      <p className="text-xs text-tawf-muted">{intro}</p>
+      <input type="text" value={wallet} onChange={(e) => setWallet(e.target.value)} placeholder="Wallet 0x…" aria-label="Wallet to screen" className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl font-mono text-sm" />
+      <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Verified in person by … on …" aria-label="Verification note" className="w-full px-4 py-3 border border-tawf-green-10 rounded-xl text-sm" />
+      <div className="flex flex-wrap gap-2 items-center">
+        <select value={topic} onChange={(e) => setTopic(e.target.value)} aria-label="Claim topic" className="px-4 py-3 border border-tawf-green-10 rounded-xl">
+          <option value="2">TAWF_SCREENED (topic 2)</option>
+          <option value="3">OJK_SANDBOX_PARTICIPANT (topic 3)</option>
+        </select>
+        <Button size="sm" disabled={busy !== null || !wallet || note.trim().length < 5} onClick={() => run('Issue screening claim', () => postAdmin('series/screen', { wallet, note, topic: Number(topic), ...target }, passcode))}>
+          Issue claim
+        </Button>
+      </div>
+    </Card>
+  );
+}
 
 /** Per-coin FX rates, treasury balances and series approvals for one deposito series. */
 function SeriesCoinsCards({ busy, run, passcode, series, pool = false }: {
@@ -475,7 +564,11 @@ function SeriesCoinsCards({ busy, run, passcode, series, pool = false }: {
       )
     : [];
 
-  const rateFor = (addr: string): number => rates[addr.toLowerCase()] ?? 16000;
+  const postedIdr = (addr: string): number => {
+    const c = series?.coins.find((x) => x.address.toLowerCase() === addr.toLowerCase());
+    return c && c.rate.idrPerToken !== '0' ? Number(c.rate.idrPerToken) / 100 : 16000;
+  };
+  const rateFor = (addr: string): number => rates[addr.toLowerCase()] ?? postedIdr(addr);
   const setRateFor = (addr: string, v: number) =>
     setRates((prev) => ({ ...prev, [addr.toLowerCase()]: v }));
 

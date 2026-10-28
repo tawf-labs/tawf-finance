@@ -29,6 +29,10 @@ export const ProgressBar = forwardRef<HTMLDivElement, ProgressBarProps>(
   ) => {
     const percentage = Math.min(Math.max((value / max) * 100, 0), 100);
 
+    // Truncate, never round up: 0.62% reads 0.6%, and only a full bar reads 100%.
+    const pctLabel =
+      percentage >= 100 ? '100' : percentage < 10 ? (Math.floor(percentage * 10) / 10).toFixed(1) : String(Math.floor(percentage));
+
     const sizeStyles = {
       sm: 'h-1.5',
       md: 'h-2.5',
@@ -54,7 +58,7 @@ export const ProgressBar = forwardRef<HTMLDivElement, ProgressBarProps>(
         {(showLabel || label) && (
           <div className="flex justify-between items-center mb-1.5">
             <span className="text-xs text-tawf-muted">{label || 'Progress'}</span>
-            <span className="font-mono text-xs font-medium text-ink tabular-nums">{percentage.toFixed(0)}%</span>
+            <span className="font-mono text-xs font-medium text-ink tabular-nums">{pctLabel}%</span>
           </div>
         )}
         <div className={cn('w-full rounded-full overflow-hidden', bgStyles[color], sizeStyles[size])}>
