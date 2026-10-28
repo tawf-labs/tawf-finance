@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { decodeEventLog, type Hex } from 'viem'
 import { publicClient, readableError } from '../_lib/operator.js'
 import { hasToken } from '../_lib/qn-auth.js'
+import { announcedBody, BodyTooLarge, requestBody } from '../_lib/raw-body.js'
 import { kvEnabled, kvListAdd, padBlock } from '../_lib/qn-kv.js'
 import { sources, unwrapLogs } from '../_lib/activity-core.js'
 
@@ -27,7 +28,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
   try {
-    const items = unwrapLogs(req.body) as { address?: string; topics?: Hex[]; data?: Hex; blockNumber?: string; transactionHash?: string; logIndex?: string }[]
+    let raw: { body: unknown; bytes: number }
+    try {
+      raw = await requestBody(req)
+    } catch (e) {
+      if (e instanceof BodyTooLarge) {
+        res.status(413).json({ error: 'The delivery body is too large.' })
+        return
+      }
+      throw e
+    }
+    if (raw.body === undefined && announcedBody(req)) {
+      res.status(422).json({ error: 'The delivery body could not be read.' })
+      return
+    }
+    const items = unwrapLogs(raw.body) as { address?: string; topics?: Hex[]; data?: Hex; blockNumber?: string; transactionHash?: string; logIndex?: string }[]
 
     const srcByAddr = new Map(sources().map((s) => [s.address.toLowerCase(), s]))
     const found: { code: string; product: string; txHash: string; logIndex: string; blockNumber: string; period: string }[] = []
