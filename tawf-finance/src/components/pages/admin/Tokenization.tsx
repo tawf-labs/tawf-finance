@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAccount, useReadContracts } from 'wagmi';
+import type { Abi } from 'viem';
 import {
   Loader2,
   ExternalLink,
@@ -13,7 +14,8 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
-import { useActivity, pendingSubscribers, type ActivityProduct, type ActivityEvent } from '@/lib/activity';
+import { useActivity, type ActivityProduct, type ActivityEvent } from '@/lib/activity';
+import { TawfSeriesAbi } from '@/web3/tokenizationAbis';
 import { ConnectButton } from '@/components/web3/ConnectButton';
 import {
   loadPasscode,
@@ -271,7 +273,7 @@ function PoolTab({ busy, run, passcode, pool, events }: {
           Converts each investor&apos;s escrowed coins to IDR at the posted rates and mints the pool token, within the
           total recorded across the banks.
         </p>
-        <PendingList events={events} product="pool" onFill={setAllocateList} />
+        <PendingList events={events} product="pool" status={pool} onFill={setAllocateList} />
         <textarea
           value={allocateList}
           onChange={(e) => setAllocateList(e.target.value)}
@@ -390,7 +392,7 @@ function TreasuryTab({ busy, run, passcode, series, tawf, events }: {
           escrowed USDC and USDT to sen at each coin&apos;s posted rate, mints the series token, and forwards the coins
           to the treasury. It proves the latest anchored account balance; place funds at the BPRS first.
         </p>
-        <PendingList events={events} product="series1" onFill={setAllocateList} />
+        <PendingList events={events} product="series1" status={series} onFill={setAllocateList} />
         <textarea
           value={allocateList}
           onChange={(e) => setAllocateList(e.target.value)}
@@ -484,15 +486,64 @@ function TreasuryTab({ busy, run, passcode, series, tawf, events }: {
 }
 
 
-/** Investors with escrow waiting for allocation, derived from the admin activity feed, with a one-click fill. */
-function PendingList({ events, product, onFill }: {
+/**
+ * Investors with escrow waiting for allocation. The (capped) activity feed only
+ * discovers who ever subscribed to the product; each one's pending escrow per
+ * coin is read from the series contract, so the list and "fill" are exact.
+ */
+function PendingList({ events, product, status, onFill }: {
   events: ActivityEvent[];
   product: ActivityProduct;
+  status: SeriesStatus | null;
   onFill: (list: string) => void;
 }) {
-  const pending = pendingSubscribers(events, product);
+  const investors = useMemo(() => {
+    const seen = new Map<string, `0x${string}`>();
+    for (const e of events) {
+      if (e.product === product && e.kind === 'Subscribed' && e.investor) seen.set(e.investor.toLowerCase(), e.investor);
+    }
+    return [...seen.values()];
+  }, [events, product]);
+  const coins = status?.coins ?? [];
+  const contracts = useMemo(
+    () =>
+      status
+        ? investors.flatMap((who) =>
+            coins.map((c) => ({
+              address: status.series,
+              abi: TawfSeriesAbi as Abi,
+              functionName: 'pending',
+              args: [who, c.address],
+            })),
+          )
+        : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- coins is derived from status
+    [investors, status],
+  );
+  const { data, isLoading, refetch } = useReadContracts({
+    contracts,
+    query: { enabled: contracts.length > 0 },
+  });
+  const supply = status?.supply;
+  useEffect(() => {
+    // a fresh status (after any admin action) means pending may have changed
+    if (contracts.length > 0) void refetch();
+  }, [supply, status, contracts.length, refetch]);
+
+  const pending = investors
+    .map((investor, i) => {
+      const perCoin: Record<string, bigint> = {};
+      coins.forEach((c, j) => {
+        const v = data?.[i * coins.length + j]?.result as bigint | undefined;
+        if (v && v > 0n) perCoin[c.address] = v;
+      });
+      return { investor, coins: perCoin };
+    })
+    .filter((p) => Object.keys(p.coins).length > 0);
+
+  if (isLoading) return <p className="text-xs text-tawf-muted">Reading pending escrow from the chain…</p>;
   if (pending.length === 0) {
-    return <p className="text-xs text-tawf-muted">No pending subscriptions found in the activity feed.</p>;
+    return <p className="text-xs text-tawf-muted">No pending subscriptions on chain for the investors in the activity feed.</p>;
   }
   return (
     <div className="space-y-2">
