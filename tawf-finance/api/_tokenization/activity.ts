@@ -1,7 +1,18 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { decodeEventLog, getAddress, isAddress, pad, parseAbi, toEventSelector, type AbiEvent, type Address, type Hex, type Log } from 'viem'
-import { publicClient, addresses, pool, readableError } from './_lib/operator.js'
+import { createPublicClient, decodeEventLog, getAddress, http, isAddress, pad, parseAbi, toEventSelector, type AbiEvent, type Address, type Hex, type Log } from 'viem'
+import { arbitrumSepolia } from 'viem/chains'
+import { addresses, pool, readableError } from './_lib/operator.js'
 import deployments from '../../src/web3/tokenization.deployments.json' with { type: 'json' }
+
+/**
+ * Logs are read over their own endpoint. The app's keyed RPC (QuickNode Discover) limits
+ * eth_getLogs to 5 blocks, which cannot scan a chain from the deploy block, while the public
+ * Arbitrum Sepolia RPC accepts wide ranges. Set ACTIVITY_RPC_URL to use a different node.
+ */
+const publicClient = createPublicClient({
+  chain: arbitrumSepolia,
+  transport: http(process.env.ACTIVITY_RPC_URL ?? 'https://sepolia-rollup.arbitrum.io/rpc'),
+})
 
 const raw = deployments as Record<string, unknown>
 const ZERO = '0x0000000000000000000000000000000000000000'
@@ -177,7 +188,8 @@ async function scan(
         await sleep(400 * 3 ** (tries - 1))
         continue
       }
-      if (!isRangeError(err) || budget.span <= 1_000n) throw err
+      if (!isRangeError(err)) throw err
+      if (budget.span <= 1_000n) throw new Error('The log RPC limits eth_getLogs to a tiny block range. Set ACTIVITY_RPC_URL to a node without that limit.')
       budget.span /= 2n
     }
   }
@@ -268,7 +280,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const fromParam = typeof f === 'string' ? BigInt(f) : 0n
     const toBlock = await publicClient.getBlockNumber()
-    const defaultSpan = process.env.ARB_SEPOLIA_RPC_URL ? 2_000_000 : 500_000
+    const defaultSpan = 1_000_000
     const budget: Budget = { deadline: Date.now() + 24_000, span: BigInt(Number(process.env.ACTIVITY_LOG_SPAN ?? defaultSpan)) }
 
     const srcs = sources().filter((s) => !w || !s.admin)
