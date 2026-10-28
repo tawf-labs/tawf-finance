@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createPublicClient, decodeEventLog, getAddress, http, isAddress, pad, toEventSelector, type AbiEvent, type Address, type Hex, type Log } from 'viem'
 import { arbitrumSepolia } from 'viem/chains'
 import { readableError } from './_lib/operator.js'
+import { safeEqual } from './_lib/qn-auth.js'
 import { kvEnabled, kvGetJson, kvLastBlock, kvListGet, kvPool } from './_lib/qn-kv.js'
 import { GLOBAL, compareEvents, hexBig, isInvestorEvent, normalize, sources, type ActivityEvent, type Source } from './_lib/activity-core.js'
 
@@ -25,7 +26,7 @@ const isRateLimit = (err: unknown) => /429|rate.?limit|too many requests|busy|th
  * generic "Request failed"). Anything that is not a rate limit is treated as a range problem.
  */
 const isRangeError = (err: unknown) =>
-  /range|limit|exceed|too (many|large)|block|response size|10,?000|more than|query returned|request failed|invalid params/i.test(errText(err))
+  /block range|range (is )?too|limited to a? ?\d[\d,]* ?(block|range)|exceed(s|ed)? .*(range|limit|size|results)|too many (results|logs)|response size|query returned more than|result window|more than \d[\d,]* results/i.test(errText(err))
 
 /** The stream's KV index counts as current when it has seen a block this recently (about 8 minutes). */
 const INDEX_MAX_LAG = 2_000n
@@ -399,7 +400,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(200).json({ toBlock: (partial ? scannedTo : toBlock).toString(), partial, wallet: w, events })
   } catch (err) {
     // ?debug=1 with the admin passcode adds the provider's own message (URLs stripped) to help diagnose RPC limits.
-    const isAdminDebug = req.query.debug === '1' && Boolean(process.env.DEMO_PASSCODE) && req.headers['x-demo-passcode'] === process.env.DEMO_PASSCODE
+    const isAdminDebug = req.query.debug === '1' && Boolean(process.env.DEMO_PASSCODE) && safeEqual(req.headers['x-demo-passcode'], process.env.DEMO_PASSCODE)
     const detail = isAdminDebug ? String((err as { details?: string })?.details ?? (err as Error)?.message ?? '').replace(/https?:\/\/\S+/g, '[url]').slice(0, 300) : undefined
     res.status(500).json({ error: readableError(err, 'Could not read the activity'), ...(detail ? { detail } : {}) })
   }
