@@ -131,3 +131,24 @@ export function compareEvents(x: { blockNumber: string; id: string }, y: { block
   if (b !== 0n) return b > 0n ? 1 : -1
   return Number(y.id.split(':')[1] ?? 0) - Number(x.id.split(':')[1] ?? 0)
 }
+
+/**
+ * The logs in a QuickNode delivery, whatever the shape: a bare log, an array of logs, or either
+ * wrapped in { data } / { data: [...] } (one or more levels, optionally in an array of wrappers).
+ * A { heartbeat } marker from our filter function is kept as is.
+ */
+export function unwrapLogs(body: unknown): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = []
+  const walk = (x: unknown, depth: number) => {
+    if (depth > 6 || x === null || typeof x !== 'object') return
+    if (Array.isArray(x)) {
+      for (const y of x) walk(y, depth + 1)
+      return
+    }
+    const o = x as Record<string, unknown>
+    if (typeof o.heartbeat === 'number' || (typeof o.address === 'string' && Array.isArray(o.topics))) out.push(o)
+    else if (o.data !== null && typeof o.data === 'object') walk(o.data, depth + 1)
+  }
+  walk(body, 0)
+  return out
+}

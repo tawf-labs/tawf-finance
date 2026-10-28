@@ -65,7 +65,7 @@ export function NotificationBell({ role }: { role: string }) {
   const who = isAdmin ? 'admin' : address ?? '';
   const { events, loading, refresh } = useActivity(isAdmin ? undefined : address, { admin: isAdmin });
   const alerts = useInvestorAlerts(!isAdmin);
-  const [platform, setPlatform] = useState<{ id: string; kind: string; product: string; txHash: `0x${string}` }[]>([]);
+  const [platform, setPlatform] = useState<{ id: string; kind: string; product: string; txHash: `0x${string}`; period: number | null; timestamp: number | null }[]>([]);
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState<number>(() => Number(localStorage.getItem(seenKey(who)) ?? 0));
   const ref = useRef<HTMLDivElement>(null);
@@ -142,8 +142,8 @@ export function NotificationBell({ role }: { role: string }) {
               <p className="px-2 pb-1 text-xs uppercase tracking-wide text-tawf-muted">Platform alerts</p>
               {platform.map((a) => (
                 <a key={a.id} href={explorerTxUrl(a.txHash)} target="_blank" rel="noopener noreferrer" className="block px-2 py-1.5 rounded-lg text-sm text-tawf-ink hover:bg-tawf-green-5">
-                  {a.kind === 'MaturitySettled' ? 'Pool maturity settled' : 'Pool profit distributed'}
-                  <span className="text-xs text-tawf-muted"> · {PRODUCT_LABEL[a.product as keyof typeof PRODUCT_LABEL] ?? a.product}</span>
+                  {a.kind === 'MaturitySettled' ? 'Pool maturity settled' : 'Pool profit distributed'}{a.period ? ` (period ${a.period})` : ''}
+                  <span className="block text-xs text-tawf-muted">{PRODUCT_LABEL[a.product as keyof typeof PRODUCT_LABEL] ?? a.product}{a.timestamp ? ` · ${timeAgo(a.timestamp)}` : ''}</span>
                 </a>
               ))}
             </div>

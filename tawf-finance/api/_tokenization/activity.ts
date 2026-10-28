@@ -57,7 +57,7 @@ async function readIndex(wallet: Address | null, from: bigint, head: bigint): Pr
     // serve a truncated history as complete: the Arbiscan scan answers this request instead.
     if (matched.length > INDEX_KEEP) return null
     const ids = matched.map((it) => it.slice(13))
-    const bodies = await kvPool(ids, 10, (id) => kvGetJson<ActivityEvent | null>(`tawf:ev:${id}`, null))
+    const bodies = await kvPool(ids, 24, (id) => kvGetJson<ActivityEvent | null>(`tawf:ev:${id}`, null))
     // A list item without its body means a write is still in flight: do not serve a partial index.
     if (bodies.some((b) => b === null)) return null
     // Pool-wide rows are only ProfitDistributed / MaturitySettled, never another wallet's data.
@@ -332,8 +332,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .sort((x, y) => (x < y ? 1 : x > y ? -1 : 0))
         .slice(0, 10)
         .map((it) => {
-          const [block, txHash, logIndex, kind, product] = it.split(':')
-          return { id: `${txHash}:${logIndex}`, blockNumber: BigInt(block).toString(), txHash, kind, product }
+          // <block>:<txHash>:<logIndex>:<PD|MS>:<product>:<period or empty>:<unix time or empty>
+          const [block, txHash, logIndex, code, product, period, ts] = it.split(':')
+          return {
+            id: `${txHash}:${logIndex}`,
+            blockNumber: BigInt(block).toString(),
+            txHash,
+            kind: code === 'MS' ? 'MaturitySettled' : 'ProfitDistributed',
+            product,
+            period: period ? Number(period) : null,
+            timestamp: ts ? Number(ts) : null,
+          }
         })
       res.setHeader('cache-control', 's-maxage=30, stale-while-revalidate=60')
       res.status(200).json({ alerts })

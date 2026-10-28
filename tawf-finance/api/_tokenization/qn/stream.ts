@@ -3,7 +3,7 @@ import { decodeEventLog, getAddress, type Address, type Hex, type Log } from 'vi
 import { publicClient, readableError } from '../_lib/operator.js'
 import { hasToken } from '../_lib/qn-auth.js'
 import { kvEnabled, kvListAdd, kvPool, kvRaiseLast, kvSetJson, padBlock } from '../_lib/qn-kv.js'
-import { GLOBAL, hexBig, normalize, sources, type ActivityEvent } from '../_lib/activity-core.js'
+import { GLOBAL, hexBig, normalize, sources, unwrapLogs, type ActivityEvent } from '../_lib/activity-core.js'
 
 // Index layout in the QuickNode KV store. Writes are server-side appends only (no read-modify-write),
 // so overlapping or retried deliveries cannot lose events or lower the last block:
@@ -12,6 +12,8 @@ import { GLOBAL, hexBig, normalize, sources, type ActivityEvent } from '../_lib/
 //   tawf:act:global               list   same, for pool-wide events (no investor)
 //   tawf:act:admin                list   same, for every event
 //   tawf:act:last:<bucket>        list   padded block numbers seen (the max is the last block)
+/** Parallel KV writes per delivery (each is a small REST call). */
+const WRITE_CONCURRENCY = 24
 export const actKey = (wallet: string) => `tawf:act:${wallet.toLowerCase()}`
 export const ADMIN_KEY = 'tawf:act:admin'
 export const GLOBAL_KEY = 'tawf:act:global'
@@ -53,10 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const body = req.body as { data?: unknown; heartbeat?: number } | unknown[] | null
-    // The payload is the filter's return value, optionally wrapped as { data, metadata }.
-    const payload = (Array.isArray(body) ? body : (body as { data?: unknown })?.data ?? body) as unknown
-    const items = (Array.isArray(payload) ? payload.flat(Infinity) : [payload]) as (RawLog | { heartbeat?: number })[]
+    const items = unwrapLogs(req.body) as unknown as (RawLog | { heartbeat?: number })[]
 
     const srcByAddr = new Map(sources().map((s) => [s.address.toLowerCase(), s]))
     const events: ActivityEvent[] = []
@@ -91,16 +90,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Block times, one read per distinct block.
     const blocks = [...new Set(events.map((e) => e.blockNumber))]
     const times = new Map<string, number>()
-    await Promise.all(
-      blocks.map(async (b) => {
-        const blk = await publicClient.getBlock({ blockNumber: BigInt(b) }).catch(() => null)
-        if (blk) times.set(b, Number(blk.timestamp))
-      }),
-    )
+    await kvPool(blocks, 16, async (b) => {
+      const blk = await publicClient.getBlock({ blockNumber: BigInt(b) }).catch(() => null)
+      if (blk) times.set(b, Number(blk.timestamp))
+    })
     for (const e of events) e.timestamp = times.get(e.blockNumber) ?? e.timestamp
 
     // Bodies first (unique keys), then the list items that point at them.
-    await kvPool(events, 8, (e) => kvSetJson(eventKey(e.id), e))
+    await kvPool(events, WRITE_CONCURRENCY, (e) => kvSetJson(eventKey(e.id), e))
     const adds: [string, string][] = []
     for (const e of events) {
       const item = listItem(e)
@@ -108,7 +105,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (e.investor) adds.push([actKey(getAddress(e.investor)), item])
       else if (GLOBAL.has(e.kind) && (e.product === 'pool' || e.product === 'series1' || e.product === 'scf')) adds.push([GLOBAL_KEY, item])
     }
-    await kvPool(adds, 8, ([k, item]) => kvListAdd(k, item))
+    await kvPool(adds, WRITE_CONCURRENCY, ([k, item]) => kvListAdd(k, item))
 
     // Only after the events are stored, so a fresh last block never points past missing data.
     if (last > 0n) await kvRaiseLast(last)
