@@ -26,13 +26,6 @@ export function About() {
     },
   ];
 
-  const team = [
-    { name: 'Hasan VC', role: 'Founder & CEO', bio: 'Former investment banker with 15+ years in Islamic finance' },
-    { name: 'Sarah Ahmed', role: 'CTO', bio: 'Blockchain pioneer building ethical DeFi solutions' },
-    { name: 'Dr. Rahman', role: 'Shariah Board Lead', bio: 'PhD in Islamic Finance, 20+ years of experience' },
-    { name: 'Dewi Lestari', role: 'Head of Operations', bio: 'Expert in Shariah banking and BPRS operations across Indonesia' },
-  ];
-
   const trust = [
     {
       layer: 'Layer 1: Smart contracts',
@@ -125,26 +118,9 @@ export function About() {
         </div>
       </Chapter>
 
-      <Chapter tint="mint" from="stone" eyebrow="Team" title="Leadership team">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {team.map((member, i) => (
-            <Reveal key={member.name} delay={i * 0.08} className="h-full">
-              <Tile className="h-full text-center">
-                <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-mint font-mono text-xl text-jade">
-                  {member.name.split(' ').map((n) => n[0]).join('')}
-                </div>
-                <h3 className="font-semibold text-ink">{member.name}</h3>
-                <p className="mb-2 mt-1 font-mono text-xs uppercase tracking-[0.1em] text-jade">{member.role}</p>
-                <p className="text-sm text-ink/65">{member.bio}</p>
-              </Tile>
-            </Reveal>
-          ))}
-        </div>
-      </Chapter>
-
       <Chapter
-        tint="stone"
-        from="mint"
+        tint="paper"
+        from="stone"
         eyebrow="Trust"
         title="Trust"
         accent="architecture"
