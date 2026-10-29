@@ -204,15 +204,15 @@ export function ProofOfReserve() {
     <PublicPage>
       <PageHero
         eyebrow="Proof of reserve"
-        title="Every token is backed"
-        accent="by a real placement."
+        title="Every token is matched"
+        accent="to a recorded placement."
         lead={
           <>
             <p>
               For each Tawf Deposito Pool we show the tokens outstanding on Arbitrum against Tawf&apos;s dedicated
               account balances at the BPRS. The regional pool adds up Tawf&apos;s balance at each bank in the region and
               shows every bank&apos;s part. A token can only be minted against a reserve fact the contract verifies, so
-              what you see here is checked, not claimed.
+              what you see is verified against the ledger, not asserted.
             </p>
             {data?.lastSyncAt && (
               <p className="mt-3 text-sm text-ink/60">Last BPRS sync: {new Date(data.lastSyncAt).toLocaleString('en-SG')}</p>
@@ -260,7 +260,7 @@ export function ProofOfReserve() {
               ))}
             </div>
             <p className="mt-6 leading-relaxed text-ink/70">
-              Each bank&apos;s core banking system holds Tawf&apos;s real deposits. The connector reads it
+              Each bank&apos;s core banking system holds Tawf&apos;s deposits (demo data on testnet). The connector reads it
               and writes placements and reserve snapshots to the Tawf Network ledger, with no borrower names on chain. The
               relayer anchors the ledger&apos;s Merkle root on Arbitrum through the LedgerAnchor. tawf.finance contracts only mint
               a token against a leaf that verifies under an anchored root, so supply can never run ahead of proven reserve.

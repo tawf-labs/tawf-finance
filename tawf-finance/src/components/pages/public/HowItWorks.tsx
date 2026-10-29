@@ -24,7 +24,7 @@ const investorSteps: Step[] = [
   {
     icon: <CheckCircle className="h-6 w-6" />,
     title: 'Receive your profit share',
-    description: 'Each period the banks credit their profit share and you claim yours. At maturity you redeem the principal.',
+    description: 'If there is profit, the banks credit their share each period and you claim yours. At maturity you redeem the principal. Principal is not guaranteed.',
   },
 ];
 
@@ -113,6 +113,9 @@ export function HowItWorks() {
         lead="Take Shariah-aligned exposure to mudharabah deposito at licensed BPRS, with the balances visible on chain."
       >
         <StepGrid steps={investorSteps} tint="stone" />
+        <Reveal className="mt-6 max-w-3xl text-sm leading-relaxed text-ink/70">
+          Risk: mudharabah shares profit and loss. Returns depend on the banks' results and are not guaranteed, and capital can be lost except through misconduct.
+        </Reveal>
         <Reveal className="mt-10">
           <Link to="/earn" className={solid}>
             Explore the pools <ArrowRight className="ml-2 h-4 w-4" />
@@ -140,7 +143,7 @@ export function HowItWorks() {
         lead="The pilot runs on testnet with test stablecoins, so nothing is charged. Fee terms for a live pool will be published before anyone subscribes."
       />
 
-      <Chapter tint="mint" from="stone" eyebrow="Safeguards" title="Built to be" accent="verified, not trusted.">
+      <Chapter tint="mint" from="stone" eyebrow="Safeguards" title="Built so you can" accent="verified.">
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           {safeguards.map((s, i) => (
             <Reveal key={s.title} delay={(i % 2) * 0.08}>

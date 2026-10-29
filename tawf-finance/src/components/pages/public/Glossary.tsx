@@ -15,12 +15,12 @@ export function Glossary() {
     },
     {
       term: 'BPRS (Bank Pembiayaan Rakyat Syariah)',
-      definition: 'A licensed Islamic rural bank in Indonesia. Unlike a BMT, a BPRS is OJK-supervised and LPS-insured. The partner banks in the Tawf Deposito Pool are BPRS.',
+      definition: 'A licensed Islamic rural bank in Indonesia. Unlike a BMT, a BPRS is OJK-supervised and LPS-insured. LPS covers bank depositors under its own rules, not the Tawf token. The partner banks in the Tawf Deposito Pool are BPRS.',
       category: 'Organizations',
     },
     {
       term: 'BMT (Baitul Maal wat Tamwil)',
-      definition: 'Islamic cooperative financial institution in Indonesia combining social (Baitul Maal) and commercial (Baitul Tamwil) finance. Tawf\'s own organisational identity, and a later distribution channel for ZISWAF modules.',
+      definition: 'Islamic cooperative financial institution in Indonesia combining social (Baitul Maal) and commercial (Baitul Tamwil) finance. A possible later distribution channel for ZISWAF modules, not part of the pilot.',
       category: 'Organizations',
     },
     {
@@ -110,7 +110,7 @@ export function Glossary() {
     },
     {
       term: 'Sukuk',
-      definition: 'Islamic bonds representing ownership in a tangible asset or project. For a BPRS, issuance under POJK 7/2024 Art 35 requires IDR 80bn+ core capital, so it is a later product, not the pilot.',
+      definition: 'Islamic bonds representing ownership in a tangible asset or project. SME sukuk through the SCF partner platform are in the pilot. Sukuk issued by a BPRS under POJK 7/2024 Art 35 require IDR 80bn+ core capital and come later.',
       category: 'Products',
     },
     {
@@ -182,7 +182,7 @@ export function Glossary() {
           {[
             ['Prohibited', 'Riba (interest), Gharar (excessive uncertainty), Maysir (gambling)'],
             ['Key principles', 'Profit-sharing, risk-sharing, asset-backing, ethical investment'],
-            ['In Indonesia', 'OJK regulates. A BPRS is a licensed, LPS-insured Shariah bank and a partner bank in the pilot'],
+            ['In Indonesia', 'OJK regulates. A BPRS is a licensed Shariah bank and a partner bank in the pilot. LPS covers bank depositors under its own rules, not the Tawf token'],
           ].map(([h, b]) => (
             <Tile key={h}>
               <h3 className="display text-xl">{h}</h3>

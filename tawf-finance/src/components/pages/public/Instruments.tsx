@@ -85,12 +85,14 @@ export function Instruments() {
                           <dt className="text-ink/60">Typical use</dt>
                           <dd className="text-right">{inst.useCase}</dd>
                         </div>
+                        {inst.status !== 'Live' && (
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-ink/60">Illustrative market range, not offered by Tawf</dt>
+                            <dd className="text-right font-medium">{inst.yieldBand}</dd>
+                          </div>
+                        )}
                         <div className="flex justify-between gap-4">
-                          <dt className="text-ink/60">Reference band</dt>
-                          <dd className="text-right font-medium">{inst.yieldBand}</dd>
-                        </div>
-                        <div className="flex justify-between gap-4">
-                          <dt className="text-ink/60">Reference</dt>
+                          <dt className="text-ink/60">Fatwa reference (illustrative)</dt>
                           <dd className="text-right">{inst.dsnRef}</dd>
                         </div>
                       </dl>
@@ -106,7 +108,7 @@ export function Instruments() {
       <Chapter tint="paper" from={familyTint[familyOrder[familyOrder.length - 1]]} eyebrow="Status labels" title="How to read" accent="the labels.">
         <Reveal>
           <Tile tint="stone" className="max-w-3xl">
-            <p className="mb-5 text-sm text-ink/70">Reference bands describe the structure, not an offer. Nothing here is a promise of return.</p>
+            <p className="mb-5 text-sm text-ink/70">Market ranges are illustrative and shown for structures outside the pilot. Nothing here is an offer or a promise of return.</p>
             <ul className="space-y-4 text-sm">
               {STATUS_NOTES.map(([status, note]) => {
                 const s = statusStyle(status);
