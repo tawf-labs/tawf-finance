@@ -29,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const dist = addresses.scfDistributor
-    const [terms, status, raised, deadline, lastPeriod, reserve, snapshotAt, fullyBacked, offering] = await Promise.all([
+    const [terms, status, supply, deadline, lastPeriod, reserve, snapshotAt, fullyBacked, offering] = await Promise.all([
       publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'terms' }) as Promise<readonly unknown[]>,
       publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'status' }),
       publicClient.readContract({ address: addresses.scfToken, abi: extraAbi, functionName: 'totalSupply' }),
@@ -71,11 +71,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       minRaise: String(terms[3]),
       minSubscription: String(terms[4]),
       issuerTreasury: terms[6],
-      raised: String(raised),
+      // The distributor has no cumulative raised counter: tokens are minted 1:1 on subscribe and
+      // burned on refund and redeem, so this equals the supply until redemption starts.
+      raised: String(supply),
       subscriptionDeadline: Number(deadline),
       lastPeriod: Number(lastPeriod),
       reserve: String(reserve),
-      supply: String(raised),
+      supply: String(supply),
       reserveSnapshotAt: Number(snapshotAt),
       isFullyBacked: Boolean(fullyBacked),
       offeringCap: String((offering as readonly unknown[])[1]),

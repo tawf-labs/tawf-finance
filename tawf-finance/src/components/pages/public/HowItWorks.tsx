@@ -151,7 +151,7 @@ export function HowItWorks() {
       >
         <StepGrid steps={scfSteps} tint="stone" />
         <Reveal className="mt-6 max-w-3xl text-sm leading-relaxed text-ink/70">
-          Risk: sukuk mudharabah shares profit and loss. Profit depends on the SME and is not guaranteed, and capital can be lost except through misconduct.
+          Risk: sukuk mudharabah shares profit and loss. Profit depends on the SME and is not guaranteed, and capital can be lost. The SME is liable only for losses caused by its misconduct or negligence.
         </Reveal>
         <Reveal className="mt-10">
           <Link to="/earn" className={solid}>
@@ -183,7 +183,7 @@ export function HowItWorks() {
           >
             <StepGrid steps={investorSteps} tint="stone" />
             <Reveal className="mt-6 max-w-3xl text-sm leading-relaxed text-ink/70">
-              Risk: mudharabah shares profit and loss. Returns depend on the banks' results and are not guaranteed, and capital can be lost except through misconduct.
+              Risk: mudharabah shares profit and loss. Returns depend on the banks' results and are not guaranteed, and capital can be lost. The bank is liable only for losses caused by its misconduct or negligence.
             </Reveal>
           </Chapter>
           <Chapter

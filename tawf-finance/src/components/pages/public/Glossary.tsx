@@ -45,7 +45,7 @@ export function Glossary() {
     },
     {
       term: 'Mudharabah',
-      definition: 'A profit-sharing partnership where one party provides capital and the other provides expertise. Profits are shared according to a pre-agreed ratio, while losses are borne by the capital provider (unless due to misconduct). The akad behind SME sukuk mudharabah and, later, the Deposito Pool.',
+      definition: 'A profit-sharing partnership where one party provides capital and the other provides expertise. Profits are shared according to a pre-agreed ratio, while losses are borne by the capital provider. The managing party is liable only for losses caused by its misconduct or negligence. The akad behind SME sukuk mudharabah and, later, the Deposito Pool.',
       category: 'Contracts',
     },
     {
