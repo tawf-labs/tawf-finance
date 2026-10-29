@@ -8,7 +8,7 @@ const groups: { title: string; links: FooterLink[] }[] = [
     title: 'Explore',
     links: [
       { name: 'Lifecycle', href: '/#how-it-works' },
-      { name: 'Pool token', href: '/#receipt' },
+      { name: 'Sukuk token', href: '/#receipt' },
       { name: 'Instruments', href: '/instruments' },
       { name: 'Glossary', href: '/glossary' },
     ],
@@ -61,7 +61,7 @@ export function Footer() {
           <div className="lg:col-span-5">
             <span role="img" aria-label="Tawf" className="block h-9 w-[150px] bg-ink" style={MASK} />
             <p className="mt-6 max-w-sm text-[0.95rem] leading-relaxed text-ink/65">
-              Tokenized Shariah deposito at licensed BPRS and sharia crowdfunding for SMEs. Built by Tawf Labs on Arbitrum.
+              Tokenized sharia crowdfunding for Indonesian SMEs. Built by Tawf Labs on Arbitrum.
             </p>
           </div>
 

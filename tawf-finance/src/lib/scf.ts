@@ -81,6 +81,11 @@ export interface ScfStatus {
   subscriptionDeadline?: number;
   lastPeriod?: number;
   reserve?: string;
+  /** Sukuk token total supply (the same figure as `raised`). */
+  supply?: string;
+  /** Unix seconds of the latest verified reserve snapshot, 0 when none. */
+  reserveSnapshotAt?: number;
+  isFullyBacked?: boolean;
   offeringCap?: string;
   investor?: { wallet: `0x${string}`; limit: string; used: string; remaining: string; exemption: number } | null;
 }

@@ -8,6 +8,8 @@ const extraAbi = parseAbi([
   'function subscriptionDeadline() view returns (uint40)',
   'function lastPeriod() view returns (uint16)',
   'function reserveOutstanding() view returns (uint256)',
+  'function reserveSnapshotAt() view returns (uint64)',
+  'function isFullyBacked() view returns (bool)',
 ])
 
 const STATUS = ['Pending', 'Subscription', 'Active', 'Matured', 'Defaulted', 'Cancelled'] as const
@@ -27,13 +29,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const dist = addresses.scfDistributor
-    const [terms, status, raised, deadline, lastPeriod, reserve, offering] = await Promise.all([
+    const [terms, status, raised, deadline, lastPeriod, reserve, snapshotAt, fullyBacked, offering] = await Promise.all([
       publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'terms' }) as Promise<readonly unknown[]>,
       publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'status' }),
       publicClient.readContract({ address: addresses.scfToken, abi: extraAbi, functionName: 'totalSupply' }),
       publicClient.readContract({ address: dist, abi: extraAbi, functionName: 'subscriptionDeadline' }),
       publicClient.readContract({ address: dist, abi: extraAbi, functionName: 'lastPeriod' }),
       publicClient.readContract({ address: dist, abi: extraAbi, functionName: 'reserveOutstanding' }),
+      publicClient.readContract({ address: dist, abi: extraAbi, functionName: 'reserveSnapshotAt' }),
+      publicClient.readContract({ address: dist, abi: extraAbi, functionName: 'isFullyBacked' }),
       publicClient.readContract({ address: addresses.scfLimitModule, abi: scfLimitModuleAbi, functionName: 'offeringOf', args: [addresses.scfCompliance] }),
     ])
 
@@ -71,6 +75,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       subscriptionDeadline: Number(deadline),
       lastPeriod: Number(lastPeriod),
       reserve: String(reserve),
+      supply: String(raised),
+      reserveSnapshotAt: Number(snapshotAt),
+      isFullyBacked: Boolean(fullyBacked),
       offeringCap: String((offering as readonly unknown[])[1]),
       investor,
     })

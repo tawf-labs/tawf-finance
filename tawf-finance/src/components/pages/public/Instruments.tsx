@@ -35,7 +35,7 @@ function statusStyle(status: InstrumentStatus): { bg: string; text: string; dot:
 }
 
 const STATUS_NOTES: [InstrumentStatus, string][] = [
-  ['Live', 'Running in the pilot today. The mudharabah deposito behind the Tawf Deposito Pool.'],
+  ['Live', 'Running in the pilot today. SME sukuk mudharabah through a licensed SCF platform.'],
   ['Structured', 'Akad drafted and modeled, awaiting a design-partner bank to validate. Not in the pilot.'],
   ['Pipeline', 'Scoped for a specific segment, not yet drafted. Not in the pilot.'],
   ['Roadmap', 'Planned once the capital and licensing conditions are met (Sukuk needs IDR 80bn core capital).'],
@@ -48,7 +48,7 @@ export function Instruments() {
         eyebrow="Instruments"
         title="One infrastructure for every"
         accent="Islamic finance akad."
-        lead="The pilot runs on one akad, the mudharabah deposito behind the Tawf Deposito Pool, plus sharia crowdfunding for SMEs. The rest of the catalogue is reference for what the same primitive can carry later, and most of it is not in the pilot."
+        lead="The pilot runs on sharia crowdfunding for SMEs, using sukuk mudharabah. The Tawf Deposito Pool comes later. The rest of the catalogue is reference for what the same primitive can carry later, and most of it is not in the pilot."
         actions={
           <>
             <Link to="/how-it-works" className={solid}>How it works</Link>
