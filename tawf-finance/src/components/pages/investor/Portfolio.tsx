@@ -120,7 +120,7 @@ const SCF_TARGET = { distributor: SCF_DISTRIBUTOR_ADDRESS, token: SCF_TOKEN_ADDR
 
 export function Portfolio() {
   const { address, isConnected } = useAccount();
-  const { positions, isLoading, refetch } = useMyReceipts(address);
+  const { positions, isLoading, refetch } = useMyReceipts(address, { enabled: FINANCING_POOL_ENABLED });
   // With the Deposito Pool off in the UI, its positions are not read or shown. Past events stay in Transactions.
   const depositoAddress = DEPOSITO_POOL_ENABLED ? address : undefined;
   const { state: seriesState } = useTawfSeries(depositoAddress, {}, { enabled: DEPOSITO_POOL_ENABLED });
