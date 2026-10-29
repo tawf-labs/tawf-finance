@@ -9,7 +9,7 @@ import { getJson, type SeriesStatus } from '@/lib/tokenization';
 import { getScfStatus, type ScfStatus } from '@/lib/scf';
 import { formatIdr, formatUsdc } from '@/web3/format';
 import { explorerTxUrl } from '@/web3/constants';
-import { FINANCING_POOL_ENABLED } from '@/config/features';
+import { DEPOSITO_POOL_ENABLED, FINANCING_POOL_ENABLED } from '@/config/features';
 
 type Alert = { id: string; severity: 'critical' | 'high' | 'medium'; title: string; message: string };
 
@@ -25,13 +25,17 @@ export function AdminDashboard() {
 
   useEffect(() => {
     void Promise.allSettled([
-      getJson<SeriesStatus>('series/status?series=pool').then(setPool),
-      getJson<SeriesStatus>('series/status').then(setS1),
+      // The Deposito Pool is hidden in the UI when its flag is off, so its status is not fetched.
+      ...(DEPOSITO_POOL_ENABLED
+        ? [getJson<SeriesStatus>('series/status?series=pool').then(setPool), getJson<SeriesStatus>('series/status').then(setS1)]
+        : []),
       getScfStatus().then(setScf),
     ]).then(() => setStatusLoaded(true));
   }, []);
 
   const verified = useMemo(() => new Set(events.filter((e) => e.kind === 'IdentityRegistered' && e.investor).map((e) => e.investor!.toLowerCase())).size, [events]);
+  const scfInvestors = useMemo(() => new Set(events.filter((e) => e.kind === 'Subscribed' && e.product === 'scf' && e.investor).map((e) => e.investor!.toLowerCase())).size, [events]);
+  const scfProfiles = useMemo(() => new Set(events.filter((e) => e.kind === 'ProfileSet' && e.investor).map((e) => e.investor!.toLowerCase())).size, [events]);
   const investors = useMemo(() => new Set(events.filter((e) => e.kind === 'Subscribed' && e.investor).map((e) => e.investor!.toLowerCase())).size, [events]);
 
   const supply = BigInt(pool?.supply ?? '0') + BigInt(s1?.supply ?? '0');
@@ -41,7 +45,7 @@ export function AdminDashboard() {
   const alerts = useMemo<Alert[]>(() => {
     const out: Alert[] = [];
     for (const [name, s] of [['Deposito Pool: Jawa Barat', pool], ['Deposito Pool: BPRS Demo', s1]] as const) {
-      if (!s) continue;
+      if (!DEPOSITO_POOL_ENABLED || !s) continue;
       const stale = s.coins.filter((c) => c.allowed && !c.rate.fresh);
       if (stale.length > 0) out.push({ id: `fx-${name}`, severity: 'high', title: 'Stale FX rate', message: `${name}: ${stale.length} settlement coin rate(s) are stale, so subscriptions in them will revert.` });
       if (!s.fullyBacked) out.push({ id: `res-${name}`, severity: 'critical', title: 'Reserve below supply', message: `${name}: the recorded reserve does not cover the token supply.` });
@@ -78,12 +82,30 @@ export function AdminDashboard() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total at the banks (both pools)" value={pool && s1 ? formatIdr(atBanks) : statusLoaded ? 'Unavailable' : '...'} icon={<DollarSign className="w-5 h-5" />} color="gold" />
-        <StatCard title="Token supply (both pools)" value={pool && s1 ? formatIdr(supply) : statusLoaded ? 'Unavailable' : '...'} icon={<TrendingUp className="w-5 h-5" />} color="green" />
-        <StatCard title="SCF raised" value={scf?.configured ? formatUsdc(BigInt(scf.raised ?? '0')) : scf ? 'Not live' : statusLoaded ? 'Unavailable' : '...'} icon={<Activity className="w-5 h-5" />} color="blue" />
-        <StatCard title="Verified wallets" value={loading && events.length === 0 ? '...' : verified} icon={<Users className="w-5 h-5" />} color="purple" />
+        {DEPOSITO_POOL_ENABLED ? (
+          <>
+            <StatCard title="Total at the banks (both pools)" value={pool && s1 ? formatIdr(atBanks) : statusLoaded ? 'Unavailable' : '...'} icon={<DollarSign className="w-5 h-5" />} color="gold" />
+            <StatCard title="Token supply (both pools)" value={pool && s1 ? formatIdr(supply) : statusLoaded ? 'Unavailable' : '...'} icon={<TrendingUp className="w-5 h-5" />} color="green" />
+            <StatCard title="SCF raised" value={scf?.configured ? formatUsdc(BigInt(scf.raised ?? '0')) : scf ? 'Not live' : statusLoaded ? 'Unavailable' : '...'} icon={<Activity className="w-5 h-5" />} color="blue" />
+            <StatCard title="Verified wallets" value={loading && events.length === 0 ? '...' : verified} icon={<Users className="w-5 h-5" />} color="purple" />
+          </>
+        ) : (
+          <>
+            <StatCard
+              title="SCF raised"
+              value={scf?.configured ? `${formatUsdc(BigInt(scf.raised ?? '0'))} of ${formatUsdc(BigInt(scf.offeringCap ?? '0'))}` : scf ? 'Not live' : statusLoaded ? 'Unavailable' : '...'}
+              icon={<DollarSign className="w-5 h-5" />}
+              color="gold"
+            />
+            <StatCard title="SCF investors" value={loading && events.length === 0 ? '...' : scfInvestors} icon={<TrendingUp className="w-5 h-5" />} color="green" />
+            <StatCard title="Limit profiles set" value={loading && events.length === 0 ? '...' : scfProfiles} icon={<Activity className="w-5 h-5" />} color="blue" />
+            <StatCard title="Offering status" value={scf?.configured ? scf.status ?? 'Unknown' : scf ? 'Not live' : statusLoaded ? 'Unavailable' : '...'} icon={<Users className="w-5 h-5" />} color="purple" />
+          </>
+        )}
       </div>
-      <p className="text-sm text-tawf-muted -mt-4">{loading && events.length === 0 ? 'Loading investors...' : `${investors} distinct investor(s) have subscribed.`}</p>
+      <p className="text-sm text-tawf-muted -mt-4">
+        {loading && events.length === 0 ? 'Loading investors...' : DEPOSITO_POOL_ENABLED ? `${investors} distinct investor(s) have subscribed. ${verified} verified wallet(s).` : `${verified} verified wallet(s).`}
+      </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="p-6">
@@ -116,10 +138,10 @@ export function AdminDashboard() {
             <Link to="/admin/compliance" className="text-sm text-tawf-gold hover:underline">View All</Link>
           </div>
           <div className="space-y-3">
-            {!statusLoaded && <p className="text-sm text-tawf-muted">Checking rates, reserves and allowances...</p>}
+            {!statusLoaded && <p className="text-sm text-tawf-muted">{DEPOSITO_POOL_ENABLED ? 'Checking rates, reserves and allowances...' : 'Checking the offering...'}</p>}
             {statusLoaded && alerts.length === 0 && (
               <div className="p-4 rounded-xl border border-tawf-green-10 bg-tawf-sand-30 flex items-center gap-2 text-sm text-tawf-green">
-                <CheckCircle className="w-4 h-4" /> All clear. Rates are fresh, reserves cover supply and allowances are set.
+                <CheckCircle className="w-4 h-4" /> {DEPOSITO_POOL_ENABLED ? 'All clear. Rates are fresh, reserves cover supply and allowances are set.' : 'All clear. No offering alerts.'}
               </div>
             )}
             {alerts.map((a) => (
@@ -153,15 +175,15 @@ export function AdminDashboard() {
         </Link>
 
         <Link
-          to={FINANCING_POOL_ENABLED ? '/admin/pools' : '/admin/tokenization'}
+          to={FINANCING_POOL_ENABLED ? '/admin/pools' : DEPOSITO_POOL_ENABLED ? '/admin/tokenization' : '/admin/scf'}
           className="flex items-center gap-3 p-4 bg-white rounded-xl border border-tawf-green-10 hover:border-tawf-green-20 hover:shadow-md transition-all"
         >
           <div className="p-3 bg-tawf-gold-10 rounded-xl">
             <TrendingUp className="w-5 h-5 text-tawf-gold" />
           </div>
           <div className="flex-1">
-            <p className="font-medium text-tawf-green">{FINANCING_POOL_ENABLED ? 'Manage Pools' : 'Deposito Pools'}</p>
-            <p className="text-xs text-tawf-muted">{FINANCING_POOL_ENABLED ? 'Edit pools' : 'Bank balances, profit, maturity'}</p>
+            <p className="font-medium text-tawf-green">{FINANCING_POOL_ENABLED ? 'Manage Pools' : DEPOSITO_POOL_ENABLED ? 'Deposito Pools' : 'SCF Onboarding'}</p>
+            <p className="text-xs text-tawf-muted">{FINANCING_POOL_ENABLED ? 'Edit pools' : DEPOSITO_POOL_ENABLED ? 'Bank balances, profit, maturity' : 'Offering, limits, profit'}</p>
           </div>
         </Link>
 

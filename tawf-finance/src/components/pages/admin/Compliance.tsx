@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
 import { getJson, type SeriesStatus } from '@/lib/tokenization';
+import { DEPOSITO_POOL_ENABLED } from '@/config/features';
 import { getScfStatus, type ScfStatus } from '@/lib/scf';
 import { useActivity, ACTIVITY_LABEL, PRODUCT_LABEL, eventAmount, timeAgo } from '@/lib/activity';
 import { INVEST_TOKENS, explorerTxUrl } from '@/web3/constants';
@@ -63,9 +64,10 @@ export function AdminCompliance() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    // With the Deposito Pool off in the UI, its series are not read.
     const [a, b, c] = await Promise.allSettled([
-      getJson<SeriesStatus>('series/status'),
-      getJson<SeriesStatus>('series/status?series=pool'),
+      DEPOSITO_POOL_ENABLED ? getJson<SeriesStatus>('series/status') : Promise.reject(new Error('off')),
+      DEPOSITO_POOL_ENABLED ? getJson<SeriesStatus>('series/status?series=pool') : Promise.reject(new Error('off')),
       getScfStatus(),
     ]);
     setSeries(a.status === 'fulfilled' ? a.value : null);
@@ -94,7 +96,7 @@ export function AdminCompliance() {
       }
     }
   }
-  if (!loading) {
+  if (!loading && DEPOSITO_POOL_ENABLED) {
     for (const [name, s] of staleScan) {
       if (!s) alerts.push({ id: `${name}-unavailable`, severity: 'medium', title: 'Series status unavailable', message: `${name}: the status could not be read, so its rate and backing checks did not run.` });
     }
@@ -108,7 +110,7 @@ export function AdminCompliance() {
 
   const tabs = [
     { id: 'alerts', label: 'Alerts', content: null, badge: alerts.length },
-    { id: 'sandbox', label: 'Sandbox and caps', content: null },
+    ...(DEPOSITO_POOL_ENABLED ? [{ id: 'sandbox', label: 'Sandbox and caps', content: null }] : []),
     { id: 'scf', label: 'SCF offering', content: null },
     { id: 'events', label: 'Event log', content: null },
   ];
@@ -128,7 +130,7 @@ export function AdminCompliance() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 gap-4 ${DEPOSITO_POOL_ENABLED ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <Card className="p-5">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-red-50 rounded-xl"><AlertTriangle className="w-5 h-5 text-red-600" /></div>
@@ -138,7 +140,7 @@ export function AdminCompliance() {
             </div>
           </div>
         </Card>
-        <Card className="p-5">
+        {DEPOSITO_POOL_ENABLED && <Card className="p-5">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-green-50 rounded-xl"><CheckCircle className="w-5 h-5 text-green-600" /></div>
             <div>
@@ -146,7 +148,7 @@ export function AdminCompliance() {
               <p className="font-serif text-xl text-tawf-green">{loading ? '...' : `${[series, pool].filter(Boolean).length} of 2`}</p>
             </div>
           </div>
-        </Card>
+        </Card>}
         <Card className="p-5">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-tawf-gold-10 rounded-xl"><Shield className="w-5 h-5 text-tawf-gold" /></div>
@@ -167,7 +169,7 @@ export function AdminCompliance() {
               {loading && <p className="text-sm text-tawf-muted">Loading...</p>}
               {!loading && alerts.length === 0 && (
                 <div className="p-4 rounded-xl border border-tawf-green-10 bg-tawf-sand-30 text-sm text-tawf-muted">
-                  No open alerts. Every allowed coin has a fresh rate and both series report full backing.
+                  {DEPOSITO_POOL_ENABLED ? 'No open alerts. Every allowed coin has a fresh rate and both series report full backing.' : 'No open alerts.'}
                 </div>
               )}
               {alerts.map((alert) => (
@@ -187,7 +189,7 @@ export function AdminCompliance() {
             </div>
           )}
 
-          {activeTab === 'sandbox' && (
+          {DEPOSITO_POOL_ENABLED && activeTab === 'sandbox' && (
             <div className="space-y-3">
               {loading ? <p className="text-sm text-tawf-muted">Loading...</p> : [sandboxLine(SERIES_NAME.pool, pool), sandboxLine(SERIES_NAME.series, series)]}
             </div>
