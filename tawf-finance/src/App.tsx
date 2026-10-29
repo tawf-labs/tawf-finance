@@ -38,6 +38,7 @@ import { RouteErrorBoundary } from '@/components/ErrorBoundary';
 import { ComingSoon } from '@/components/ComingSoon';
 import { FINANCING_POOL_ENABLED, FINANCING_POOL_SOON, IMPACT_SOON } from '@/config/features';
 import { useAuth } from '@/hooks/useAuth';
+import { useHashScroll } from '@/hooks/useHashScroll';
 
 // Protected Route Wrapper
 function ProtectedRoute({ children, area }: { children: React.ReactNode; area?: 'investor' | 'issuer' | 'admin' }) {
@@ -65,6 +66,7 @@ function ProtectedRoute({ children, area }: { children: React.ReactNode; area?: 
 
 function AppContent() {
   const location = useLocation();
+  useHashScroll();
   const isAppHost = window.location.hostname === 'app.tawf.finance';
   const isDashboardPage = location.pathname.includes('/investor') ||
                           location.pathname.includes('/issuer') ||
