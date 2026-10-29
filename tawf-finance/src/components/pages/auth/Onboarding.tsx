@@ -23,29 +23,28 @@ export function Onboarding() {
             <div className="w-24 h-24 mx-auto mb-6 bg-tawf-green-10 rounded-full flex items-center justify-center">
               <Sprout className="w-12 h-12 text-tawf-green" />
             </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Verifiable Islamic Bank Financing</h3>
+            <h3 className="font-serif text-2xl text-tawf-green mb-3">Sharia crowdfunding for SMEs</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Tawf Finance connects investors like you with Shariah deposito at licensed Indonesian BPRS and sharia crowdfunding for SMEs, with every position recorded on chain.
+              Tawf Finance connects investors like you with sharia securities crowdfunding (Urun Dana) for SMEs through a licensed partner platform, with every position recorded on chain.
             </p>
           </div>
         ),
       },
       {
-        title: 'Explore Financing Pools',
-        description: 'Discover live BPRS financing pools.',
+        title: 'Explore Urun Dana',
+        description: 'Discover the crowdfunding offering.',
         content: (
           <div className="text-center py-8">
             <div className="w-24 h-24 mx-auto mb-6 bg-tawf-gold-10 rounded-full flex items-center justify-center">
               <TrendingUp className="w-12 h-12 text-tawf-gold" />
             </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Earn Competitive Returns</h3>
+            <h3 className="font-serif text-2xl text-tawf-green mb-3">Back Real Businesses</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Invest in curated pools with 10-20% APY while supporting real businesses and communities.
+              Invest in SME sukuk mudharabah. Returns depend on the business results and are not guaranteed.
             </p>
             <div className="flex justify-center gap-4 mt-6">
               <Badge variant="success" size="md">Shariah Aligned</Badge>
-              <Badge variant="info" size="md">10-20% APY</Badge>
-              <Badge variant="warning" size="md">Low Risk</Badge>
+              <Badge variant="info" size="md">Profit sharing</Badge>
             </div>
           </div>
         ),
@@ -60,7 +59,7 @@ export function Onboarding() {
             </div>
             <h3 className="font-serif text-2xl text-tawf-green mb-3">Real Impact, Real Stories</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Track the financing pools you've backed, the BPRS you've funded, and the capacity you've helped release.
+              Track the offerings you've backed and every profit payout, recorded on chain.
             </p>
           </div>
         ),
@@ -75,7 +74,7 @@ export function Onboarding() {
             </div>
             <h3 className="font-serif text-2xl text-tawf-green mb-3">Ready to Invest?</h3>
             <p className="text-tawf-muted max-w-md mx-auto mb-6">
-              You have $5,000 in demo funds to start exploring investment pools.
+              Get test funds from the faucet to try the crowdfunding flow on Arbitrum Sepolia.
             </p>
           </div>
         ),
