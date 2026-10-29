@@ -35,7 +35,8 @@ export function AdminDashboard() {
   const investors = useMemo(() => new Set(events.filter((e) => e.kind === 'Subscribed' && e.investor).map((e) => e.investor!.toLowerCase())).size, [events]);
 
   const supply = BigInt(pool?.supply ?? '0') + BigInt(s1?.supply ?? '0');
-  const atBanks = sumBanks(pool);
+  // Same scope as the supply card: the pool's banks plus the BPRS Demo series reserve.
+  const atBanks = sumBanks(pool) + BigInt(s1?.reserveSen ?? '0');
 
   const alerts = useMemo<Alert[]>(() => {
     const out: Alert[] = [];
@@ -77,7 +78,7 @@ export function AdminDashboard() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total at the banks" value={pool ? formatIdr(atBanks) : statusLoaded ? 'Unavailable' : '...'} icon={<DollarSign className="w-5 h-5" />} color="gold" />
+        <StatCard title="Total at the banks (both pools)" value={pool || s1 ? formatIdr(atBanks) : statusLoaded ? 'Unavailable' : '...'} icon={<DollarSign className="w-5 h-5" />} color="gold" />
         <StatCard title="Token supply (both pools)" value={pool || s1 ? formatIdr(supply) : statusLoaded ? 'Unavailable' : '...'} icon={<TrendingUp className="w-5 h-5" />} color="green" />
         <StatCard title="SCF raised" value={scf?.configured ? formatUsdc(BigInt(scf.raised ?? '0')) : scf ? 'Not live' : statusLoaded ? 'Unavailable' : '...'} icon={<Activity className="w-5 h-5" />} color="blue" />
         <StatCard title="Verified wallets" value={loading && events.length === 0 ? '...' : verified} icon={<Users className="w-5 h-5" />} color="purple" />
