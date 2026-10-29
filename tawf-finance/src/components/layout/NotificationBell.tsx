@@ -27,8 +27,8 @@ function useInvestorAlerts(enabled: boolean): Alert[] {
   const who = enabled ? address : undefined;
   // With the Deposito Pool off there is nothing to read or alert on for it.
   const depositoWho = DEPOSITO_POOL_ENABLED ? who : undefined;
-  const { state: pool } = useTawfSeries(depositoWho, POOL_TARGET);
-  const { state: s1 } = useTawfSeries(depositoWho);
+  const { state: pool } = useTawfSeries(depositoWho, POOL_TARGET, { enabled: DEPOSITO_POOL_ENABLED });
+  const { state: s1 } = useTawfSeries(depositoWho, {}, { enabled: DEPOSITO_POOL_ENABLED });
   const { state: scf } = useSukuk(who, SCF_TARGET);
   const { state: limit } = useScfLimit(who);
   const { isVerified } = useIsVerified(who);

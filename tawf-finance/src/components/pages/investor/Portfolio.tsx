@@ -123,8 +123,8 @@ export function Portfolio() {
   const { positions, isLoading, refetch } = useMyReceipts(address);
   // With the Deposito Pool off in the UI, its positions are not read or shown. Past events stay in Transactions.
   const depositoAddress = DEPOSITO_POOL_ENABLED ? address : undefined;
-  const { state: seriesState } = useTawfSeries(depositoAddress);
-  const { state: poolState } = useTawfSeries(depositoAddress, POOL_TARGET);
+  const { state: seriesState } = useTawfSeries(depositoAddress, {}, { enabled: DEPOSITO_POOL_ENABLED });
+  const { state: poolState } = useTawfSeries(depositoAddress, POOL_TARGET, { enabled: DEPOSITO_POOL_ENABLED });
   const { state: scfState } = useSukuk(address, SCF_TARGET);
   const [action, setAction] = useState<{ deal: Deal; mode: 'redeem' | 'claim' } | null>(null);
 

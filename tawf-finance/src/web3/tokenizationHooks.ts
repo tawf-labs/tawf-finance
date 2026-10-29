@@ -115,12 +115,13 @@ export type SeriesTarget = {
   seriesId?: `0x${string}`;
 };
 
-export function useTawfSeries(address: `0x${string}` | undefined, target: SeriesTarget = {}) {
+/** `enabled: false` makes no chain reads at all (the Deposito Pool is hidden in the UI). */
+export function useTawfSeries(address: `0x${string}` | undefined, target: SeriesTarget = {}, opts: { enabled?: boolean } = {}) {
   const ZERO = '0x0000000000000000000000000000000000000000' as const;
   const series = target.series ?? TAWF_SERIES_ADDRESS;
   const token = target.token ?? TAWF_SERIES_TOKEN_ADDRESS;
   const sandbox = target.sandbox ?? SANDBOX_MODULE_ADDRESS;
-  const configured = Boolean(series && token && sandbox);
+  const configured = Boolean(series && token && sandbox) && opts.enabled !== false;
 
   // The coins the app knows about with a configured address.
   const coinCfgs = SETTLEMENT_STABLECOINS.filter((c) => c.address);

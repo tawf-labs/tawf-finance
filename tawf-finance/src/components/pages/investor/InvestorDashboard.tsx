@@ -42,8 +42,8 @@ export function InvestorDashboard() {
   const { address, isConnected } = useAccount();
   // With the Deposito Pool off in the UI, none of its reads are made.
   const depositoAddress = DEPOSITO_POOL_ENABLED ? address : undefined;
-  const { state: s1, isLoading: s1Loading } = useTawfSeries(depositoAddress);
-  const { state: pool, isLoading: poolLoading } = useTawfSeries(depositoAddress, POOL_TARGET);
+  const { state: s1, isLoading: s1Loading } = useTawfSeries(depositoAddress, {}, { enabled: DEPOSITO_POOL_ENABLED });
+  const { state: pool, isLoading: poolLoading } = useTawfSeries(depositoAddress, POOL_TARGET, { enabled: DEPOSITO_POOL_ENABLED });
   const { state: scf, isLoading: scfLoading } = useSukuk(address, SCF_TARGET);
   const { state: limit, isLoading: limitLoading } = useScfLimit(address);
   const { banks, isLoading: banksLoading } = usePoolBanks(DEPOSITO_POOL_ENABLED ? DEPOSITO_POOL.ledger : undefined);

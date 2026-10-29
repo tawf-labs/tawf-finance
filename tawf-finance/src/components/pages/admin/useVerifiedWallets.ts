@@ -37,8 +37,8 @@ export function useWalletDetails(wallet: `0x${string}`) {
   const { isVerified, isLoading: l1, refetch: r1 } = useIsVerified(wallet);
   // With the Deposito Pool off in the UI, its balances are not read.
   const depositoWallet = DEPOSITO_POOL_ENABLED ? wallet : undefined;
-  const { state: pool, refetch: r2 } = useTawfSeries(depositoWallet, POOL_TARGET);
-  const { state: s1, refetch: r3 } = useTawfSeries(depositoWallet);
+  const { state: pool, refetch: r2 } = useTawfSeries(depositoWallet, POOL_TARGET, { enabled: DEPOSITO_POOL_ENABLED });
+  const { state: s1, refetch: r3 } = useTawfSeries(depositoWallet, {}, { enabled: DEPOSITO_POOL_ENABLED });
   const { state: limit, isLoading: l2, refetch: r4 } = useScfLimit(wallet);
   return {
     isVerified,
