@@ -12,10 +12,15 @@ const headers = () => ({ 'x-api-key': process.env.QUICKNODE_API_KEY ?? '', 'cont
 /** The stored string, or null when the key does not exist. */
 export async function kvGet(key: string): Promise<string | null> {
   let r: Response
-  try {
-    r = await fetch(`${BASE}/${encodeURIComponent(key)}`, { headers: headers() })
-  } catch {
-    throw new Error('The key-value store is unreachable.')
+  // The store answers 429 when many reads arrive at once: back off and retry a few times.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      r = await fetch(`${BASE}/${encodeURIComponent(key)}`, { headers: headers() })
+    } catch {
+      throw new Error('The key-value store is unreachable.')
+    }
+    if (r.status !== 429 || attempt >= 3) break
+    await new Promise((res) => setTimeout(res, 250 * 2 ** attempt))
   }
   if (r.status === 404) return null
   if (!r.ok) throw new Error(`The key-value store refused the read (${r.status}).`)

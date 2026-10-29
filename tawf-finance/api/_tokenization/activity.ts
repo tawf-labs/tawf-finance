@@ -4,7 +4,7 @@ import { arbitrumSepolia } from 'viem/chains'
 import { readableError } from './_lib/operator.js'
 import { safeEqual } from './_lib/qn-auth.js'
 import { SlidingWindow, allowRequest } from './_lib/rate-limit.js'
-import { kvEnabled, kvGetJson, kvLastBlock, kvListGet, kvPool } from './_lib/qn-kv.js'
+import { kvEnabled, kvGetJson, kvLastBlock, kvListGet, kvPool, kvSetJson } from './_lib/qn-kv.js'
 import { GLOBAL, compareEvents, hexBig, isInvestorEvent, normalize, sources, type ActivityEvent, type Source } from './_lib/activity-core.js'
 
 /**
@@ -59,9 +59,19 @@ async function readIndex(wallet: Address | null, from: bigint, head: bigint): Pr
     // serve a truncated history as complete: the Arbiscan scan answers this request instead.
     if (matched.length > INDEX_KEEP) return null
     const ids = matched.map((it) => it.slice(13))
-    const bodies = await kvPool(ids, 24, (id) => kvGetJson<ActivityEvent | null>(`tawf:ev:${id}`, null))
+    // Event bodies are one KV read each and the store throttles bursts (429), so a feed of 100+ events took
+    // seconds or failed. Bodies never change once written, so the assembled events are cached in one key per
+    // feed and only bodies not in it yet are read. Concurrency stays low for the same reason.
+    const cacheKey = `tawf:cache:${keys.join('+')}`
+    const cached = await kvGetJson<{ events: ActivityEvent[] } | null>(cacheKey, null).catch(() => null)
+    const known = new Map<string, ActivityEvent>((cached?.events ?? []).map((e) => [e.id, e]))
+    const need = ids.filter((id) => !known.has(id))
+    const fetched = await kvPool(need, 6, (id) => kvGetJson<ActivityEvent | null>(`tawf:ev:${id}`, null))
     // A list item without its body means a write is still in flight: do not serve a partial index.
-    if (bodies.some((b) => b === null)) return null
+    if (fetched.some((b) => b === null)) return null
+    need.forEach((id, i) => known.set(id, fetched[i] as ActivityEvent))
+    const bodies = ids.map((id) => known.get(id) as ActivityEvent)
+    if (need.length > 0) await saveFeedCache(cacheKey, known)
     // Pool-wide rows are only ProfitDistributed / MaturitySettled, never another wallet's data.
     const wanted = (bodies as ActivityEvent[]).filter((e) => (wallet ? (e.investor === wallet && !['identity', 'ledger'].includes(e.product)) || (e.investor === null && GLOBAL.has(e.kind)) : true))
     // Block times that could not be read when the event was indexed.
@@ -78,6 +88,21 @@ async function readIndex(wallet: Address | null, from: bigint, head: bigint): Pr
     return { events: bodiesOut, lastBlock: last }
   } catch {
     return null
+  }
+}
+
+/** Largest feed cache value, under the store's 64 KB limit. */
+const FEED_CACHE_BYTES = 56_000
+
+/** Best effort: keep the newest events that fit in one value. A failed write only costs a later re-read. */
+async function saveFeedCache(key: string, known: Map<string, ActivityEvent>): Promise<void> {
+  try {
+    const newest = [...known.values()].sort(compareEvents).slice(0, INDEX_KEEP)
+    let events = newest
+    while (events.length > 0 && JSON.stringify({ events }).length > FEED_CACHE_BYTES) events = events.slice(0, Math.floor(events.length * 0.9))
+    await kvSetJson(key, { events })
+  } catch {
+    // ignore
   }
 }
 
