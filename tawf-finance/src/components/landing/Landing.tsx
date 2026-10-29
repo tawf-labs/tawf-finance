@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { instrumentCatalog } from '@/data/mockData';
 import { Emblem, Pools } from './Pools';
 import { FADE, FAMILY_TINT } from './tint';
+import { ghost, solid } from './PublicPage';
 import { CountUp, Reveal, Words } from './Reveal';
 import { FINANCING_POOL_ENABLED } from '@/config/features';
 
@@ -43,8 +44,6 @@ const WHY = [
   { t: 'The regulator is the attestation layer', b: 'Every bank in a pool is OJK-supervised, LPS-insured, audited, and reports into SLIK.' },
 ];
 
-const solid = 'inline-flex h-12 items-center rounded-full bg-ink px-6 text-sm font-semibold text-white transition-colors hover:bg-jade';
-const ghost = 'inline-flex h-12 items-center rounded-full px-6 text-sm font-semibold text-ink ring-1 ring-ink/20 transition-colors hover:bg-ink/5';
 const ease = [0.22, 1, 0.36, 1] as const;
 
 // Ticket cut: half-circle notches where the stub tears off. Body and stub are
