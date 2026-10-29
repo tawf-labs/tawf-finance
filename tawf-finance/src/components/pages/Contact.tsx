@@ -1,34 +1,17 @@
-import { motion } from 'framer-motion';
-import type { Variants } from 'framer-motion';
-import { Mail, Building2, Users, Handshake, Send } from 'lucide-react';
-import { Section } from '../ui/Section';
-import { Button } from '../ui/Button';
-
-const containerVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.2,
-    },
-  },
-};
-
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.6, ease: [0.25, 0.4, 0.25, 1] as const },
-  },
-};
+import { Building2, Users, Handshake, Send, Rocket } from 'lucide-react';
+import { PublicPage, PageHero, Chapter, Tile, solid } from '../landing/PublicPage';
+import { Reveal } from '../landing/Reveal';
 
 const partnershipTypes = [
   {
     icon: Building2,
-    title: 'BPRS Originator Partnership',
-    description: 'Licensed Shariah rural banks looking for a wider funding channel',
+    title: 'BPRS Deposito Partnership',
+    description: 'Licensed Shariah rural banks that want to host a Tawf deposito account and a wider funding channel',
+  },
+  {
+    icon: Rocket,
+    title: 'SCF Platform Partnership',
+    description: 'Licensed crowdfunding (urun dana) platforms and SME issuers',
   },
   {
     icon: Users,
@@ -41,6 +24,9 @@ const partnershipTypes = [
     description: 'Technology, custody, compliance, and distribution partners',
   },
 ];
+
+const field = 'w-full rounded-2xl bg-white px-4 py-3 text-ink ring-1 ring-ink/15 transition focus:outline-none focus:ring-2 focus:ring-jade';
+const label = 'mb-2 block text-sm font-medium text-ink';
 
 export function Contact() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -62,194 +48,98 @@ export function Contact() {
   };
 
   return (
-    <div>
-      {/* Hero Section */}
-      <Section className="py-20 md:py-32">
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="max-w-3xl mx-auto text-center"
-        >
-          <motion.div variants={itemVariants} className="inline-flex items-center justify-center gap-2 w-16 h-16 rounded-full bg-tawf-green/10 mb-6">
-            <Mail className="w-8 h-8 text-tawf-green" />
-          </motion.div>
+    <PublicPage>
+      <PageHero
+        eyebrow="Contact"
+        title="Partner"
+        accent="with us"
+        lead="We are building tokenized Shariah deposito at licensed BPRS and sharia crowdfunding for SMEs. Talk to us if you run a BPRS, operate a licensed crowdfunding platform, invest, or build the rails around them. The pilot is on testnet."
+      />
 
-          <motion.h1
-            variants={itemVariants}
-            className="font-serif text-4xl md:text-5xl lg:text-6xl text-tawf-green leading-tight mb-6"
-          >
-            Partner With Us
-          </motion.h1>
+      <Chapter tint="paper" from="stone" eyebrow="Partnerships" title="Partnership" accent="opportunities">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {partnershipTypes.map((type, i) => (
+            <Reveal key={type.title} delay={i * 0.08} className="h-full">
+              <Tile tint="stone" className="h-full">
+                <type.icon className="mb-5 h-8 w-8 text-jade" />
+                <h3 className="display text-2xl">{type.title}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-ink/70">{type.description}</p>
+              </Tile>
+            </Reveal>
+          ))}
+        </div>
+      </Chapter>
 
-          <motion.p
-            variants={itemVariants}
-            className="text-tawf-muted text-lg md:text-xl leading-relaxed"
-          >
-            We&apos;re building originator-side Islamic capital-markets infrastructure for Indonesian
-            BPRS. Partner with us to open a wider funding channel and take verifiable, Shariah-aligned
-            exposure to real serviced financing.
-          </motion.p>
-        </motion.div>
-      </Section>
-
-      {/* Partnership Types */}
-      <Section className="py-16 bg-white">
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          className="max-w-6xl mx-auto"
-        >
-          <motion.h2
-            variants={itemVariants}
-            className="font-serif text-2xl md:text-3xl text-tawf-green text-center mb-12"
-          >
-            Partnership Opportunities
-          </motion.h2>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {partnershipTypes.map((type) => (
-              <motion.div
-                key={type.title}
-                variants={itemVariants}
-                className="p-6 rounded-2xl bg-tawf-sand/50 border border-tawf-green/10 hover:border-tawf-gold/30 transition-colors"
-              >
-                <type.icon className="w-8 h-8 text-tawf-gold mb-4" />
-                <h3 className="font-serif text-xl text-tawf-green mb-2">{type.title}</h3>
-                <p className="text-tawf-muted text-sm">{type.description}</p>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-      </Section>
-
-      {/* Contact Form */}
-      <Section className="py-16 md:py-24">
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          className="max-w-2xl mx-auto"
-        >
-          <motion.div variants={itemVariants}>
-            <h2 className="font-serif text-2xl md:text-3xl text-tawf-green text-center mb-4">
-              Get in Touch
-            </h2>
-            <p className="text-tawf-muted text-center mb-8">
-              Fill out the form below and we'll get back to you within 24-48 hours.
-            </p>
-          </motion.div>
-
-          <motion.form
-            variants={itemVariants}
-            onSubmit={handleSubmit}
-            className="space-y-6"
-          >
-            <div className="grid md:grid-cols-2 gap-6">
+      <Chapter tint="stone" from="paper" eyebrow="Get in touch" title="Send us a" accent="message" lead="Fill out the form and we'll get back to you within 24-48 hours.">
+        <Reveal className="mx-auto max-w-2xl">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
               <div>
-                <label htmlFor="name" className="block text-sm font-medium text-tawf-ink mb-2">
-                  Full Name <span className="text-red-500">*</span>
+                <label htmlFor="name" className={label}>
+                  Full Name <span className="text-clay">*</span>
                 </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  required
-                  className="w-full px-4 py-3 rounded-lg border border-tawf-green/20 bg-white focus:border-tawf-gold focus:outline-none focus:ring-2 focus:ring-tawf-gold/20 transition-colors"
-                  placeholder="Your name"
-                />
+                <input type="text" id="name" name="name" required className={field} placeholder="Your name" />
               </div>
-
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-tawf-ink mb-2">
-                  Email Address <span className="text-red-500">*</span>
+                <label htmlFor="email" className={label}>
+                  Email Address <span className="text-clay">*</span>
                 </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  required
-                  className="w-full px-4 py-3 rounded-lg border border-tawf-green/20 bg-white focus:border-tawf-gold focus:outline-none focus:ring-2 focus:ring-tawf-gold/20 transition-colors"
-                  placeholder="you@organization.com"
-                />
+                <input type="email" id="email" name="email" required className={field} placeholder="you@organization.com" />
               </div>
             </div>
-
             <div>
-              <label htmlFor="organization" className="block text-sm font-medium text-tawf-ink mb-2">
-                Organization Name <span className="text-red-500">*</span>
+              <label htmlFor="organization" className={label}>
+                Organization Name <span className="text-clay">*</span>
               </label>
               <input
                 type="text"
                 id="organization"
                 name="organization"
                 required
-                className="w-full px-4 py-3 rounded-lg border border-tawf-green/20 bg-white focus:border-tawf-gold focus:outline-none focus:ring-2 focus:ring-tawf-gold/20 transition-colors"
+                className={field}
                 placeholder="Your BPRS, company, or organization"
               />
             </div>
-
             <div>
-              <label htmlFor="partnershipType" className="block text-sm font-medium text-tawf-ink mb-2">
-                Partnership Type <span className="text-red-500">*</span>
+              <label htmlFor="partnershipType" className={label}>
+                Partnership Type <span className="text-clay">*</span>
               </label>
-              <select
-                id="partnershipType"
-                name="partnershipType"
-                required
-                className="w-full px-4 py-3 rounded-lg border border-tawf-green/20 bg-white focus:border-tawf-gold focus:outline-none focus:ring-2 focus:ring-tawf-gold/20 transition-colors"
-              >
+              <select id="partnershipType" name="partnershipType" required className={field}>
                 <option value="">Select partnership type</option>
-                <option value="BPRS Originator Partnership">BPRS Originator Partnership</option>
+                <option value="BPRS Deposito Partnership">BPRS Deposito Partnership</option>
+                <option value="SCF Platform Partnership">SCF Platform Partnership</option>
                 <option value="Investor Partnership">Investor Partnership</option>
                 <option value="Strategic Alliance">Strategic Alliance</option>
                 <option value="Technology Partnership">Technology Partnership</option>
                 <option value="Other">Other</option>
               </select>
             </div>
-
             <div>
-              <label htmlFor="message" className="block text-sm font-medium text-tawf-ink mb-2">
-                Message <span className="text-red-500">*</span>
+              <label htmlFor="message" className={label}>
+                Message <span className="text-clay">*</span>
               </label>
               <textarea
                 id="message"
                 name="message"
                 required
                 rows={5}
-                className="w-full px-4 py-3 rounded-lg border border-tawf-green/20 bg-white focus:border-tawf-gold focus:outline-none focus:ring-2 focus:ring-tawf-gold/20 transition-colors resize-none"
+                className={`${field} resize-none`}
                 placeholder="Tell us about your organization and what kind of partnership you're interested in..."
               />
             </div>
-
-            <Button
-              type="submit"
-              size="lg"
-              className="w-full md:w-auto group"
-            >
-              <Send className="mr-2 w-4 h-4" />
+            <button type="submit" className={`${solid} w-full justify-center md:w-auto`}>
+              <Send className="mr-2 h-4 w-4" />
               Send Partnership Inquiry
-              <Send className="ml-2 w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-            </Button>
-          </motion.form>
-
-          <motion.p
-            variants={itemVariants}
-            className="text-tawf-muted text-sm text-center mt-8"
-          >
+            </button>
+          </form>
+          <p className="mt-8 text-center text-sm text-ink/65">
             Or email us directly at{' '}
-            <a
-              href="mailto:hello@tawf.finance"
-              className="text-tawf-green hover:text-tawf-gold transition-colors underline underline-offset-2"
-            >
+            <a href="mailto:hello@tawf.finance" className="text-jade underline underline-offset-2 hover:text-ink">
               hello@tawf.finance
             </a>
-          </motion.p>
-        </motion.div>
-      </Section>
-    </div>
+          </p>
+        </Reveal>
+      </Chapter>
+    </PublicPage>
   );
 }

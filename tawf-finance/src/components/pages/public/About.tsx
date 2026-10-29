@@ -1,29 +1,28 @@
-import { motion } from 'framer-motion';
-import { Heart, Shield, Users, Award, Target, X, CheckCircle } from 'lucide-react';
-import { Section } from '@/components/ui/Section';
-import { Card } from '@/components/ui/Card';
+import { Heart, Shield, Landmark, Eye, X, CheckCircle, Target } from 'lucide-react';
+import { PublicPage, PageHero, Chapter, Tile } from '@/components/landing/PublicPage';
+import { Reveal } from '@/components/landing/Reveal';
 
 export function About() {
   const values = [
     {
-      icon: <Heart className="w-8 h-8" />,
+      icon: <Heart className="h-7 w-7" />,
       title: 'Impact-First',
-      description: 'We give licensed Shariah rural banks (BPRS) a wider funding channel, and give investors verifiable exposure to real serviced financing.',
+      description: 'We give licensed Shariah rural banks (BPRS) and SMEs a wider funding channel, and give investors exposure they can verify.',
     },
     {
-      icon: <Shield className="w-8 h-8" />,
+      icon: <Shield className="h-7 w-7" />,
       title: 'Shariah Aligned',
-      description: 'Every sell-down akad (wakalah bil istithmar / musyarakah) is reviewed by the bank\'s DPS, ensuring ethical and responsible structures.',
+      description: 'Mudharabah deposito with the nisbah fixed before you subscribe, reviewed by the bank\'s Dewan Pengawas Syariah (DPS).',
     },
     {
-      icon: <Users className="w-8 h-8" />,
-      title: 'Originator-Led',
-      description: 'The BPRS keeps originating and servicing its own financing. We provide the structuring, rails, and verification.',
+      icon: <Landmark className="h-7 w-7" />,
+      title: 'Bank-Held',
+      description: 'The deposito stays at the licensed BPRS, in Tawf\'s dedicated account. Tawf provides the token, the rails and the verification.',
     },
     {
-      icon: <Award className="w-8 h-8" />,
+      icon: <Eye className="h-7 w-7" />,
       title: 'Transparent',
-      description: 'On-chain verification of pool size, NPF ratio, and akad compliance, without exposing any borrower identity.',
+      description: 'Each bank\'s balance and the token supply can be read on chain. No borrower is ever exposed.',
     },
   ];
 
@@ -34,173 +33,139 @@ export function About() {
     { name: 'Dewi Lestari', role: 'Head of Operations', bio: 'Expert in Shariah banking and BPRS operations across Indonesia' },
   ];
 
+  const trust = [
+    {
+      layer: 'Layer 1: Smart contracts',
+      description: 'An ERC-3643 token and ledger contracts on Arbitrum Sepolia. This is a testnet pilot, so nothing here is live money yet.',
+    },
+    {
+      layer: 'Layer 2: Licensed BPRS',
+      description: 'A licensed, OJK-supervised Shariah bank holds Tawf\'s deposito account and reports the balance that backs the token.',
+    },
+    {
+      layer: 'Layer 3: Shariah board',
+      description: 'The bank\'s DPS and independent scholars review the akad and the structure.',
+    },
+    {
+      layer: 'Layer 4: Identity and screening',
+      description: 'ONCHAINID claims for KYC and screening decide who may hold the token.',
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-tawf-sand">
-      {/* Hero Section */}
-      <Section className="py-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-4xl mx-auto text-center"
-        >
-          <span className="text-tawf-gold uppercase tracking-widest text-sm font-medium">About Us</span>
-          <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl text-tawf-green leading-[1.1] mt-4 mb-6">
-            Democratizing Finance for
-            <span className="block text-tawf-gold">Real Impact</span>
-          </h1>
-          <p className="text-tawf-muted text-lg md:text-xl leading-relaxed max-w-2xl mx-auto">
-            Tawf Finance is originator-side Islamic capital-markets infrastructure. We let a licensed
-            Shariah bank (BPRS) sell down a pool of its financing to an outside investor pool through
-            a compliant akad.
-          </p>
-        </motion.div>
-      </Section>
+    <PublicPage>
+      <PageHero
+        eyebrow="About Tawf"
+        title="Shariah deposito and crowdfunding,"
+        accent="on chain"
+        lead="Tawf Finance tokenizes Shariah deposito held at licensed Indonesian Islamic rural banks (BPRS), and connects investors to sharia securities crowdfunding (urun dana) for SMEs through a licensed partner platform. The pilot runs on the Arbitrum Sepolia testnet."
+      />
 
-      {/* Mission */}
-      <Section className="py-16 bg-white">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="font-serif text-3xl text-tawf-green mb-6">Our Mission</h2>
-          <p className="text-lg text-tawf-muted leading-relaxed mb-8">
-            To give Indonesia&apos;s capital-constrained Shariah rural banks a funding channel priced
-            outside their local deposit market, while enabling investors to take verifiable, Shariah-aligned
-            exposure to real serviced financing.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-            <div>
-              <p className="font-serif text-4xl text-tawf-green mb-2">~175</p>
-              <p className="text-tawf-muted">BPRS in Indonesia</p>
-            </div>
-            <div>
-              <p className="font-serif text-4xl text-tawf-green mb-2">250bp</p>
-              <p className="text-tawf-muted">Funding Cost Gap</p>
-            </div>
-            <div>
-              <p className="font-serif text-4xl text-tawf-green mb-2">$10</p>
-              <p className="text-tawf-muted">Minimum Exposure</p>
-            </div>
-          </div>
+      <Chapter tint="paper" from="stone" eyebrow="Mission" title="A funding channel beyond the local deposit market">
+        <Reveal className="max-w-3xl text-[1.1rem] leading-relaxed text-ink/75">
+          Indonesia&apos;s Shariah rural banks are capital constrained and compete for local deposits. We give them a funding
+          channel priced outside that market, and give investors Shariah-aligned exposure they can check on chain, bank by bank.
+        </Reveal>
+        <Reveal className="mt-12 grid gap-4 sm:grid-cols-3">
+          <Tile>
+            <p className="display text-5xl text-jade">~175</p>
+            <p className="mt-3 text-ink/70">BPRS in Indonesia</p>
+          </Tile>
+          <Tile>
+            <p className="display text-5xl text-jade">250bp</p>
+            <p className="mt-3 text-ink/70">Funding cost gap</p>
+          </Tile>
+          <Tile>
+            <p className="display text-5xl text-jade">1 token</p>
+            <p className="mt-3 text-ink/70">With a per-bank proof of reserve</p>
+          </Tile>
+        </Reveal>
+      </Chapter>
+
+      <Chapter tint="butter" from="paper" eyebrow="Values" title="What we hold to">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {values.map((v, i) => (
+            <Reveal key={v.title} delay={i * 0.08} className="h-full">
+              <Tile className="h-full">
+                <div className="mb-5 w-fit rounded-2xl bg-mint p-3 text-jade">{v.icon}</div>
+                <h3 className="display text-2xl">{v.title}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-ink/70">{v.description}</p>
+              </Tile>
+            </Reveal>
+          ))}
         </div>
-      </Section>
+      </Chapter>
 
-      {/* Values */}
-      <Section className="py-16">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="font-serif text-3xl text-tawf-green text-center mb-12">Our Core Values</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {values.map((value, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Card className="p-6 h-full">
-                  <div className="p-3 bg-tawf-green-10 rounded-xl w-fit mb-4 text-tawf-green">
-                    {value.icon}
-                  </div>
-                  <h3 className="font-serif text-xl text-tawf-green mb-2">{value.title}</h3>
-                  <p className="text-tawf-muted text-sm">{value.description}</p>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </Section>
-
-      {/* How We're Different */}
-      <Section className="py-16 bg-white">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="font-serif text-3xl text-tawf-green text-center mb-12">How We're Different</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <Card className="p-6 bg-tawf-green-5">
-              <h3 className="font-serif text-xl text-tawf-green mb-3">Traditional Finance</h3>
-              <ul className="space-y-2 text-tawf-muted">
-                <li className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> Interest-based (riba)</li>
-                <li className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> Trapped inside one operating area</li>
-                <li className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> High, capped deposit funding cost</li>
-                <li className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> Quarterly PDF from the servicer</li>
-                <li className="flex items-center gap-2"><X className="w-4 h-4 text-red-500" /> Balance sheet constrains growth</li>
+      <Chapter tint="stone" from="butter" eyebrow="Difference" title="How we're" accent="different">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Reveal className="h-full">
+            <Tile className="h-full">
+              <h3 className="display text-2xl">Traditional finance</h3>
+              <ul className="mt-5 space-y-3 text-ink/70">
+                <li className="flex items-start gap-3"><X className="mt-1 h-4 w-4 shrink-0 text-clay" /> Interest-based (riba)</li>
+                <li className="flex items-start gap-3"><X className="mt-1 h-4 w-4 shrink-0 text-clay" /> Trapped inside one operating area</li>
+                <li className="flex items-start gap-3"><X className="mt-1 h-4 w-4 shrink-0 text-clay" /> High, capped deposit funding cost</li>
+                <li className="flex items-start gap-3"><X className="mt-1 h-4 w-4 shrink-0 text-clay" /> A quarterly PDF as the only proof</li>
+                <li className="flex items-start gap-3"><X className="mt-1 h-4 w-4 shrink-0 text-clay" /> Balance sheet constrains growth</li>
               </ul>
-            </Card>
-            <Card className="p-6 bg-tawf-green text-tawf-sand">
-              <h3 className="font-serif text-xl mb-3">Tawf Finance</h3>
-              <ul className="space-y-2">
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Shariah-aligned profit sharing via a sell-down akad</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Funding priced outside the local deposit market</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> DPS-reviewed, OJK-supervised originator</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Continuous on-chain pool verification</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-white" /> Releases balance-sheet capacity to keep growing</li>
+            </Tile>
+          </Reveal>
+          <Reveal delay={0.08} className="h-full">
+            <Tile tint="mint" className="h-full">
+              <h3 className="display text-2xl">Tawf Finance</h3>
+              <ul className="mt-5 space-y-3 text-ink/80">
+                <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> Mudharabah profit sharing with the nisbah fixed upfront</li>
+                <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> Funding priced outside the local deposit market</li>
+                <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> Deposito held at licensed, OJK-supervised BPRS</li>
+                <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> Per-bank proof of reserve on chain</li>
+                <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> One ERC-3643 token with identity checks built in</li>
               </ul>
-            </Card>
-          </div>
+            </Tile>
+          </Reveal>
         </div>
-      </Section>
+      </Chapter>
 
-      {/* Team */}
-      <Section className="py-16">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="font-serif text-3xl text-tawf-green text-center mb-12">Leadership Team</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {team.map((member, index) => (
-              <Card key={index} className="p-6 text-center">
-                <div className="w-20 h-20 mx-auto mb-4 bg-tawf-green-10 rounded-full flex items-center justify-center text-tawf-green text-2xl font-serif">
-                  {member.name.split(' ').map(n => n[0]).join('')}
+      <Chapter tint="mint" from="stone" eyebrow="Team" title="Leadership team">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {team.map((member, i) => (
+            <Reveal key={member.name} delay={i * 0.08} className="h-full">
+              <Tile className="h-full text-center">
+                <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-mint font-mono text-xl text-jade">
+                  {member.name.split(' ').map((n) => n[0]).join('')}
                 </div>
-                <h3 className="font-medium text-tawf-green">{member.name}</h3>
-                <p className="text-sm text-tawf-gold mb-2">{member.role}</p>
-                <p className="text-xs text-tawf-muted">{member.bio}</p>
-              </Card>
-            ))}
-          </div>
+                <h3 className="font-semibold text-ink">{member.name}</h3>
+                <p className="mb-2 mt-1 font-mono text-xs uppercase tracking-[0.1em] text-jade">{member.role}</p>
+                <p className="text-sm text-ink/65">{member.bio}</p>
+              </Tile>
+            </Reveal>
+          ))}
         </div>
-      </Section>
+      </Chapter>
 
-      {/* Trust Architecture */}
-      <Section className="py-16 bg-white">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="font-serif text-3xl text-tawf-green text-center mb-6">Trust Architecture</h2>
-          <p className="text-tawf-muted text-center mb-12">
-            Our multi-layered trust system ensures security and transparency for all participants
-          </p>
-
-          <div className="space-y-6">
-            {[
-              {
-                layer: 'Layer 1: Smart Contracts',
-                description: 'All transactions executed through audited smart contracts on blockchain',
-                color: 'tawf-green',
-              },
-              {
-                layer: 'Layer 2: BPRS Originator',
-                description: 'A licensed, OJK-supervised Shariah bank originates and services the financing and reports into SLIK',
-                color: 'tawf-gold',
-              },
-              {
-                layer: 'Layer 3: Shariah Board',
-                description: 'Independent scholars ensure all products comply with Islamic principles',
-                color: 'blue-500',
-              },
-              {
-                layer: 'Layer 4: Digital Receipts',
-                description: 'Soulbound NFTs provide immutable proof of investment and impact',
-                color: 'purple-500',
-              },
-            ].map((layer, index) => (
-              <div key={index} className={`p-6 rounded-xl border-2 border-${layer.color}-10`}>
+      <Chapter
+        tint="stone"
+        from="mint"
+        eyebrow="Trust"
+        title="Trust"
+        accent="architecture"
+        lead="Four layers keep the token safe and the structure honest for every participant."
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          {trust.map((t, i) => (
+            <Reveal key={t.layer} delay={i * 0.08} className="h-full">
+              <Tile className="h-full">
                 <div className="flex items-start gap-4">
-                  <div className={`p-3 bg-${layer.color}-10 rounded-lg`}>
-                    <Target className={`w-6 h-6 text-${layer.color}`} />
-                  </div>
+                  <div className="rounded-2xl bg-mint p-3 text-jade"><Target className="h-5 w-5" /></div>
                   <div>
-                    <h3 className="font-medium text-tawf-green mb-1">{layer.layer}</h3>
-                    <p className="text-tawf-muted text-sm">{layer.description}</p>
+                    <h3 className="font-semibold text-ink">{t.layer}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-ink/70">{t.description}</p>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              </Tile>
+            </Reveal>
+          ))}
         </div>
-      </Section>
-    </div>
+      </Chapter>
+    </PublicPage>
   );
 }
