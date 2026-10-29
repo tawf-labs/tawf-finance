@@ -19,7 +19,7 @@ const GROUND: Record<Tint, string> = {
 
 // Seam into a tint from the tint above it, so stacked chapters read as one surface.
 const SEAM: Record<Tint, Partial<Record<Tint, string>>> = {
-  paper: { stone: FADE.lifecycle },
+  paper: { stone: FADE.lifecycle, mint: 'bg-[linear-gradient(to_bottom,var(--color-mint),var(--color-paper)_14rem)]', butter: 'bg-[linear-gradient(to_bottom,var(--color-butter),var(--color-paper)_14rem)]', peach: 'bg-[linear-gradient(to_bottom,var(--color-peach),var(--color-paper)_14rem)]' },
   butter: { paper: FADE.receipt, stone: 'bg-[linear-gradient(to_bottom,var(--color-stone),var(--color-butter)_14rem)]', mint: 'bg-[linear-gradient(to_bottom,var(--color-mint),var(--color-butter)_14rem)]', peach: 'bg-[linear-gradient(to_bottom,var(--color-peach),var(--color-butter)_14rem)]' },
   stone: { butter: FADE.coverage, paper: 'bg-[linear-gradient(to_bottom,var(--color-paper),var(--color-stone)_14rem)]', mint: 'bg-[linear-gradient(to_bottom,var(--color-mint),var(--color-stone)_14rem)]', peach: 'bg-[linear-gradient(to_bottom,var(--color-peach),var(--color-stone)_14rem)]' },
   mint: { stone: FADE.impact, paper: 'bg-[linear-gradient(to_bottom,var(--color-paper),var(--color-mint)_14rem)]', butter: 'bg-[linear-gradient(to_bottom,var(--color-butter),var(--color-mint)_14rem)]', peach: 'bg-[linear-gradient(to_bottom,var(--color-peach),var(--color-mint)_14rem)]' },
