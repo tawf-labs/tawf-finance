@@ -70,7 +70,7 @@ export function Contact() {
         </div>
       </Chapter>
 
-      <Chapter tint="stone" from="paper" eyebrow="Get in touch" title="Send us a" accent="message" lead="Fill out the form and we'll get back to you within 24-48 hours.">
+      <Chapter tint="stone" from="paper" eyebrow="Get in touch" title="Send us a" accent="message" lead="Fill out the form and we reply as soon as we can.">
         <Reveal className="mx-auto max-w-2xl">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
@@ -110,7 +110,6 @@ export function Contact() {
                 <option value="SCF Platform Partnership">SCF Platform Partnership</option>
                 <option value="Investor Partnership">Investor Partnership</option>
                 <option value="Strategic Alliance">Strategic Alliance</option>
-                <option value="Technology Partnership">Technology Partnership</option>
                 <option value="Other">Other</option>
               </select>
             </div>

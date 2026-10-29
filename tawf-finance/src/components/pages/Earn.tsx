@@ -8,7 +8,7 @@ const APP = 'https://app.tawf.finance/login';
 
 const steps = [
   { title: 'Verify and get test funds', body: 'Connect a wallet, complete the test KYC and take test stablecoins from the faucet.' },
-  { title: 'Subscribe', body: 'Subscribe to the Deposito Pool, or back an SCF offering. Your funds are held in escrow until they are allocated.' },
+  { title: 'Subscribe', body: 'Subscribe to the Deposito Pool, or back an SCF offering. Your test funds are held in escrow until they are allocated.' },
   { title: 'Track and claim', body: 'Follow your balance and the per-bank reserve, and claim profit when it is distributed.' },
 ];
 

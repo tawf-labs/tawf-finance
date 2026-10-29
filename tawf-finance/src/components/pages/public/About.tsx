@@ -12,7 +12,7 @@ export function About() {
     {
       icon: <Shield className="h-7 w-7" />,
       title: 'Shariah Aligned',
-      description: 'Mudharabah deposito with the nisbah fixed before you subscribe, reviewed by the bank\'s Dewan Pengawas Syariah (DPS).',
+      description: 'Mudharabah deposito with the nisbah fixed before you subscribe. Review by the bank\'s Dewan Pengawas Syariah (DPS) is required before launch.',
     },
     {
       icon: <Landmark className="h-7 w-7" />,
@@ -22,7 +22,7 @@ export function About() {
     {
       icon: <Eye className="h-7 w-7" />,
       title: 'Transparent',
-      description: 'Each bank\'s balance and the token supply can be read on chain. No borrower is ever exposed.',
+      description: 'Each bank\'s balance and the token supply can be read on chain. No borrower names go on chain.',
     },
   ];
 
@@ -40,11 +40,11 @@ export function About() {
     },
     {
       layer: 'Layer 2: Licensed BPRS',
-      description: 'A licensed, OJK-supervised Shariah bank holds Tawf\'s deposito account and reports the balance that backs the token.',
+      description: 'A licensed, OJK-supervised Shariah bank is meant to hold Tawf\'s deposito account and report the balance that backs the token. In the pilot this is a demo bank feed.',
     },
     {
       layer: 'Layer 3: Shariah board',
-      description: 'The bank\'s DPS and independent scholars review the akad and the structure.',
+      description: 'Review of the akad and the structure by the bank\'s DPS and independent scholars is required before launch. It is not done for the testnet pilot.',
     },
     {
       layer: 'Layer 4: Identity and screening',
@@ -68,12 +68,12 @@ export function About() {
         </Reveal>
         <Reveal className="mt-12 grid gap-4 sm:grid-cols-3">
           <Tile>
-            <p className="display text-5xl text-jade">~175</p>
-            <p className="mt-3 text-ink/70">BPRS in Indonesia</p>
+            <p className="display text-5xl text-jade">2 products</p>
+            <p className="mt-3 text-ink/70">Deposito Pool and sharia crowdfunding</p>
           </Tile>
           <Tile>
-            <p className="display text-5xl text-jade">250bp</p>
-            <p className="mt-3 text-ink/70">Funding cost gap</p>
+            <p className="display text-5xl text-jade">Testnet</p>
+            <p className="mt-3 text-ink/70">Arbitrum Sepolia pilot</p>
           </Tile>
           <Tile>
             <p className="display text-5xl text-jade">1 token</p>
@@ -116,7 +116,7 @@ export function About() {
               <ul className="mt-5 space-y-3 text-ink/80">
                 <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> Mudharabah profit sharing with the nisbah fixed upfront</li>
                 <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> Funding priced outside the local deposit market</li>
-                <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> Deposito held at licensed, OJK-supervised BPRS</li>
+                <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> Deposito designed to be held at licensed, OJK-supervised BPRS</li>
                 <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> Per-bank proof of reserve on chain</li>
                 <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> One ERC-3643 token with identity checks built in</li>
               </ul>
