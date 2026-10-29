@@ -1,232 +1,160 @@
-import { motion } from 'framer-motion';
-import { ArrowRight, Wallet, Search, CheckCircle, TrendingUp, Shield, FileText } from 'lucide-react';
-import { Section } from '@/components/ui/Section';
-import { Button } from '@/components/ui/Button';
+import { ArrowRight, Wallet, Search, CheckCircle, TrendingUp, Shield, FileText, BadgeCheck, Lock, FlaskConical } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { Reveal } from '@/components/landing/Reveal';
+import { Chapter, PageHero, PublicPage, Tile, ghost, solid } from '@/components/landing/PublicPage';
+
+interface Step {
+  icon: ReactNode;
+  title: string;
+  description: string;
+}
+
+const investorSteps: Step[] = [
+  {
+    icon: <Search className="h-6 w-6" />,
+    title: 'Pick a Deposito Pool',
+    description: 'The pool wraps the mudharabah deposito Tawf holds at several licensed BPRS in one region. See every bank and its balance before you commit.',
+  },
+  {
+    icon: <Wallet className="h-6 w-6" />,
+    title: 'Verify and subscribe',
+    description: 'Verify your identity, then subscribe in USDC, USDT or USDG. Tawf converts to IDR and places the funds across the banks.',
+  },
+  {
+    icon: <CheckCircle className="h-6 w-6" />,
+    title: 'Receive your profit share',
+    description: 'Each period the banks credit their profit share and you claim yours. At maturity you redeem the principal.',
+  },
+];
+
+const bankSteps: Step[] = [
+  {
+    icon: <FileText className="h-6 w-6" />,
+    title: 'Tawf places the deposito',
+    description: 'Tawf opens one dedicated mudharabah deposito account at each BPRS in the region and places the converted funds there.',
+  },
+  {
+    icon: <Shield className="h-6 w-6" />,
+    title: 'Balances are proven',
+    description: "Each bank's balance is recorded on the pool ledger, and the token can never be minted above their total.",
+  },
+  {
+    icon: <TrendingUp className="h-6 w-6" />,
+    title: 'Funding beyond the district',
+    description: 'A BPRS can only collect deposits in its own area. The pool brings it funding from outside, at its own deposito terms.',
+  },
+];
+
+const safeguards: Step[] = [
+  {
+    icon: <BadgeCheck className="h-6 w-6" />,
+    title: 'Verified wallets only',
+    description: 'The ERC-3643 token moves only between wallets that hold a verified identity claim.',
+  },
+  {
+    icon: <Lock className="h-6 w-6" />,
+    title: 'Capped by the banks',
+    description: 'Supply cannot pass the total of the bank balances recorded on the pool ledger.',
+  },
+  {
+    icon: <Wallet className="h-6 w-6" />,
+    title: 'Contracts you can read',
+    description: 'Every contract and balance is on Arbitrum Sepolia, open to anyone on the block explorer.',
+  },
+  {
+    icon: <FlaskConical className="h-6 w-6" />,
+    title: 'A testnet pilot',
+    description: 'The pilot runs on test stablecoins, so no real money moves while we prove the flow.',
+  },
+];
+
+function StepGrid({ steps, tint }: { steps: Step[]; tint: 'white' | 'stone' }) {
+  return (
+    <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+      {steps.map((s, i) => (
+        <Reveal key={s.title} delay={i * 0.08}>
+          <Tile tint={tint} className="h-full">
+            <div className="flex items-center justify-between">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-mint text-jade">{s.icon}</span>
+              <span className="display text-5xl tabular-nums text-ink/15">{String(i + 1).padStart(2, '0')}</span>
+            </div>
+            <h3 className="display mt-6 text-2xl">{s.title}</h3>
+            <p className="mt-3 leading-relaxed text-ink/70">{s.description}</p>
+          </Tile>
+        </Reveal>
+      ))}
+    </div>
+  );
+}
 
 export function HowItWorks() {
-  const investorSteps = [
-    {
-      step: '01',
-      icon: <Search className="w-8 h-8" />,
-      title: 'Pick a Deposito Pool',
-      description: 'Each pool wraps the mudharabah deposito Tawf holds at several licensed BPRS in one region. See every bank and its balance before you commit.',
-    },
-    {
-      step: '02',
-      icon: <Wallet className="w-8 h-8" />,
-      title: 'Verify & Subscribe',
-      description: 'Verify your identity, then subscribe in USDC, USDT or USDG. Tawf converts to IDR and places the funds across the banks.',
-    },
-    {
-      step: '03',
-      icon: <CheckCircle className="w-8 h-8" />,
-      title: 'Receive Profit Share',
-      description: 'Each period the banks credit their profit share and you claim yours. At maturity you redeem the principal.',
-    },
-  ];
-
-  const businessSteps = [
-    {
-      step: '01',
-      icon: <FileText className="w-8 h-8" />,
-      title: 'Tawf Places Deposito',
-      description: 'Tawf opens one dedicated mudharabah deposito account at each BPRS in the region and places the converted funds there.',
-    },
-    {
-      step: '02',
-      icon: <Shield className="w-8 h-8" />,
-      title: 'Balances Are Proven',
-      description: 'Each bank\'s balance is recorded on the pool ledger, and the token can never be minted above their total.',
-    },
-    {
-      step: '03',
-      icon: <TrendingUp className="w-8 h-8" />,
-      title: 'Funding Beyond the District',
-      description: 'A BPRS can only collect deposits in its own area. The pool brings it funding from outside, at its own deposito terms.',
-    },
-  ];
-
   return (
-    <div className="min-h-screen bg-tawf-sand">
-      {/* Hero Section */}
-      <Section className="py-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-4xl mx-auto text-center"
-        >
-          <span className="text-tawf-gold uppercase tracking-widest text-sm font-medium">How It Works</span>
-          <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl text-tawf-green leading-[1.1] mt-4 mb-6">
-            Simple, Ethical,
-            <span className="block text-tawf-gold">Impactful Investing</span>
-          </h1>
-          <p className="text-tawf-muted text-lg md:text-xl leading-relaxed max-w-2xl mx-auto">
-            Put stablecoins into mudharabah deposito across licensed Indonesian Islamic rural banks,
-            wrapped into one Tawf Deposito Pool with a per-bank proof of reserve. The financing
-            sell-down pool comes after the pilot.
-          </p>
-        </motion.div>
-      </Section>
+    <PublicPage>
+      <PageHero
+        eyebrow="How it works"
+        title="Simple, ethical,"
+        accent="and checkable."
+        lead="Put stablecoins into mudharabah deposito across licensed Indonesian Islamic rural banks, wrapped into one Tawf Deposito Pool with a per-bank proof of reserve. The financing sell-down pool comes after the pilot."
+        actions={
+          <>
+            <a href="https://app.tawf.finance/login" className={solid}>Open the investor app</a>
+            <Link to="/proof-of-reserve" className={ghost}>See the proof of reserve</Link>
+          </>
+        }
+      />
 
-      {/* For Investors */}
-      <Section className="py-16 bg-white">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="font-serif text-3xl text-tawf-green mb-4">For Investors</h2>
-            <p className="text-tawf-muted max-w-2xl mx-auto">
-              Take Shariah-aligned exposure to real, OJK-supervised bank financing in just a few steps
-            </p>
-          </div>
+      <Chapter
+        tint="paper"
+        from="stone"
+        eyebrow="For investors"
+        title="Three steps from"
+        accent="stablecoin to deposito."
+        lead="Take Shariah-aligned exposure to mudharabah deposito at licensed BPRS, with the balances visible on chain."
+      >
+        <StepGrid steps={investorSteps} tint="stone" />
+        <Reveal className="mt-10">
+          <Link to="/earn" className={solid}>
+            Explore the pools <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
+        </Reveal>
+      </Chapter>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {investorSteps.map((step, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="relative"
-              >
-                <div className="text-6xl font-serif text-tawf-green-10 font-bold absolute -top-4 -left-2">
-                  {step.step}
+      <Chapter
+        tint="butter"
+        from="paper"
+        eyebrow="For partner banks"
+        title="Funding from"
+        accent="outside your district."
+        lead="A funding channel priced outside the local deposit market, with every balance proven on chain."
+      >
+        <StepGrid steps={bankSteps} tint="white" />
+      </Chapter>
+
+      <Chapter
+        tint="stone"
+        from="butter"
+        eyebrow="Fees"
+        title="No fees"
+        accent="in the pilot."
+        lead="The pilot runs on testnet with test stablecoins, so nothing is charged. Fee terms for a live pool will be published before anyone subscribes."
+      />
+
+      <Chapter tint="mint" from="stone" eyebrow="Safeguards" title="Built to be" accent="verified, not trusted.">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          {safeguards.map((s, i) => (
+            <Reveal key={s.title} delay={(i % 2) * 0.08}>
+              <Tile className="flex h-full items-start gap-5">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-mint text-jade">{s.icon}</span>
+                <div>
+                  <h3 className="display text-xl">{s.title}</h3>
+                  <p className="mt-2 leading-relaxed text-ink/70">{s.description}</p>
                 </div>
-                <div className="bg-tawf-sand-30 rounded-2xl p-8 pt-10 h-full">
-                  <div className="p-3 bg-tawf-green-10 rounded-xl w-fit mb-4 text-tawf-green">
-                    {step.icon}
-                  </div>
-                  <h3 className="font-serif text-xl text-tawf-green mb-3">{step.title}</h3>
-                  <p className="text-tawf-muted">{step.description}</p>
-                </div>
-                {index < investorSteps.length - 1 && (
-                  <ArrowRight className="hidden md:block absolute top-1/2 -right-4 w-8 h-8 text-tawf-gold transform translate-y-8" />
-                )}
-              </motion.div>
-            ))}
-          </div>
-
-          <div className="text-center mt-12">
-            <Link to="/earn">
-              <Button variant="primary" size="lg">
-                Explore Investment Pools
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
-          </div>
+              </Tile>
+            </Reveal>
+          ))}
         </div>
-      </Section>
-
-      {/* For Businesses */}
-      <Section className="py-16">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="font-serif text-3xl text-tawf-green mb-4">For BPRS Originators</h2>
-            <p className="text-tawf-muted max-w-2xl mx-auto">
-              Access a funding channel priced outside your local deposit market and release balance-sheet capacity
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {businessSteps.map((step, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="relative"
-              >
-                <div className="text-6xl font-serif text-tawf-gold-20 font-bold absolute -top-4 -left-2">
-                  {step.step}
-                </div>
-                <div className="bg-white rounded-2xl border border-tawf-green-10 p-8 pt-10 h-full">
-                  <div className="p-3 bg-tawf-gold-10 rounded-xl w-fit mb-4 text-tawf-gold">
-                    {step.icon}
-                  </div>
-                  <h3 className="font-serif text-xl text-tawf-green mb-3">{step.title}</h3>
-                  <p className="text-tawf-muted">{step.description}</p>
-                </div>
-                {index < businessSteps.length - 1 && (
-                  <ArrowRight className="hidden md:block absolute top-1/2 -right-4 w-8 h-8 text-tawf-gold transform translate-y-8" />
-                )}
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </Section>
-
-      {/* Fee Structure */}
-      <Section className="py-16 bg-white">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="font-serif text-3xl text-tawf-green text-center mb-4">Transparent Fee Structure</h2>
-          <p className="text-tawf-muted text-center mb-12">
-            No hidden fees. Everything is clearly communicated upfront.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-6 bg-tawf-sand-30 rounded-xl text-center">
-              <p className="text-4xl font-serif text-tawf-green mb-2">0%</p>
-              <p className="font-medium text-tawf-ink mb-1">For Investors</p>
-              <p className="text-sm text-tawf-muted">No fees to invest or withdraw</p>
-            </div>
-            <div className="p-6 bg-tawf-sand-30 rounded-xl text-center">
-              <p className="text-4xl font-serif text-tawf-green mb-2">~2-5%</p>
-              <p className="font-medium text-tawf-ink mb-1">Structuring Fee</p>
-              <p className="text-sm text-tawf-muted">On each Deposito Pool</p>
-            </div>
-            <div className="p-6 bg-tawf-sand-30 rounded-xl text-center">
-              <p className="text-4xl font-serif text-tawf-green mb-2">1%</p>
-              <p className="font-medium text-tawf-ink mb-1">Servicing Fee</p>
-              <p className="text-sm text-tawf-muted">Retained by the BPRS servicer</p>
-            </div>
-          </div>
-        </div>
-      </Section>
-
-      {/* Security */}
-      <Section className="py-16">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="font-serif text-3xl text-tawf-green text-center mb-12">Bank-Grade Security</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="flex items-start gap-4 p-6 bg-white rounded-xl border border-tawf-green-10">
-              <div className="p-3 bg-tawf-green-10 rounded-lg text-tawf-green">
-                <Shield className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-medium text-tawf-green mb-1">Smart Contract Audits</h3>
-                <p className="text-sm text-tawf-muted">All contracts audited by leading security firms</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4 p-6 bg-white rounded-xl border border-tawf-green-10">
-              <div className="p-3 bg-tawf-green-10 rounded-lg text-tawf-green">
-                <Wallet className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-medium text-tawf-green mb-1">Non-Custodial</h3>
-                <p className="text-sm text-tawf-muted">You always control your private keys</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4 p-6 bg-white rounded-xl border border-tawf-green-10">
-              <div className="p-3 bg-tawf-green-10 rounded-lg text-tawf-green">
-                <CheckCircle className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-medium text-tawf-green mb-1">KYC Verified</h3>
-                <p className="text-sm text-tawf-muted">All users undergo identity verification</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4 p-6 bg-white rounded-xl border border-tawf-green-10">
-              <div className="p-3 bg-tawf-green-10 rounded-lg text-tawf-green">
-                <TrendingUp className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-medium text-tawf-green mb-1">24/7 Monitoring</h3>
-                <p className="text-sm text-tawf-muted">Continuous monitoring for suspicious activity</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Section>
-    </div>
+      </Chapter>
+    </PublicPage>
   );
 }

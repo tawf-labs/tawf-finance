@@ -1,11 +1,11 @@
-import { Section } from '@/components/ui/Section';
-import { Card } from '@/components/ui/Card';
+import { Reveal } from '@/components/landing/Reveal';
+import { Chapter, PageHero, PublicPage, Tile, type Tint } from '@/components/landing/PublicPage';
 
 export function Glossary() {
   const terms = [
     {
       term: 'Akad (Aqd)',
-      definition: 'A contract or agreement in Islamic finance. In Tawf Finance, this refers to the agreement between investor and MSME for profit-sharing investment.',
+      definition: 'A contract or agreement in Islamic finance. In the Tawf pilot, the Deposito Pool rests on a mudharabah akad between Tawf and each partner BPRS.',
       category: 'General',
     },
     {
@@ -15,13 +15,18 @@ export function Glossary() {
     },
     {
       term: 'BPRS (Bank Pembiayaan Rakyat Syariah)',
-      definition: 'A licensed Islamic rural bank in Indonesia. Unlike a BMT, a BPRS is OJK-supervised, LPS-insured, and may raise in the capital market under POJK 7/2024 Art 35. Tawf Finance\'s first customer segment.',
+      definition: 'A licensed Islamic rural bank in Indonesia. Unlike a BMT, a BPRS is OJK-supervised and LPS-insured. The partner banks in the Tawf Deposito Pool are BPRS.',
       category: 'Organizations',
     },
     {
       term: 'BMT (Baitul Maal wat Tamwil)',
-      definition: 'Islamic cooperative financial institution in Indonesia combining social (Baitul Maal) and commercial (Baitul Tamwil) finance. Tawf\'s own organisational identity, and a later distribution channel for ZISWAF modules, not the first paying customer.',
+      definition: 'Islamic cooperative financial institution in Indonesia combining social (Baitul Maal) and commercial (Baitul Tamwil) finance. Tawf\'s own organisational identity, and a later distribution channel for ZISWAF modules.',
       category: 'Organizations',
+    },
+    {
+      term: 'Deposito Pool',
+      definition: 'The pilot product. Tawf holds mudharabah deposito at several licensed BPRS in one region and wraps it into one ERC-3643 token, with each bank\'s balance shown in the proof of reserve.',
+      category: 'Products',
     },
     {
       term: 'Gharar',
@@ -30,7 +35,7 @@ export function Glossary() {
     },
     {
       term: 'Halal',
-      definition: 'Permissible or lawful according to Islamic law. All investments on Tawf Finance are halal-aligned.',
+      definition: 'Permissible or lawful according to Islamic law.',
       category: 'General',
     },
     {
@@ -40,68 +45,83 @@ export function Glossary() {
     },
     {
       term: 'Mudharabah',
-      definition: 'A profit-sharing partnership where one party provides capital and the other provides expertise. Profits are shared according to a pre-agreed ratio, while losses are borne by the capital provider (unless due to misconduct).',
+      definition: 'A profit-sharing partnership where one party provides capital and the other provides expertise. Profits are shared according to a pre-agreed ratio, while losses are borne by the capital provider (unless due to misconduct). The akad behind the Deposito Pool.',
       category: 'Contracts',
     },
     {
       term: 'MSME',
-      definition: 'Micro, Small, and Medium Enterprises. The underlying borrowers a BPRS finances. Tawf takes exposure to a pool of that financing, not to individual MSMEs directly.',
+      definition: 'Micro, Small, and Medium Enterprises. In the pilot they are the SMEs that raise funds through sharia crowdfunding (urun dana) on a licensed partner platform.',
       category: 'Business',
     },
     {
       term: 'Musharakah',
-      definition: 'A joint partnership where all parties contribute capital and share profits and losses according to their capital contribution ratio. One of the two candidate sell-down akad structures Tawf uses.',
+      definition: 'A joint partnership where all parties contribute capital and share profits and losses according to their capital contribution ratio. A candidate structure for the later financing sell-down, not in the pilot.',
+      category: 'Contracts',
+    },
+    {
+      term: 'Nisbah',
+      definition: 'The pre-agreed profit-sharing ratio in a mudharabah. It is fixed before a subscription is made.',
       category: 'Contracts',
     },
     {
       term: 'NPF (Non-Performing Financing)',
-      definition: 'The Shariah-finance equivalent of a non-performing loan ratio. A key, continuously verifiable metric of a BPRS financing pool\'s health on Tawf Finance.',
+      definition: 'The Shariah-finance equivalent of a non-performing loan ratio, a measure of the health of a bank\'s financing book. The Deposito Pool does not report NPF, since it holds deposito and not financing.',
       category: 'Business',
     },
     {
       term: 'DPS (Dewan Pengawas Syariah)',
-      definition: 'The Shariah Supervisory Board every BPRS is required to have. It reviews and signs off on the sell-down akad, making the structure the defensible asset.',
+      definition: 'The Shariah Supervisory Board every BPRS is required to have. It oversees the bank\'s akad and products.',
       category: 'Organizations',
     },
     {
+      term: 'ERC-3643',
+      definition: 'A token standard for permissioned assets. The pool token can only be held by wallets whose ONCHAINID carries a verified identity claim, and it cannot be minted above the recorded bank balances.',
+      category: 'Technology',
+    },
+    {
       term: 'Financing Sell-Down',
-      definition: 'Tawf\'s first product: a BPRS sells down economic exposure to a defined pool of its financing to an outside investor pool through a compliant akad, releasing balance-sheet capacity while retaining origination and servicing.',
+      definition: 'A later product, not in the pilot: a BPRS sells down economic exposure to a defined pool of its financing to an outside investor pool through a compliant akad.',
       category: 'Products',
     },
     {
+      term: 'ONCHAINID',
+      definition: 'An on-chain identity contract that holds claims about a wallet\'s owner, such as a completed identity check. The identity registry reads it to decide who may hold the token.',
+      category: 'Technology',
+    },
+    {
+      term: 'Proof of reserve',
+      definition: 'A public page that shows each partner bank\'s recorded deposito balance next to the token supply, read live from the contracts.',
+      category: 'Platform',
+    },
+    {
       term: 'Wakalah bil Istithmar',
-      definition: 'An investment-agency akad in which an agent invests capital on behalf of a principal for a fee. One of the two candidate sell-down structures Tawf uses.',
+      definition: 'An investment-agency akad in which an agent invests capital on behalf of a principal for a fee. A candidate structure for the later financing sell-down, not in the pilot.',
       category: 'Contracts',
     },
     {
       term: 'Riba',
-      definition: 'Interest or usury, strictly prohibited in Islamic finance. Tawf Finance uses profit-sharing models instead of interest-based lending.',
+      definition: 'Interest or usury, strictly prohibited in Islamic finance. Profit-sharing models take its place.',
       category: 'Prohibitions',
     },
     {
       term: 'Shariah',
-      definition: 'Islamic law derived from the Quran and Hadith. All financial products on Tawf Finance adhere to Shariah principles.',
+      definition: 'Islamic law derived from the Quran and Hadith.',
       category: 'General',
     },
     {
-      term: 'Soulbound NFT',
-      definition: 'A digital receipt and proof of investment on Tawf Finance. Receipts are non-transferable at issuance. Transferable instruments are on the roadmap.',
-      category: 'Technology',
-    },
-    {
       term: 'Sukuk',
-      definition: 'Islamic bonds representing ownership in a tangible asset or project. For a BPRS, issuance under POJK 7/2024 Art 35 requires IDR 80bn+ core capital, so it is Tawf\'s tier-2 product, not the first.',
+      definition: 'Islamic bonds representing ownership in a tangible asset or project. For a BPRS, issuance under POJK 7/2024 Art 35 requires IDR 80bn+ core capital, so it is a later product, not the pilot.',
       category: 'Products',
-    },
-    {
-      term: 'Tawf Score',
-      definition: 'A proprietary scoring system for BPRS financing pools based on pool composition, NPF ratio, servicing track record, and akad compliance.',
-      category: 'Platform',
     },
     {
       term: 'Tijarah',
       definition: 'Trade or commerce. Islam encourages trade and business activities that are fair and beneficial to society.',
       category: 'General',
+    },
+    {
+      term: 'Urun dana',
+      definition: 'Sharia securities crowdfunding in Indonesia, where SMEs raise funds from the public through a licensed platform. Tawf connects to it through a licensed partner platform.',
+      category: 'Products',
     },
     {
       term: 'Wadiah',
@@ -110,78 +130,67 @@ export function Glossary() {
     },
     {
       term: 'Zakat',
-      definition: 'A mandatory charitable contribution for eligible Muslims, typically 2.5% of accumulated wealth. Tawf Finance may integrate zakat calculation features.',
+      definition: 'A mandatory charitable contribution for eligible Muslims, typically 2.5% of accumulated wealth.',
       category: 'General',
     },
   ];
 
   const categories = [...new Set(terms.map(t => t.category))];
 
-  return (
-    <div className="min-h-screen bg-tawf-sand">
-      <Section className="py-20">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="font-serif text-4xl md:text-5xl text-tawf-green text-center mb-4">
-            Glossary
-          </h1>
-          <p className="text-tawf-muted text-center mb-12">
-            Key terms and concepts in Islamic finance and the Tawf Finance platform
-          </p>
+  const slug = (c: string) => c.toLowerCase().replace(' ', '-');
 
-          {/* Categories */}
-          <div className="mb-8">
-            <h2 className="font-serif text-2xl text-tawf-green mb-6">Categories</h2>
-            <div className="flex flex-wrap gap-2">
-              {categories.map((category) => (
-                <a
-                  key={category}
-                  href={`#${category.toLowerCase().replace(' ', '-')}`}
-                  className="px-4 py-2 bg-white border border-tawf-green-10 rounded-full text-sm hover:border-tawf-green hover:bg-tawf-green-5 transition-colors"
-                >
-                  {category}
-                </a>
+  return (
+    <PublicPage>
+      <PageHero
+        eyebrow="Glossary"
+        title="The words behind"
+        accent="the pilot."
+        lead="Key terms in Islamic finance and on the Tawf platform. Entries marked as later are reference and not part of the pilot."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            {categories.map((category) => (
+              <a key={category} href={`#${slug(category)}`} className="inline-flex h-10 items-center rounded-full bg-white px-4 text-sm font-medium text-ink ring-1 ring-ink/15 transition-colors hover:bg-ink hover:text-white">
+                {category}
+              </a>
+            ))}
+          </div>
+        }
+      />
+
+      {categories.map((category, ci) => {
+        const tints: Tint[] = ['paper', 'mint', 'butter', 'stone', 'peach'];
+        const tint = tints[ci % tints.length];
+        const prev = ci === 0 ? 'stone' : tints[(ci - 1) % tints.length];
+        return (
+          <Chapter key={category} id={slug(category)} tint={tint} from={prev} eyebrow="Category" title={category} className="!pt-20 md:!pt-24">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+              {terms.filter((t) => t.category === category).map((term, i) => (
+                <Reveal key={term.term} delay={(i % 2) * 0.06}>
+                  <Tile tint={tint === 'paper' ? 'stone' : 'white'} className="h-full">
+                    <h3 className="display text-xl">{term.term}</h3>
+                    <p className="mt-3 leading-relaxed text-ink/70">{term.definition}</p>
+                  </Tile>
+                </Reveal>
               ))}
             </div>
-          </div>
+          </Chapter>
+        );
+      })}
 
-          {/* Terms by Category */}
-          {categories.map((category) => (
-            <div key={category} id={category.toLowerCase().replace(' ', '-')} className="mb-12">
-              <h2 className="font-serif text-xl text-tawf-green mb-6 flex items-center gap-3">
-                <span className="w-2 h-2 bg-tawf-gold rounded-full" />
-                {category}
-              </h2>
-              <div className="space-y-4">
-                {terms.filter(t => t.category === category).map((term, index) => (
-                  <Card key={index} className="p-6">
-                    <h3 className="font-serif text-lg text-tawf-green mb-2">{term.term}</h3>
-                    <p className="text-tawf-muted">{term.definition}</p>
-                  </Card>
-                ))}
-              </div>
-            </div>
+      <Chapter tint="mint" from={(['paper', 'mint', 'butter', 'stone', 'peach'] as Tint[])[(categories.length - 1) % 5]} eyebrow="Quick reference" title="Three" accent="things to remember.">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+          {[
+            ['Prohibited', 'Riba (interest), Gharar (excessive uncertainty), Maysir (gambling)'],
+            ['Key principles', 'Profit-sharing, risk-sharing, asset-backing, ethical investment'],
+            ['In Indonesia', 'OJK regulates. A BPRS is a licensed, LPS-insured Shariah bank and a partner bank in the pilot'],
+          ].map(([h, b]) => (
+            <Tile key={h}>
+              <h3 className="display text-xl">{h}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-ink/70">{b}</p>
+            </Tile>
           ))}
-
-          {/* Quick Reference */}
-          <Card className="p-8 mt-12 bg-tawf-green text-white">
-            <h2 className="font-serif text-xl mb-4">Quick Reference</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <h3 className="font-medium mb-2">Prohibited</h3>
-                <p className="text-sm text-tawf-sand-80">Riba (interest), Gharar (excessive uncertainty), Maysir (gambling)</p>
-              </div>
-              <div>
-                <h3 className="font-medium mb-2">Key Principles</h3>
-                <p className="text-sm text-tawf-sand-80">Profit-sharing, risk-sharing, asset-backing, ethical investment</p>
-              </div>
-              <div>
-                <h3 className="font-medium mb-2">In Indonesia</h3>
-                <p className="text-sm text-tawf-sand-80">OJK regulates. A BPRS is a licensed, LPS-insured Shariah bank and the first originator segment</p>
-              </div>
-            </div>
-          </Card>
         </div>
-      </Section>
-    </div>
+      </Chapter>
+    </PublicPage>
   );
 }
