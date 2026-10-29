@@ -7,6 +7,7 @@ pragma solidity 0.8.17;
 // Covers open, subscribe within and over the investor limit, close, distribute, claim,
 // settle and redeem.
 
+import {_coins1} from "../sukuk/SukukDistributor.t.sol";
 import {TrexFixture} from "../trex/TrexFixture.sol";
 import {ScfInvestorLimitModule} from "../../src/scf/ScfInvestorLimitModule.sol";
 import {Token} from "@erc3643org/erc-3643/contracts/token/Token.sol";
@@ -57,7 +58,7 @@ contract ScfSukukFlowTest is TrexFixture {
             deployCode(
                 "SukukDistributor.sol:SukukDistributor",
                 abi.encode(
-                    usdc, anchor, address(ir), address(token), address(module),
+                    _coins1(usdc), anchor, address(ir), address(token), address(module),
                     SCF_ID, FACE, maturity, MIN_RAISE, uint256(10e6), WINDOW, issuer,
                     deployer
                 )
@@ -89,7 +90,7 @@ contract ScfSukukFlowTest is TrexFixture {
         vm.startPrank(who);
         IMockUSDC(usdc).faucet(amount);
         IMockUSDC(usdc).approve(address(dist), amount);
-        dist.subscribe(amount);
+        dist.subscribe(usdc, amount);
         vm.stopPrank();
     }
 
@@ -118,7 +119,7 @@ contract ScfSukukFlowTest is TrexFixture {
         IMockUSDC(usdc).faucet(10e6);
         IMockUSDC(usdc).approve(address(dist), 10e6);
         vm.expectRevert("Compliance not followed");
-        dist.subscribe(10e6);
+        dist.subscribe(usdc, 10e6);
         vm.stopPrank();
 
         vm.warp(block.timestamp + WINDOW);
@@ -132,11 +133,11 @@ contract ScfSukukFlowTest is TrexFixture {
         vm.startPrank(issuer);
         IMockUSDC(usdc).faucet(50e6);
         IMockUSDC(usdc).approve(address(dist), type(uint256).max);
-        dist.distribute(1, 50e6, e, noProof);
+        dist.distribute(1, usdc, 50e6, e, noProof);
         vm.stopPrank();
         assertEq(dist.claimable(alice), 15e6);
         vm.prank(alice);
-        dist.claim();
+        dist.claim(usdc);
         assertEq(IMockUSDC(usdc).balanceOf(alice), 15e6 + 10e6);
 
         // Maturity at par, then redemption.
@@ -144,10 +145,10 @@ contract ScfSukukFlowTest is TrexFixture {
         e = _fact(REDEMPTION, 1_000e6, 0);
         vm.startPrank(issuer);
         IMockUSDC(usdc).faucet(1_000e6);
-        dist.settleMaturity(1_000e6, e, noProof);
+        dist.settleMaturity(usdc, 1_000e6, e, noProof);
         vm.stopPrank();
         vm.prank(bob);
-        dist.redeem();
+        dist.redeem(usdc);
         assertEq(token.balanceOf(bob), 0);
     }
 }

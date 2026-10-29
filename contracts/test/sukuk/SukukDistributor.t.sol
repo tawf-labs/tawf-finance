@@ -25,6 +25,11 @@ uint256 constant MIN_RAISE = 100_000e6;
 uint256 constant MIN_SUB = 10e6;
 uint40 constant WINDOW = 14 days;
 
+function _coins1(address c) pure returns (address[] memory a) {
+    a = new address[](1);
+    a[0] = c;
+}
+
 /// @dev Minimal view of the deployCode'd SukukDistributor (^0.8.20).
 interface ISukukDistributor {
     enum Status {
@@ -41,17 +46,17 @@ interface ISukukDistributor {
     function ADMIN_ROLE() external view returns (bytes32);
     function leafHash(uint256, bytes32, bytes32, uint256, uint256) external pure returns (bytes32);
     function openSubscription(uint256 epoch, bytes32[] calldata proof) external;
-    function subscribe(uint256 amount) external;
+    function subscribe(address coin, uint256 amount) external;
     function closeSubscription() external;
     function refund() external;
-    function distribute(uint16 period, uint256 amount, uint256 epoch, bytes32[] calldata proof) external;
-    function claim() external;
+    function distribute(uint16 period, address coin, uint256 amount, uint256 epoch, bytes32[] calldata proof) external;
+    function claim(address coin) external;
     function claimable(address) external view returns (uint256);
     function profitPerToken() external view returns (uint256);
     function lastPeriod() external view returns (uint16);
-    function settleMaturity(uint256 amount, uint256 epoch, bytes32[] calldata proof) external;
-    function releaseHeldProfit(uint16 index, uint256 amount, uint256 epoch, bytes32[] calldata proof) external;
-    function claimProfit() external;
+    function settleMaturity(address coin, uint256 amount, uint256 epoch, bytes32[] calldata proof) external;
+    function releaseHeldProfit(uint16 index, address coin, uint256 amount, uint256 epoch, bytes32[] calldata proof) external;
+    function claimProfit(address coin) external;
     function claimableHeldProfit(address holder) external view returns (uint256);
     function entitledUnits(address holder) external view returns (uint256);
     function totalUnitsAtMaturity() external view returns (uint256);
@@ -63,8 +68,8 @@ interface ISukukDistributor {
     function sweepUnclaimed() external;
     function sweepDestination() external view returns (address);
     function setClaimWindow(uint256 window) external;
-    function settleDefault(uint256 recovery, uint256 epoch, bytes32[] calldata proof) external;
-    function redeem() external;
+    function settleDefault(address coin, uint256 recovery, uint256 epoch, bytes32[] calldata proof) external;
+    function redeem(address coin) external;
     function updateReserve(uint64 snapshotAt, uint256 outstanding, uint256 epoch, bytes32[] calldata proof) external;
     function reserveSnapshotAt() external view returns (uint64);
     function maxReserveAge() external view returns (uint64);
@@ -122,7 +127,7 @@ contract SukukDistributorTest is TrexFixture {
             deployCode(
                 "SukukDistributor.sol:SukukDistributor",
                 abi.encode(
-                    usdc,
+                    _coins1(usdc),
                     anchor,
                     address(ir),
                     address(token),
@@ -143,6 +148,7 @@ contract SukukDistributorTest is TrexFixture {
     }
 
     // --- helpers ---------------------------------------------------------
+
 
     function _leaf(bytes32 kind, uint256 a, uint256 b) internal view returns (bytes32) {
         return dist.leafHash(LEDGER_CHAIN_ID, kind, SUKUK, a, b);
@@ -172,7 +178,7 @@ contract SukukDistributorTest is TrexFixture {
         vm.startPrank(investor);
         IMockUSDC(usdc).faucet(amount);
         IMockUSDC(usdc).approve(address(dist), amount);
-        dist.subscribe(amount);
+        dist.subscribe(usdc, amount);
         vm.stopPrank();
     }
 
@@ -190,7 +196,7 @@ contract SukukDistributorTest is TrexFixture {
         uint256 epoch = _anchor(DISTRIBUTION, period, amount);
         vm.startPrank(bank);
         IMockUSDC(usdc).faucet(amount);
-        dist.distribute(period, amount, epoch, noProof);
+        dist.distribute(period, usdc, amount, epoch, noProof);
         vm.stopPrank();
     }
 
@@ -231,7 +237,7 @@ contract SukukDistributorTest is TrexFixture {
     function test_subscribeBeforeOpenReverts() public {
         vm.expectRevert(abi.encodeWithSignature("WrongStatus(uint8)", uint8(ISukukDistributor.Status.Pending)));
         vm.prank(alice);
-        dist.subscribe(MIN_SUB);
+        dist.subscribe(usdc, MIN_SUB);
     }
 
     function test_subscribeRequiresKyc() public {
@@ -240,7 +246,7 @@ contract SukukDistributorTest is TrexFixture {
         IMockUSDC(usdc).faucet(MIN_SUB);
         IMockUSDC(usdc).approve(address(dist), MIN_SUB);
         vm.expectRevert(abi.encodeWithSignature("NotEligible(address)", carol));
-        dist.subscribe(MIN_SUB);
+        dist.subscribe(usdc, MIN_SUB);
         vm.stopPrank();
     }
 
@@ -250,15 +256,15 @@ contract SukukDistributorTest is TrexFixture {
         IMockUSDC(usdc).faucet(FACE + 1);
         IMockUSDC(usdc).approve(address(dist), FACE + 1);
         vm.expectRevert(bytes4(keccak256("BelowMinimum()")));
-        dist.subscribe(MIN_SUB - 1);
+        dist.subscribe(usdc, MIN_SUB - 1);
         vm.expectRevert(bytes4(keccak256("ExceedsFaceValue()")));
-        dist.subscribe(FACE + 1);
+        dist.subscribe(usdc, FACE + 1);
         vm.stopPrank();
 
         vm.warp(block.timestamp + WINDOW);
         vm.expectRevert(bytes4(keccak256("SubscriptionClosed()")));
         vm.prank(alice);
-        dist.subscribe(MIN_SUB);
+        dist.subscribe(usdc, MIN_SUB);
     }
 
     function test_closeReleasesProceedsToIssuer() public {
@@ -315,7 +321,7 @@ contract SukukDistributorTest is TrexFixture {
         IMockUSDC(usdc).faucet(MIN_SUB);
         IMockUSDC(usdc).approve(address(dist), MIN_SUB);
         vm.expectRevert(abi.encodeWithSignature("ReserveInsufficient(uint256,uint256)", 250_000e6 + MIN_SUB, 250_000e6));
-        dist.subscribe(MIN_SUB);
+        dist.subscribe(usdc, MIN_SUB);
         vm.stopPrank();
 
         // A stale snapshot (not strictly newer) reverts.
@@ -351,7 +357,7 @@ contract SukukDistributorTest is TrexFixture {
         _fundAndApprove(alice, MIN_SUB);
         vm.expectRevert(abi.encodeWithSignature("NoReserveSnapshot()"));
         vm.prank(alice);
-        dist.subscribe(MIN_SUB);
+        dist.subscribe(usdc, MIN_SUB);
     }
 
     function test_subscribeRejectsAStaleSnapshot() public {
@@ -361,12 +367,12 @@ contract SukukDistributorTest is TrexFixture {
         uint64 at = dist.reserveSnapshotAt();
         vm.expectRevert(abi.encodeWithSignature("ReserveTooOld(uint64,uint64)", at, uint64(3 days)));
         vm.prank(alice);
-        dist.subscribe(MIN_SUB);
+        dist.subscribe(usdc, MIN_SUB);
 
         // A fresh snapshot lets subscriptions continue.
         _postReserve(FACE);
         vm.prank(alice);
-        dist.subscribe(MIN_SUB);
+        dist.subscribe(usdc, MIN_SUB);
     }
 
     function test_maxReserveAgeIsAdminConfigurable() public {
@@ -463,7 +469,7 @@ contract SukukDistributorTest is TrexFixture {
         uint256 epoch = _anchor(REDEMPTION, 400_000e6, 0);
         vm.startPrank(bank);
         IMockUSDC(usdc).faucet(400_000e6);
-        dist.settleMaturity(400_000e6, epoch, noProof);
+        dist.settleMaturity(usdc, 400_000e6, epoch, noProof);
         vm.stopPrank();
     }
 
@@ -471,14 +477,14 @@ contract SukukDistributorTest is TrexFixture {
         uint256 epoch = _anchor(RESOLUTION, amount, index);
         vm.startPrank(bank);
         IMockUSDC(usdc).faucet(amount);
-        dist.releaseHeldProfit(index, amount, epoch, noProof);
+        dist.releaseHeldProfit(index, usdc, amount, epoch, noProof);
         vm.stopPrank();
     }
 
     function _claim(address who) internal returns (uint256 paid) {
         uint256 before = IMockUSDC(usdc).balanceOf(who);
         vm.prank(who);
-        dist.claimProfit();
+        dist.claimProfit(usdc);
         paid = IMockUSDC(usdc).balanceOf(who) - before;
     }
 
@@ -496,7 +502,7 @@ contract SukukDistributorTest is TrexFixture {
         _mature();
         // Alice redeems before any release; her entitlement survives the burn.
         vm.prank(alice);
-        dist.redeem();
+        dist.redeem(usdc);
         assertEq(token.balanceOf(alice), 0);
         assertEq(dist.entitledUnits(alice), 300_000e6);
 
@@ -512,7 +518,7 @@ contract SukukDistributorTest is TrexFixture {
         // Nobody can claim more than their pro-rata share.
         vm.expectRevert(bytes4(keccak256("NothingToClaim()")));
         vm.prank(alice);
-        dist.claimProfit();
+        dist.claimProfit(usdc);
 
         assertEq(dist.totalHeldReleased(), dist.totalHeldClaimed() + dist.heldBalance() + dist.totalHeldSwept());
     }
@@ -524,10 +530,10 @@ contract SukukDistributorTest is TrexFixture {
         vm.startPrank(bank);
         IMockUSDC(usdc).faucet(1_000e6);
         vm.expectRevert(abi.encodeWithSignature("ReleaseNotSequential(uint16,uint16)", uint16(1), uint16(2)));
-        dist.releaseHeldProfit(2, 1_000e6, epoch, noProof);
+        dist.releaseHeldProfit(2, usdc, 1_000e6, epoch, noProof);
         // Index 1 with an amount the ledger did not record fails the proof.
         vm.expectRevert(abi.encodeWithSignature("ProofInvalid()"));
-        dist.releaseHeldProfit(1, 1_000e6, epoch, noProof);
+        dist.releaseHeldProfit(1, usdc, 1_000e6, epoch, noProof);
         vm.stopPrank();
     }
 
@@ -559,7 +565,7 @@ contract SukukDistributorTest is TrexFixture {
         // Swept profit is no longer claimable.
         vm.expectRevert(bytes4(keccak256("NothingToClaim()")));
         vm.prank(bob);
-        dist.claimProfit();
+        dist.claimProfit(usdc);
         assertEq(dist.totalHeldReleased(), dist.totalHeldClaimed() + dist.heldBalance() + dist.totalHeldSwept());
     }
 
@@ -583,12 +589,12 @@ contract SukukDistributorTest is TrexFixture {
         uint256 epoch = _anchor(REDEMPTION, total, 0);
         vm.startPrank(bank);
         IMockUSDC(usdc).faucet(total);
-        dist.settleMaturity(total, epoch, noProof);
+        dist.settleMaturity(usdc, total, epoch, noProof);
         vm.stopPrank();
 
         _release(1, rel1);
         vm.prank(bob);
-        dist.redeem();
+        dist.redeem(usdc);
         _release(2, rel2);
 
         uint256 paid;
@@ -635,7 +641,7 @@ contract SukukDistributorTest is TrexFixture {
         vm.startPrank(bank);
         IMockUSDC(usdc).faucet(9_000e6);
         vm.expectRevert(bytes4(keccak256("ProofInvalid()")));
-        dist.distribute(1, 9_000e6, epoch, noProof);
+        dist.distribute(1, usdc, 9_000e6, epoch, noProof);
         vm.stopPrank();
         assertEq(dist.profitPerToken(), 0);
     }
@@ -647,13 +653,13 @@ contract SukukDistributorTest is TrexFixture {
         assertEq(dist.claimable(bob), 2_000e6);
 
         vm.prank(alice);
-        dist.claim();
+        dist.claim(usdc);
         assertEq(IMockUSDC(usdc).balanceOf(alice), 6_000e6);
         assertEq(dist.claimable(alice), 0);
 
         vm.expectRevert(bytes4(keccak256("NothingToClaim()")));
         vm.prank(alice);
-        dist.claim();
+        dist.claim(usdc);
     }
 
     function test_periodsAreSequentialAndNotReplayable() public {
@@ -661,14 +667,14 @@ contract SukukDistributorTest is TrexFixture {
         uint256 epoch2 = _anchor(DISTRIBUTION, 2, 8_000e6);
         vm.prank(bank);
         vm.expectRevert(abi.encodeWithSignature("PeriodNotSequential(uint16,uint16)", uint16(1), uint16(2)));
-        dist.distribute(2, 8_000e6, epoch2, noProof);
+        dist.distribute(2, usdc, 8_000e6, epoch2, noProof);
 
         uint256 epoch1 = _anchor(DISTRIBUTION, 1, 8_000e6);
         vm.startPrank(bank);
         IMockUSDC(usdc).faucet(16_000e6);
-        dist.distribute(1, 8_000e6, epoch1, noProof);
+        dist.distribute(1, usdc, 8_000e6, epoch1, noProof);
         vm.expectRevert(abi.encodeWithSignature("PeriodNotSequential(uint16,uint16)", uint16(2), uint16(1)));
-        dist.distribute(1, 8_000e6, epoch1, noProof);
+        dist.distribute(1, usdc, 8_000e6, epoch1, noProof);
         vm.stopPrank();
     }
 
@@ -707,7 +713,7 @@ contract SukukDistributorTest is TrexFixture {
 
         vm.startPrank(bank);
         IMockUSDC(usdc).faucet(8_000e6);
-        dist.distribute(1, 8_000e6, epoch, proof);
+        dist.distribute(1, usdc, 8_000e6, epoch, proof);
         vm.stopPrank();
         assertEq(dist.claimable(alice), 6_000e6);
     }
@@ -721,21 +727,21 @@ contract SukukDistributorTest is TrexFixture {
         uint256 epoch = _anchor(REDEMPTION, 400_000e6, 0);
         vm.startPrank(bank);
         IMockUSDC(usdc).faucet(400_000e6);
-        dist.settleMaturity(400_000e6, epoch, noProof);
+        dist.settleMaturity(usdc, 400_000e6, epoch, noProof);
         vm.stopPrank();
         assertEq(uint8(dist.status()), uint8(ISukukDistributor.Status.Matured));
 
         vm.prank(alice);
-        dist.redeem();
+        dist.redeem(usdc);
         assertEq(IMockUSDC(usdc).balanceOf(alice), 300_000e6 + 6_000e6);
         assertEq(token.balanceOf(alice), 0);
 
         vm.expectRevert(bytes4(keccak256("NothingToClaim()")));
         vm.prank(alice);
-        dist.redeem();
+        dist.redeem(usdc);
 
         vm.prank(bob);
-        dist.redeem();
+        dist.redeem(usdc);
         assertEq(IMockUSDC(usdc).balanceOf(bob), 100_000e6 + 2_000e6);
         assertEq(IMockUSDC(usdc).balanceOf(address(dist)), 0);
     }
@@ -744,7 +750,7 @@ contract SukukDistributorTest is TrexFixture {
         _issue();
         vm.expectRevert(abi.encodeWithSignature("WrongStatus(uint8)", uint8(ISukukDistributor.Status.Active)));
         vm.prank(alice);
-        dist.redeem();
+        dist.redeem(usdc);
     }
 
     function test_settleMaturityRequiresProof() public {
@@ -753,9 +759,9 @@ contract SukukDistributorTest is TrexFixture {
         vm.startPrank(bank);
         IMockUSDC(usdc).faucet(400_000e6);
         vm.expectRevert(bytes4(keccak256("ProofInvalid()")));
-        dist.settleMaturity(1e6, epoch, noProof);
+        dist.settleMaturity(usdc, 1e6, epoch, noProof);
         vm.expectRevert(bytes4(keccak256("ProofInvalid()")));
-        dist.settleDefault(400_000e6, epoch, noProof);
+        dist.settleDefault(usdc, 400_000e6, epoch, noProof);
         vm.stopPrank();
     }
 
@@ -764,14 +770,14 @@ contract SukukDistributorTest is TrexFixture {
         uint256 epoch = _anchor(DEFAULT, 100_000e6, 0);
         vm.startPrank(bank);
         IMockUSDC(usdc).faucet(100_000e6);
-        dist.settleDefault(100_000e6, epoch, noProof);
+        dist.settleDefault(usdc, 100_000e6, epoch, noProof);
         vm.stopPrank();
         assertEq(uint8(dist.status()), uint8(ISukukDistributor.Status.Defaulted));
 
         vm.prank(alice);
-        dist.redeem();
+        dist.redeem(usdc);
         vm.prank(bob);
-        dist.redeem();
+        dist.redeem(usdc);
         assertEq(IMockUSDC(usdc).balanceOf(alice), 75_000e6);
         assertEq(IMockUSDC(usdc).balanceOf(bob), 25_000e6);
     }
@@ -780,12 +786,12 @@ contract SukukDistributorTest is TrexFixture {
         _issue();
         uint256 epoch = _anchor(DEFAULT, 0, 0);
         vm.prank(bank);
-        dist.settleDefault(0, epoch, noProof);
+        dist.settleDefault(usdc, 0, epoch, noProof);
 
         uint256 epoch1 = _anchor(DISTRIBUTION, 1, 1e6);
         vm.expectRevert(abi.encodeWithSignature("WrongStatus(uint8)", uint8(ISukukDistributor.Status.Defaulted)));
         vm.prank(bank);
-        dist.distribute(1, 1e6, epoch1, noProof);
+        dist.distribute(1, usdc, 1e6, epoch1, noProof);
     }
 
     // --- fuzz ------------------------------------------------------------
@@ -820,26 +826,26 @@ contract SukukDistributorTest is TrexFixture {
         uint256 epoch = _anchor(REDEMPTION, redemption, 0);
         vm.startPrank(bank);
         IMockUSDC(usdc).faucet(redemption);
-        dist.settleMaturity(redemption, epoch, noProof);
+        dist.settleMaturity(usdc, redemption, epoch, noProof);
         vm.stopPrank();
 
         // Profit accrued before a transfer stays claimable by the sender even at zero balance.
         if (dist.claimable(alice) > 0) {
             vm.prank(alice);
-            dist.claim();
+            dist.claim(usdc);
         }
         if (dist.claimable(bob) > 0) {
             vm.prank(bob);
-            dist.claim();
+            dist.claim(usdc);
         }
         // Check balances before pranking: vm.prank applies to the very next call, balanceOf included.
         if (token.balanceOf(alice) > 0) {
             vm.prank(alice);
-            dist.redeem();
+            dist.redeem(usdc);
         }
         if (token.balanceOf(bob) > 0) {
             vm.prank(bob);
-            dist.redeem();
+            dist.redeem(usdc);
         }
 
         uint256 paid = IMockUSDC(usdc).balanceOf(alice) + IMockUSDC(usdc).balanceOf(bob);
@@ -871,7 +877,7 @@ contract SukukReentrancyTest is TrexFixture {
             deployCode(
                 "SukukDistributor.sol:SukukDistributor",
                 abi.encode(
-                    usdc, anchor, address(ir), address(token), address(module),
+                    _coins1(usdc), anchor, address(ir), address(token), address(module),
                     keccak256("S"), uint256(100e6), maturity, uint256(10e6), uint256(1e6), uint40(1 days), deployer,
                     deployer
                 )
@@ -894,7 +900,7 @@ contract SukukReentrancyTest is TrexFixture {
         vm.startPrank(alice);
         IReentrantUSDC(usdc).faucet(100e6);
         IReentrantUSDC(usdc).approve(address(dist), 100e6);
-        dist.subscribe(100e6);
+        dist.subscribe(usdc, 100e6);
         vm.stopPrank();
 
         vm.startPrank(deployer);
@@ -902,7 +908,7 @@ contract SukukReentrancyTest is TrexFixture {
         IReentrantUSDC(usdc).faucet(5e6);
         IReentrantUSDC(usdc).approve(address(dist), 5e6);
         dist.distribute(
-            1, 5e6, IMockLedgerAnchor(anchor).push(dist.leafHash(1, keccak256("tawf.sukuk.distribution"), keccak256("S"), 1, 5e6)), noProof
+            1, usdc, 5e6, IMockLedgerAnchor(anchor).push(dist.leafHash(1, keccak256("tawf.sukuk.distribution"), keccak256("S"), 1, 5e6)), noProof
         );
         vm.stopPrank();
 
@@ -910,6 +916,6 @@ contract SukukReentrancyTest is TrexFixture {
         // SukukDistributor uses OZ v5 ReentrancyGuard -> custom error.
         vm.expectRevert(bytes4(keccak256("ReentrancyGuardReentrantCall()")));
         vm.prank(alice);
-        dist.claim();
+        dist.claim(usdc);
     }
 }
