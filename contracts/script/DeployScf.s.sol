@@ -84,7 +84,7 @@ contract DeployScf is DeployExtra {
         s.distributor = deployCode(
             "SukukDistributor.sol:SukukDistributor",
             abi.encode(
-                _sukukUsdc,
+                _singleCoin(_sukukUsdc),
                 s.anchor,
                 _sharedIdentityRegistry,
                 address(token),

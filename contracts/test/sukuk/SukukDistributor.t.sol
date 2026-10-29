@@ -88,6 +88,11 @@ interface IMockUSDC {
     function balanceOf(address a) external view returns (uint256);
 }
 
+interface IFunderRole {
+    function FUNDER_ROLE() external view returns (bytes32);
+    function grantRole(bytes32 role, address account) external;
+}
+
 interface IMockLedgerAnchor {
     function ledgerChainId() external view returns (uint256);
     function push(bytes32 root) external returns (uint256 epoch);
@@ -145,6 +150,9 @@ contract SukukDistributorTest is TrexFixture {
 
         vm.prank(bank);
         IMockUSDC(usdc).approve(address(dist), type(uint256).max);
+        bytes32 funder = IFunderRole(address(dist)).FUNDER_ROLE();
+        vm.prank(deployer);
+        IFunderRole(address(dist)).grantRole(funder, bank);
     }
 
     // --- helpers ---------------------------------------------------------

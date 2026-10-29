@@ -71,6 +71,9 @@ contract ScfSukukFlowTest is TrexFixture {
         mc.addModule(address(scf));
         vm.stopPrank();
         _wireDistributor(token, mc, module, address(dist));
+        vm.prank(deployer);
+        (bool okRole,) = address(dist).call(abi.encodeWithSignature("grantRole(bytes32,address)", keccak256("FUNDER_ROLE"), issuer));
+        require(okRole, "grant funder");
 
         aliceId = _registerVerified(alice, 360);
         bobId = _registerVerified(bob, 360);

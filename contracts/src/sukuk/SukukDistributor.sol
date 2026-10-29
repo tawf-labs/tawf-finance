@@ -42,6 +42,13 @@ import { ProfitAccumulator } from "../lib/ProfitAccumulator.sol";
  *      subscription refunds the coin each investor paid. Total coin balances
  *      always cover what is owed, though a single coin may run short.
  *
+ *      Par assumption (mainnet risk): every accepted coin is treated as exactly one USD
+ *      unit. If one coin trades below par, informed holders would prefer to be paid in
+ *      the others. Payouts therefore start with the requested coin and fall back to the
+ *      other coins in list order, and the admin can pause a coin with setCoinPaused so
+ *      it is no longer accepted for new money or as a preferred payout coin. A paused
+ *      coin is still used to complete a payout when nothing else can cover it.
+ *
  *      Shariah / profit-and-loss-sharing constraint, load-bearing: holders
  *      are paid only from stablecoin that has actually arrived here against a
  *      declared, realized amount. There is no rate, no accrual and no promised
@@ -63,6 +70,10 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     using ProfitAccumulator for ProfitAccumulator.State;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    /// @notice Funds distributions, maturity, default recovery and held-profit releases.
+    ///         Granted to the admin at construction. Restricting it means a stranger
+    ///         holding a ledger proof cannot choose which coin funds a payout.
+    bytes32 public constant FUNDER_ROLE = keccak256("FUNDER_ROLE");
 
     uint256 private constant PRECISION = 1e18;
     /// @notice Highest Tawf nisbah accepted (50% of profit).
@@ -112,6 +123,10 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     mapping(address => uint256) public raisedOf;
     /// @notice Total refunded per coin after a cancelled subscription.
     mapping(address => uint256) public refundedOf;
+    /// @notice Released held profit still held per coin (the coin each release was funded in).
+    mapping(address => uint256) public heldBalanceOf;
+    /// @notice Coins the admin has paused: not accepted for new money or as a preferred payout coin.
+    mapping(address => bool) public coinPaused;
 
     /// @notice USD per token unit paid at redemption, scaled by 1e18.
     uint256 public redemptionPerToken;
@@ -199,6 +214,8 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     error CoinNotAccepted(address coin);
     error InvalidCoins();
     error InsufficientCoin(address coin, uint256 available, uint256 needed);
+    error CoinIsPaused(address coin);
+    error RefundShortfall(uint256 missing);
 
     /// @notice The compliance module authorized to report balance changes.
     address public immutable module;
@@ -219,6 +236,9 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     event HeldProfitClaimed(address indexed holder, address indexed coin, uint256 entitledUnits, uint256 amount);
     event HeldProfitSwept(address indexed destination, address indexed coin, uint256 amount);
     event CoinToppedUp(address indexed from, address indexed coin, uint256 amount);
+    event CoinPausedSet(address indexed coin, bool paused);
+    /// @dev One per coin used by a payout, so a payout split across coins is fully visible.
+    event PayoutPart(address indexed to, address indexed coin, uint256 amount);
     event SweepDestinationSet(address indexed destination);
     event ClaimWindowSet(uint256 window);
     event TawfShareSet(uint16 nisbahBps, address feeRecipient);
@@ -256,7 +276,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         if (coins_.length == 0 || coins_.length > 4) revert InvalidCoins();
         for (uint256 i; i < coins_.length; ++i) {
             address c = coins_[i];
-            if (c == address(0) || isCoin[c] || IERC20Metadata(c).decimals() != 6) revert InvalidCoins();
+            if (c == address(0) || c == address(token_) || isCoin[c] || IERC20Metadata(c).decimals() != 6) revert InvalidCoins();
             isCoin[c] = true;
             _coins.push(c);
         }
@@ -268,6 +288,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         terms = terms_;
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
+        _grantRole(FUNDER_ROLE, admin);
     }
 
     // ---------------------------------------------------------------
@@ -313,9 +334,34 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         return _coins;
     }
 
-    /// @notice What `coin` can pay out right now (0 for a coin that is not accepted).
-    function available(address coin) external view returns (uint256) {
+    /// @notice The raw balance of `coin` held by this contract (0 for a coin that is not accepted).
+    ///         It includes released held profit, so it is not what the coin can pay holders.
+    function coinBalance(address coin) external view returns (uint256) {
         return isCoin[coin] ? IERC20(coin).balanceOf(address(this)) : 0;
+    }
+
+    /// @notice The part of `coin` that can pay ordinary profit and redemption (balance less held profit).
+    function freeBalance(address coin) external view returns (uint256) {
+        if (!isCoin[coin]) return 0;
+        uint256 bal = IERC20(coin).balanceOf(address(this));
+        uint256 reserved = heldBalanceOf[coin];
+        return bal > reserved ? bal - reserved : 0;
+    }
+
+    /// @notice Everything ever subscribed, summed over the coins. `raisedOf` is cumulative and is
+    ///         not reduced by redemption or refunds. Refunds are tracked in `refundedOf`.
+    function totalRaised() public view returns (uint256 sum) {
+        for (uint256 i; i < _coins.length; ++i) sum += raisedOf[_coins[i]];
+    }
+
+    /// @notice Everything refunded after a cancelled subscription, summed over the coins.
+    function totalRefunded() public view returns (uint256 sum) {
+        for (uint256 i; i < _coins.length; ++i) sum += refundedOf[_coins[i]];
+    }
+
+    /// @notice The raise net of refunds: totalRaised() - totalRefunded().
+    function netRaised() external view returns (uint256) {
+        return totalRaised() - totalRefunded();
     }
 
     /// @notice Latest verified outstanding reserve figure (the mint cap).
@@ -359,7 +405,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     ///      moves. A recent verified reserve snapshot must cover supply after mint.
     function subscribe(address coin, uint256 amount) external nonReentrant {
         if (status != Status.Subscription) revert WrongStatus(status);
-        if (!isCoin[coin]) revert CoinNotAccepted(coin);
+        _requireActiveCoin(coin);
         if (block.timestamp >= subscriptionDeadline) revert SubscriptionClosed();
         if (!identityRegistry.isVerified(msg.sender)) revert NotEligible(msg.sender);
         if (amount < terms.minSubscription) revert BelowMinimum();
@@ -415,6 +461,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
             address c = _coins[i];
             remaining -= _refundCoin(c, _min(remaining, raisedOf[c] - refundedOf[c]));
         }
+        if (remaining != 0) revert RefundShortfall(remaining);
     }
 
     function _refundCoin(address c, uint256 part) private returns (uint256) {
@@ -435,10 +482,11 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     ///         exactly the amount the bank declared on the ledger.
     function distribute(uint16 period, address coin, uint256 amount, uint256 epoch, bytes32[] calldata proof)
         external
+        onlyRole(FUNDER_ROLE)
         nonReentrant
     {
         if (status != Status.Active) revert WrongStatus(status);
-        if (!isCoin[coin]) revert CoinNotAccepted(coin);
+        _requireActiveCoin(coin);
         if (period != lastPeriod + 1) revert PeriodNotSequential(lastPeriod + 1, period);
         _requireFact(LedgerLeaf.SUKUK_DISTRIBUTION, period, amount, epoch, proof);
 
@@ -461,7 +509,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         _profit.settle(msg.sender, token.balanceOf(msg.sender));
         uint256 amount = _profit.take(msg.sender);
         if (amount == 0) revert NothingToClaim();
-        _pay(coin, msg.sender, amount);
+        _payFree(coin, msg.sender, amount);
         emit ProfitClaimed(msg.sender, coin, amount);
     }
 
@@ -491,9 +539,13 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     // ---------------------------------------------------------------
 
     /// @notice Fund redemption at maturity with the amount declared on the ledger.
-    function settleMaturity(address coin, uint256 amount, uint256 epoch, bytes32[] calldata proof) external nonReentrant {
+    function settleMaturity(address coin, uint256 amount, uint256 epoch, bytes32[] calldata proof)
+        external
+        onlyRole(FUNDER_ROLE)
+        nonReentrant
+    {
         if (status != Status.Active) revert WrongStatus(status);
-        if (!isCoin[coin]) revert CoinNotAccepted(coin);
+        _requireActiveCoin(coin);
         _requireFact(LedgerLeaf.SUKUK_REDEMPTION, amount, 0, epoch, proof);
         status = Status.Matured;
         // Freeze the entitled set: transfers stop from here (afterBalanceChange).
@@ -503,13 +555,26 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     }
 
     /// @notice Fund the recovery after a default declared on the ledger.
-    function settleDefault(address coin, uint256 recovery, uint256 epoch, bytes32[] calldata proof) external nonReentrant {
+    function settleDefault(address coin, uint256 recovery, uint256 epoch, bytes32[] calldata proof)
+        external
+        onlyRole(FUNDER_ROLE)
+        nonReentrant
+    {
         if (status != Status.Active) revert WrongStatus(status);
-        if (!isCoin[coin]) revert CoinNotAccepted(coin);
+        _requireActiveCoin(coin);
         _requireFact(LedgerLeaf.SUKUK_DEFAULT, recovery, 0, epoch, proof);
         status = Status.Defaulted;
         _fundRedemption(coin, recovery);
         emit DefaultSettled(coin, recovery);
+    }
+
+    /// @notice Pause or unpause a coin. A paused coin is not accepted for new money (subscribe, funding,
+    ///         topUp) or as a preferred payout coin, but payouts still draw on it when the other
+    ///         coins cannot cover them, so no holder is stranded.
+    function setCoinPaused(address coin, bool paused) external onlyRole(ADMIN_ROLE) {
+        if (!isCoin[coin]) revert CoinNotAccepted(coin);
+        coinPaused[coin] = paused;
+        emit CoinPausedSet(coin, paused);
     }
 
     /// @notice Add liquidity in an accepted coin. Anyone may call it, for
@@ -517,7 +582,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     ///         so holders can redeem and claim in the coin they prefer. It changes
     ///         no accounting, the coin is simply available to pay out.
     function topUp(address coin, uint256 amount) external nonReentrant {
-        if (!isCoin[coin]) revert CoinNotAccepted(coin);
+        _requireActiveCoin(coin);
         IERC20(coin).safeTransferFrom(msg.sender, address(this), amount);
         emit CoinToppedUp(msg.sender, coin, amount);
     }
@@ -536,7 +601,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         uint256 profit = _profit.take(msg.sender);
         uint256 principal = (units * redemptionPerToken) / PRECISION;
 
-        _pay(coin, msg.sender, principal + profit);
+        _payFree(coin, msg.sender, principal + profit);
         emit Redeemed(msg.sender, coin, units, principal, profit);
     }
 
@@ -549,10 +614,11 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     ///         pays exactly that amount; holders at maturity claim it pro rata.
     function releaseHeldProfit(uint16 index, address coin, uint256 amount, uint256 epoch, bytes32[] calldata proof)
         external
+        onlyRole(FUNDER_ROLE)
         nonReentrant
     {
         if (status != Status.Matured) revert WrongStatus(status);
-        if (!isCoin[coin]) revert CoinNotAccepted(coin);
+        _requireActiveCoin(coin);
         if (index != heldReleases + 1) revert ReleaseNotSequential(heldReleases + 1, index);
         if (amount == 0) revert ZeroRelease();
         _requireFact(LedgerLeaf.SUKUK_PROFIT_RESOLUTION, amount, index, epoch, proof);
@@ -562,6 +628,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         heldProfitPerUnit += (amount * PRECISION) / totalUnitsAtMaturity;
         totalHeldReleased += amount;
         heldBalance += amount;
+        heldBalanceOf[coin] += amount;
         lastReleaseAt = block.timestamp;
         emit HeldProfitReleased(index, coin, amount, heldProfitPerUnit);
     }
@@ -587,7 +654,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         if (amount == 0) revert NothingToClaim();
         heldBalance -= amount;
         totalHeldClaimed += amount;
-        _pay(coin, msg.sender, amount);
+        _payHeld(coin, msg.sender, amount);
         emit HeldProfitClaimed(msg.sender, coin, entitledUnits(msg.sender), amount);
     }
 
@@ -596,7 +663,8 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     function setSweepDestination(address destination, uint256 epoch, bytes32[] calldata proof) external {
         if (sweepDestination != address(0)) revert SweepDestinationAlreadySet();
         if (
-            destination == address(0) || destination == address(this) || destination == terms.issuerTreasury
+            destination == address(0) || destination == address(this) || destination == address(token) || isCoin[destination]
+                || destination == terms.issuerTreasury
                 || destination == feeRecipient
                 || hasRole(ADMIN_ROLE, destination) || hasRole(DEFAULT_ADMIN_ROLE, destination)
         ) revert InvalidSweepDestination(destination);
@@ -617,16 +685,15 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         heldBalance = 0;
         sweptPerUnitMark = heldProfitPerUnit;
         totalHeldSwept += amount;
-        uint256 remaining = amount;
-        for (uint256 i; i < _coins.length && remaining != 0; ++i) {
+        // Each coin's released profit goes out in the coin it was funded in.
+        for (uint256 i; i < _coins.length; ++i) {
             address c = _coins[i];
-            uint256 part = _min(remaining, IERC20(c).balanceOf(address(this)));
+            uint256 part = heldBalanceOf[c];
             if (part == 0) continue;
-            remaining -= part;
+            heldBalanceOf[c] = 0;
             IERC20(c).safeTransfer(sweepDestination, part);
             emit HeldProfitSwept(sweepDestination, c, part);
         }
-        if (remaining != 0) revert InsufficientCoin(address(0), amount - remaining, amount);
     }
 
     /// @notice Set how long holders can claim after the last release.
@@ -663,12 +730,48 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     // Internals
     // ---------------------------------------------------------------
 
-    /// @dev Pay `amount` USD units in `coin`, or revert so the holder can pick another coin.
-    function _pay(address coin, address to, uint256 amount) private {
+    /// @dev Pay `amount` USD units out of the balances that are not held profit. The preferred
+    ///      coin goes first, then the other coins in list order, and one PayoutPart is emitted
+    ///      per coin used. It reverts only when the total free balance cannot cover the payout.
+    function _payFree(address preferred, address to, uint256 amount) private {
+        _requireActiveCoin(preferred);
+        uint256 remaining = amount;
+        remaining -= _payPart(preferred, to, remaining, false);
+        for (uint256 i; i < _coins.length && remaining != 0; ++i) {
+            if (_coins[i] != preferred) remaining -= _payPart(_coins[i], to, remaining, false);
+        }
+        if (remaining != 0) revert InsufficientCoin(preferred, amount - remaining, amount);
+    }
+
+    /// @dev Same split, but drawing only from released held profit, coin by coin.
+    function _payHeld(address preferred, address to, uint256 amount) private {
+        _requireActiveCoin(preferred);
+        uint256 remaining = amount;
+        remaining -= _payPart(preferred, to, remaining, true);
+        for (uint256 i; i < _coins.length && remaining != 0; ++i) {
+            if (_coins[i] != preferred) remaining -= _payPart(_coins[i], to, remaining, true);
+        }
+        if (remaining != 0) revert InsufficientCoin(preferred, amount - remaining, amount);
+    }
+
+    function _payPart(address coin, address to, uint256 want, bool held) private returns (uint256 part) {
+        if (held) {
+            part = _min(want, heldBalanceOf[coin]);
+            if (part != 0) heldBalanceOf[coin] -= part;
+        } else {
+            uint256 bal = IERC20(coin).balanceOf(address(this));
+            uint256 reserved = heldBalanceOf[coin];
+            part = _min(want, bal > reserved ? bal - reserved : 0);
+        }
+        if (part == 0) return 0;
+        IERC20(coin).safeTransfer(to, part);
+        emit PayoutPart(to, coin, part);
+    }
+
+    /// @dev A coin that may receive new money or be named as the preferred payout coin.
+    function _requireActiveCoin(address coin) private view {
         if (!isCoin[coin]) revert CoinNotAccepted(coin);
-        uint256 have = IERC20(coin).balanceOf(address(this));
-        if (have < amount) revert InsufficientCoin(coin, have, amount);
-        IERC20(coin).safeTransfer(to, amount);
+        if (coinPaused[coin]) revert CoinIsPaused(coin);
     }
 
     function _min(uint256 a, uint256 b) private pure returns (uint256) {
