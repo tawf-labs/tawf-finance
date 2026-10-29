@@ -15,9 +15,9 @@ import { DEPOSITO_POOL_ENABLED, FINANCING_POOL_ENABLED } from '@/config/features
 // ScfInvestorLimitModule on the sukuk token enforces the POJK 57/2020 yearly limit.
 const STEPS = [
   { k: 'Declare', t: 'Your yearly limit is set.', b: 'You sign a suitability declaration. The POJK 57/2020 yearly limit is then recorded on your ONCHAINID and applied across the platform’s offerings.', c: 'ScfInvestorLimitModule.setProfile()' },
-  { k: 'Subscribe', t: 'You commit stablecoins.', b: 'USDC, USDT or USDG into the offering escrow, within your limit and the offering size.', c: 'SukukDistributor.subscribe()' },
-  { k: 'Close or refund', t: 'The minimum raise decides.', b: 'If the minimum raise is not met, everyone is refunded in the coin they paid.', c: 'closeSubscription() · refund()' },
-  { k: 'Issue', t: 'Sukuk tokens are minted.', b: 'Tokens are minted 1:1 to what you paid, within the verified reserve, and the raise goes to the SME.', c: 'SukukDistributor.closeSubscription()' },
+  { k: 'Subscribe', t: 'You commit stablecoins.', b: 'USDC, USDT or USDG into the offering escrow, within your limit and the offering size. Sukuk tokens are minted 1:1 to you within the verified reserve.', c: 'SukukDistributor.subscribe()' },
+  { k: 'Close or refund', t: 'The minimum raise decides.', b: 'If the minimum raise is not met, the offering is cancelled, the tokens are burned and everyone is refunded in the coin they paid.', c: 'closeSubscription() · refund()' },
+  { k: 'Issue', t: 'The raise is released.', b: 'The offering closes, the raise goes to the SME and the profit periods begin. Your tokens stay with you.', c: 'SukukDistributor.closeSubscription()' },
   { k: 'Profit', t: 'The SME pays each period.', b: 'Profit is distributed per period and you claim it in the coin you choose. Profit depends on the SME and is not guaranteed.', c: 'distribute() · claim()' },
   { k: 'Maturity', t: 'You redeem the principal.', b: 'At maturity the SME settles, your tokens are burned and you redeem your share. If the SME defaults, recovery is shared pro rata.', c: 'settleMaturity() · redeem()' },
 ];
@@ -25,8 +25,8 @@ const STEPS = [
 const STEP_TINT = ['bg-mint', 'bg-butter', 'bg-peach', 'bg-mint', 'bg-butter', 'bg-peach'];
 
 const RECEIPT = [
-  { s: 'Subscribed', fn: 'subscribe()', stamp: 'Escrowed', tone: 'text-honey', b: 'Your stablecoins wait in escrow while the offering is open. If the minimum raise is missed you are refunded.' },
-  { s: 'Issued', fn: 'closeSubscription()', stamp: 'Issued', tone: 'text-jade', b: 'The raise closed, tokens are minted 1:1 within the verified reserve, and each period you claim the profit the SME pays.' },
+  { s: 'Subscribed', fn: 'subscribe()', stamp: 'Escrowed', tone: 'text-honey', b: 'Your stablecoins wait in escrow while the offering is open and sukuk tokens are minted to you 1:1. If the minimum raise is missed you are refunded.' },
+  { s: 'Issued', fn: 'closeSubscription()', stamp: 'Issued', tone: 'text-jade', b: 'The raise closed and went to the SME. You keep your tokens and each period you claim the profit the SME pays.' },
   { s: 'Redeemed', fn: 'redeem()', stamp: 'Redeemed', tone: 'text-clay', b: 'At maturity your tokens are burned for your principal share. Profit depends on the SME and is not guaranteed.' },
 ];
 // Specimen profit periods elapsed (of 3) for each state.

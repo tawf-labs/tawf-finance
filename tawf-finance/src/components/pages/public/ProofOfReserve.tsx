@@ -189,7 +189,8 @@ function poolRow(p: PoolReserveLine): RowLine {
 }
 
 function ScfReserveRow({ scf }: { scf: ScfStatus }) {
-  const supply = BigInt(scf.supply ?? scf.raised ?? '0');
+  const supply = BigInt(scf.supply ?? '0');
+  const raised = BigInt(scf.raised ?? scf.supply ?? '0');
   const reserve = BigInt(scf.reserve ?? '0');
   const size = BigInt(scf.offeringCap ?? '0');
   const minRaise = BigInt(scf.minRaise ?? '0');
@@ -210,14 +211,14 @@ function ScfReserveRow({ scf }: { scf: ScfStatus }) {
         )}
       </div>
       <ProgressBar
-        value={Number(supply)}
-        max={Number(size) || Number(supply) || 1}
+        value={Number(raised)}
+        max={Number(size) || Number(raised) || 1}
         label="Raised against the offering size"
       />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
         <div>
           <p className="text-xs text-tawf-muted">Raised</p>
-          <p className="font-medium text-tawf-green">{formatUsdc(supply)}</p>
+          <p className="font-medium text-tawf-green">{formatUsdc(raised)}</p>
         </div>
         <div>
           <p className="text-xs text-tawf-muted">Offering size</p>
