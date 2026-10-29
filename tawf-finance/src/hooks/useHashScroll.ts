@@ -7,7 +7,7 @@ import { useLocation } from 'react-router-dom';
  * (for example from a footer link on another page) would otherwise stay at the top.
  * It keeps aligning the section for ~2s while content above it settles (fonts, images,
  * reveal and sticky sections), honours the section's scroll-margin, and stops as soon as
- * the visitor scrolls or touches the page, or when the page moves away from the section.
+ * the visitor scrolls or touches the page.
  * Stopping also cancels a glide already in flight. Reduced motion gets an instant jump either way.
  */
 export function useHashScroll() {
@@ -32,20 +32,6 @@ export function useHashScroll() {
     const events = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const;
     events.forEach((e) => window.addEventListener(e, stop, { passive: true }));
 
-    // Also stop when the page moves away from the section (for example a scrollbar drag).
-    // Layout settling moves the section, not the scroll position, so it never trips this.
-    let lastY = window.scrollY;
-    const onScroll = () => {
-      const el = document.getElementById(id);
-      const y = window.scrollY;
-      if (el && !stopped) {
-        const below = el.getBoundingClientRect().top > 0;
-        if ((below && y < lastY - 40) || (!below && y > lastY + 40 && el.getBoundingClientRect().top < -40)) stop();
-      }
-      lastY = y;
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-
     const started = performance.now();
     let timer: number | undefined;
     const tick = () => {
@@ -60,7 +46,6 @@ export function useHashScroll() {
       cancelAnimationFrame(raf);
       window.clearTimeout(timer);
       events.forEach((e) => window.removeEventListener(e, stop));
-      window.removeEventListener('scroll', onScroll);
     };
   }, [pathname, hash]);
 }
