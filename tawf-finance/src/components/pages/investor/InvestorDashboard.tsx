@@ -285,7 +285,7 @@ export function InvestorDashboard() {
           <div className="p-3 bg-blue-50 rounded-xl"><ArrowUpRight className="w-5 h-5 text-blue-600" /></div>
           <div>
             <p className="font-medium text-tawf-green">Withdraw</p>
-            <p className="text-xs text-tawf-muted">Get returns</p>
+            <p className="text-xs text-tawf-muted">Claim profit</p>
           </div>
         </Link>
         <Link

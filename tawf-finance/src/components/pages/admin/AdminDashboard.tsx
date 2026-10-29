@@ -35,7 +35,8 @@ export function AdminDashboard() {
 
   const verified = useMemo(() => new Set(events.filter((e) => e.kind === 'IdentityRegistered' && e.investor).map((e) => e.investor!.toLowerCase())).size, [events]);
   const scfInvestors = useMemo(() => new Set(events.filter((e) => e.kind === 'Subscribed' && e.product === 'scf' && e.investor).map((e) => e.investor!.toLowerCase())).size, [events]);
-  const scfProfiles = useMemo(() => new Set(events.filter((e) => e.kind === 'ProfileSet' && e.investor).map((e) => e.investor!.toLowerCase())).size, [events]);
+  // ProfileSet is keyed by ONCHAINID, so count distinct identities. Events without the field (indexed earlier) count one each.
+  const scfProfiles = useMemo(() => new Set(events.filter((e) => e.kind === 'ProfileSet').map((e) => e.onchainId?.toLowerCase() ?? e.id)).size, [events]);
   const investors = useMemo(() => new Set(events.filter((e) => e.kind === 'Subscribed' && e.investor).map((e) => e.investor!.toLowerCase())).size, [events]);
 
   const supply = BigInt(pool?.supply ?? '0') + BigInt(s1?.supply ?? '0');

@@ -24,6 +24,8 @@ export interface ActivityEvent {
   sen: string | null;
   /** SCF annual limit in coin base units (ProfileSet only). */
   limit: string | null;
+  /** The ONCHAINID a ProfileSet event is keyed by. Older cached or indexed events lack it. */
+  onchainId?: `0x${string}` | null;
   period: number | null;
 }
 

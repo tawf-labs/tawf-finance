@@ -61,6 +61,8 @@ export interface ActivityEvent {
   sen: string | null
   /** SCF annual limit in settlement-token base units (ProfileSet only). */
   limit: string | null
+  /** The ONCHAINID a ProfileSet event is keyed by (the limit module has no wallet). Events indexed earlier lack it. */
+  onchainId?: Address | null
   period: number | null
 }
 
@@ -122,6 +124,7 @@ export function normalize(product: Product, log: Log & { eventName?: string; arg
     coin,
     sen,
     limit,
+    ...(name === 'ProfileSet' && typeof a.onchainId === 'string' ? { onchainId: getAddress(a.onchainId) } : {}),
     period: typeof a.period === 'number' || typeof a.period === 'bigint' ? Number(a.period) : null,
   }
 }

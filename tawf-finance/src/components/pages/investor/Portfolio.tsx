@@ -147,7 +147,7 @@ export function Portfolio() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">My Portfolio</h1>
-          <p className="text-tawf-muted">Your Deposito Pool and crowdfunding positions</p>
+          <p className="text-tawf-muted">{DEPOSITO_POOL_ENABLED ? 'Your Deposito Pool and crowdfunding positions' : 'Your Urun Dana crowdfunding positions'}</p>
         </div>
         <GetTestUsdc />
       </div>
