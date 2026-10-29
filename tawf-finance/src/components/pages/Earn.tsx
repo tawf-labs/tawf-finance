@@ -1,263 +1,96 @@
-import { motion } from 'framer-motion';
-import type { Variants } from 'framer-motion';
-import { TrendingUp, Clock, DollarSign, Lock } from 'lucide-react';
-import { Card } from '../ui/Card';
-import { Section } from '../ui/Section';
-import { Button } from '../ui/Button';
+import { Link } from 'react-router-dom';
+import { Landmark, Rocket, Clock } from 'lucide-react';
+import { PublicPage, PageHero, Chapter, Tile, solid, ghost } from '../landing/PublicPage';
+import { Reveal } from '../landing/Reveal';
 import { FINANCING_POOL_ENABLED } from '@/config/features';
 
-interface Pool {
-  id: string;
-  name: string;
-  description: string;
-  instrument: string;
-  apy: string;
-  duration: string;
-  minInvestment: string;
-  tvl: string;
-  available: boolean;
-  category: string;
-}
+const APP = 'https://app.tawf.finance/login';
 
-const pools: Pool[] = [
-  {
-    id: 'bprs-amanah-microtrade',
-    name: 'BPRS Amanah Micro-Trade',
-    description: 'Take exposure to a pool of micro-trade financing originated and serviced by a licensed Shariah bank, under a murabaha structure.',
-    instrument: 'Murabaha',
-    apy: '6-8%',
-    duration: '30-60 days',
-    minInvestment: '$10',
-    tvl: '$125,000',
-    available: true,
-    category: 'Micro-Trade',
-  },
-  {
-    id: 'bprs-barokah-agri',
-    name: 'BPRS Barokah Agri Financing',
-    description: 'A pool of seasonal agricultural financing serviced by the originating BPRS. NPF ratio and akad compliance are verifiable on-chain.',
-    instrument: 'Musyarakah',
-    apy: '7-10%',
-    duration: '45-90 days',
-    minInvestment: '$25',
-    tvl: '$89,000',
-    available: true,
-    category: 'Agriculture',
-  },
-  {
-    id: 'bprs-sejahtera-sme',
-    name: 'BPRS Sejahtera SME',
-    description: 'Exposure to a pool of small-enterprise financing, structured as a musyarakah sell-down. The bank retains origination and servicing.',
-    instrument: 'Musyarakah',
-    apy: '8-11%',
-    duration: '60-90 days',
-    minInvestment: '$25',
-    tvl: '$67,000',
-    available: true,
-    category: 'SME Financing',
-  },
-  {
-    id: 'bprs-amanah-consumer',
-    name: 'BPRS Amanah Consumer',
-    description: 'A pool of Shariah consumer financing. Verify pool size, NPF ratio, and akad compliance without any borrower being exposed.',
-    instrument: 'Murabaha',
-    apy: '6-9%',
-    duration: '60-90 days',
-    minInvestment: '$15',
-    tvl: '$45,000',
-    available: true,
-    category: 'Consumer Financing',
-  },
-  {
-    id: 'bprs-barokah-trade',
-    name: 'BPRS Barokah Trade',
-    description: 'Exposure to a pool of working-capital trade financing serviced locally by the originating BPRS, funded outside its deposit market.',
-    instrument: 'Wakalah bil Istithmar',
-    apy: '7-10%',
-    duration: '45-75 days',
-    minInvestment: '$20',
-    tvl: '$38,000',
-    available: true,
-    category: 'Trade Financing',
-  },
+const steps = [
+  { title: 'Verify and get test funds', body: 'Connect a wallet, complete the test KYC and take test stablecoins from the faucet.' },
+  { title: 'Subscribe', body: 'Subscribe to the Deposito Pool, or back an SCF offering. Your test funds are held in escrow until they are allocated.' },
+  { title: 'Track and claim', body: 'Follow your balance and the per-bank reserve, and claim profit when it is distributed.' },
 ];
-
-const containerVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-};
-
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.5 },
-  },
-};
-
-function PoolCard({ pool }: { pool: Pool }) {
-  return (
-    <motion.div variants={itemVariants}>
-      <Card hover className="h-full p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs uppercase tracking-wide text-tawf-green font-medium">
-              {pool.category}
-            </span>
-            <span className="text-xs font-medium text-tawf-gold">{pool.instrument}</span>
-          </div>
-          {!FINANCING_POOL_ENABLED ? (
-            <span className="text-xs text-tawf-muted bg-tawf-sand-50 px-2 py-1 rounded-full">
-              Coming soon
-            </span>
-          ) : pool.available ? (
-            <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
-              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-              Open
-            </span>
-          ) : (
-            <span className="text-xs text-tawf-muted bg-tawf-sand-50 px-2 py-1 rounded-full">
-              Full
-            </span>
-          )}
-        </div>
-
-        <h3 className="font-serif text-xl text-tawf-green mb-2">{pool.name}</h3>
-        <p className="text-tawf-muted text-sm leading-relaxed mb-6">
-          {pool.description}
-        </p>
-
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-tawf-gold" />
-            <div>
-              <p className="text-xs text-tawf-muted">APY</p>
-              <p className="font-medium text-tawf-green">{pool.apy}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-tawf-gold" />
-            <div>
-              <p className="text-xs text-tawf-muted">Duration</p>
-              <p className="font-medium text-tawf-green">{pool.duration}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-tawf-gold" />
-            <div>
-              <p className="text-xs text-tawf-muted">Min Investment</p>
-              <p className="font-medium text-tawf-green">{pool.minInvestment}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-tawf-gold" />
-            <div>
-              <p className="text-xs text-tawf-muted">TVL</p>
-              <p className="font-medium text-tawf-green">{pool.tvl}</p>
-            </div>
-          </div>
-        </div>
-
-        {!FINANCING_POOL_ENABLED ? (
-          <Button size="md" className="w-full" disabled>
-            Coming after the pilot
-          </Button>
-        ) : pool.available ? (
-          <a href="https://app.tawf.finance/login" className="block">
-            <Button size="md" className="w-full">
-              Invest Now
-            </Button>
-          </a>
-        ) : (
-          <Button size="md" className="w-full" disabled>
-            Pool Full
-          </Button>
-        )}
-      </Card>
-    </motion.div>
-  );
-}
 
 export function Earn() {
   return (
-    <div className="min-h-screen bg-tawf-sand">
-      <Section className="py-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="max-w-4xl mx-auto text-center mb-16"
-        >
-          <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl text-tawf-green leading-[1.1] mb-6">
-            Earn Real Yield,
-            <span className="block text-tawf-gold">Create Real Impact</span>
-          </h1>
-          <p className="text-tawf-muted text-lg md:text-xl leading-relaxed max-w-2xl mx-auto">
-            The pilot starts with the Tawf Deposito Pool: mudharabah deposito across licensed Indonesian
-            BPRS in one region, with a per-bank proof of reserve. The financing pools below come after the pilot.
-          </p>
-          <a href="https://app.tawf.finance/login" className="inline-block mt-6 text-sm font-medium text-tawf-green underline">
-            Open the Deposito Pool in the investor app
-          </a>
-        </motion.div>
+    <PublicPage>
+      <PageHero
+        eyebrow="Earn"
+        title="Two ways in,"
+        accent="both on testnet"
+        lead="The pilot starts with the Tawf Deposito Pool and sharia crowdfunding (SCF). Both run on the Arbitrum Sepolia testnet with test funds. Profit depends on the underlying business and is never guaranteed."
+        actions={
+          <>
+            <a href={APP} className={solid}>Open the investor app</a>
+            <Link to="/how-it-works" className={ghost}>How it works</Link>
+          </>
+        }
+      />
 
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto"
-        >
-          {pools.map((pool) => (
-            <PoolCard key={pool.id} pool={pool} />
+      <Chapter tint="paper" from="stone" eyebrow="The pilot" title="What you can" accent="join">
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Reveal className="h-full">
+            <Tile tint="mint" className="flex h-full flex-col">
+              <Landmark className="mb-5 h-8 w-8 text-jade" />
+              <p className="font-mono text-xs uppercase tracking-[0.12em] text-jade">Open on testnet</p>
+              <h3 className="display mt-2 text-3xl">Tawf Deposito Pool</h3>
+              <p className="mt-3 text-sm leading-relaxed text-ink/70">
+                Stablecoins into mudharabah deposito that Tawf holds at several licensed BPRS in one region. One ERC-3643 token,
+                a per-bank proof of reserve, and the nisbah fixed before you subscribe.
+              </p>
+              <a href={APP} className={`${solid} mt-8 self-start`}>Open the Deposito Pool</a>
+            </Tile>
+          </Reveal>
+          <Reveal delay={0.08} className="h-full">
+            <Tile tint="butter" className="flex h-full flex-col">
+              <Rocket className="mb-5 h-8 w-8 text-jade" />
+              <p className="font-mono text-xs uppercase tracking-[0.12em] text-jade">Open on testnet</p>
+              <h3 className="display mt-2 text-3xl">Sharia crowdfunding (SCF)</h3>
+              <p className="mt-3 text-sm leading-relaxed text-ink/70">
+                Back an SME offering (urun dana) through a licensed partner platform. Your yearly investment limit is enforced by
+                the token itself.
+              </p>
+              <a href={APP} className={`${solid} mt-8 self-start`}>Open Urun Dana</a>
+            </Tile>
+          </Reveal>
+          <Reveal delay={0.16} className="h-full">
+            <Tile className="flex h-full flex-col">
+              <Clock className="mb-5 h-8 w-8 text-ink/40" />
+              <p className="font-mono text-xs uppercase tracking-[0.12em] text-ink/50">
+                {FINANCING_POOL_ENABLED ? 'Open' : 'Not in the pilot'}
+              </p>
+              <h3 className="display mt-2 text-3xl text-ink/70">Financing pools</h3>
+              <p className="mt-3 text-sm leading-relaxed text-ink/60">
+                {FINANCING_POOL_ENABLED
+                  ? 'Pools of BPRS financing, sold down to investors.'
+                  : 'Pools of BPRS financing sold down to investors come after the pilot.'}
+              </p>
+              {FINANCING_POOL_ENABLED ? (
+                <a href={APP} className={`${solid} mt-8 self-start`}>Open the app</a>
+              ) : (
+                <span className="mt-8 inline-flex h-12 items-center self-start rounded-full px-6 text-sm font-semibold text-ink/40 ring-1 ring-ink/10">
+                  Coming after the pilot
+                </span>
+              )}
+            </Tile>
+          </Reveal>
+        </div>
+      </Chapter>
+
+      <Chapter tint="stone" from="paper" eyebrow="Steps" title="How it" accent="works">
+        <div className="grid gap-4 md:grid-cols-3">
+          {steps.map((s, i) => (
+            <Reveal key={s.title} delay={i * 0.08} className="h-full">
+              <Tile className="h-full">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-mint font-mono text-sm text-jade">{i + 1}</span>
+                  <h3 className="display mt-5 text-2xl">{s.title}</h3>
+                  <p className="mt-3 text-sm leading-relaxed text-ink/70">{s.body}</p>
+              </Tile>
+            </Reveal>
           ))}
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-          className="max-w-3xl mx-auto mt-16"
-        >
-          <Card className="p-8 bg-tawf-green/5">
-            <h3 className="font-serif text-2xl text-tawf-green mb-4">How It Works</h3>
-            <ol className="space-y-4 text-tawf-muted">
-              <li className="flex gap-4">
-                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-tawf-green text-white flex items-center justify-center font-medium">
-                  1
-                </span>
-                <div>
-                  <p className="font-medium text-tawf-green">Select a Pool</p>
-                  <p className="text-sm">Choose from live BPRS financing pools by segment, NPF ratio, and target profit.</p>
-                </div>
-              </li>
-              <li className="flex gap-4">
-                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-tawf-green text-white flex items-center justify-center font-medium">
-                  2
-                </span>
-                <div>
-                  <p className="font-medium text-tawf-green">Connect & Take Exposure</p>
-                  <p className="text-sm">Connect your wallet and take exposure from $10. Your funds go into a secure escrow.</p>
-                </div>
-              </li>
-              <li className="flex gap-4">
-                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-tawf-green text-white flex items-center justify-center font-medium">
-                  3
-                </span>
-                <div>
-                  <p className="font-medium text-tawf-green">Earn Returns</p>
-                  <p className="text-sm">The BPRS services and remits collections. Redeem principal and profit at maturity.</p>
-                </div>
-              </li>
-            </ol>
-          </Card>
-        </motion.div>
-      </Section>
-    </div>
+        </div>
+      </Chapter>
+    </PublicPage>
   );
 }

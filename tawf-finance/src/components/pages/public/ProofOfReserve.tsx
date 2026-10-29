@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { usePublicClient } from 'wagmi';
-import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { ShieldCheck, Loader2, ExternalLink, CheckCircle2, XCircle, ArrowRight } from 'lucide-react';
 import { encodeAbiParameters, keccak256, stringToHex } from 'viem';
-import { Card } from '@/components/ui/Card';
+import { Reveal } from '@/components/landing/Reveal';
+import { Chapter, PageHero, PublicPage, Tile, ghost } from '@/components/landing/PublicPage';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -101,11 +101,11 @@ function ReserveRow({ line }: { line: RowLine }) {
   };
 
   return (
-    <Card className="p-6">
-      <div className="flex items-start justify-between mb-3">
+    <Tile className="h-full">
+      <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <Badge variant="info" size="sm" className="mb-2">{line.symbol}</Badge>
-          <h3 className="font-serif text-xl text-tawf-green">{line.label}</h3>
+          <h3 className="display text-2xl">{line.label}</h3>
         </div>
         {line.fullyBacked ? (
           <Badge variant="success" size="md"><ShieldCheck className="w-3 h-3" /> Fully backed</Badge>
@@ -144,7 +144,7 @@ function ReserveRow({ line }: { line: RowLine }) {
       {line.profitNote && <p className="text-xs text-tawf-muted mt-3">{line.profitNote}</p>}
 
       {line.banks && line.banks.length > 0 && (
-        <div className="mt-4 rounded-xl border border-tawf-green-10 divide-y divide-tawf-green-10">
+        <div className="mt-4 rounded-2xl ring-1 ring-ink/10 divide-y divide-ink/10">
           {line.banks.map((b) => (
             <div key={b.id} className="flex items-center justify-between px-3 py-2 text-sm">
               <span className="text-tawf-green">{b.name} <span className="text-xs font-mono text-tawf-muted">{b.accountRef}</span></span>
@@ -164,12 +164,12 @@ function ReserveRow({ line }: { line: RowLine }) {
           {verify === 'error' && <span className="text-xs text-red-600">{verifyMsg}</span>}
         </div>
         {line.anchorTxHash && (
-          <a href={explorerTxUrl(line.anchorTxHash)} target="_blank" rel="noopener noreferrer" className="text-xs text-tawf-green hover:underline inline-flex items-center gap-1">
+          <a href={explorerTxUrl(line.anchorTxHash)} target="_blank" rel="noopener noreferrer" className="text-xs text-jade hover:underline inline-flex items-center gap-1">
             Anchor tx <ExternalLink className="w-3 h-3" />
           </a>
         )}
       </div>
-    </Card>
+    </Tile>
   );
 }
 
@@ -201,74 +201,81 @@ export function ProofOfReserve() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-tawf-sand">
-      <div className="section-container pt-32 pb-20">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="max-w-3xl mb-12">
-          <Badge variant="info" size="md" className="mb-4">Proof of reserve</Badge>
-          <h1 className="font-serif text-4xl text-tawf-green mb-4">Every token is backed by a real placement</h1>
-          <p className="text-tawf-muted leading-relaxed">
-            For each Tawf Deposito Pool we show the tokens outstanding on Arbitrum against Tawf&apos;s dedicated
-            account balances at the BPRS. The regional pool adds up Tawf&apos;s balance at each bank in the region and
-            shows every bank&apos;s part. A token can only be minted against a reserve fact the contract verifies, so
-            what you see here is checked, not claimed.
-          </p>
-          {data?.lastSyncAt && (
-            <p className="text-sm text-tawf-muted mt-3">Last BPRS sync: {new Date(data.lastSyncAt).toLocaleString('en-SG')}</p>
-          )}
-        </motion.div>
+    <PublicPage>
+      <PageHero
+        eyebrow="Proof of reserve"
+        title="Every token is matched"
+        accent="to a recorded placement."
+        lead={
+          <>
+            <p>
+              For each Tawf Deposito Pool we show the tokens outstanding on Arbitrum against Tawf&apos;s dedicated
+              account balances at the BPRS. The regional pool adds up Tawf&apos;s balance at each bank in the region and
+              shows every bank&apos;s part. A token can only be minted against a reserve fact the contract verifies, so
+              what you see is verified against the ledger, not asserted.
+            </p>
+            {data?.lastSyncAt && (
+              <p className="mt-3 text-sm text-ink/60">Last BPRS sync: {new Date(data.lastSyncAt).toLocaleString('en-SG')}</p>
+            )}
+          </>
+        }
+      />
 
+      <Chapter tint="paper" from="stone" eyebrow="Live reserve" title="Supply against" accent="the banks.">
         {!isTokenizationConfigured ? (
-          <div className="bg-amber-50 rounded-2xl border border-amber-200 p-6 max-w-3xl">
-            <p className="text-sm text-amber-700">Tokenization is not configured in this environment yet.</p>
+          <div className="max-w-3xl rounded-3xl bg-butter p-6">
+            <p className="text-sm text-ink">Tokenization is not configured in this environment yet.</p>
           </div>
         ) : loading ? (
-          <div className="flex items-center justify-center py-20 text-tawf-muted">
-            <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading reserve…
+          <div className="flex items-center justify-center py-20 text-ink/60">
+            <Loader2 className="mr-2 h-6 w-6 animate-spin" /> Loading reserve…
           </div>
         ) : error ? (
-          <div className="bg-red-50 rounded-2xl border border-red-200 p-6 max-w-3xl"><p className="text-sm text-red-600">{error}</p></div>
-        ) : data ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {data.pool && <ReserveRow line={poolRow(data.pool)} />}
-            {data.series && <ReserveRow line={seriesRow(data.series)} />}
+          <div className="max-w-3xl rounded-3xl bg-peach p-6"><p className="text-sm text-ink">{error}</p></div>
+        ) : data && (data.pool || data.series) ? (
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            {data.pool && <Reveal><ReserveRow line={poolRow(data.pool)} /></Reveal>}
+            {data.series && <Reveal delay={0.08}><ReserveRow line={seriesRow(data.series)} /></Reveal>}
           </div>
         ) : (
-          <p className="text-tawf-muted">No reserve snapshots anchored yet.</p>
+          <p className="text-ink/60">No reserve snapshots anchored yet.</p>
         )}
+      </Chapter>
 
-        {/* Trust path explainer */}
-        <Card className="p-8 mt-12 max-w-4xl">
-          <h2 className="font-serif text-2xl text-tawf-green mb-4">How the trust path works</h2>
-          <div className="flex flex-col md:flex-row md:items-center gap-3 text-sm">
-            {[
-              'BPRS core banking',
-              'bprs-connector',
-              'Tawf Network ledger',
-              'LedgerAnchor on Arbitrum',
-              'Mint gate',
-            ].map((step, i, arr) => (
-              <div key={step} className="flex items-center gap-3">
-                <span className="px-3 py-2 rounded-xl bg-tawf-green-10 text-tawf-green font-medium">{step}</span>
-                {i < arr.length - 1 && <ArrowRight className="w-4 h-4 text-tawf-gold shrink-0 rotate-90 md:rotate-0" />}
-              </div>
-            ))}
-          </div>
-          <p className="text-tawf-muted leading-relaxed mt-6">
-            Each bank's core banking system holds Tawf's real deposits. The connector reads it
-            and writes placements and reserve snapshots to the Tawf Network ledger, with no borrower names on chain. The
-            relayer anchors the ledger's Merkle root on Arbitrum through the LedgerAnchor. tawf.finance contracts only mint
-            a token against a leaf that verifies under an anchored root, so supply can never run ahead of proven reserve.
-          </p>
-          {data?.anchor && (
-            <a href={explorerAddressUrl(data.anchor)} target="_blank" rel="noopener noreferrer" className="text-sm text-tawf-green hover:underline inline-flex items-center gap-1 mt-4">
-              LedgerAnchor on Arbiscan (ledger chain {LEDGER_CHAIN_ID}) <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-          <div className="mt-6">
-            <Link to="/instruments" className="text-sm text-tawf-gold hover:underline">Learn about the instruments →</Link>
-          </div>
-        </Card>
-      </div>
-    </div>
+      <Chapter tint="mint" from="paper" eyebrow="Trust path" title="How the trust" accent="path works.">
+        <Reveal>
+          <Tile className="max-w-4xl">
+            <div className="flex flex-col gap-3 text-sm md:flex-row md:items-center">
+              {[
+                'BPRS core banking',
+                'bprs-connector',
+                'Tawf Network ledger',
+                'LedgerAnchor on Arbitrum',
+                'Mint gate',
+              ].map((step, i, arr) => (
+                <div key={step} className="flex items-center gap-3">
+                  <span className="rounded-full bg-mint px-3 py-2 font-medium text-jade-deep">{step}</span>
+                  {i < arr.length - 1 && <ArrowRight className="h-4 w-4 shrink-0 rotate-90 text-honey md:rotate-0" />}
+                </div>
+              ))}
+            </div>
+            <p className="mt-6 leading-relaxed text-ink/70">
+              Each bank&apos;s core banking system holds Tawf&apos;s deposits (demo data on testnet). The connector reads it
+              and writes placements and reserve snapshots to the Tawf Network ledger, with no borrower names on chain. The
+              relayer anchors the ledger&apos;s Merkle root on Arbitrum through the LedgerAnchor. tawf.finance contracts only mint
+              a token against a leaf that verifies under an anchored root, so supply can never run ahead of proven reserve.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              {data?.anchor && (
+                <a href={explorerAddressUrl(data.anchor)} target="_blank" rel="noopener noreferrer" className={ghost}>
+                  LedgerAnchor on Arbiscan (ledger chain {LEDGER_CHAIN_ID}) <ExternalLink className="ml-2 h-3 w-3" />
+                </a>
+              )}
+              <Link to="/instruments" className={ghost}>Learn about the instruments</Link>
+            </div>
+          </Tile>
+        </Reveal>
+      </Chapter>
+    </PublicPage>
   );
 }
