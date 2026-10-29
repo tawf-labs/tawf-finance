@@ -7,9 +7,9 @@ import { FINANCING_POOL_ENABLED } from '@/config/features';
 
 const homeLinks = [
   { name: 'Lifecycle', id: 'how-it-works' },
-  { name: 'Pool token', id: 'receipt' },
+  { name: 'Sukuk token', id: 'receipt' },
   { name: 'Coverage', id: 'instruments' },
-  { name: 'Why BPRS', id: 'impact' },
+  { name: 'Why SCF', id: 'impact' },
   ...(FINANCING_POOL_ENABLED ? [{ name: 'Pools', id: 'pools' }] : []),
 ];
 

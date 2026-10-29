@@ -2,14 +2,14 @@ import { Link } from 'react-router-dom';
 import { Landmark, Rocket, Clock } from 'lucide-react';
 import { PublicPage, PageHero, Chapter, Tile, solid, ghost } from '../landing/PublicPage';
 import { Reveal } from '../landing/Reveal';
-import { FINANCING_POOL_ENABLED } from '@/config/features';
+import { DEPOSITO_POOL_ENABLED, FINANCING_POOL_ENABLED } from '@/config/features';
 
 const APP = 'https://app.tawf.finance/login';
 
 const steps = [
   { title: 'Verify and get test funds', body: 'Connect a wallet, complete the test KYC and take test stablecoins from the faucet.' },
-  { title: 'Subscribe', body: 'Subscribe to the Deposito Pool, or back an SCF offering. Your test funds are held in escrow until they are allocated.' },
-  { title: 'Track and claim', body: 'Follow your balance and the per-bank reserve, and claim profit when it is distributed.' },
+  { title: 'Subscribe', body: 'Subscribe to an SCF offering in USDC, USDT or USDG within your yearly limit. Your test funds are held in escrow until the offering closes.' },
+  { title: 'Track and claim', body: 'Follow your balance and the reserve, and claim profit when it is distributed.' },
 ];
 
 export function Earn() {
@@ -17,9 +17,9 @@ export function Earn() {
     <PublicPage>
       <PageHero
         eyebrow="Earn"
-        title="Two ways in,"
-        accent="both on testnet"
-        lead="The pilot starts with the Tawf Deposito Pool and sharia crowdfunding (SCF). Both run on the Arbitrum Sepolia testnet with test funds. Profit depends on the underlying business and is never guaranteed."
+        title="Back an SME,"
+        accent="on testnet"
+        lead="The pilot starts with sharia crowdfunding (SCF) for SMEs. It runs on the Arbitrum Sepolia testnet with test funds. The Tawf Deposito Pool comes later, for investors in Indonesia. Profit depends on the underlying business and is never guaranteed."
         actions={
           <>
             <a href={APP} className={solid}>Open the investor app</a>
@@ -31,18 +31,6 @@ export function Earn() {
       <Chapter tint="paper" from="stone" eyebrow="The pilot" title="What you can" accent="join">
         <div className="grid gap-4 lg:grid-cols-3">
           <Reveal className="h-full">
-            <Tile tint="mint" className="flex h-full flex-col">
-              <Landmark className="mb-5 h-8 w-8 text-jade" />
-              <p className="font-mono text-xs uppercase tracking-[0.12em] text-jade">Open on testnet</p>
-              <h3 className="display mt-2 text-3xl">Tawf Deposito Pool</h3>
-              <p className="mt-3 text-sm leading-relaxed text-ink/70">
-                Stablecoins into mudharabah deposito that Tawf holds at several licensed BPRS in one region. One ERC-3643 token,
-                a per-bank proof of reserve, and the nisbah fixed before you subscribe.
-              </p>
-              <a href={APP} className={`${solid} mt-8 self-start`}>Open the Deposito Pool</a>
-            </Tile>
-          </Reveal>
-          <Reveal delay={0.08} className="h-full">
             <Tile tint="butter" className="flex h-full flex-col">
               <Rocket className="mb-5 h-8 w-8 text-jade" />
               <p className="font-mono text-xs uppercase tracking-[0.12em] text-jade">Open on testnet</p>
@@ -53,6 +41,32 @@ export function Earn() {
               </p>
               <a href={APP} className={`${solid} mt-8 self-start`}>Open Urun Dana</a>
             </Tile>
+          </Reveal>
+          <Reveal delay={0.08} className="h-full">
+            {DEPOSITO_POOL_ENABLED ? (
+              <Tile tint="mint" className="flex h-full flex-col">
+                <Landmark className="mb-5 h-8 w-8 text-jade" />
+                <p className="font-mono text-xs uppercase tracking-[0.12em] text-jade">Open on testnet</p>
+                <h3 className="display mt-2 text-3xl">Tawf Deposito Pool</h3>
+                <p className="mt-3 text-sm leading-relaxed text-ink/70">
+                  Stablecoins into mudharabah deposito that Tawf holds at several licensed BPRS in one region. One ERC-3643 token,
+                  a per-bank proof of reserve, and the nisbah fixed before you subscribe.
+                </p>
+                <a href={APP} className={`${solid} mt-8 self-start`}>Open the Deposito Pool</a>
+              </Tile>
+            ) : (
+              <Tile className="flex h-full flex-col">
+                <Landmark className="mb-5 h-8 w-8 text-ink/40" />
+                <p className="font-mono text-xs uppercase tracking-[0.12em] text-ink/50">Coming later</p>
+                <h3 className="display mt-2 text-3xl text-ink/70">Tawf Deposito Pool</h3>
+                <p className="mt-3 text-sm leading-relaxed text-ink/60">
+                  Mudharabah deposito at licensed BPRS in one token, for investors in Indonesia, once rupiah settlement is in place.
+                </p>
+                <span className="mt-8 inline-flex h-12 items-center self-start rounded-full px-6 text-sm font-semibold text-ink/40 ring-1 ring-ink/10">
+                  Coming later
+                </span>
+              </Tile>
+            )}
           </Reveal>
           <Reveal delay={0.16} className="h-full">
             <Tile className="flex h-full flex-col">
