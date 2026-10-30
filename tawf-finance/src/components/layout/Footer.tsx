@@ -80,7 +80,7 @@ export function Footer() {
         </div>
 
         <div className="mt-16 flex flex-col gap-4 border-t border-ink/[0.07] py-6 text-sm text-ink/60 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} Tawf Labs. Testnet. Not an offer of securities.</p>
+          <p>© {new Date().getFullYear()} PT Tawf Labs Teknologi. Testnet. Not an offer of securities.</p>
           <button
             type="button"
             onClick={() => window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' })}
