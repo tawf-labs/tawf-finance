@@ -26,6 +26,8 @@ export function AdminScfOnboarding() {
   const [error, setError] = useState<string | null>(null);
   const [steps, setSteps] = useState<TxStep[] | null>(null);
   const [profit, setProfit] = useState(50);
+  // The coin that funds a distribution, maturity or release: USDC, USDT or USDG.
+  const [coin, setCoin] = useState('USDC');
   const [lookup, setLookup] = useState('');
   const [lookedUp, setLookedUp] = useState<ScfStatus['investor']>(null);
 
@@ -155,6 +157,19 @@ export function AdminScfOnboarding() {
           <Button size="sm" variant="secondary" disabled={busy !== null} onClick={() => void run('Refresh reserve', { action: 'reserve' })}>Refresh reserve</Button>
           <Button size="sm" disabled={busy !== null || st !== 'Subscription'} onClick={() => void run('Close subscription', { action: 'close' })}>Close subscription</Button>
           <span className="inline-flex items-center gap-2">
+            <label htmlFor="scf-fund-coin" className="text-xs text-tawf-muted">Fund in</label>
+            <select
+              id="scf-fund-coin"
+              value={coin}
+              onChange={(e) => setCoin(e.target.value)}
+              className="px-3 py-2 border border-tawf-green-10 rounded-lg text-sm bg-white"
+            >
+              {(status?.coins?.length ? status.coins.map((c) => c.symbol) : ['USDC', 'USDT', 'USDG']).map((sym) => (
+                <option key={sym} value={sym}>{sym}</option>
+              ))}
+            </select>
+          </span>
+          <span className="inline-flex items-center gap-2">
             <input
               type="number"
               value={profit}
@@ -162,11 +177,14 @@ export function AdminScfOnboarding() {
               onChange={(e) => setProfit(Number(e.target.value))}
               className="w-24 px-3 py-2 border border-tawf-green-10 rounded-lg text-sm"
             />
-            <Button size="sm" disabled={busy !== null || st !== 'Active' || profit <= 0} onClick={() => void run('Distribute profit', { action: 'distribute', amount: profit })}>
-              Distribute profit (USDC)
+            <Button size="sm" disabled={busy !== null || st !== 'Active' || profit <= 0} onClick={() => void run('Distribute profit', { action: 'distribute', amount: profit, coin })}>
+              Distribute profit ({coin})
             </Button>
           </span>
-          <Button size="sm" disabled={busy !== null || st !== 'Active'} onClick={() => void run('Settle at par', { action: 'settle' })}>Settle maturity at par</Button>
+          <Button size="sm" disabled={busy !== null || st !== 'Active'} onClick={() => void run('Settle at par', { action: 'settle', coin })}>Settle maturity at par ({coin})</Button>
+          <Button size="sm" variant="secondary" disabled={busy !== null || st !== 'Matured' || profit <= 0} onClick={() => void run('Release held profit', { action: 'release', amount: profit, coin })}>
+            Release held profit ({coin})
+          </Button>
         </div>
       </Card>
 

@@ -369,7 +369,7 @@ export function useSukuk(address: `0x${string}` | undefined, target: SukukTarget
 // Sukuk writes (investor-callable)
 // ---------------------------------------------------------------------------
 
-/** Approve USDC to the sukuk distributor if needed, then subscribe. */
+/** Approve the chosen coin (USDC, USDT or USDG) to the sukuk distributor if needed, then subscribe in it. */
 export function useSukukSubscribe(target: SukukTarget = {}) {
   const { write, isPending } = useContractWrite();
   const distributor = target.distributor ?? SUKUK_DISTRIBUTOR_ADDRESS;
@@ -388,7 +388,7 @@ export function useSukukSubscribe(target: SukukTarget = {}) {
         address: distributor,
         abi: SukukDistributorAbi as Abi,
         functionName: 'subscribe',
-        args: [amount],
+        args: [usdc, amount],
       });
     },
     [write, distributor],
@@ -399,9 +399,10 @@ export function useSukukSubscribe(target: SukukTarget = {}) {
 export function useSukukClaim(target: SukukTarget = {}) {
   const { write, isPending } = useContractWrite();
   const distributor = target.distributor ?? SUKUK_DISTRIBUTOR_ADDRESS;
-  const claim = useCallback(() => {
+  /** Claim profit, preferring `coin`. If the contract lacks enough of it the payout continues in the other coins. */
+  const claim = useCallback((coin: `0x${string}`) => {
     if (!distributor) throw new Error('Sukuk not configured');
-    return write({ address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'claim' });
+    return write({ address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'claim', args: [coin] });
   }, [write, distributor]);
   return { claim, isPending };
 }
@@ -409,9 +410,10 @@ export function useSukukClaim(target: SukukTarget = {}) {
 export function useSukukRedeem(target: SukukTarget = {}) {
   const { write, isPending } = useContractWrite();
   const distributor = target.distributor ?? SUKUK_DISTRIBUTOR_ADDRESS;
-  const redeem = useCallback(() => {
+  /** Redeem, preferring `coin`. If the contract lacks enough of it the payout continues in the other coins. */
+  const redeem = useCallback((coin: `0x${string}`) => {
     if (!distributor) throw new Error('Sukuk not configured');
-    return write({ address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'redeem' });
+    return write({ address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'redeem', args: [coin] });
   }, [write, distributor]);
   return { redeem, isPending };
 }
@@ -426,7 +428,48 @@ export function useSukukRefund(target: SukukTarget = {}) {
   return { refund, isPending };
 }
 
-/** USDC allowance of `owner` to the sukuk distributor. */
+export interface SukukCoinView {
+  address: `0x${string}`;
+  symbol: string;
+  /** The connected wallet's balance of the coin (6 decimals). */
+  walletBalance: bigint;
+  /** What the offering can pay out in this coin right now. */
+  freeBalance: bigint;
+  /** A paused coin takes no new money and is not a preferred payout coin. */
+  paused: boolean;
+}
+
+/** The coins an offering accepts, with the wallet balance and what the offering can pay in each. */
+export function useSukukCoins(address: `0x${string}` | undefined, target: SukukTarget = {}) {
+  const distributor = (target.distributor ?? SUKUK_DISTRIBUTOR_ADDRESS) as `0x${string}`;
+  const enabled = Boolean(distributor);
+  const { data: list } = useReadContract({
+    address: distributor,
+    abi: SukukDistributorAbi,
+    functionName: 'coins',
+    query: { enabled },
+  });
+  const coins = (list as readonly `0x${string}`[] | undefined) ?? [];
+  const who = address ?? '0x0000000000000000000000000000000000000000';
+  const { data, isLoading, refetch } = useReadContracts({
+    contracts: coins.flatMap((c) => [
+      { address: c, abi: TrexTokenAbi as Abi, functionName: 'balanceOf', args: [who] },
+      { address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'freeBalance', args: [c] },
+      { address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'coinPaused', args: [c] },
+    ]),
+    query: { enabled: enabled && coins.length > 0 },
+  });
+  const views: SukukCoinView[] = coins.map((c, i) => ({
+    address: c,
+    symbol: SETTLEMENT_STABLECOINS.find((s) => s.address?.toLowerCase() === c.toLowerCase())?.symbol ?? 'COIN',
+    walletBalance: (data?.[i * 3]?.result as bigint | undefined) ?? 0n,
+    freeBalance: (data?.[i * 3 + 1]?.result as bigint | undefined) ?? 0n,
+    paused: Boolean(data?.[i * 3 + 2]?.result ?? false),
+  }));
+  return { coins: views, isLoading, refetch };
+}
+
+/** Allowance of `owner` for `usdc` (the chosen coin) to the sukuk distributor. */
 export function useSukukAllowance(
   owner: `0x${string}` | undefined,
   usdc: `0x${string}` | undefined,
@@ -488,8 +531,8 @@ export function useHeldProfit(distributor: `0x${string}` | undefined, address: `
 export function useClaimHeldProfit() {
   const { write, isPending } = useContractWrite();
   const claimHeld = useCallback(
-    (distributor: `0x${string}`) =>
-      write({ address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'claimProfit' }),
+    (distributor: `0x${string}`, coin: `0x${string}`) =>
+      write({ address: distributor, abi: SukukDistributorAbi as Abi, functionName: 'claimProfit', args: [coin] }),
     [write],
   );
   return { claimHeld, isPending };

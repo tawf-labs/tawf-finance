@@ -21,12 +21,24 @@
  *   SUKUK_RESERVE.
  * ========================================================================== */
 
-import "summaries/sukuk_summaries.spec";
-
-using MockUSDC as usdcToken;
+import "summaries/sukuk_multicoin_summaries.spec";
 
 methods {
     function usdcToken.totalSupply() external returns (uint256) envfree;
+    function usdtToken.totalSupply() external returns (uint256) envfree;
+    function usdtToken.balanceOf(address) external returns (uint256) envfree;
+    // ---- multi-coin state and the harness's coin list ----
+    function isCoin(address) external returns (bool) envfree;
+    function freeBalance(address) external returns (uint256) envfree;
+    function token() external returns (address) envfree;
+    function coinCount() external returns (uint256) envfree;
+    function coinAt(uint256) external returns (address) envfree;
+    function raisedOf(address) external returns (uint256) envfree;
+    function paidOf(address, address) external returns (uint256) envfree;
+    function refundedOf(address) external returns (uint256) envfree;
+    function heldBalanceOf(address) external returns (uint256) envfree;
+    function coinPaused(address) external returns (bool) envfree;
+    function FUNDER_ROLE() external returns (bytes32) envfree;
     // ---- SukukDistributor / harness envfree views ----
     function statusU8() external returns (uint8) envfree;
     function lastPeriod() external returns (uint16) envfree;
@@ -57,9 +69,50 @@ methods {
     function usdcToken.balanceOf(address) external returns (uint256) envfree;
 }
 
-// Current USDC balance of the distributor.
+// Current USDC and USDT balance of the distributor.
 function distUsdc() returns uint256 {
     return usdcToken.balanceOf(currentContract);
+}
+
+function distUsdt() returns uint256 {
+    return usdtToken.balanceOf(currentContract);
+}
+
+// Mirror of isCoin for the quantifier below (contract calls are not allowed inside forall).
+ghost mapping(address => bool) ghostIsCoin;
+
+hook Sload bool v currentContract.isCoin[KEY address x] {
+    require ghostIsCoin[x] == v;
+}
+
+// MODEL ASSUMPTION (documented in REPORT.md): the scene is a distributor deployed with exactly
+// the two accepted coins [MockUSDC, MockUSDT]. The constructor does not run for rules, so the
+// coin list and the isCoin map are pinned here. Every rule and invariant that loops over the
+// coins or touches a coin starts from it. The optimistic loop bound (2) matches the two coins.
+function sceneCoins() {
+    require coinCount() == 2;
+    require coinAt(0) == usdcToken && coinAt(1) == usdtToken;
+    require isCoin(usdcToken) && isCoin(usdtToken);
+    // The constructor rejects the sukuk token as a coin (InvalidCoins), so the token the ghost
+    // ledger answers for is never one of the two coin mocks.
+    require token() != usdcToken && token() != usdtToken;
+    require forall address x. ghostIsCoin[x] => (x == usdcToken || x == usdtToken);
+}
+
+// Balance of `coin` held by the distributor, or of `who` in `coin`, for the two scene coins.
+function bal(address coin, address who) returns mathint {
+    return coin == usdcToken ? to_mathint(usdcToken.balanceOf(who)) : to_mathint(usdtToken.balanceOf(who));
+}
+
+// Sum over the two coins.
+function balBoth(address who) returns mathint {
+    return to_mathint(usdcToken.balanceOf(who)) + to_mathint(usdtToken.balanceOf(who));
+}
+
+// Same ERC20 sanity as requireUsdcSane, for both scene coins.
+function requireCoinsSane(address a, address b) {
+    require a != b => to_mathint(usdcToken.balanceOf(a)) + to_mathint(usdcToken.balanceOf(b)) <= to_mathint(usdcToken.totalSupply());
+    require a != b => to_mathint(usdtToken.balanceOf(a)) + to_mathint(usdtToken.balanceOf(b)) <= to_mathint(usdtToken.totalSupply());
 }
 
 // ===========================================================================
@@ -68,19 +121,21 @@ function distUsdc() returns uint256 {
 
 /// @title Supply never exceeds faceValue
 // Only subscribe mints, and it reverts when ghostSupply + amount > faceValue.
-rule supplyNeverExceedsFaceValue(uint256 amount) {
+rule supplyNeverExceedsFaceValue(address coin, uint256 amount) {
     env e;
+    sceneCoins();
     require ghostSupply <= faceValueOf();        // holds in every reachable state
-    subscribe(e, amount);
+    subscribe(e, coin, amount);
     assert ghostSupply <= faceValueOf(), "supply exceeded faceValue after subscribe";
 }
 
 /// @title A posted reserve caps minting and the live supply
-rule reserveCapsMintWhenPosted(uint256 amount) {
+rule reserveCapsMintWhenPosted(address coin, uint256 amount) {
     env e;
+    sceneCoins();
     require reserveSnapshotAt() != 0;
     require ghostSupply <= reserveOutstanding();
-    subscribe(e, amount);
+    subscribe(e, coin, amount);
     assert ghostSupply <= reserveOutstanding(),
         "supply exceeded the posted reserve after subscribe";
 }
@@ -88,12 +143,13 @@ rule reserveCapsMintWhenPosted(uint256 amount) {
 /// @title Subscription mints only against a recent reserve snapshot that covers supply
 // Fixed: subscribe requires a verified SUKUK_RESERVE snapshot that exists, is
 // no older than maxReserveAge, and covers the supply after the mint.
-rule subscribeRequiresFreshCoveringReserve(uint256 amount) {
+rule subscribeRequiresFreshCoveringReserve(address coin, uint256 amount) {
     env e;
+    sceneCoins();
     uint64 snapAt = reserveSnapshotAt();
     uint64 maxAge = maxReserveAge();
     mathint supplyAfter = ghostSupply + amount;
-    subscribe(e, amount);
+    subscribe(e, coin, amount);
     assert snapAt != 0, "subscribe minted with no SUKUK_RESERVE snapshot";
     assert to_mathint(e.block.timestamp) <= to_mathint(snapAt) + to_mathint(maxAge),
         "subscribe minted against a stale reserve snapshot";
@@ -133,26 +189,26 @@ rule openSubscriptionNeedsAnchoredFact(uint256 epoch, bytes32[] proof) {
 }
 
 /// @title Every money-declaring step requires an anchored ledger fact
-rule distributeNeedsAnchoredFact(uint16 period, uint256 amount, uint256 epoch, bytes32[] proof) {
+rule distributeNeedsAnchoredFact(uint16 period, address coin, uint256 amount, uint256 epoch, bytes32[] proof) {
     env e;
     require forall uint256 ep. forall bytes32 lf. !ghostAnchored[ep][lf];
-    distribute@withrevert(e, period, amount, epoch, proof);
+    distribute@withrevert(e, period, coin, amount, epoch, proof);
     assert lastReverted, "distribute succeeded with nothing anchored";
 }
 
 /// @title Every money-declaring step requires an anchored ledger fact
-rule settleMaturityNeedsAnchoredFact(uint256 amount, uint256 epoch, bytes32[] proof) {
+rule settleMaturityNeedsAnchoredFact(address coin, uint256 amount, uint256 epoch, bytes32[] proof) {
     env e;
     require forall uint256 ep. forall bytes32 lf. !ghostAnchored[ep][lf];
-    settleMaturity@withrevert(e, amount, epoch, proof);
+    settleMaturity@withrevert(e, coin, amount, epoch, proof);
     assert lastReverted, "settleMaturity succeeded with nothing anchored";
 }
 
 /// @title Every money-declaring step requires an anchored ledger fact
-rule settleDefaultNeedsAnchoredFact(uint256 recovery, uint256 epoch, bytes32[] proof) {
+rule settleDefaultNeedsAnchoredFact(address coin, uint256 recovery, uint256 epoch, bytes32[] proof) {
     env e;
     require forall uint256 ep. forall bytes32 lf. !ghostAnchored[ep][lf];
-    settleDefault@withrevert(e, recovery, epoch, proof);
+    settleDefault@withrevert(e, coin, recovery, epoch, proof);
     assert lastReverted, "settleDefault succeeded with nothing anchored";
 }
 
@@ -167,18 +223,21 @@ rule updateReserveNeedsAnchoredFact(uint64 snapshotAt, uint256 outstanding, uint
 /// @title Distribution pays only the exact declared amount per period
 // Covers the amount == 0 no-cash-moves half; the proof requirement is covered
 // by distributeNeedsAnchoredFact above.
-rule distributeZeroMovesNoCash(uint16 period, uint256 epoch, bytes32[] proof) {
+rule distributeZeroMovesNoCash(uint16 period, address coin, uint256 epoch, bytes32[] proof) {
     env e;
-    uint256 distBefore = distUsdc();
-    distribute(e, period, 0, epoch, proof);
-    assert distUsdc() == distBefore, "a zero-amount distribution moved cash";
+    sceneCoins();
+    uint256 usdcBefore = distUsdc();
+    uint256 usdtBefore = distUsdt();
+    distribute(e, period, coin, 0, epoch, proof);
+    assert distUsdc() == usdcBefore && distUsdt() == usdtBefore, "a zero-amount distribution moved cash";
 }
 
 /// @title Distribution periods are strictly sequential
-rule distributeSequential(uint16 period, uint256 amount, uint256 epoch, bytes32[] proof) {
+rule distributeSequential(uint16 period, address coin, uint256 amount, uint256 epoch, bytes32[] proof) {
     env e;
+    sceneCoins();
     uint16 last0 = lastPeriod();
-    distribute@withrevert(e, period, amount, epoch, proof);
+    distribute@withrevert(e, period, coin, amount, epoch, proof);
     bool ok = !lastReverted;
     assert ok => to_mathint(period) == to_mathint(last0) + 1,
         "distribute accepted a non-sequential period";
@@ -192,6 +251,7 @@ rule distributeSequential(uint16 period, uint256 amount, uint256 epoch, bytes32[
 /// @title Sukuk lifecycle follows the legal status order
 rule lifecycleLegal(method f) filtered { f -> !f.isView } {
     uint8 before = statusU8();
+    sceneCoins();
     env e; calldataarg args;
     f(e, args);
     uint8 after = statusU8();
@@ -206,25 +266,26 @@ rule lifecycleLegal(method f) filtered { f -> !f.isView } {
 }
 
 /// @title Each function is gated to its status
-rule statusGating(uint256 amount, uint16 period, uint256 a, uint256 epoch, bytes32[] proof) {
+rule statusGating(address coin, uint256 amount, uint16 period, uint256 a, uint256 epoch, bytes32[] proof) {
     env e;
+    sceneCoins();
     uint8 s0 = statusU8();
 
     storage init = lastStorage;
 
-    subscribe@withrevert(e, amount);
+    subscribe@withrevert(e, coin, amount);
     assert !lastReverted => s0 == 1, "subscribe ran outside Subscription";
 
-    distribute@withrevert(e, period, a, epoch, proof) at init;
+    distribute@withrevert(e, period, coin, a, epoch, proof) at init;
     assert !lastReverted => s0 == 2, "distribute ran outside Active";
 
-    settleMaturity@withrevert(e, a, epoch, proof) at init;
+    settleMaturity@withrevert(e, coin, a, epoch, proof) at init;
     assert !lastReverted => s0 == 2, "settleMaturity ran outside Active";
 
-    settleDefault@withrevert(e, a, epoch, proof) at init;
+    settleDefault@withrevert(e, coin, a, epoch, proof) at init;
     assert !lastReverted => s0 == 2, "settleDefault ran outside Active";
 
-    redeem@withrevert(e) at init;
+    redeem@withrevert(e, coin) at init;
     assert !lastReverted => (s0 == 3 || s0 == 4), "redeem ran outside Matured/Defaulted";
 
     refund@withrevert(e) at init;
@@ -260,9 +321,10 @@ rule afterBalanceChangeOnlyModule(address from, address to, uint256 amount) {
 }
 
 /// @title Subscription requires a verified holder
-rule subscribeRequiresVerified(uint256 amount) {
+rule subscribeRequiresVerified(address coin, uint256 amount) {
     env e;
-    subscribe@withrevert(e, amount);
+    sceneCoins();
+    subscribe@withrevert(e, coin, amount);
     assert !lastReverted => ghostVerified[e.msg.sender],
         "subscribe succeeded for an unverified holder";
 }
@@ -271,31 +333,47 @@ rule subscribeRequiresVerified(uint256 amount) {
 // MONEY MOVEMENT
 // ===========================================================================
 
-/// @title Subscription mints exactly amount units against amount USDC
-rule subscribeMovesExactAmount(uint256 amount) {
+/// @title Subscription mints exactly amount units against amount of the chosen coin
+rule subscribeMovesExactAmount(address coin, uint256 amount) {
     env e;
+    sceneCoins();
     require e.msg.sender != currentContract;
+    requireCoinsSane(currentContract, e.msg.sender);
     uint256 supplyBefore = ghostSupply;
-    uint256 distBefore    = distUsdc();
-    uint256 senderBefore  = usdcToken.balanceOf(e.msg.sender);
+    mathint distBefore = bal(coin, currentContract);
+    mathint senderBefore = bal(coin, e.msg.sender);
+    uint256 raised0 = raisedOf(coin);
+    uint256 paid0 = paidOf(e.msg.sender, coin);
+    mathint otherBefore = balBoth(currentContract) - distBefore;
 
-    subscribe(e, amount);
+    subscribe(e, coin, amount);
 
     assert ghostSupply == require_uint256(supplyBefore + amount),
         "token supply did not rise by exactly amount";
-    assert distUsdc() == require_uint256(distBefore + amount),
-        "distributor USDC did not rise by exactly amount";
-    assert usdcToken.balanceOf(e.msg.sender) == require_uint256(senderBefore - amount),
-        "sender USDC did not fall by exactly amount";
+    assert bal(coin, currentContract) == distBefore + amount,
+        "distributor balance of the coin did not rise by exactly amount";
+    assert bal(coin, e.msg.sender) == senderBefore - amount,
+        "sender balance of the coin did not fall by exactly amount";
+    assert balBoth(currentContract) - bal(coin, currentContract) == otherBefore,
+        "subscribe moved the other coin";
+    assert to_mathint(raisedOf(coin)) == raised0 + amount && to_mathint(paidOf(e.msg.sender, coin)) == paid0 + amount,
+        "raisedOf or paidOf did not rise by exactly amount in the chosen coin";
 }
 
 /// @title closeSubscription releases the full raise or cancels for refund
+// Per coin: the treasury receives exactly raisedOf(coin) of that coin. That the coin parts add up
+// to the supply is raisedMatchesSupplyWhileOpen below.
 rule closeReleasesOrCancels() {
     env e;
+    sceneCoins();
     require e.msg.sender != currentContract;
     require issuerTreasuryOf() != currentContract;
-    uint256 raised = ghostSupply;          // 1:1 units == USDC subscribed
-    uint256 treBefore = usdcToken.balanceOf(issuerTreasuryOf());
+    requireCoinsSane(currentContract, issuerTreasuryOf());
+    uint256 raised = ghostSupply;          // 1:1 units == USD subscribed
+    mathint treUsdc = usdcToken.balanceOf(issuerTreasuryOf());
+    mathint treUsdt = usdtToken.balanceOf(issuerTreasuryOf());
+    uint256 rUsdc = raisedOf(usdcToken);
+    uint256 rUsdt = raisedOf(usdtToken);
 
     closeSubscription(e);
 
@@ -303,35 +381,44 @@ rule closeReleasesOrCancels() {
     // Cancelled iff raised < minRaise, else Active with proceeds released.
     assert (raised < minRaiseOf()) => s == 5, "below-minRaise close did not cancel";
     assert (raised >= minRaiseOf()) =>
-        (s == 2 &&
-         usdcToken.balanceOf(issuerTreasuryOf()) == require_uint256(treBefore + raised)),
-        "successful close did not release exactly raised to the treasury";
+        (s == 2
+         && to_mathint(usdcToken.balanceOf(issuerTreasuryOf())) == treUsdc + rUsdc
+         && to_mathint(usdtToken.balanceOf(issuerTreasuryOf())) == treUsdt + rUsdt),
+        "successful close did not release exactly each coin's raise to the treasury";
 }
 
 /// @title Refund returns a cancelled subscription at par
+// The caller gets units back at par, summed over the coins (the split between coins is by what
+// they paid first, then the escrow left, and is checked by the Foundry tests).
 rule refundAtPar() {
     env e;
+    sceneCoins();
     require e.msg.sender != currentContract;
+    requireCoinsSane(currentContract, e.msg.sender);
     require statusU8() == 5;               // Cancelled
     uint256 units = ghostTokenBal[e.msg.sender];
-    uint256 senderBefore = usdcToken.balanceOf(e.msg.sender);
+    mathint senderBefore = balBoth(e.msg.sender);
+    mathint contractBefore = balBoth(currentContract);
 
     refund(e);
 
-    assert usdcToken.balanceOf(e.msg.sender) == require_uint256(senderBefore + units),
-        "refund did not return units USDC at par";
+    assert balBoth(e.msg.sender) == senderBefore + units,
+        "refund did not return units at par across the coins";
+    assert balBoth(currentContract) == contractBefore - units,
+        "refund did not take exactly units from the distributor";
     assert ghostTokenBal[e.msg.sender] == 0, "refund did not burn the caller's units";
 }
 
 /// @title Redemption pays floored principal plus unclaimed profit then burns
-rule redeemBurnsAndPays() {
+rule redeemBurnsAndPays(address coin) {
     env e;
+    sceneCoins();
     require e.msg.sender != currentContract;
     require statusU8() == 3 || statusU8() == 4;   // Matured or Defaulted
     uint256 units = ghostTokenBal[e.msg.sender];
     require units > 0;
 
-    redeem(e);
+    redeem(e, coin);
 
     assert ghostTokenBal[e.msg.sender] == 0, "redeem did not burn the caller's units";
     // principal per unit is bounded by redemptionPerToken (floored at settle).
@@ -351,38 +438,44 @@ rule principalPerHolderBounded(address holder) {
 }
 
 /// @title No double redemption
-rule noDoubleRedeem() {
+rule noDoubleRedeem(address c1, address c2) {
     env e1; env e2;
+    sceneCoins();
     require e2.msg.sender == e1.msg.sender;
     require statusU8() == 3 || statusU8() == 4;
     require ghostTokenBal[e1.msg.sender] > 0;
 
-    redeem(e1);
-    redeem@withrevert(e2);
+    redeem(e1, c1);
+    redeem@withrevert(e2, c2);
     assert lastReverted, "a second redeem by the same holder did not revert";
 }
 
 /// @title No double claim of profit
-rule claimNoDoubleSpend() {
+rule claimNoDoubleSpend(address c1, address c2) {
     env e1; env e2;
+    sceneCoins();
     require e2.msg.sender == e1.msg.sender;
-    claim(e1);
+    claim(e1, c1);
     // With no intervening distribute, owed is zeroed and the live term is also
     // zero (marker now equals profitPerToken), so a second claim reverts.
-    claim@withrevert(e2);
+    claim@withrevert(e2, c2);
     assert lastReverted, "a second consecutive claim did not revert NothingToClaim";
 }
 
 /// @title Claiming never pays more profit than entitlement
-rule claimPaysEntitlement() {
+// The caller receives exactly claimable(), summed over the coins (the call may split a payout
+// across coins when the preferred coin is short).
+rule claimPaysEntitlement(address coin) {
     env e;
+    sceneCoins();
     require e.msg.sender != currentContract;
+    requireCoinsSane(currentContract, e.msg.sender);
     uint256 c = claimable(e, e.msg.sender);
-    uint256 senderBefore = usdcToken.balanceOf(e.msg.sender);
+    mathint senderBefore = balBoth(e.msg.sender);
 
-    claim(e);
+    claim(e, coin);
 
-    assert usdcToken.balanceOf(e.msg.sender) == require_uint256(senderBefore + c),
+    assert balBoth(e.msg.sender) == senderBefore + c,
         "claim paid an amount different from claimable() measured before the call";
 }
 
@@ -540,6 +633,7 @@ rule heldEntitlementSumMatchesMaturityUnits(method f) filtered {
     f -> !f.isView && !contractOnly(f)
 } {
     require maturityUnitsConsistent();
+    sceneCoins();
     env e; calldataarg args;
     f(e, args);
     assert maturityUnitsConsistent(),
@@ -555,6 +649,7 @@ rule heldEntitlementSumMatchesMaturityUnits(method f) filtered {
 rule noMintAfterMaturity(method f) filtered { f -> !f.isView } {
     bool matured = statusU8() == 3;
     uint256 supply0 = ghostSupply;
+    sceneCoins();
     env e; calldataarg args;
     f(e, args);
     assert matured => ghostSupply <= supply0, "units were minted after maturity";
@@ -609,6 +704,7 @@ rule heldAccountingBalanced(method f) filtered {
     f -> !f.isView && !contractOnly(f)
 } {
     require heldAccountsBalance();
+    sceneCoins();
     env e; calldataarg args;
     f(e, args);
     assert heldAccountsBalance(),
@@ -624,12 +720,13 @@ rule heldAccountingBalanced(method f) filtered {
 // the live balance into redeemedUnits, so entitledUnits and the claimable
 // held profit are unchanged. The post-state views are called @withrevert so a
 // view that started reverting after redeem would be reported, not dropped.
-rule redeemPreservesHeldEntitlement(address h) {
+rule redeemPreservesHeldEntitlement(address h, address coin) {
     env e;
+    sceneCoins();
     uint256 ent0 = entitledUnits(h);
     uint256 claim0 = claimableHeldProfit(h);
 
-    redeem(e);
+    redeem(e, coin);
 
     uint256 ent1 = entitledUnits@withrevert(h);
     assert !lastReverted && ent1 == ent0, "redeem changed a holder's entitled units";
@@ -677,24 +774,25 @@ function requireUsdcSane(address a, address b) {
 // increase, and == the caller's USDC increase when the caller is not the
 // distributor itself) is at most ent*(hppu - max(paidMark, sweptMark))/1e18,
 // and the caller's mark moves to heldProfitPerUnit.
-rule claimProfitWithinProRataShare() {
+rule claimProfitWithinProRataShare(address coin) {
     env e;
+    sceneCoins();
     address s = e.msg.sender;
     uint256 hppu = heldProfitPerUnit();
     mathint eff = effMark(s);
     uint256 ent = entitledUnits(s);
     uint256 claimed0 = totalHeldClaimed();
-    requireUsdcSane(s, currentContract);
-    uint256 usdc0 = usdcToken.balanceOf(s);
+    requireCoinsSane(s, currentContract);
+    mathint coins0 = balBoth(s);
 
-    claimProfit(e);
+    claimProfit(e, coin);
 
     mathint paid = totalHeldClaimed() - claimed0;
     assert paid * WAD() <= ent * (hppu - eff),
         "claimProfit paid more than ent*(hppu-mark)/1e18";
     assert paid * WAD() <= ent * hppu - ent * eff,
         "claimProfit paid more than ent*hppu/1e18 - ent*mark/1e18";
-    assert s != currentContract => usdcToken.balanceOf(s) - usdc0 == paid,
+    assert s != currentContract => balBoth(s) - coins0 == paid,
         "claimProfit transferred an amount different from the recorded claim";
     assert heldProfitPaidPerUnit(s) == hppu, "claimProfit did not advance the caller's mark";
 }
@@ -707,6 +805,7 @@ rule heldMarksSanePreserved(method f, address h) filtered {
     f -> !f.isView && !contractOnly(f)
 } {
     require heldMarksSane(h);
+    sceneCoins();
     env e; calldataarg args;
     f(e, args);
     assert heldMarksSane(h), "a held-profit mark ran ahead of the accumulator";
@@ -723,10 +822,11 @@ rule heldMarksSanePreserved(method f, address h) filtered {
 //   claimProfit (covered by heldPaidWithinProRataOnClaim).
 rule heldPaidWithinProRataPreserved(method f, address h) filtered {
     f -> !f.isView && !contractOnly(f)
-        && f.selector != sig:claimProfit().selector
+        && f.selector != sig:claimProfit(address).selector
 } {
     require heldMarksSane(h);
     require heldPaidWithinMark(h);
+    sceneCoins();
     env e; calldataarg args;
     f(e, args);
     assert heldPaidWithinMark(h), "cumulative held profit paid exceeded ent*mark/1e18";
@@ -740,8 +840,9 @@ rule heldPaidWithinProRataPreserved(method f, address h) filtered {
 //   the post-call floor bound on the amount paid to s - exactly the second
 //     assertion of claimProfitWithinProRataShare (no extra hypotheses there),
 //     evaluated on the same pre-state values.
-rule heldPaidWithinProRataOnClaim(address h) {
+rule heldPaidWithinProRataOnClaim(address h, address coin) {
     env e;
+    sceneCoins();
     address s = e.msg.sender;
     require heldMarksSane(h) && heldMarksSane(s);
     require heldPaidWithinMark(h);
@@ -750,7 +851,7 @@ rule heldPaidWithinProRataOnClaim(address h) {
     mathint effS = effMark(s);
     uint256 claimed0 = totalHeldClaimed();
 
-    claimProfit(e);
+    claimProfit(e, coin);
 
     require (totalHeldClaimed() - claimed0) * WAD() <= entS * hppu - entS * effS;
     assert heldPaidWithinMark(h), "a claim pushed cumulative paid above ent*mark/1e18";
@@ -794,24 +895,32 @@ rule sweepOnlyAfterClaimWindow() {
 // (sweepDestinationWriteOnce) from 0 at deployment.
 rule sweepPaysOnlyDestination(address other) {
     env e;
+    sceneCoins();
     address dest = sweepDestination();
-    uint256 held = heldBalance();
+    uint256 heldUsdc = heldBalanceOf(usdcToken);
+    uint256 heldUsdt = heldBalanceOf(usdtToken);
     require dest != currentContract;
     require other != dest && other != currentContract;
-    requireUsdcSane(dest, currentContract);
-    requireUsdcSane(other, currentContract);
-    uint256 dest0 = usdcToken.balanceOf(dest);
-    uint256 dist0 = distUsdc();
-    uint256 other0 = usdcToken.balanceOf(other);
+    requireCoinsSane(dest, currentContract);
+    requireCoinsSane(other, currentContract);
+    mathint destUsdc0 = usdcToken.balanceOf(dest);
+    mathint destUsdt0 = usdtToken.balanceOf(dest);
+    mathint distUsdc0 = distUsdc();
+    mathint distUsdt0 = distUsdt();
+    uint256 otherUsdc0 = usdcToken.balanceOf(other);
+    uint256 otherUsdt0 = usdtToken.balanceOf(other);
 
     sweepUnclaimed(e);
 
-    assert usdcToken.balanceOf(other) == other0, "sweep moved USDC to a non-destination address";
-    assert to_mathint(usdcToken.balanceOf(dest)) == dest0 + held,
-        "sweep did not pay the destination exactly the held balance";
-    assert to_mathint(distUsdc()) == dist0 - held,
-        "sweep did not take exactly the held balance from the distributor";
-    assert heldBalance() == 0, "sweep left a held balance";
+    assert usdcToken.balanceOf(other) == otherUsdc0 && usdtToken.balanceOf(other) == otherUsdt0,
+        "sweep moved a coin to a non-destination address";
+    assert to_mathint(usdcToken.balanceOf(dest)) == destUsdc0 + heldUsdc
+        && to_mathint(usdtToken.balanceOf(dest)) == destUsdt0 + heldUsdt,
+        "sweep did not pay the destination exactly each coin's held balance";
+    assert to_mathint(distUsdc()) == distUsdc0 - heldUsdc && to_mathint(distUsdt()) == distUsdt0 - heldUsdt,
+        "sweep did not take exactly each coin's held balance from the distributor";
+    assert heldBalance() == 0 && heldBalanceOf(usdcToken) == 0 && heldBalanceOf(usdtToken) == 0,
+        "sweep left a held balance";
 }
 
 /// @title Sweep only after the window, only to the approved address
@@ -858,6 +967,7 @@ rule setSweepDestinationValidAddress(address destination, uint256 epoch, bytes32
 // (cannot write); afterBalanceChange and MockUSDC functions stay in range.
 rule sweepDestinationWriteOnce(method f) filtered { f -> !f.isView } {
     address dest0 = sweepDestination();
+    sceneCoins();
     env e; calldataarg args;
     f(e, args);
     assert dest0 != 0 => sweepDestination() == dest0, "a set sweep destination changed";
@@ -876,6 +986,7 @@ rule transfersFrozenAfterMaturity(method f, address a, address b) filtered { f -
     require a != 0 && b != 0 && a != b;
     uint256 a0 = ghostTokenBal[a];
     uint256 b0 = ghostTokenBal[b];
+    sceneCoins();
     env e; calldataarg args;
     f(e, args);
     assert matured => !(ghostTokenBal[a] > a0 && ghostTokenBal[b] < b0),
@@ -908,6 +1019,7 @@ rule nisbahFixedOnceSubscriptionOpens(method f) filtered { f -> !f.isView } {
     uint16 bps0 = tawfNisbahBps();
     address fee0 = feeRecipient();
     uint8 status0 = statusU8();
+    sceneCoins();
     env e; calldataarg args;
     f(e, args);
     assert (tawfNisbahBps() != bps0 || feeRecipient() != fee0) =>
@@ -916,32 +1028,36 @@ rule nisbahFixedOnceSubscriptionOpens(method f) filtered { f -> !f.isView } {
 }
 
 /// @title A distribution pays Tawf exactly its nisbah and funds holders with the rest
-rule distributeSplitsByNisbah(uint16 period, uint256 amount, uint256 epoch, bytes32[] proof) {
+// In the coin that was distributed.
+rule distributeSplitsByNisbah(uint16 period, address coin, uint256 amount, uint256 epoch, bytes32[] proof) {
     env e;
+    sceneCoins();
     address fee = feeRecipient();
-    // The distributor never calls itself (and has no code path that approves and
-    // pulls from itself), so a self-transferFrom, which nets to zero, is not a
+    // The distributor never calls itself, so a self-transferFrom, which nets to zero, is not a
     // reachable caller. Same justification as the other money rules above.
     require e.msg.sender != currentContract;
     require fee != currentContract && fee != e.msg.sender;
-    requireUsdcSane(fee, e.msg.sender);
-    requireUsdcSane(currentContract, fee);
-    requireUsdcSane(currentContract, e.msg.sender);
+    requireCoinsSane(fee, e.msg.sender);
+    requireCoinsSane(currentContract, fee);
+    requireCoinsSane(currentContract, e.msg.sender);
     requireInvariant nisbahCapped();
     uint16 bps = tawfNisbahBps();
-    uint256 feeBefore = usdcToken.balanceOf(fee);
-    uint256 distBefore = distUsdc();
+    mathint feeBefore = bal(coin, fee);
+    mathint distBefore = bal(coin, currentContract);
+    mathint otherBefore = balBoth(currentContract) - distBefore;
     uint256 pptBefore = profitPerToken();
     mathint supply = ghostSupply;
 
-    distribute(e, period, amount, epoch, proof);
+    distribute(e, period, coin, amount, epoch, proof);
 
-    mathint share = to_mathint(usdcToken.balanceOf(fee)) - to_mathint(feeBefore);
+    mathint share = bal(coin, fee) - feeBefore;
     assert share * 10000 <= to_mathint(amount) * to_mathint(bps)
         && (share + 1) * 10000 > to_mathint(amount) * to_mathint(bps),
-        "Tawf's share is not floor(amount * nisbah / 10000)";
-    assert to_mathint(distUsdc()) == to_mathint(distBefore) + to_mathint(amount) - share,
-        "the distributor did not keep exactly the holders' part";
+        "Tawf's share is not floor(amount * nisbah / 10000) in the distributed coin";
+    assert bal(coin, currentContract) == distBefore + to_mathint(amount) - share,
+        "the distributor did not keep exactly the holders' part in the distributed coin";
+    assert balBoth(currentContract) - bal(coin, currentContract) == otherBefore,
+        "a distribution moved the other coin";
     assert supply > 0 => (to_mathint(profitPerToken()) - to_mathint(pptBefore)) * supply
         <= (to_mathint(amount) - share) * 1000000000000000000,
         "holders were credited more than the amount minus Tawf's share";
@@ -949,17 +1065,273 @@ rule distributeSplitsByNisbah(uint16 period, uint256 amount, uint256 epoch, byte
 
 /// @title Profit held at a flagged maturity never reaches Tawf
 rule heldProfitNeverToTawf(method f) filtered {
-    f -> f.selector == sig:releaseHeldProfit(uint16,uint256,uint256,bytes32[]).selector
-      || f.selector == sig:claimProfit().selector
+    f -> f.selector == sig:releaseHeldProfit(uint16,address,uint256,uint256,bytes32[]).selector
+      || f.selector == sig:claimProfit(address).selector
       || f.selector == sig:sweepUnclaimed().selector
-      || f.selector == sig:redeem().selector
+      || f.selector == sig:redeem(address).selector
 } {
+    sceneCoins();
     env e; calldataarg args;
     address fee = feeRecipient();
     require fee != e.msg.sender && fee != currentContract;
     require fee != sweepDestination(); // setSweepDestinationValidAddress
-    requireUsdcSane(fee, currentContract);
-    uint256 before = usdcToken.balanceOf(fee);
+    requireCoinsSane(fee, currentContract);
+    uint256 beforeUsdc = usdcToken.balanceOf(fee);
+    uint256 beforeUsdt = usdtToken.balanceOf(fee);
     f(e, args);
-    assert usdcToken.balanceOf(fee) == before, "held or principal money reached Tawf's fee wallet";
+    assert usdcToken.balanceOf(fee) == beforeUsdc && usdtToken.balanceOf(fee) == beforeUsdt, "held or principal money reached Tawf's fee wallet";
+}
+
+
+// ###########################################################################
+// MULTI-COIN ACCOUNTING (accepted coins: the two scene coins, see sceneCoins)
+//
+// The preservation rules below range over the distributor's own functions
+// only (f.contract == currentContract). Justification: the distributor's coin
+// balances and its storage move only through its own code. A MockUSDC or
+// MockUSDT function called by someone else cannot take the distributor's coins
+// because the distributor never approves a spender (checked for the series and
+// the vault by the allowance rules in their specs, and the distributor has no
+// approve call at all, which `grep approve src/sukuk/SukukDistributor.sol`
+// confirms). Direct transfers INTO the distributor only raise a balance, which
+// keeps every lower bound below true.
+// ###########################################################################
+
+// sumPaid[c] == sum over investors of paidOf[investor][c].
+ghost mapping(address => mathint) sumPaid {
+    init_state axiom forall address c. sumPaid[c] == 0;
+}
+
+hook Sstore currentContract.paidOf[KEY address investor][KEY address c] uint256 newV (uint256 oldV) {
+    sumPaid[c] = sumPaid[c] + newV - oldV;
+}
+
+definition sale(uint8 st) returns bool = st == 0 || st == 1; // Pending or Subscription: sale not closed
+
+// Before maturity nothing is held: releaseHeldProfit needs Matured and Matured is terminal for it.
+function heldOnlyWhenMatured() returns bool {
+    return statusU8() != 3 => (heldBalanceOf(usdcToken) == 0 && heldBalanceOf(usdtToken) == 0 && heldBalance() == 0);
+}
+
+/// @title raisedOf per coin equals the sum of paidOf while the subscription is open
+rule raisedMatchesPaidWhileOpen(method f) filtered { f -> !f.isView && f.contract == currentContract } {
+    sceneCoins();
+    require sale(statusU8()) => (to_mathint(raisedOf(usdcToken)) == sumPaid[usdcToken]
+                                 && to_mathint(raisedOf(usdtToken)) == sumPaid[usdtToken]);
+    env e; calldataarg args;
+    f(e, args);
+    assert sale(statusU8()) => (to_mathint(raisedOf(usdcToken)) == sumPaid[usdcToken]
+                                && to_mathint(raisedOf(usdtToken)) == sumPaid[usdtToken]),
+        "raisedOf per coin drifted from the sum of paidOf while the subscription is open";
+}
+
+/// @title the coin parts of the raise add up to the token supply while the subscription is open
+rule raisedMatchesSupplyWhileOpen(method f) filtered { f -> !f.isView && f.contract == currentContract } {
+    sceneCoins();
+    require sale(statusU8()) => to_mathint(raisedOf(usdcToken)) + raisedOf(usdtToken) == to_mathint(ghostSupply);
+    env e; calldataarg args;
+    f(e, args);
+    assert sale(statusU8()) => to_mathint(raisedOf(usdcToken)) + raisedOf(usdtToken) == to_mathint(ghostSupply),
+        "sum of raisedOf over the coins is not the token supply while the subscription is open";
+}
+
+/// @title the per-coin held balances add up to heldBalance
+rule heldBalanceSumsOverCoins(method f) filtered { f -> !f.isView && f.contract == currentContract } {
+    sceneCoins();
+    require to_mathint(heldBalanceOf(usdcToken)) + heldBalanceOf(usdtToken) == to_mathint(heldBalance());
+    env e; calldataarg args;
+    f(e, args);
+    assert to_mathint(heldBalanceOf(usdcToken)) + heldBalanceOf(usdtToken) == to_mathint(heldBalance()),
+        "heldBalanceOf over the coins no longer sums to heldBalance";
+}
+
+/// @title no held balance before maturity
+rule heldBalanceOnlyWhenMatured(method f) filtered { f -> !f.isView && f.contract == currentContract } {
+    sceneCoins();
+    require heldOnlyWhenMatured();
+    env e; calldataarg args;
+    f(e, args);
+    assert heldOnlyWhenMatured(), "a held balance exists before maturity";
+}
+
+/// @title the held balance of a coin never exceeds the distributor's balance of that coin
+// heldBalanceOf[coin] <= coin.balanceOf(this), for each coin.
+rule heldBalanceBackedByCoin(method f) filtered { f -> !f.isView && f.contract == currentContract } {
+    sceneCoins();
+    env e0;
+    requireCoinsSane(currentContract, e0.msg.sender);
+    require heldOnlyWhenMatured();
+    require to_mathint(heldBalanceOf(usdcToken)) <= to_mathint(distUsdc());
+    require to_mathint(heldBalanceOf(usdtToken)) <= to_mathint(distUsdt());
+    env e; calldataarg args;
+    require e.msg.sender != currentContract && e.msg.sender == e0.msg.sender;
+    f(e, args);
+    assert to_mathint(heldBalanceOf(usdcToken)) <= to_mathint(distUsdc()),
+        "held USDC exceeds the distributor's USDC balance";
+    assert to_mathint(heldBalanceOf(usdtToken)) <= to_mathint(distUsdt()),
+        "held USDT exceeds the distributor's USDT balance";
+}
+
+/// @title the coin balances cover the escrow and the held profit
+// While the sale is open or cancelled, escrow = what is still subscribed and not refunded.
+// The sum of the two coin balances is at least escrow + held profit, so total coins always
+// cover what is owed from the escrow and the released held profit.
+// NOT covered here: ordinary profit and redemption owed after issue. That figure is
+// not an on-chain counter (it is per-holder accumulator state), so it is checked by the Foundry
+// invariant tests (SukukMulticoin invariants) and the e2e per-coin balance check.
+function escrowOwed() returns mathint {
+    return (statusU8() == 1 || statusU8() == 5)
+        ? to_mathint(raisedOf(usdcToken)) + raisedOf(usdtToken) - refundedOf(usdcToken) - refundedOf(usdtToken)
+        : 0;
+}
+
+// The facts the escrow rule leans on, each proven as a preservation rule below.
+function pendingEmptyAndRefundsOnlyWhenCancelled() returns bool {
+    return (statusU8() == 0 => (raisedOf(usdcToken) == 0 && raisedOf(usdtToken) == 0))
+        && (statusU8() != 5 => (refundedOf(usdcToken) == 0 && refundedOf(usdtToken) == 0))
+        && (refundedOf(usdcToken) <= raisedOf(usdcToken) && refundedOf(usdtToken) <= raisedOf(usdtToken));
+}
+
+// No profit is credited before the pool is Active, so claim cannot pay out of the escrow:
+// the accumulator moves only in distribute (Active), and settle adds nothing while it is zero.
+function noProfitBeforeActive(address h) returns bool {
+    return (statusU8() <= 1 || statusU8() == 5) => (profitPerToken() == 0 && owedOf(h) == 0 && perTokenPaidOf(h) == 0);
+}
+
+rule pendingEmptyAndRefundsOnlyWhenCancelledPreserved(method f) filtered { f -> !f.isView && f.contract == currentContract } {
+    sceneCoins();
+    require pendingEmptyAndRefundsOnlyWhenCancelled();
+    env e; calldataarg args;
+    f(e, args);
+    assert pendingEmptyAndRefundsOnlyWhenCancelled(), "pending state not empty or refunds outside Cancelled";
+}
+
+rule noProfitBeforeActivePreserved(method f, address h) filtered { f -> !f.isView && f.contract == currentContract } {
+    sceneCoins();
+    require noProfitBeforeActive(h);
+    env e; calldataarg args;
+    f(e, args);
+    assert noProfitBeforeActive(h), "profit was credited before the pool was Active";
+}
+
+rule coinBalancesCoverEscrowAndHeld(method f) filtered { f -> !f.isView && f.contract == currentContract } {
+    sceneCoins();
+    env e; calldataarg args;
+    require e.msg.sender != currentContract;
+    requireCoinsSane(currentContract, e.msg.sender);
+    require heldOnlyWhenMatured();
+    require to_mathint(heldBalanceOf(usdcToken)) + heldBalanceOf(usdtToken) == to_mathint(heldBalance());
+    require to_mathint(heldBalanceOf(usdcToken)) <= to_mathint(distUsdc());
+    require to_mathint(heldBalanceOf(usdtToken)) <= to_mathint(distUsdt());
+    require pendingEmptyAndRefundsOnlyWhenCancelled();
+    require noProfitBeforeActive(e.msg.sender);
+    require balBoth(currentContract) >= escrowOwed() + heldBalance();
+    f(e, args);
+    assert pendingEmptyAndRefundsOnlyWhenCancelled(), "refunds exceeded what was raised in a coin";
+    assert balBoth(currentContract) >= escrowOwed() + heldBalance(),
+        "total coin balances fell below escrow plus held profit";
+}
+
+/// @title freeBalance never counts escrow or held profit
+// freeBalance(coin) is what can pay profit and redemption. Exactly: the coin balance less the held
+// profit in that coin and, while the sale is open or cancelled, less that coin's escrow
+// (raisedOf - refundedOf), floored at zero. So it never counts either of them.
+function escrowOf(address coin) returns mathint {
+    return (statusU8() == 1 || statusU8() == 5) ? to_mathint(raisedOf(coin)) - refundedOf(coin) : 0;
+}
+
+rule freeBalanceExcludesEscrowAndHeld(address coin) {
+    sceneCoins();
+    require isCoin(coin);
+    require refundedOf(coin) <= raisedOf(coin);
+    mathint reserved = heldBalanceOf(coin) + escrowOf(coin);
+    mathint fb = freeBalance(coin);
+    assert fb > 0 => fb + reserved == bal(coin, currentContract),
+        "freeBalance counted escrow or held profit";
+    assert fb == 0 => bal(coin, currentContract) <= reserved,
+        "freeBalance is zero although the coin balance exceeds escrow plus held profit";
+    assert fb <= bal(coin, currentContract), "freeBalance exceeds the coin balance";
+}
+
+// ===========================================================================
+// NO PAYOUT OR INTAKE IN AN UNACCEPTED COIN
+// ===========================================================================
+
+/// @title Only accepted coins can be paid out or taken in
+// Every entry point that names a coin reverts for a coin outside the accepted set.
+rule noMoneyInUnacceptedCoin(address coin, uint256 amount, uint16 period, uint16 index, uint256 epoch, bytes32[] proof) {
+    env e;
+    sceneCoins();
+    require !isCoin(coin);
+    storage init = lastStorage;
+
+    subscribe@withrevert(e, coin, amount);
+    assert lastReverted, "subscribe accepted an unaccepted coin";
+    claim@withrevert(e, coin) at init;
+    assert lastReverted, "claim paid out in an unaccepted coin";
+    redeem@withrevert(e, coin) at init;
+    assert lastReverted, "redeem paid out in an unaccepted coin";
+    claimProfit@withrevert(e, coin) at init;
+    assert lastReverted, "claimProfit paid out in an unaccepted coin";
+    topUp@withrevert(e, coin, amount) at init;
+    assert lastReverted, "topUp took an unaccepted coin";
+    distribute@withrevert(e, period, coin, amount, epoch, proof) at init;
+    assert lastReverted, "distribute took an unaccepted coin";
+    settleMaturity@withrevert(e, coin, amount, epoch, proof) at init;
+    assert lastReverted, "settleMaturity took an unaccepted coin";
+    settleDefault@withrevert(e, coin, amount, epoch, proof) at init;
+    assert lastReverted, "settleDefault took an unaccepted coin";
+    releaseHeldProfit@withrevert(e, index, coin, amount, epoch, proof) at init;
+    assert lastReverted, "releaseHeldProfit took an unaccepted coin";
+}
+
+/// @title A paused coin takes no new money (a pause never stops a payout, see the Foundry tests)
+rule pausedCoinTakesNoNewMoney(address coin, uint256 amount, uint16 period, uint16 index, uint256 epoch, bytes32[] proof) {
+    env e;
+    sceneCoins();
+    require coinPaused(coin);
+    storage init = lastStorage;
+
+    subscribe@withrevert(e, coin, amount);
+    assert lastReverted, "subscribe accepted a paused coin";
+    topUp@withrevert(e, coin, amount) at init;
+    assert lastReverted, "topUp took a paused coin";
+    distribute@withrevert(e, period, coin, amount, epoch, proof) at init;
+    assert lastReverted, "distribute took a paused coin";
+}
+
+/// @title topUp adds liquidity and changes no accounting
+rule topUpChangesNoAccounting(address coin, uint256 amount) {
+    env e;
+    sceneCoins();
+    require e.msg.sender != currentContract;
+    requireCoinsSane(currentContract, e.msg.sender);
+    mathint before = bal(coin, currentContract);
+    uint256 supply0 = ghostSupply;
+    uint256 ppt0 = profitPerToken();
+    uint256 raised0 = raisedOf(coin);
+    uint256 held0 = heldBalanceOf(coin);
+    uint8 st0 = statusU8();
+
+    topUp(e, coin, amount);
+
+    assert bal(coin, currentContract) == before + amount, "topUp did not add exactly amount";
+    assert ghostSupply == supply0 && profitPerToken() == ppt0 && raisedOf(coin) == raised0
+        && heldBalanceOf(coin) == held0 && statusU8() == st0,
+        "topUp changed accounting";
+}
+
+/// @title Distribute, maturity, default and held-profit releases are FUNDER_ROLE only
+rule fundingNeedsFunderRole(address coin, uint256 amount, uint16 period, uint16 index, uint256 epoch, bytes32[] proof) {
+    env e;
+    sceneCoins();
+    storage init = lastStorage;
+    distribute@withrevert(e, period, coin, amount, epoch, proof);
+    assert !lastReverted => hasRole(FUNDER_ROLE(), e.msg.sender), "distribute without FUNDER_ROLE";
+    settleMaturity@withrevert(e, coin, amount, epoch, proof) at init;
+    assert !lastReverted => hasRole(FUNDER_ROLE(), e.msg.sender), "settleMaturity without FUNDER_ROLE";
+    settleDefault@withrevert(e, coin, amount, epoch, proof) at init;
+    assert !lastReverted => hasRole(FUNDER_ROLE(), e.msg.sender), "settleDefault without FUNDER_ROLE";
+    releaseHeldProfit@withrevert(e, index, coin, amount, epoch, proof) at init;
+    assert !lastReverted => hasRole(FUNDER_ROLE(), e.msg.sender), "releaseHeldProfit without FUNDER_ROLE";
 }
