@@ -14,6 +14,15 @@ const extraAbi = parseAbi([
 
 const coinAbi = parseAbi(['function symbol() view returns (string)'])
 
+// The on-chain symbol() is not reliable: the mUSDG mock was deployed from MockUSDC and reports 'mUSDC'.
+// So a coin is labelled by its key in the deployments file first, and by symbol() only as a fallback.
+const KNOWN_COINS: [Address, string][] = [
+  [addresses.mockUsdc, 'USDC'],
+  [addresses.mockUsdt, 'USDT'],
+  [addresses.mockUsdg, 'USDG'],
+]
+const knownSymbol = (coin: Address) => KNOWN_COINS.find(([a]) => a !== '0x0000000000000000000000000000000000000000' && a.toLowerCase() === coin.toLowerCase())?.[1]
+
 const STATUS = ['Pending', 'Subscription', 'Active', 'Matured', 'Defaulted', 'Cancelled'] as const
 
 /**
@@ -48,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const coins = await Promise.all(
       coinList.map(async (coin) => {
         const [symbol, raisedOf, refundedOf, freeBalance, coinBalance, heldBalance, paused] = await Promise.all([
-          publicClient.readContract({ address: coin, abi: coinAbi, functionName: 'symbol' }).catch(() => 'COIN'),
+          knownSymbol(coin) ?? (await publicClient.readContract({ address: coin, abi: coinAbi, functionName: 'symbol' }).catch(() => 'COIN')),
           publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'raisedOf', args: [coin] }),
           publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'refundedOf', args: [coin] }),
           publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'freeBalance', args: [coin] }),
