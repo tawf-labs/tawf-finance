@@ -5,6 +5,7 @@ pragma solidity 0.8.17;
 // Tawf contracts under test (SukukDistributor ^0.8.20, TawfDepositoSeries ^0.8.24,
 // MockUSDC/MockUSDT ^0.8.20) are reached only via vm.deployCode and minimal interfaces.
 
+import { ModuleProxies } from "../../src/proxy/ModuleProxies.sol";
 import "forge-std/Test.sol";
 import {ProxyDeployer} from "../../script/lib/ProxyDeployer.sol";
 
@@ -83,7 +84,7 @@ abstract contract TrexFixture is Test, ProxyDeployer {
         mc.init();
         token = new Token();
         token.init(address(ir), address(mc), name_, symbol_, decimals_, address(0));
-        module = new DistributionCheckpointModule();
+        module = ModuleProxies.checkpoint();
         vm.stopPrank();
     }
 

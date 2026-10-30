@@ -7,6 +7,7 @@ pragma solidity 0.8.17;
 // Covers open, subscribe within and over the investor limit, close, distribute, claim,
 // settle and redeem.
 
+import { ModuleProxies } from "../../src/proxy/ModuleProxies.sol";
 import {_coins1} from "../sukuk/SukukDistributor.t.sol";
 import {TrexFixture} from "../trex/TrexFixture.sol";
 import {ScfInvestorLimitModule} from "../../src/scf/ScfInvestorLimitModule.sol";
@@ -66,7 +67,7 @@ contract ScfSukukFlowTest is TrexFixture {
         );
 
         vm.startPrank(deployer);
-        scf = new ScfInvestorLimitModule(address(ir));
+        scf = ModuleProxies.scfLimit(address(ir));
         scf.initOffering(address(mc), issuer, FACE);
         mc.addModule(address(scf));
         vm.stopPrank();

@@ -6,6 +6,7 @@ pragma solidity 0.8.17;
 // shared T-REX fixture for identities and a T-REX token whose compliance binds the SandboxModule.
 // A standalone minter (the "series" stand-in) is the token agent so mints go through the module.
 
+import { ModuleProxies } from "../../src/proxy/ModuleProxies.sol";
 import {TrexFixture} from "../trex/TrexFixture.sol";
 import {SandboxModule} from "../../src/deposito/SandboxModule.sol";
 import {Token} from "@erc3643org/erc-3643/contracts/token/Token.sol";
@@ -48,7 +49,7 @@ contract SandboxModuleTest is TrexFixture {
 
         seriesEnd = uint64(block.timestamp + 90 days);
         vm.startPrank(deployer);
-        sandbox = new SandboxModule();
+        sandbox = ModuleProxies.sandbox();
         sandbox.initConfig(
             address(mc),
             SandboxModule.Mode.PILOT_ONLY,

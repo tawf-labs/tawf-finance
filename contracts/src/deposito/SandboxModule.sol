@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.17;
 
-import { AbstractModule } from
-    "@erc3643org/erc-3643/contracts/compliance/modular/modules/AbstractModule.sol";
+import { AbstractModuleUpgradeable } from
+    "@erc3643org/erc-3643/contracts/compliance/modular/modules/AbstractModuleUpgradeable.sol";
 
 /// @dev Minimal view of the bound ModularCompliance: the token it serves.
 interface IModularComplianceLike {
@@ -79,7 +79,7 @@ interface IClaimIssuerLike {
  *      module is not plug-and-play: it must be configured for a compliance
  *      before that compliance can bind it.
  */
-contract SandboxModule is AbstractModule {
+contract SandboxModule is AbstractModuleUpgradeable {
     enum Mode {
         PILOT_ONLY,
         SCREENED_GROUP,
@@ -115,9 +115,6 @@ contract SandboxModule is AbstractModule {
     /// @notice Whether an address is currently a counted investor, per compliance.
     mapping(address => mapping(address => bool)) private _isInvestor;
 
-    /// @notice The deployer, allowed to configure a compliance before binding.
-    address public immutable owner;
-
     error OnlyOwner();
     error NotConfigured();
     error ZeroTreasury();
@@ -140,8 +137,18 @@ contract SandboxModule is AbstractModule {
     );
     event SeriesEndChanged(address indexed compliance, uint64 seriesEnd);
 
+    /// @dev Implementation only: the logic contract is never initialised
+    ///      directly. State lives in the ModuleProxy; upgrades go through the
+    ///      proxy owner (the timelock) via `upgradeTo`. New state variables
+    ///      must be appended below the existing ones.
     constructor() {
-        owner = msg.sender;
+        _disableInitializers();
+    }
+
+    /// @notice Initialise the proxy. The caller becomes the owner, allowed to
+    ///         configure a compliance before binding.
+    function initialize() external initializer {
+        __AbstractModule_init();
     }
 
     // ---------------------------------------------------------------
@@ -161,7 +168,7 @@ contract SandboxModule is AbstractModule {
         uint256 seriesCap,
         uint64 seriesEnd
     ) external {
-        if (msg.sender != owner) revert OnlyOwner();
+        if (msg.sender != owner()) revert OnlyOwner();
         if (treasury == address(0)) revert ZeroTreasury();
         Config storage c = configOf[compliance];
         c.mode = mode;

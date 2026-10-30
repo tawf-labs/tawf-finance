@@ -25,6 +25,7 @@ pragma solidity 0.8.17;
 // be required to carry them (and the sukuk/KYC holders do not). The SandboxModule reads those
 // claims itself off each holder's ONCHAINID, so the gate is per-series, not registry-wide.
 
+import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
 import "forge-std/Script.sol";
 import {ProxyDeployer} from "./lib/ProxyDeployer.sol";
 
@@ -229,8 +230,8 @@ contract DeployTokenization is Script, ProxyDeployer {
         Token token = new Token();
         token.init(_sharedIdentityRegistry, address(mc), name_, symbol_, 2, address(0));
 
-        DistributionCheckpointModule checkpoint = new DistributionCheckpointModule();
-        SandboxModule sandbox = new SandboxModule();
+        DistributionCheckpointModule checkpoint = ModuleProxies.checkpoint();
+        SandboxModule sandbox = ModuleProxies.sandbox();
 
         // TawfDepositoSeries: (anchor, token, checkpointModule, sandbox, compliance,
         // Terms{seriesId, tenorMonths, nisbahBps}, treasury, admin, operator, maxRateAge).
@@ -303,7 +304,7 @@ contract DeployTokenization is Script, ProxyDeployer {
         Token token = new Token();
         token.init(_sharedIdentityRegistry, address(mc), "Tawf Sukuk BPRS Demo 2026", "tSUKUK-DEMO-2026", 6, address(0));
 
-        DistributionCheckpointModule module = new DistributionCheckpointModule();
+        DistributionCheckpointModule module = ModuleProxies.checkpoint();
 
         distributor = deployCode(
             "SukukDistributor.sol:SukukDistributor",

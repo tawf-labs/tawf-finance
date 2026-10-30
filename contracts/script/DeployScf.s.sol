@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.17;
 
+import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
 import { DeployExtra } from "./DeployExtra.s.sol";
 import { ModularCompliance } from "@erc3643org/erc-3643/contracts/compliance/modular/ModularCompliance.sol";
 import { Token } from "@erc3643org/erc-3643/contracts/token/Token.sol";
@@ -97,7 +98,7 @@ contract DeployScf is DeployExtra {
 
         s.anchor = deployCode("LedgerAnchor.sol:LedgerAnchor", abi.encode(ledgerChainId, operator));
 
-        ScfInvestorLimitModule limit = new ScfInvestorLimitModule(_sharedIdentityRegistry);
+        ScfInvestorLimitModule limit = ModuleProxies.scfLimit(_sharedIdentityRegistry);
         limit.setAgent(operator, true);
         s.limitModule = address(limit);
 
@@ -110,7 +111,7 @@ contract DeployScf is DeployExtra {
         s.token = address(token);
         s.compliance = address(mc);
 
-        DistributionCheckpointModule checkpoint = new DistributionCheckpointModule();
+        DistributionCheckpointModule checkpoint = ModuleProxies.checkpoint();
         s.distributor = deployCode(
             "SukukDistributor.sol:SukukDistributor",
             abi.encode(

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.17;
 
-import { AbstractModule } from
-    "@erc3643org/erc-3643/contracts/compliance/modular/modules/AbstractModule.sol";
+import { AbstractModuleUpgradeable } from
+    "@erc3643org/erc-3643/contracts/compliance/modular/modules/AbstractModuleUpgradeable.sol";
 
 /// @dev Minimal view of the bound ModularCompliance: the token it serves.
 interface IScfComplianceLike {
@@ -50,7 +50,7 @@ interface IScfTokenLike {
  *      Every token bound to the module must use the same unit as the limits
  *      (6 decimals, one unit per settlement-token unit).
  */
-contract ScfInvestorLimitModule is AbstractModule {
+contract ScfInvestorLimitModule is AbstractModuleUpgradeable {
     enum Exemption {
         NONE,
         LEGAL_ENTITY,
@@ -72,12 +72,10 @@ contract ScfInvestorLimitModule is AbstractModule {
 
     uint256 public constant PERIOD = 365 days;
 
-    /// @notice The deployer: configures offerings before binding and appoints agents.
-    address public immutable owner;
     /// @notice The shared IdentityRegistry the investors are registered in.
-    address public immutable identityRegistry;
+    address public identityRegistry;
     /// @notice Start of period 0.
-    uint64 public immutable periodStart;
+    uint64 public periodStart;
 
     /// @notice Platform agents allowed to set investor profiles.
     mapping(address => bool) public isAgent;
@@ -102,15 +100,24 @@ contract ScfInvestorLimitModule is AbstractModule {
     event UsageReset(address indexed onchainId, uint256 indexed period);
     event Invested(address indexed onchainId, uint256 indexed period, address indexed compliance, uint256 amount);
 
-    constructor(address identityRegistry_) {
+    /// @dev Implementation only: the logic contract is never initialised
+    ///      directly. State lives in the ModuleProxy; upgrades go through the
+    ///      proxy owner (the timelock) via `upgradeTo`. New state variables
+    ///      must be appended below the existing ones.
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initialise the proxy. The caller becomes the owner.
+    function initialize(address identityRegistry_) external initializer {
         if (identityRegistry_ == address(0)) revert ZeroAddress();
-        owner = msg.sender;
+        __AbstractModule_init();
         identityRegistry = identityRegistry_;
         periodStart = uint64(block.timestamp);
     }
 
     modifier onlyAgent() {
-        if (!isAgent[msg.sender] && msg.sender != owner) revert OnlyAgent();
+        if (!isAgent[msg.sender] && msg.sender != owner()) revert OnlyAgent();
         _;
     }
 
@@ -120,7 +127,7 @@ contract ScfInvestorLimitModule is AbstractModule {
 
     /// @notice Appoint or remove a platform agent.
     function setAgent(address agent, bool enabled) external {
-        if (msg.sender != owner) revert OnlyOwner();
+        if (msg.sender != owner()) revert OnlyOwner();
         if (agent == address(0)) revert ZeroAddress();
         isAgent[agent] = enabled;
         emit AgentSet(agent, enabled);
@@ -131,7 +138,7 @@ contract ScfInvestorLimitModule is AbstractModule {
     ///         live its treasury (exempt from the limit) and cap cannot be
     ///         rewritten here. A live cap changes through setOfferingCap.
     function initOffering(address compliance, address treasury, uint256 offeringCap) external {
-        if (msg.sender != owner) revert OnlyOwner();
+        if (msg.sender != owner()) revert OnlyOwner();
         if (compliance == address(0) || treasury == address(0)) revert ZeroAddress();
         if (this.isComplianceBound(compliance)) revert AlreadyBound();
         if (offeringCap == 0) revert ZeroCap();

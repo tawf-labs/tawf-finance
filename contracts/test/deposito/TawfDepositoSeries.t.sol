@@ -13,6 +13,7 @@ pragma solidity 0.8.17;
 // pro-rata claims in USDC vs USDT, maturity + redeem in either coin, and a fuzz that total payouts
 // (valued back in sen at the payout rates) never exceed anchored profit + principal.
 
+import { ModuleProxies } from "../../src/proxy/ModuleProxies.sol";
 import {TrexFixture} from "../trex/TrexFixture.sol";
 import {SandboxModule} from "../../src/deposito/SandboxModule.sol";
 import {DistributionCheckpointModule} from "../../src/sukuk/DistributionCheckpointModule.sol";
@@ -103,8 +104,8 @@ contract TawfDepositoSeriesTest is TrexFixture {
         (token, mc,) = _deployTrexToken("Tawf Deposito Series 1 (BPRS Demo)", "tDEP-TAWF-S1", 2);
 
         vm.startPrank(deployer);
-        sandbox = new SandboxModule();
-        DistributionCheckpointModule checkpoint = new DistributionCheckpointModule();
+        sandbox = ModuleProxies.sandbox();
+        DistributionCheckpointModule checkpoint = ModuleProxies.checkpoint();
 
         series = _deployProxy(
             "TawfDepositoSeries.sol:TawfDepositoSeries",

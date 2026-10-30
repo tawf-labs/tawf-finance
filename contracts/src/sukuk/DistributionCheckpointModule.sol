@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.17;
 
-import { AbstractModule } from
-    "@erc3643org/erc-3643/contracts/compliance/modular/modules/AbstractModule.sol";
+import { AbstractModuleUpgradeable } from
+    "@erc3643org/erc-3643/contracts/compliance/modular/modules/AbstractModuleUpgradeable.sol";
 import { IBalanceCheckpoint } from "./IBalanceCheckpoint.sol";
 
 /**
@@ -37,22 +37,27 @@ import { IBalanceCheckpoint } from "./IBalanceCheckpoint.sol";
  *      compliances, though each Tawf token gets its own module instance in
  *      practice.
  */
-contract DistributionCheckpointModule is AbstractModule {
+contract DistributionCheckpointModule is AbstractModuleUpgradeable {
     /// @notice The distributor notified for each bound compliance.
     mapping(address => IBalanceCheckpoint) public hookOf;
 
     error OnlyOwner();
     error ZeroHook();
 
-    /// @notice The deployer, allowed to configure hooks before the module is
-    ///         bound. In the Tawf deploy flow the operator deploys the module,
-    ///         sets the hook, then adds it to the compliance.
-    address public immutable owner;
-
     event HookSet(address indexed compliance, address indexed hook);
 
+    /// @dev Implementation only: the logic contract is never initialised
+    ///      directly. State lives in the ModuleProxy; upgrades go through the
+    ///      proxy owner (the timelock) via `upgradeTo`. New state variables
+    ///      must be appended below the existing ones.
     constructor() {
-        owner = msg.sender;
+        _disableInitializers();
+    }
+
+    /// @notice Initialise the proxy. The caller becomes the owner, allowed to
+    ///         set hooks before the module is bound.
+    function initialize() external initializer {
+        __AbstractModule_init();
     }
 
     /// @notice Point `compliance`'s balance changes at `hook` (the token's
@@ -60,7 +65,7 @@ contract DistributionCheckpointModule is AbstractModule {
     /// @dev Restricted to the deployer. Reconfiguring a hook after wiring is
     ///      a deliberate operator action, not a public one.
     function setHook(address compliance, IBalanceCheckpoint hook) external {
-        if (msg.sender != owner) revert OnlyOwner();
+        if (msg.sender != owner()) revert OnlyOwner();
         if (address(hook) == address(0)) revert ZeroHook();
         hookOf[compliance] = hook;
         emit HookSet(compliance, address(hook));

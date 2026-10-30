@@ -11,6 +11,7 @@ pragma solidity 0.8.17;
 // identity suite (addresses from env) and an existing LedgerAnchor. For the full demo suite
 // (identity + deposito + sukuk, written to deployments JSON), use DeployTokenization.s.sol.
 
+import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
 import "forge-std/Script.sol";
 
 import {ModularCompliance} from "@erc3643org/erc-3643/contracts/compliance/modular/ModularCompliance.sol";
@@ -54,7 +55,7 @@ contract DeploySukuk is Script {
         token.init(identityRegistry, address(mc), vm.envString("SUKUK_NAME"), vm.envString("SUKUK_SYMBOL"), 6, address(0));
 
         // 2. Checkpoint module (operator is its deployer/owner so it can set the hook).
-        DistributionCheckpointModule module = new DistributionCheckpointModule();
+        DistributionCheckpointModule module = ModuleProxies.checkpoint();
 
         // 3. SukukDistributor via deployCode (0.8.20 unit). The Terms struct has only static
         //    members, so its ABI encoding is byte-identical to the flattened field encoding.

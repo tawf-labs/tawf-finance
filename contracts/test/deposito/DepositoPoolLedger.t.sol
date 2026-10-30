@@ -6,6 +6,7 @@ pragma solidity 0.8.17;
 // listing, the total over all banks, per-bank leaves) and the series consuming its facts:
 // allocation against the total, rejection above it, profit and maturity.
 
+import { ModuleProxies } from "../../src/proxy/ModuleProxies.sol";
 import {TrexFixture} from "../trex/TrexFixture.sol";
 import {SandboxModule} from "../../src/deposito/SandboxModule.sol";
 import {DistributionCheckpointModule} from "../../src/sukuk/DistributionCheckpointModule.sol";
@@ -66,8 +67,8 @@ contract DepositoPoolLedgerTest is TrexFixture {
         (token, mc,) = _deployTrexToken("Tawf Deposito Pool: Jawa Barat", "tDEP-JABAR-1", 2);
 
         vm.startPrank(deployer);
-        SandboxModule sandbox = new SandboxModule();
-        DistributionCheckpointModule checkpoint = new DistributionCheckpointModule();
+        SandboxModule sandbox = ModuleProxies.sandbox();
+        DistributionCheckpointModule checkpoint = ModuleProxies.checkpoint();
         series = _deployProxy(
             "TawfDepositoSeries.sol:TawfDepositoSeries",
             abi.encodePacked(SERIES_INIT, abi.encode(

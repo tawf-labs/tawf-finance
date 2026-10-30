@@ -6,6 +6,7 @@ pragma solidity 0.8.17;
 // and the access rules. Two T-REX tokens bind the same module instance, as two offerings of one
 // SCF platform would. The deployer is the token agent and mints directly.
 
+import { ModuleProxies } from "../../src/proxy/ModuleProxies.sol";
 import {TrexFixture} from "../trex/TrexFixture.sol";
 import {ScfInvestorLimitModule} from "../../src/scf/ScfInvestorLimitModule.sol";
 import {Token} from "@erc3643org/erc-3643/contracts/token/Token.sol";
@@ -39,7 +40,7 @@ contract ScfInvestorLimitModuleTest is TrexFixture {
         (tokenB, mcB,) = _deployTrexToken("SCF Sukuk B", "tSCF-B", 6);
 
         vm.startPrank(deployer);
-        scf = new ScfInvestorLimitModule(address(ir));
+        scf = ModuleProxies.scfLimit(address(ir));
         scf.setAgent(platform, true);
         scf.initOffering(address(mcA), treasury, CAP);
         scf.initOffering(address(mcB), treasury, CAP);
