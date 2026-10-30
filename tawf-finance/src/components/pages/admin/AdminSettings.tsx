@@ -6,7 +6,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import deployments from '@/web3/tokenization.deployments.json';
 import { CHAIN_ID, EXPLORER_URL, RPC_URL, explorerAddressUrl } from '@/web3/constants';
 import { WALLETCONNECT_PROJECT_ID } from '@/web3/config';
-import { DEPOSITO_POOL_ENABLED, FINANCING_POOL_ENABLED } from '@/config/features';
+import { DEPOSITO_STABLECOIN_FLOW_ENABLED, FINANCING_POOL_ENABLED } from '@/config/features';
 import { shortAddress } from '@/web3/format';
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -133,8 +133,8 @@ export function AdminSettings() {
               <Row label="Operator">
                 {operator && ADDRESS.test(operator) ? <AddressLink address={operator as `0x${string}`} /> : <Badge variant="default" size="sm">Not set</Badge>}
               </Row>
-              <Row label="Deposito Pool">
-                <Badge variant={DEPOSITO_POOL_ENABLED ? 'success' : 'default'} size="sm">{DEPOSITO_POOL_ENABLED ? 'Enabled' : 'Off in this build'}</Badge>
+              <Row label="Deposito stablecoin flow">
+                <Badge variant={DEPOSITO_STABLECOIN_FLOW_ENABLED ? 'success' : 'default'} size="sm">{DEPOSITO_STABLECOIN_FLOW_ENABLED ? 'Enabled' : 'Off in this build'}</Badge>
               </Row>
               <Row label="Financing sell-down pool">
                 <Badge variant={FINANCING_POOL_ENABLED ? 'success' : 'default'} size="sm">{FINANCING_POOL_ENABLED ? 'Enabled' : 'Off in this build'}</Badge>

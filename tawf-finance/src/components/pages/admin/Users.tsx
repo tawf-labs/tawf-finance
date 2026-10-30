@@ -9,7 +9,7 @@ import { timeAgo } from '@/lib/activity';
 import { formatIdr, formatUsdc } from '@/web3/format';
 import { explorerTxUrl } from '@/web3/constants';
 import { cn } from '@/utils/cn';
-import { DEPOSITO_POOL_ENABLED } from '@/config/features';
+import { DEPOSITO_STABLECOIN_FLOW_ENABLED } from '@/config/features';
 
 function WalletRow({ w }: { w: VerifiedWallet }) {
   const d = useWalletDetails(w.wallet);
@@ -51,13 +51,13 @@ function WalletRow({ w }: { w: VerifiedWallet }) {
             {d.isLoading ? 'Checking' : d.isVerified ? 'Verified' : 'Not verified'}
           </Badge>
         </td>
-        {DEPOSITO_POOL_ENABLED && <td className="py-4 px-4 text-sm text-tawf-ink">{formatIdr(d.poolBalance)}</td>}
-        {DEPOSITO_POOL_ENABLED && <td className="py-4 px-4 text-sm text-tawf-ink">{formatIdr(d.series1Balance)}</td>}
+        {DEPOSITO_STABLECOIN_FLOW_ENABLED && <td className="py-4 px-4 text-sm text-tawf-ink">{formatIdr(d.poolBalance)}</td>}
+        {DEPOSITO_STABLECOIN_FLOW_ENABLED && <td className="py-4 px-4 text-sm text-tawf-ink">{formatIdr(d.series1Balance)}</td>}
         <td className="py-4 px-4 text-sm text-tawf-ink">
           {d.scfLimit.limit > 0n ? `${formatUsdc(d.scfLimit.remaining)} of ${formatUsdc(d.scfLimit.limit)}` : 'No limit set'}
         </td>
         <td className="py-4 px-4">
-          {!DEPOSITO_POOL_ENABLED ? null : d.screened ? (
+          {!DEPOSITO_STABLECOIN_FLOW_ENABLED ? null : d.screened ? (
             <Badge variant="success" size="sm">Screened</Badge>
           ) : (
             <Button variant="secondary" size="sm" onClick={() => setScreening((v) => !v)}>
@@ -66,7 +66,7 @@ function WalletRow({ w }: { w: VerifiedWallet }) {
           )}
         </td>
       </tr>
-      {DEPOSITO_POOL_ENABLED && (screening || msg) && (
+      {DEPOSITO_STABLECOIN_FLOW_ENABLED && (screening || msg) && (
         <tr className="border-b border-tawf-green-5">
           <td colSpan={6} className="px-4 pb-4">
             {screening && (
@@ -136,7 +136,7 @@ export function AdminUsers() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-tawf-green-10">
-                {['Wallet', 'Status', ...(DEPOSITO_POOL_ENABLED ? ['Deposito Pool', 'BPRS Demo'] : []), 'SCF limit left', ''].map((h) => (
+                {['Wallet', 'Status', ...(DEPOSITO_STABLECOIN_FLOW_ENABLED ? ['Deposito Pool', 'BPRS Demo'] : []), 'SCF limit left', ''].map((h) => (
                   <th key={h} className="py-3 px-4 text-left text-xs font-semibold uppercase tracking-wider text-tawf-muted">{h}</th>
                 ))}
               </tr>

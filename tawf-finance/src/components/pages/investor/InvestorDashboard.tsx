@@ -21,7 +21,7 @@ import {
   SCF_TOKEN_ADDRESS,
   SCF_SYMBOL,
 } from '@/web3/tokenization';
-import { DEPOSITO_POOL_ENABLED, FINANCING_POOL_ENABLED } from '@/config/features';
+import { DEPOSITO_STABLECOIN_FLOW_ENABLED, FINANCING_POOL_ENABLED } from '@/config/features';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -41,24 +41,24 @@ type PoolShare = { investorsPercent: number; tawfPercent: number; nisbahBps: num
 export function InvestorDashboard() {
   const { address, isConnected } = useAccount();
   // With the Deposito Pool off in the UI, none of its reads are made.
-  const depositoAddress = DEPOSITO_POOL_ENABLED ? address : undefined;
-  const { state: s1, isLoading: s1Loading } = useTawfSeries(depositoAddress, {}, { enabled: DEPOSITO_POOL_ENABLED });
-  const { state: pool, isLoading: poolLoading } = useTawfSeries(depositoAddress, POOL_TARGET, { enabled: DEPOSITO_POOL_ENABLED });
+  const depositoAddress = DEPOSITO_STABLECOIN_FLOW_ENABLED ? address : undefined;
+  const { state: s1, isLoading: s1Loading } = useTawfSeries(depositoAddress, {}, { enabled: DEPOSITO_STABLECOIN_FLOW_ENABLED });
+  const { state: pool, isLoading: poolLoading } = useTawfSeries(depositoAddress, POOL_TARGET, { enabled: DEPOSITO_STABLECOIN_FLOW_ENABLED });
   const { state: scf, isLoading: scfLoading } = useSukuk(address, SCF_TARGET);
   const { state: limit, isLoading: limitLoading } = useScfLimit(address);
-  const { banks, isLoading: banksLoading } = usePoolBanks(DEPOSITO_POOL_ENABLED ? DEPOSITO_POOL.ledger : undefined);
+  const { banks, isLoading: banksLoading } = usePoolBanks(DEPOSITO_POOL.ledger);
   const { events, loading: activityLoading } = useActivity(address);
   const [share, setShare] = useState<PoolShare | null>(null);
   const [scfStatus, setScfStatus] = useState<ScfStatus | null>(null);
 
   useEffect(() => {
-    if (DEPOSITO_POOL_ENABLED) getJson<PoolShare>('tawf-share?product=pool').then(setShare).catch(() => setShare(null));
+    if (DEPOSITO_STABLECOIN_FLOW_ENABLED) getJson<PoolShare>('tawf-share?product=pool').then(setShare).catch(() => setShare(null));
     getScfStatus().then(setScfStatus).catch(() => setScfStatus(null));
   }, []);
 
   // Show a placeholder, not 0, until the on-chain reads have resolved.
-  const idrLoading = DEPOSITO_POOL_ENABLED && (poolLoading || s1Loading);
-  const hasPool = DEPOSITO_POOL_ENABLED && Boolean(DEPOSITO_POOL.series);
+  const idrLoading = DEPOSITO_STABLECOIN_FLOW_ENABLED && (poolLoading || s1Loading);
+  const hasPool = DEPOSITO_STABLECOIN_FLOW_ENABLED && Boolean(DEPOSITO_POOL.series);
   const poolHolding = hasPool ? pool.balance : 0n;
   const holdingsSen = poolHolding + s1.balance;
   const claimableSen = (hasPool ? pool.claimableSen : 0n) + s1.claimableSen;
@@ -69,7 +69,7 @@ export function InvestorDashboard() {
   const recent = ownEvents(events).slice(0, 5);
 
   // Holdings by product: IDR products share one scale, SCF is in USDC so shown on its own scale.
-  const idrBars = !DEPOSITO_POOL_ENABLED ? [] : [
+  const idrBars = !DEPOSITO_STABLECOIN_FLOW_ENABLED ? [] : [
     ...(hasPool ? [{ label: DEPOSITO_POOL.name, value: pool.balance, text: idrLoading ? '...' : formatIdr(pool.balance) }] : []),
     { label: 'Tawf Deposito Pool: BPRS Demo', value: s1.balance, text: idrLoading ? '...' : formatIdr(s1.balance) },
   ];
@@ -79,7 +79,7 @@ export function InvestorDashboard() {
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-8">
       <motion.div variants={itemVariants}>
         <h1 className="font-serif text-3xl text-tawf-green mb-2">Investor Dashboard</h1>
-        <p className="text-tawf-muted">{DEPOSITO_POOL_ENABLED ? 'Your Deposito Pool and crowdfunding overview, read from the chain.' : 'Your Urun Dana crowdfunding overview, read from the chain.'}</p>
+        <p className="text-tawf-muted">{DEPOSITO_STABLECOIN_FLOW_ENABLED ? 'Your Deposito Pool and crowdfunding overview, read from the chain.' : 'Your Urun Dana crowdfunding overview, read from the chain.'}</p>
       </motion.div>
 
       {!isConnected ? (
@@ -93,7 +93,7 @@ export function InvestorDashboard() {
       ) : (
         <>
           <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {DEPOSITO_POOL_ENABLED ? (
+            {DEPOSITO_STABLECOIN_FLOW_ENABLED ? (
               <>
                 <StatCard title="Deposito holdings" value={idrLoading ? '...' : formatIdr(holdingsSen)} icon={<TrendingUp className="w-5 h-5" />} color="green" />
                 <StatCard title="Claimable profit" value={idrLoading ? '...' : formatIdr(claimableSen)} icon={<DollarSign className="w-5 h-5" />} color="gold" />
@@ -119,7 +119,7 @@ export function InvestorDashboard() {
               </>
             )}
           </motion.div>
-          {DEPOSITO_POOL_ENABLED && hasScf && scf.claimable > 0n && (
+          {DEPOSITO_STABLECOIN_FLOW_ENABLED && hasScf && scf.claimable > 0n && (
             <p className="text-sm text-tawf-muted -mt-4">Urun Dana claimable profit: <span className="font-medium text-tawf-gold">{formatUsdc(scf.claimable)}</span></p>
           )}
 
@@ -156,7 +156,7 @@ export function InvestorDashboard() {
                   <p className="text-sm text-tawf-muted">No holdings yet.</p>
                 )}
               </div>
-              {DEPOSITO_POOL_ENABLED && <p className="text-xs text-tawf-muted mt-4">Deposito bars are in IDR and the Urun Dana bar is in USDC, so they are not on one scale.</p>}
+              {DEPOSITO_STABLECOIN_FLOW_ENABLED && <p className="text-xs text-tawf-muted mt-4">Deposito bars are in IDR and the Urun Dana bar is in USDC, so they are not on one scale.</p>}
             </Card>
 
             <div>
@@ -174,7 +174,7 @@ export function InvestorDashboard() {
                     claimable={formatIdr(pool.claimableSen)}
                   />
                 )}
-                {DEPOSITO_POOL_ENABLED && s1.balance > 0n && (
+                {DEPOSITO_STABLECOIN_FLOW_ENABLED && s1.balance > 0n && (
                   <PositionRow
                     symbol="tDEP-TAWF-S1"
                     badge="Tawf Deposito Pool: BPRS Demo"
@@ -194,7 +194,7 @@ export function InvestorDashboard() {
                 )}
                 {(idrLoading || scfLoading) && <Card className="p-6 text-sm text-tawf-muted">Loading positions...</Card>}
                 {!idrLoading && !scfLoading && holdingsSen === 0n && scf.balance === 0n && (
-                  <Card className="p-6 text-sm text-tawf-muted">{DEPOSITO_POOL_ENABLED ? 'No positions yet. Subscribe to the Deposito Pool or invest in Urun Dana.' : 'No positions yet. Invest in Urun Dana to get started.'}</Card>
+                  <Card className="p-6 text-sm text-tawf-muted">{DEPOSITO_STABLECOIN_FLOW_ENABLED ? 'No positions yet. Subscribe to the Deposito Pool or invest in Urun Dana.' : 'No positions yet. Invest in Urun Dana to get started.'}</Card>
                 )}
               </div>
             </div>
@@ -234,17 +234,30 @@ export function InvestorDashboard() {
       {isTokenizationConfigured && (
         <motion.div variants={itemVariants}>
           <h2 className="font-serif text-xl text-tawf-green mb-4">Pilot products</h2>
-          <div className={`grid grid-cols-1 gap-6 ${DEPOSITO_POOL_ENABLED ? 'md:grid-cols-2' : ''}`}>
-            {DEPOSITO_POOL_ENABLED && <Link to="/investor/deposito" className="block bg-white rounded-2xl border border-tawf-green-10 p-6 hover:border-tawf-green-20 hover:shadow-md transition-all">
-              <p className="text-xs uppercase tracking-wide text-tawf-muted mb-1">Tawf Deposito Pool</p>
-              <h3 className="font-serif text-lg text-tawf-green mb-3">Deposito across BPRS in Jawa Barat</h3>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="bg-white rounded-2xl border border-tawf-green-10 p-6 hover:border-tawf-green-20 hover:shadow-md transition-all">
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-xs uppercase tracking-wide text-tawf-muted mb-1">Tawf Deposito Pool</p>
+                {!DEPOSITO_STABLECOIN_FLOW_ENABLED && <Badge variant="warning" size="sm">Opening soon</Badge>}
+              </div>
+              <Link to="/investor/deposito" className="block">
+                <h3 className="font-serif text-lg text-tawf-green mb-3">Deposito across BPRS in Jawa Barat</h3>
+              </Link>
               <dl className="grid grid-cols-2 gap-3 text-sm">
                 <div><dt className="text-tawf-muted">Banks</dt><dd className="font-medium text-tawf-green">{banksLoading ? '...' : banks.length}</dd></div>
                 <div><dt className="text-tawf-muted">Total at the banks</dt><dd className="font-medium text-tawf-green">{banksLoading ? '...' : formatIdr(bankTotalSen)}</dd></div>
-                <div><dt className="text-tawf-muted">Supply</dt><dd className="font-medium text-tawf-green">{poolLoading ? '...' : formatIdr(pool.supply)}</dd></div>
-                <div><dt className="text-tawf-muted">Your share of profit</dt><dd className="font-medium text-tawf-green">{share ? `${share.investorsPercent}%` : '...'}</dd></div>
+                {DEPOSITO_STABLECOIN_FLOW_ENABLED && (
+                  <>
+                    <div><dt className="text-tawf-muted">Supply</dt><dd className="font-medium text-tawf-green">{poolLoading ? '...' : formatIdr(pool.supply)}</dd></div>
+                    <div><dt className="text-tawf-muted">Your share of profit</dt><dd className="font-medium text-tawf-green">{share ? `${share.investorsPercent}%` : '...'}</dd></div>
+                  </>
+                )}
               </dl>
-            </Link>}
+              <div className="mt-4 flex flex-wrap gap-4 text-sm">
+                <Link to="/investor/deposito" className="font-medium text-tawf-green hover:underline">{DEPOSITO_STABLECOIN_FLOW_ENABLED ? 'Open the pool' : 'How it works and the waitlist'}</Link>
+                <Link to="/proof-of-reserve" className="text-tawf-muted hover:text-tawf-green hover:underline">Proof of reserve</Link>
+              </div>
+            </div>
             <Link to="/investor/scf" className="block bg-white rounded-2xl border border-tawf-green-10 p-6 hover:border-tawf-green-20 hover:shadow-md transition-all">
               <p className="text-xs uppercase tracking-wide text-tawf-muted mb-1">Urun Dana (SCF)</p>
               <h3 className="font-serif text-lg text-tawf-green mb-3">Sharia crowdfunding for SMEs</h3>
@@ -265,13 +278,13 @@ export function InvestorDashboard() {
       {/* Quick Actions */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link
-          to={FINANCING_POOL_ENABLED ? '/investor/pools' : DEPOSITO_POOL_ENABLED ? '/investor/deposito' : '/investor/scf'}
+          to={FINANCING_POOL_ENABLED ? '/investor/pools' : DEPOSITO_STABLECOIN_FLOW_ENABLED ? '/investor/deposito' : '/investor/scf'}
           className="flex items-center gap-3 p-4 bg-white rounded-xl border border-tawf-green-10 hover:border-tawf-green-20 hover:shadow-md transition-all"
         >
           <div className="p-3 bg-tawf-green-10 rounded-xl"><TrendingUp className="w-5 h-5 text-tawf-green" /></div>
           <div>
             <p className="font-medium text-tawf-green">New Investment</p>
-            <p className="text-xs text-tawf-muted">{FINANCING_POOL_ENABLED ? 'Browse pools' : DEPOSITO_POOL_ENABLED ? 'Deposito Pool' : 'Urun Dana (SCF)'}</p>
+            <p className="text-xs text-tawf-muted">{FINANCING_POOL_ENABLED ? 'Browse pools' : DEPOSITO_STABLECOIN_FLOW_ENABLED ? 'Deposito Pool' : 'Urun Dana (SCF)'}</p>
           </div>
         </Link>
         <Link to="/investor/portfolio" className="flex items-center gap-3 p-4 bg-white rounded-xl border border-tawf-green-10 hover:border-tawf-green-20 hover:shadow-md transition-all">

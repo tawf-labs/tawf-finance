@@ -22,6 +22,7 @@ export { Transactions } from './investor/Transactions';
 export { Impact } from './investor/Impact';
 export { Settings as InvestorSettings } from './investor/Settings';
 export { InvestorDeposito } from './investor/Deposito';
+export { DepositoOpening } from './investor/DepositoOpening';
 export { InvestorScf } from './investor/Scf';
 
 // Vendor Pages removed (replaced by issuer role)

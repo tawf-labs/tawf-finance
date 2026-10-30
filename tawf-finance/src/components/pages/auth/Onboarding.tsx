@@ -23,24 +23,24 @@ export function Onboarding() {
             <div className="w-24 h-24 mx-auto mb-6 bg-tawf-green-10 rounded-full flex items-center justify-center">
               <Sprout className="w-12 h-12 text-tawf-green" />
             </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Sharia crowdfunding for SMEs</h3>
+            <h3 className="font-serif text-2xl text-tawf-green mb-3">Shariah deposito and crowdfunding</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Tawf Finance connects investors like you with sharia securities crowdfunding (Urun Dana) for SMEs through a licensed partner platform, with every position recorded on chain.
+              Tawf Finance connects investors like you with Shariah deposito at licensed Indonesian BPRS (rupiah deposits opening soon) and sharia securities crowdfunding (Urun Dana) for SMEs, with every position recorded on chain.
             </p>
           </div>
         ),
       },
       {
-        title: 'Explore Urun Dana',
-        description: 'Discover the crowdfunding offering.',
+        title: 'Explore the products',
+        description: 'The Deposito Pool and Urun Dana.',
         content: (
           <div className="text-center py-8">
             <div className="w-24 h-24 mx-auto mb-6 bg-tawf-gold-10 rounded-full flex items-center justify-center">
               <TrendingUp className="w-12 h-12 text-tawf-gold" />
             </div>
-            <h3 className="font-serif text-2xl text-tawf-green mb-3">Back Real Businesses</h3>
+            <h3 className="font-serif text-2xl text-tawf-green mb-3">Two Ways to Take Part</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Invest in SME sukuk mudharabah. Returns depend on the business results and are not guaranteed.
+              Place rupiah in the Deposito Pool when it opens, or invest in SME sukuk mudharabah through Urun Dana. Profit depends on the results and is not guaranteed.
             </p>
             <div className="flex justify-center gap-4 mt-6">
               <Badge variant="success" size="md">Shariah Aligned</Badge>
@@ -59,7 +59,7 @@ export function Onboarding() {
             </div>
             <h3 className="font-serif text-2xl text-tawf-green mb-3">Real Impact, Real Stories</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Track the offerings you've backed and every profit payout, recorded on chain.
+              Track your positions and every profit payout, recorded on chain.
             </p>
           </div>
         ),

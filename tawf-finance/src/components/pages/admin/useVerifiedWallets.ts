@@ -3,7 +3,7 @@ import { useActivity } from '@/lib/activity';
 import { loadPasscode, postAdmin } from '@/lib/tokenization';
 import { useIsVerified, useScfLimit, useTawfSeries } from '@/web3/tokenizationHooks';
 import { DEPOSITO_POOL } from '@/web3/tokenization';
-import { DEPOSITO_POOL_ENABLED } from '@/config/features';
+import { DEPOSITO_STABLECOIN_FLOW_ENABLED } from '@/config/features';
 
 const POOL_TARGET = { series: DEPOSITO_POOL.series, token: DEPOSITO_POOL.token, sandbox: DEPOSITO_POOL.sandbox, seriesId: DEPOSITO_POOL.seriesId };
 
@@ -36,9 +36,9 @@ export function useVerifiedWallets() {
 export function useWalletDetails(wallet: `0x${string}`) {
   const { isVerified, isLoading: l1, refetch: r1 } = useIsVerified(wallet);
   // With the Deposito Pool off in the UI, its balances are not read.
-  const depositoWallet = DEPOSITO_POOL_ENABLED ? wallet : undefined;
-  const { state: pool, refetch: r2 } = useTawfSeries(depositoWallet, POOL_TARGET, { enabled: DEPOSITO_POOL_ENABLED });
-  const { state: s1, refetch: r3 } = useTawfSeries(depositoWallet, {}, { enabled: DEPOSITO_POOL_ENABLED });
+  const depositoWallet = DEPOSITO_STABLECOIN_FLOW_ENABLED ? wallet : undefined;
+  const { state: pool, refetch: r2 } = useTawfSeries(depositoWallet, POOL_TARGET, { enabled: DEPOSITO_STABLECOIN_FLOW_ENABLED });
+  const { state: s1, refetch: r3 } = useTawfSeries(depositoWallet, {}, { enabled: DEPOSITO_STABLECOIN_FLOW_ENABLED });
   const { state: limit, isLoading: l2, refetch: r4 } = useScfLimit(wallet);
   return {
     isVerified,

@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import { Building2, Users, Handshake, Send, Rocket } from 'lucide-react';
 import { PublicPage, PageHero, Chapter, Tile, solid } from '../landing/PublicPage';
 import { Reveal } from '../landing/Reveal';
@@ -29,6 +30,10 @@ const field = 'w-full rounded-2xl bg-white px-4 py-3 text-ink ring-1 ring-ink/15
 const label = 'mb-2 block text-sm font-medium text-ink';
 
 export function Contact() {
+  // The Deposito waitlist button links here with the type and a topic preset.
+  const [params] = useSearchParams();
+  const presetType = params.get('type') ?? '';
+  const presetMessage = params.get('topic') === 'deposito-waitlist' ? 'Please add me to the Tawf Deposito Pool waitlist.' : '';
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -104,7 +109,7 @@ export function Contact() {
               <label htmlFor="partnershipType" className={label}>
                 Partnership Type <span className="text-clay">*</span>
               </label>
-              <select id="partnershipType" name="partnershipType" required className={field}>
+              <select id="partnershipType" name="partnershipType" required defaultValue={presetType} className={field}>
                 <option value="">Select partnership type</option>
                 <option value="BPRS Deposito Partnership">BPRS Deposito Partnership</option>
                 <option value="SCF Platform Partnership">SCF Platform Partnership</option>
@@ -122,6 +127,7 @@ export function Contact() {
                 name="message"
                 required
                 rows={5}
+                defaultValue={presetMessage}
                 className={`${field} resize-none`}
                 placeholder="Tell us about your organization and what kind of partnership you're interested in..."
               />

@@ -31,7 +31,7 @@ import { NotificationBell } from '@/components/layout/NotificationBell';
 import { ProfileMenu } from '@/components/layout/ProfileMenu';
 import { ConnectButton } from '@/components/web3/ConnectButton';
 import { cn } from '@/utils/cn';
-import { DEPOSITO_POOL_ENABLED, FINANCING_POOL_ENABLED } from '@/config/features';
+import { DEPOSITO_STABLECOIN_FLOW_ENABLED, FINANCING_POOL_ENABLED } from '@/config/features';
 
 interface NavItem {
   id: string;
@@ -46,8 +46,8 @@ const navConfigs: Record<string, NavItem[]> = {
   investor: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/investor/dashboard' },
     ...(FINANCING_POOL_ENABLED ? [{ id: 'pools', label: 'Investment Pools', icon: TrendingUp, href: '/investor/pools' }] : []),
+    { id: 'deposito', label: 'Deposito Pool', icon: PiggyBank, href: '/investor/deposito' },
     { id: 'scf', label: 'Urun Dana (SCF)', icon: Store, href: '/investor/scf' },
-    ...(DEPOSITO_POOL_ENABLED ? [{ id: 'deposito', label: 'Deposito Pool', icon: PiggyBank, href: '/investor/deposito' }] : []),
     { id: 'portfolio', label: 'Portfolio', icon: Briefcase, href: '/investor/portfolio' },
     { id: 'transactions', label: 'Transactions', icon: CreditCard, href: '/investor/transactions' },
     ...(FINANCING_POOL_ENABLED ? [{ id: 'impact', label: 'Impact', icon: Heart, href: '/investor/impact' }] : []),
@@ -60,7 +60,7 @@ const navConfigs: Record<string, NavItem[]> = {
     ...(FINANCING_POOL_ENABLED ? [{ id: 'investments', label: 'Investments', icon: TrendingUp, href: '/admin/investments' }] : []),
     ...(FINANCING_POOL_ENABLED ? [{ id: 'pools', label: 'Pools', icon: Briefcase, href: '/admin/pools' }] : []),
     { id: 'scf', label: 'SCF Onboarding', icon: Store, href: '/admin/scf' },
-    ...(DEPOSITO_POOL_ENABLED ? [{ id: 'tokenization', label: 'Tokenization', icon: Landmark, href: '/admin/tokenization' }] : []),
+    ...(DEPOSITO_STABLECOIN_FLOW_ENABLED ? [{ id: 'tokenization', label: 'Tokenization', icon: Landmark, href: '/admin/tokenization' }] : []),
     ...(FINANCING_POOL_ENABLED ? [{ id: 'ops', label: 'Protocol Ops', icon: Wrench, href: '/admin/ops' }] : []),
     { id: 'compliance', label: 'Compliance', icon: Shield, href: '/admin/compliance' },
     { id: 'settings', label: 'Settings', icon: Settings, href: '/admin/settings' },
@@ -83,7 +83,7 @@ export function DashboardLayout() {
   const navItems = user ? navConfigs[user.role] || [] : [];
   const searchItems = [
     ...navItems.map((i) => ({ label: i.label, hint: 'Page', to: i.href })),
-    ...(DEPOSITO_POOL_ENABLED ? [{ label: 'Deposito Pool', hint: 'Product', to: '/investor/deposito' }] : []),
+    { label: 'Deposito Pool', hint: 'Product', to: '/investor/deposito' },
     { label: 'Urun Dana', hint: 'Product', to: '/investor/scf' },
     { label: 'Proof of Reserve', hint: 'Product', to: '/proof-of-reserve' },
   ];
