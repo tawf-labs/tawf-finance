@@ -72,7 +72,7 @@ const bankSteps: Step[] = [
   },
   {
     icon: <Shield className="h-6 w-6" />,
-    title: 'Balances are proven',
+    title: 'Customer deposito is proven',
     description: "The customer deposito at each bank is recorded on the pool ledger, and the receipt can never be minted above their total.",
   },
   {
@@ -96,7 +96,7 @@ const safeguards: Step[] = [
   {
     icon: <Wallet className="h-6 w-6" />,
     title: 'Contracts you can read',
-    description: 'Every contract and balance is on Arbitrum Sepolia, open to anyone on the block explorer.',
+    description: 'Every contract and every bank\'s customer deposito is on Arbitrum Sepolia, open to anyone on the block explorer.',
   },
   {
     icon: <FlaskConical className="h-6 w-6" />,
@@ -146,7 +146,7 @@ export function HowItWorks() {
         eyebrow="Tawf Deposito Pool · opening soon"
         title="Three steps from"
         accent="rupiah to deposito."
-        lead="Take Shariah-aligned exposure to mudharabah deposito at licensed BPRS, with the balances visible on chain."
+        lead="Take Shariah-aligned exposure to mudharabah deposito at licensed BPRS, with the customer deposito at each bank visible on chain."
       >
         <StepGrid steps={investorSteps} tint="stone" />
         <Reveal className="mt-6 max-w-3xl text-sm leading-relaxed text-ink/70">
@@ -160,7 +160,7 @@ export function HowItWorks() {
         eyebrow="For partner banks"
         title="Funding from"
         accent="outside your district."
-        lead="A funding channel priced outside the local deposit market, with every balance proven on chain."
+        lead="A funding channel priced outside the local deposit market, with every bank\'s customer deposito proven on chain."
       >
         <StepGrid steps={bankSteps} tint="white" />
       </Chapter>

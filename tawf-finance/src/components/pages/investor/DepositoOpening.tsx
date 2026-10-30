@@ -12,12 +12,12 @@ const STEPS = [
   { icon: Wallet, title: 'Request', body: 'Say how much you want to place and for how long.' },
   { icon: Landmark, title: 'Pay in rupiah', body: 'Pay rupiah into a virtual account in your name at a Shariah commercial bank.' },
   { icon: Building2, title: 'Placed at the BPRS', body: 'On Tawf\'s instruction the bank places it as mudharabah deposito in your name at the licensed banks below.' },
-  { icon: Receipt, title: 'Receipt minted', body: 'You get a tokenized receipt on chain, and each bank\'s balance stays public.' },
+  { icon: Receipt, title: 'Receipt minted', body: 'You get a tokenized receipt on chain, and the customer deposito at each bank stays public.' },
 ];
 
 /**
  * The Deposito Pool page while the rupiah receipt flow is not built yet. It explains the flow, shows the
- * live per-bank balances from the pool ledger (the same data as the proof of reserve), and points to a
+ * live customer deposito per bank from the pool ledger (the same data as the proof of reserve), and points to a
  * waitlist. The old stablecoin subscribe lives in Deposito.tsx behind the stablecoin flow flag.
  */
 export function DepositoOpening() {
@@ -66,7 +66,7 @@ export function DepositoOpening() {
         </div>
         <div className="divide-y divide-tawf-green-10 rounded-xl border border-tawf-green-10">
           {isLoading && <p className="p-4 text-sm text-tawf-muted">Loading banks...</p>}
-          {!isLoading && banks.length === 0 && <p className="p-4 text-sm text-tawf-muted">No bank balances are recorded yet.</p>}
+          {!isLoading && banks.length === 0 && <p className="p-4 text-sm text-tawf-muted">No customer deposito is recorded yet.</p>}
           {banks.map((b) => (
             <div key={b.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
               <span className="min-w-0 truncate text-tawf-green">{b.name} <span className="font-mono text-xs text-tawf-muted">{b.accountRef}</span></span>

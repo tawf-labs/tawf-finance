@@ -40,7 +40,7 @@ const DEPOSITO: ProductCopy = {
   receiptId: 'deposito-receipt',
   badge: 'Rupiah deposits opening soon',
   lifecycleTitle: ['Follow one rupiah,', 'to the banks and back.'],
-  lifecycleLead: 'Planned flow, seven steps. Rupiah deposits are opening soon. The bank balances on the pool ledger are already on chain.',
+  lifecycleLead: 'Planned flow, seven steps. Rupiah deposits are opening soon. The customer deposito at each bank is already recorded on the pool ledger.',
   steps: [
     { k: 'Request', t: 'You choose an amount and a tenor.', b: 'You will say how much rupiah you want to place and for how long. Your wallet is checked for a verified identity first.', c: 'Off chain: your request' },
     { k: 'Pay rupiah', t: 'You pay in rupiah.', b: 'You will pay rupiah into a virtual account in your name at a Shariah commercial bank. There is no transfer to Tawf and no exchange rate in between.', c: 'Off chain: rupiah transfer' },
@@ -60,7 +60,7 @@ const DEPOSITO: ProductCopy = {
   ],
   notes: [
     { t: 'Backed bank by bank', b: 'The receipts outstanding will be matched against the customer deposito at each BPRS, recorded on the pool ledger.', c: 'DepositoPoolLedger' },
-    { t: 'Readable by anyone', b: 'Any wallet or auditor can read the banks and their balances without asking Tawf.', c: '/proof-of-reserve' },
+    { t: 'Readable by anyone', b: 'Any wallet or auditor can read the banks and the customer deposito at each without asking Tawf.', c: '/proof-of-reserve' },
     { t: 'Verified wallets only', b: 'The receipt will belong to one verified wallet and will not be transferable.', c: 'ERC-3643' },
   ],
   fade: { lifecycle: FADE.lifecycle, receipt: FADE.receipt },
@@ -224,7 +224,7 @@ function ReceiptCard({ p = SCF, state = 0, className = '', stub, intro = false }
         animate={stub ? undefined : burned ? { y: 48, rotate: 9, opacity: 0 } : { y: 0, rotate: 0, opacity: 1 }}
         transition={{ duration: 0.7, ease }}
         className="flex h-[84px] origin-top-left items-center justify-between border-t-2 border-dashed border-ink/15 bg-paper px-6">
-        <p className="max-w-[9rem] text-[11px] leading-snug text-tawf-muted">{dep ? 'Bank balances on chain. Specimen values.' : 'Reserve verified on chain. Specimen values.'}</p>
+        <p className="max-w-[9rem] text-[11px] leading-snug text-tawf-muted">{dep ? 'Customer deposito per bank on chain. Specimen values.' : 'Reserve verified on chain. Specimen values.'}</p>
         <AnimatePresence mode="wait" initial={intro}>
           {!burned && (
             <motion.span
