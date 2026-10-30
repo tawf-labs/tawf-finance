@@ -113,7 +113,7 @@ function AppContent() {
             <Route path="dashboard" element={<InvestorDashboard />} />
             <Route path="pools" element={FINANCING_POOL_ENABLED ? <InvestorPools /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
             <Route path="deposito" element={DEPOSITO_STABLECOIN_FLOW_ENABLED ? <InvestorDeposito /> : <DepositoOpening />} />
-            <Route path="sukuk" element={<Navigate to="/investor/deposito" replace />} />
+            <Route path="sukuk" element={<Navigate to="/investor/scf" replace />} />
             <Route path="scf" element={<InvestorScf />} />
             <Route path="portfolio" element={<Portfolio />} />
             <Route path="transactions" element={<Transactions />} />
