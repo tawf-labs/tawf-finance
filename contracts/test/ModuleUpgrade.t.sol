@@ -7,6 +7,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 import { ModuleProxy } from "@erc3643org/erc-3643/contracts/compliance/modular/modules/ModuleProxy.sol";
+import { ModuleAdmin } from "../src/proxy/ModuleAdmin.sol";
 import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
 import { SandboxModule } from "../src/deposito/SandboxModule.sol";
 import { DistributionCheckpointModule, IBalanceCheckpoint } from "../src/sukuk/DistributionCheckpointModule.sol";
@@ -50,7 +51,10 @@ contract ModuleUpgradeTest is Test {
 
     function _handOver(address module) internal {
         vm.prank(operator);
-        SandboxModule(module).transferOwnership(timelock); // same Ownable ABI for every module
+        SandboxModule(module).transferOwnership(timelock); // same ModuleAdmin ABI for every module
+        assertEq(SandboxModule(module).owner(), operator, "still operator until accepted");
+        vm.prank(timelock);
+        SandboxModule(module).acceptOwnership();
     }
 
     // -------------------------------------------------------------- Sandbox
@@ -111,10 +115,13 @@ contract ModuleUpgradeTest is Test {
         assertEq(m2.owner(), timelock);
         m2.setNewField(3);
         assertEq(m2.newField(), 3);
-        // The old owner can no longer configure.
-        vm.prank(operator);
-        vm.expectRevert(DistributionCheckpointModule.OnlyOwner.selector);
+        // The timelock (owner) does not configure, the operator (configurer) still does.
+        vm.prank(timelock);
+        vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
         m2.setHook(compliance, IBalanceCheckpoint(stranger));
+        vm.prank(operator);
+        m2.setHook(compliance, IBalanceCheckpoint(stranger));
+        assertEq(address(m2.hookOf(compliance)), stranger);
     }
 
     function test_checkpoint_initGuards() public {
@@ -178,5 +185,85 @@ contract ModuleUpgradeTest is Test {
         vm.expectRevert();
         m.upgradeTo(address(0xdead));
         vm.stopPrank();
+    }
+
+    // ------------------------------------------------------- admin split
+    function test_ownerCannotConfigureAndConfigurerCannotUpgrade() public {
+        vm.startPrank(operator);
+        ScfInvestorLimitModule m = ModuleProxies.scfLimit(ir);
+        vm.stopPrank();
+        _handOver(address(m));
+        address impl2 = address(new ScfModuleV2());
+        // Operator keeps config.
+        vm.prank(operator);
+        m.initOffering(compliance, treasury, 1e6);
+        vm.prank(operator);
+        m.setAgent(stranger, true);
+        // Timelock cannot configure.
+        vm.prank(timelock);
+        vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
+        m.initOffering(makeAddr("c2"), treasury, 1e6);
+        // Operator (configurer) cannot upgrade or move the configurer role.
+        vm.startPrank(operator);
+        vm.expectRevert("Ownable: caller is not the owner");
+        m.upgradeTo(impl2);
+        vm.expectRevert("Ownable: caller is not the owner");
+        m.setConfigurer(stranger);
+        vm.stopPrank();
+        // Timelock appoints a new configurer.
+        vm.prank(timelock);
+        m.setConfigurer(stranger);
+        vm.prank(operator);
+        vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
+        m.setAgent(operator, true);
+        vm.prank(timelock);
+        vm.expectRevert(ModuleAdmin.ZeroAddress.selector);
+        m.setConfigurer(address(0));
+    }
+
+    function test_sandboxAndCheckpointConfigAreConfigurerOnly() public {
+        vm.startPrank(operator);
+        SandboxModule sb = ModuleProxies.sandbox();
+        DistributionCheckpointModule ck = ModuleProxies.checkpoint();
+        vm.stopPrank();
+        _handOver(address(sb));
+        _handOver(address(ck));
+        vm.prank(timelock);
+        vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
+        sb.initConfig(compliance, SandboxModule.Mode.PILOT_ONLY, treasury, address(0), 0, 0, 0, 1);
+        vm.prank(timelock);
+        vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
+        ck.setHook(compliance, IBalanceCheckpoint(treasury));
+        vm.prank(operator);
+        sb.initConfig(compliance, SandboxModule.Mode.PILOT_ONLY, treasury, address(0), 0, 0, 0, 1);
+    }
+
+    function test_twoStepOwnership() public {
+        vm.startPrank(operator);
+        SandboxModule m = ModuleProxies.sandbox();
+        m.transferOwnership(stranger); // a wrong address is only pending
+        assertEq(m.owner(), operator);
+        assertEq(m.pendingOwner(), stranger);
+        m.transferOwnership(timelock); // owner corrects it
+        vm.stopPrank();
+        vm.prank(stranger);
+        vm.expectRevert(ModuleAdmin.NotPendingOwner.selector);
+        m.acceptOwnership();
+        vm.prank(timelock);
+        m.acceptOwnership();
+        assertEq(m.owner(), timelock);
+        assertEq(m.pendingOwner(), address(0));
+        vm.prank(timelock);
+        vm.expectRevert(ModuleAdmin.ZeroAddress.selector);
+        m.transferOwnership(address(0));
+    }
+
+    function test_renounceDisabled() public {
+        vm.startPrank(operator);
+        SandboxModule m = ModuleProxies.sandbox();
+        vm.expectRevert(ModuleAdmin.RenounceDisabled.selector);
+        m.renounceOwnership();
+        vm.stopPrank();
+        assertEq(m.owner(), operator);
     }
 }

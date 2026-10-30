@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.17;
 
-import { AbstractModuleUpgradeable } from
-    "@erc3643org/erc-3643/contracts/compliance/modular/modules/AbstractModuleUpgradeable.sol";
+import { ModuleAdmin } from "../proxy/ModuleAdmin.sol";
 import { IBalanceCheckpoint } from "./IBalanceCheckpoint.sol";
 
 /**
@@ -37,11 +36,10 @@ import { IBalanceCheckpoint } from "./IBalanceCheckpoint.sol";
  *      compliances, though each Tawf token gets its own module instance in
  *      practice.
  */
-contract DistributionCheckpointModule is AbstractModuleUpgradeable {
+contract DistributionCheckpointModule is ModuleAdmin {
     /// @notice The distributor notified for each bound compliance.
     mapping(address => IBalanceCheckpoint) public hookOf;
 
-    error OnlyOwner();
     error ZeroHook();
 
     event HookSet(address indexed compliance, address indexed hook);
@@ -57,7 +55,7 @@ contract DistributionCheckpointModule is AbstractModuleUpgradeable {
     /// @notice Initialise the proxy. The caller becomes the owner, allowed to
     ///         set hooks before the module is bound.
     function initialize() external initializer {
-        __AbstractModule_init();
+        __ModuleAdmin_init();
     }
 
     /// @notice Point `compliance`'s balance changes at `hook` (the token's
@@ -65,7 +63,7 @@ contract DistributionCheckpointModule is AbstractModuleUpgradeable {
     /// @dev Restricted to the deployer. Reconfiguring a hook after wiring is
     ///      a deliberate operator action, not a public one.
     function setHook(address compliance, IBalanceCheckpoint hook) external {
-        if (msg.sender != owner()) revert OnlyOwner();
+        if (msg.sender != configurer) revert NotConfigurer();
         if (address(hook) == address(0)) revert ZeroHook();
         hookOf[compliance] = hook;
         emit HookSet(compliance, address(hook));

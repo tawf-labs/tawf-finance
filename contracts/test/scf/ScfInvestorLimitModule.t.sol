@@ -8,6 +8,7 @@ pragma solidity 0.8.17;
 
 import { ModuleProxies } from "../../src/proxy/ModuleProxies.sol";
 import {TrexFixture} from "../trex/TrexFixture.sol";
+import {ModuleAdmin} from "../../src/proxy/ModuleAdmin.sol";
 import {ScfInvestorLimitModule} from "../../src/scf/ScfInvestorLimitModule.sol";
 import {Token} from "@erc3643org/erc-3643/contracts/token/Token.sol";
 import {ModularCompliance} from "@erc3643org/erc-3643/contracts/compliance/modular/ModularCompliance.sol";
@@ -81,7 +82,7 @@ contract ScfInvestorLimitModuleTest is TrexFixture {
 
     function test_initOffering_onlyOwner() public {
         vm.prank(platform);
-        vm.expectRevert(ScfInvestorLimitModule.OnlyOwner.selector);
+        vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
         scf.initOffering(address(0xC0), treasury, CAP);
     }
 
@@ -128,7 +129,7 @@ contract ScfInvestorLimitModuleTest is TrexFixture {
 
     function test_setAgent_onlyOwner() public {
         vm.prank(platform);
-        vm.expectRevert(ScfInvestorLimitModule.OnlyOwner.selector);
+        vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
         scf.setAgent(stranger, true);
     }
 

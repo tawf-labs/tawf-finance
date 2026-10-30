@@ -11,6 +11,8 @@ import { ITREXImplementationAuthority } from
     "@erc3643org/erc-3643/contracts/proxy/authority/ITREXImplementationAuthority.sol";
 import { Token } from "@erc3643org/erc-3643/contracts/token/Token.sol";
 import { ModularCompliance } from "@erc3643org/erc-3643/contracts/compliance/modular/ModularCompliance.sol";
+import { TrustedIssuersRegistry } from "@erc3643org/erc-3643/contracts/registry/implementation/TrustedIssuersRegistry.sol";
+import { IdentityRegistryStorage } from "@erc3643org/erc-3643/contracts/registry/implementation/IdentityRegistryStorage.sol";
 import { IdentityRegistry } from "@erc3643org/erc-3643/contracts/registry/implementation/IdentityRegistry.sol";
 import { ClaimTopicsRegistry } from "@erc3643org/erc-3643/contracts/registry/implementation/ClaimTopicsRegistry.sol";
 
@@ -113,5 +115,21 @@ contract TrexUpgradeTest is TrexFixture {
         vm.prank(timelock);
         vm.expectRevert("invalid argument - non existing version");
         trexIA.useTREXVersion(_v(9));
+    }
+
+    function test_implementationsAreLocked() public {
+        ITREXImplementationAuthority.TREXContracts memory c = trexIA.getContracts(_v(0));
+        vm.expectRevert();
+        Token(c.tokenImplementation).init(address(ir), address(mc), "x", "y", 6, address(0));
+        vm.expectRevert();
+        ModularCompliance(c.mcImplementation).init();
+        vm.expectRevert();
+        ClaimTopicsRegistry(c.ctrImplementation).init();
+        vm.expectRevert();
+        IdentityRegistry(c.irImplementation).init(address(tir), address(ctr), address(irs));
+        vm.expectRevert();
+        TrustedIssuersRegistry(c.tirImplementation).init();
+        vm.expectRevert();
+        IdentityRegistryStorage(c.irsImplementation).init();
     }
 }

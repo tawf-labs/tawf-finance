@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.17;
 
-import { AbstractModuleUpgradeable } from
-    "@erc3643org/erc-3643/contracts/compliance/modular/modules/AbstractModuleUpgradeable.sol";
+import { ModuleAdmin } from "../proxy/ModuleAdmin.sol";
 
 /// @dev Minimal view of the bound ModularCompliance: the token it serves.
 interface IScfComplianceLike {
@@ -50,7 +49,7 @@ interface IScfTokenLike {
  *      Every token bound to the module must use the same unit as the limits
  *      (6 decimals, one unit per settlement-token unit).
  */
-contract ScfInvestorLimitModule is AbstractModuleUpgradeable {
+contract ScfInvestorLimitModule is ModuleAdmin {
     enum Exemption {
         NONE,
         LEGAL_ENTITY,
@@ -86,10 +85,8 @@ contract ScfInvestorLimitModule is AbstractModuleUpgradeable {
     /// @notice Offering settings per bound compliance.
     mapping(address => Offering) public offeringOf;
 
-    error OnlyOwner();
     error OnlyAgent();
     error NotConfigured();
-    error ZeroAddress();
     error ZeroCap();
     error AlreadyBound();
 
@@ -111,13 +108,13 @@ contract ScfInvestorLimitModule is AbstractModuleUpgradeable {
     /// @notice Initialise the proxy. The caller becomes the owner.
     function initialize(address identityRegistry_) external initializer {
         if (identityRegistry_ == address(0)) revert ZeroAddress();
-        __AbstractModule_init();
+        __ModuleAdmin_init();
         identityRegistry = identityRegistry_;
         periodStart = uint64(block.timestamp);
     }
 
     modifier onlyAgent() {
-        if (!isAgent[msg.sender] && msg.sender != owner()) revert OnlyAgent();
+        if (!isAgent[msg.sender] && msg.sender != configurer) revert OnlyAgent();
         _;
     }
 
@@ -127,7 +124,7 @@ contract ScfInvestorLimitModule is AbstractModuleUpgradeable {
 
     /// @notice Appoint or remove a platform agent.
     function setAgent(address agent, bool enabled) external {
-        if (msg.sender != owner()) revert OnlyOwner();
+        if (msg.sender != configurer) revert NotConfigurer();
         if (agent == address(0)) revert ZeroAddress();
         isAgent[agent] = enabled;
         emit AgentSet(agent, enabled);
@@ -138,7 +135,7 @@ contract ScfInvestorLimitModule is AbstractModuleUpgradeable {
     ///         live its treasury (exempt from the limit) and cap cannot be
     ///         rewritten here. A live cap changes through setOfferingCap.
     function initOffering(address compliance, address treasury, uint256 offeringCap) external {
-        if (msg.sender != owner()) revert OnlyOwner();
+        if (msg.sender != configurer) revert NotConfigurer();
         if (compliance == address(0) || treasury == address(0)) revert ZeroAddress();
         if (this.isComplianceBound(compliance)) revert AlreadyBound();
         if (offeringCap == 0) revert ZeroCap();

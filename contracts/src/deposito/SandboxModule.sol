@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.17;
 
-import { AbstractModuleUpgradeable } from
-    "@erc3643org/erc-3643/contracts/compliance/modular/modules/AbstractModuleUpgradeable.sol";
+import { ModuleAdmin } from "../proxy/ModuleAdmin.sol";
 
 /// @dev Minimal view of the bound ModularCompliance: the token it serves.
 interface IModularComplianceLike {
@@ -79,7 +78,7 @@ interface IClaimIssuerLike {
  *      module is not plug-and-play: it must be configured for a compliance
  *      before that compliance can bind it.
  */
-contract SandboxModule is AbstractModuleUpgradeable {
+contract SandboxModule is ModuleAdmin {
     enum Mode {
         PILOT_ONLY,
         SCREENED_GROUP,
@@ -115,7 +114,6 @@ contract SandboxModule is AbstractModuleUpgradeable {
     /// @notice Whether an address is currently a counted investor, per compliance.
     mapping(address => mapping(address => bool)) private _isInvestor;
 
-    error OnlyOwner();
     error NotConfigured();
     error ZeroTreasury();
 
@@ -148,7 +146,7 @@ contract SandboxModule is AbstractModuleUpgradeable {
     /// @notice Initialise the proxy. The caller becomes the owner, allowed to
     ///         configure a compliance before binding.
     function initialize() external initializer {
-        __AbstractModule_init();
+        __ModuleAdmin_init();
     }
 
     // ---------------------------------------------------------------
@@ -168,7 +166,7 @@ contract SandboxModule is AbstractModuleUpgradeable {
         uint256 seriesCap,
         uint64 seriesEnd
     ) external {
-        if (msg.sender != owner()) revert OnlyOwner();
+        if (msg.sender != configurer) revert NotConfigurer();
         if (treasury == address(0)) revert ZeroTreasury();
         Config storage c = configOf[compliance];
         c.mode = mode;
