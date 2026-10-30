@@ -52,6 +52,7 @@ import {SandboxModule} from "../src/deposito/SandboxModule.sol";
 contract DeployTokenization is Script, ProxyDeployer {
     /// @dev Holder of UPGRADER_ROLE on the proxied contracts: the TimelockController from the
     ///      UPGRADER env var. Falls back to the operator only for local and early testnet runs.
+    bytes4 internal constant DIST_INIT = bytes4(keccak256("initialize(address[],address,address,address,address,(bytes32,uint256,uint40,uint256,uint256,uint40,address),address,address)"));
     bytes4 internal constant SERIES_INIT = bytes4(keccak256("initialize(address,address,address,address,address,(bytes32,uint8,uint16),address,address,address,uint64,address)"));
 
     function _upgrader(address operator) internal view returns (address) {
@@ -306,9 +307,9 @@ contract DeployTokenization is Script, ProxyDeployer {
 
         DistributionCheckpointModule module = ModuleProxies.checkpoint();
 
-        distributor = deployCode(
-            "SukukDistributor.sol:SukukDistributor",
-            abi.encode(
+        distributor = _deployProxy(
+                "SukukDistributor.sol:SukukDistributor",
+                abi.encodePacked(DIST_INIT, abi.encode(
                 _singleCoin(_sukukUsdc),
                 anchor,
                 _sharedIdentityRegistry,
@@ -322,9 +323,9 @@ contract DeployTokenization is Script, ProxyDeployer {
                 _sukukMinSubscription,
                 _sukukSubscriptionPeriod,
                 operator,
-                operator
-            )
-        );
+                operator,
+                    _upgrader(operator)))
+            );
 
         module.setHook(address(mc), IBalanceCheckpoint(distributor));
         mc.addModule(address(module));

@@ -13,6 +13,7 @@ pragma solidity 0.8.17;
 
 import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
 import "forge-std/Script.sol";
+import {ProxyDeployer} from "./lib/ProxyDeployer.sol";
 
 import {ModularCompliance} from "@erc3643org/erc-3643/contracts/compliance/modular/ModularCompliance.sol";
 import {Token} from "@erc3643org/erc-3643/contracts/token/Token.sol";
@@ -39,7 +40,14 @@ import {IBalanceCheckpoint} from "../src/sukuk/IBalanceCheckpoint.sol";
  *      The operator (broadcaster) is the token owner/agent, the distributor is a token agent, and
  *      the module is bound to the token's compliance with the distributor as its hook.
  */
-contract DeploySukuk is Script {
+contract DeploySukuk is Script, ProxyDeployer {
+    bytes4 internal constant DIST_INIT = bytes4(keccak256("initialize(address[],address,address,address,address,(bytes32,uint256,uint40,uint256,uint256,uint40,address),address,address)"));
+
+    /// @dev UPGRADER_ROLE holder: the timelock from the UPGRADER env var, else the operator (local runs).
+    function _upgrader(address operator) internal view returns (address) {
+        return vm.envOr("UPGRADER", operator);
+    }
+
     function run() external {
         address usdc = vm.envAddress("USDC");
         address anchor = vm.envAddress("LEDGER_ANCHOR");
@@ -59,23 +67,27 @@ contract DeploySukuk is Script {
 
         // 3. SukukDistributor via deployCode (0.8.20 unit). The Terms struct has only static
         //    members, so its ABI encoding is byte-identical to the flattened field encoding.
-        address distributor = deployCode(
+        address distributor = _deployProxy(
             "SukukDistributor.sol:SukukDistributor",
-            abi.encode(
-                _singleCoin(usdc),
-                anchor,
-                identityRegistry,
-                address(token),
-                address(module),
-                // Terms { sukukId, faceValue, maturity, minRaise, minSubscription, subscriptionPeriod, issuerTreasury }
-                vm.envBytes32("SUKUK_ID"),
-                vm.envUint("FACE_VALUE"),
-                uint40(vm.envUint("MATURITY")),
-                vm.envUint("MIN_RAISE"),
-                vm.envUint("MIN_SUBSCRIPTION"),
-                uint40(vm.envUint("SUBSCRIPTION_PERIOD")),
-                vm.envAddress("ISSUER_TREASURY"),
-                operator
+            abi.encodePacked(
+                DIST_INIT,
+                abi.encode(
+                    _singleCoin(usdc),
+                    anchor,
+                    identityRegistry,
+                    address(token),
+                    address(module),
+                    // Terms { sukukId, faceValue, maturity, minRaise, minSubscription, subscriptionPeriod, issuerTreasury }
+                    vm.envBytes32("SUKUK_ID"),
+                    vm.envUint("FACE_VALUE"),
+                    uint40(vm.envUint("MATURITY")),
+                    vm.envUint("MIN_RAISE"),
+                    vm.envUint("MIN_SUBSCRIPTION"),
+                    uint40(vm.envUint("SUBSCRIPTION_PERIOD")),
+                    vm.envAddress("ISSUER_TREASURY"),
+                    operator,
+                    _upgrader(operator)
+                )
             )
         );
 

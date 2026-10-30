@@ -129,17 +129,17 @@ contract SukukDistributorTest is TrexFixture {
 
         // Distributor (admin = deployer/owner).
         dist = ISukukDistributor(
-            deployCode(
+            _deployProxy(
                 "SukukDistributor.sol:SukukDistributor",
-                abi.encode(
+                abi.encodePacked(DIST_INIT, abi.encode(
                     _coins1(usdc),
                     anchor,
                     address(ir),
                     address(token),
                     address(module),
                     SUKUK, FACE, maturity, MIN_RAISE, MIN_SUB, WINDOW, treasury,
-                    deployer
-                )
+                    deployer,
+                    timelock))
             )
         );
         _wireDistributor(token, mc, module, address(dist));
@@ -882,13 +882,13 @@ contract SukukReentrancyTest is TrexFixture {
             _deployTrexToken("S", "S", 6);
 
         ISukukDistributor dist = ISukukDistributor(
-            deployCode(
+            _deployProxy(
                 "SukukDistributor.sol:SukukDistributor",
-                abi.encode(
+                abi.encodePacked(DIST_INIT, abi.encode(
                     _coins1(usdc), anchor, address(ir), address(token), address(module),
                     keccak256("S"), uint256(100e6), maturity, uint256(10e6), uint256(1e6), uint40(1 days), deployer,
-                    deployer
-                )
+                    deployer,
+                    timelock))
             )
         );
         _wireDistributor(token, mc, module, address(dist));

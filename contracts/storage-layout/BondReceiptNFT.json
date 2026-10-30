@@ -1,0 +1,62 @@
+[
+ {
+  "label": "vault",
+  "slot": "0",
+  "offset": 0,
+  "type": "address"
+ },
+ {
+  "label": "identityRegistry",
+  "slot": "1",
+  "offset": 0,
+  "type": "contract ITawfIdentityRegistry"
+ },
+ {
+  "label": "dealRegistry",
+  "slot": "2",
+  "offset": 0,
+  "type": "contract IDealPrincipalLedger"
+ },
+ {
+  "label": "transferPolicy",
+  "slot": "3",
+  "offset": 0,
+  "type": "mapping(uint256 => enum BondReceiptNFT.TransferPolicy)"
+ },
+ {
+  "label": "_receipts",
+  "slot": "4",
+  "offset": 0,
+  "type": "mapping(uint256 => mapping(address => struct BondReceiptNFT.ReceiptMeta))"
+ },
+ {
+  "label": "_dealSnapshots",
+  "slot": "5",
+  "offset": 0,
+  "type": "mapping(uint256 => struct BondReceiptNFT.DealSnapshot)"
+ },
+ {
+  "label": "_dealSupplier",
+  "slot": "6",
+  "offset": 0,
+  "type": "mapping(uint256 => string)"
+ },
+ {
+  "label": "_dealAnchorBuyer",
+  "slot": "7",
+  "offset": 0,
+  "type": "mapping(uint256 => string)"
+ },
+ {
+  "label": "_mintedCount",
+  "slot": "8",
+  "offset": 0,
+  "type": "mapping(uint256 => uint256)"
+ },
+ {
+  "label": "_burnedCount",
+  "slot": "9",
+  "offset": 0,
+  "type": "mapping(uint256 => uint256)"
+ }
+]

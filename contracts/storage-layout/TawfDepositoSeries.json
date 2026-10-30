@@ -1,0 +1,146 @@
+[
+ {
+  "label": "anchor",
+  "slot": "0",
+  "offset": 0,
+  "type": "contract ILedgerAnchor"
+ },
+ {
+  "label": "token",
+  "slot": "1",
+  "offset": 0,
+  "type": "contract ITrexToken"
+ },
+ {
+  "label": "module",
+  "slot": "2",
+  "offset": 0,
+  "type": "address"
+ },
+ {
+  "label": "sandbox",
+  "slot": "3",
+  "offset": 0,
+  "type": "contract ISandboxEligibility"
+ },
+ {
+  "label": "compliance",
+  "slot": "4",
+  "offset": 0,
+  "type": "address"
+ },
+ {
+  "label": "ledgerChainId",
+  "slot": "5",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "treasury",
+  "slot": "6",
+  "offset": 0,
+  "type": "address"
+ },
+ {
+  "label": "terms",
+  "slot": "7",
+  "offset": 0,
+  "type": "struct TawfDepositoSeries.Terms"
+ },
+ {
+  "label": "isStablecoin",
+  "slot": "9",
+  "offset": 0,
+  "type": "mapping(address => bool)"
+ },
+ {
+  "label": "_stablecoins",
+  "slot": "10",
+  "offset": 0,
+  "type": "address[]"
+ },
+ {
+  "label": "_rate",
+  "slot": "11",
+  "offset": 0,
+  "type": "mapping(address => struct TawfDepositoSeries.Rate)"
+ },
+ {
+  "label": "maxRateAge",
+  "slot": "12",
+  "offset": 0,
+  "type": "uint64"
+ },
+ {
+  "label": "pendingOf",
+  "slot": "13",
+  "offset": 0,
+  "type": "mapping(address => mapping(address => uint256))"
+ },
+ {
+  "label": "reserveSnapshotAt",
+  "slot": "14",
+  "offset": 0,
+  "type": "uint64"
+ },
+ {
+  "label": "reserveBalance",
+  "slot": "15",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "lastPeriod",
+  "slot": "16",
+  "offset": 0,
+  "type": "uint32"
+ },
+ {
+  "label": "redemptionOpen",
+  "slot": "16",
+  "offset": 4,
+  "type": "bool"
+ },
+ {
+  "label": "principalSenPerToken",
+  "slot": "17",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "_profit",
+  "slot": "18",
+  "offset": 0,
+  "type": "struct ProfitAccumulator.State"
+ },
+ {
+  "label": "tawfNisbahBps",
+  "slot": "21",
+  "offset": 0,
+  "type": "uint16"
+ },
+ {
+  "label": "feeRecipient",
+  "slot": "21",
+  "offset": 2,
+  "type": "address"
+ },
+ {
+  "label": "tawfShareLocked",
+  "slot": "21",
+  "offset": 22,
+  "type": "bool"
+ },
+ {
+  "label": "tawfShareAccruedSen",
+  "slot": "22",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "tawfSharePaidSen",
+  "slot": "23",
+  "offset": 0,
+  "type": "uint256"
+ }
+]

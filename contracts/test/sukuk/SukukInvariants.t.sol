@@ -109,13 +109,13 @@ contract SukukInvariantTest is TrexFixture {
         list[1] = usdt;
         list[2] = usdg;
         dist = ISukukDistributor(
-            deployCode(
+            _deployProxy(
                 "SukukDistributor.sol:SukukDistributor",
-                abi.encode(
+                abi.encodePacked(DIST_INIT, abi.encode(
                     list, anchor, address(ir), address(token), address(module),
                     SUKUK, FACE, maturity, MIN_RAISE, MIN_SUB, WINDOW, treasury,
-                    deployer
-                )
+                    deployer,
+                    timelock))
             )
         );
         _wireDistributor(token, mc, module, address(dist));

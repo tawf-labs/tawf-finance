@@ -16,9 +16,15 @@ CHAIN_ID=46630
 OPERATOR=$(cast wallet address --private-key "$PRIVATE_KEY")
 echo "operator $OPERATOR balance $(cast balance "$OPERATOR" --ether --rpc-url "$ROBINHOOD_TESTNET_RPC_URL") ETH"
 
-ANCHOR=$(forge create src/LedgerAnchor.sol:LedgerAnchor --broadcast --json \
+# LedgerAnchor is UUPS: deploy the implementation, then an ERC1967 proxy initialised in the same
+# transaction. UPGRADER is the timelock (defaults to the operator for this legacy testnet script).
+UPGRADER=${UPGRADER:-$OPERATOR}
+ANCHOR_IMPL=$(forge create src/LedgerAnchor.sol:LedgerAnchor --broadcast --json \
+  --rpc-url "$ROBINHOOD_TESTNET_RPC_URL" --private-key "$PRIVATE_KEY" | python3 -c 'import sys,json;print(json.load(sys.stdin)["deployedTo"])')
+INIT=$(cast calldata "initialize(uint256,address,address)" "$CHAIN_ID" "$OPERATOR" "$UPGRADER")
+ANCHOR=$(forge create lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy --broadcast --json \
   --rpc-url "$ROBINHOOD_TESTNET_RPC_URL" --private-key "$PRIVATE_KEY" \
-  --constructor-args "$CHAIN_ID" "$OPERATOR" | python3 -c 'import sys,json;print(json.load(sys.stdin)["deployedTo"])')
+  --constructor-args "$ANCHOR_IMPL" "$INIT" | python3 -c 'import sys,json;print(json.load(sys.stdin)["deployedTo"])')
 echo "LedgerAnchor $ANCHOR"
 
 export LEDGER_ANCHOR=$ANCHOR LEDGER_CHAIN_ID=$CHAIN_ID
