@@ -182,6 +182,7 @@ export function InvestorDeposito() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">Tawf Deposito Pool</h1>
+          <p className="mb-2 text-sm text-amber-800">Legacy testnet demo of the earlier stablecoin model. The live Deposito model is rupiah paid into a virtual account in the customer&apos;s name, with the deposito placed in the customer&apos;s name at each BPRS.</p>
           <p className="text-tawf-muted">
             Mudharabah deposito at licensed Islamic rural banks (BPRS), wrapped into one token.
             1 token = IDR 1, backed by the deposito recorded at the banks. Settle in {coinNames}.
@@ -267,8 +268,8 @@ export function InvestorDeposito() {
             <h3 className="font-serif text-xl text-tawf-green mb-1">{product?.name}</h3>
             <p className="text-tawf-muted text-sm leading-relaxed mb-4">
               {isPool
-                ? `${banks.length} BPRS in ${product?.region}, one dedicated account at each. Subscribe in ${coinNames}. The funds are converted to IDR and placed across the banks.`
-                : `BPRS Demo Syariah · dedicated account TAWF-S1. Subscribe in ${coinNames}. The funds are converted to IDR and placed in the account.`}
+                ? `${banks.length} BPRS in ${product?.region}, one demo account at each. Subscribe in ${coinNames}. The funds are converted to IDR and placed across the banks.`
+                : `BPRS Demo Syariah · demo account TAWF-S1. Subscribe in ${coinNames}. The funds are converted to IDR and placed in the account.`}
             </p>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">

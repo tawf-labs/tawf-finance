@@ -342,7 +342,7 @@ export function ProofOfReserve() {
               ))}
             </div>
             <p className="mt-6 leading-relaxed text-ink/70">
-              Each bank records Tawf&apos;s deposito balance and the partner platform records each offering&apos;s reserve (demo data on testnet). The connector reads them
+              Each bank reports the customer deposito it holds through Tawf and the partner platform records each offering&apos;s reserve (demo data on testnet). The connector reads them
               and writes reserve snapshots to the Tawf Network ledger, with no personal documents on chain. The
               relayer anchors the ledger&apos;s Merkle root on Arbitrum through the LedgerAnchor. tawf.finance contracts only mint
               a token against a leaf that verifies under an anchored root, so supply can never run ahead of the proven reserve.

@@ -73,7 +73,7 @@ const bankSteps: Step[] = [
   {
     icon: <Shield className="h-6 w-6" />,
     title: 'Balances are proven',
-    description: "Each bank's balance is recorded on the pool ledger, and the receipt can never be minted above their total.",
+    description: "The customer deposito at each bank is recorded on the pool ledger, and the receipt can never be minted above their total.",
   },
   {
     icon: <TrendingUp className="h-6 w-6" />,

@@ -10,7 +10,7 @@ import { DEPOSITO_OPENING } from '@/config/features';
 
 const STEPS = [
   { icon: Wallet, title: 'Request', body: 'Say how much you want to place and for how long.' },
-  { icon: Landmark, title: 'Pay in rupiah', body: 'Transfer rupiah from your own bank account.' },
+  { icon: Landmark, title: 'Pay in rupiah', body: 'Pay rupiah into a virtual account in your name at a Shariah commercial bank.' },
   { icon: Building2, title: 'Placed at the BPRS', body: 'On Tawf\'s instruction the bank places it as mudharabah deposito in your name at the licensed banks below.' },
   { icon: Receipt, title: 'Receipt minted', body: 'You get a tokenized receipt on chain, and each bank\'s balance stays public.' },
 ];

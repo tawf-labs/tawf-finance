@@ -12,7 +12,7 @@ const partnershipTypes = [
   {
     icon: Building2,
     title: 'BPRS Deposito Partnership',
-    description: 'Licensed Shariah rural banks that want to host a Tawf deposito account for the Deposito Pool, where rupiah deposits are opening soon',
+    description: 'Licensed Shariah rural banks that want to take deposito in each customer\'s name, placed through Tawf, for the Deposito Pool (rupiah deposits opening soon)',
   },
   {
     icon: Users,
