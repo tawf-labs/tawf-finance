@@ -55,7 +55,7 @@ const investorSteps: Step[] = [
   {
     icon: <Wallet className="h-6 w-6" />,
     title: 'Placed, and a receipt minted',
-    description: 'Tawf places your rupiah at the licensed banks, and you get a soulbound receipt on chain, tied to your verified wallet.',
+    description: 'Tawf will place your rupiah at the licensed banks (demo banks in the pilot), and you will get a receipt on chain: a non-transferable token tied to your verified wallet.',
   },
   {
     icon: <CheckCircle className="h-6 w-6" />,
@@ -131,7 +131,7 @@ export function HowItWorks() {
         eyebrow="How it works"
         title="Simple, ethical,"
         accent="and checkable."
-        lead="Two products with the same standard of proof. The Tawf Deposito Pool places rupiah as mudharabah deposito at licensed BPRS, with every bank's balance on chain (rupiah deposits open soon). Urun Dana backs Indonesian SMEs through sharia securities crowdfunding, with the investor limit and the reserve enforced in the token."
+        lead="Two products with the same standard of proof. The Tawf Deposito Pool places rupiah as mudharabah deposito at licensed BPRS, with every bank's balance on chain (rupiah deposits opening soon). Urun Dana backs Indonesian SMEs through sharia securities crowdfunding, with the investor limit and the reserve enforced in the token."
         actions={
           <>
             <a href="https://app.tawf.finance/login" className={solid}>Open the investor app</a>

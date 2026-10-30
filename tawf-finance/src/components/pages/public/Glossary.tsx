@@ -15,7 +15,7 @@ export function Glossary() {
     },
     {
       term: 'BPRS (Bank Pembiayaan Rakyat Syariah)',
-      definition: 'A licensed Islamic rural bank in Indonesia. Unlike a BMT, a BPRS is OJK-supervised and LPS-insured. LPS covers bank depositors under its own rules, not the Tawf token. The partner banks of the later Tawf Deposito Pool would be BPRS.',
+      definition: 'A licensed Islamic rural bank in Indonesia. Unlike a BMT, a BPRS is OJK-supervised and LPS-insured. LPS covers bank depositors under its own rules, not the Tawf token. The partner banks of the Tawf Deposito Pool are BPRS (demo banks in the pilot).',
       category: 'Organizations',
     },
     {
@@ -25,7 +25,7 @@ export function Glossary() {
     },
     {
       term: 'Deposito Pool',
-      definition: 'A later product, for investors in Indonesia. Tawf would hold mudharabah deposito at several licensed BPRS in one region and wrap it into one ERC-3643 token, with each bank\'s balance shown in the proof of reserve. Not part of the first pilot.',
+      definition: 'Rupiah deposits are opening soon, for investors in Indonesia. Tawf holds mudharabah deposito at several licensed BPRS in one region, with each bank\'s balance shown in the proof of reserve. The receipt will be a non-transferable token tied to your verified wallet.',
       category: 'Products',
     },
     {
@@ -182,7 +182,7 @@ export function Glossary() {
           {[
             ['Prohibited', 'Riba (interest), Gharar (excessive uncertainty), Maysir (gambling)'],
             ['Key principles', 'Profit-sharing, risk-sharing, asset-backing, ethical investment'],
-            ['In Indonesia', 'OJK regulates. A BPRS is a licensed Shariah bank and would be a partner bank in the later Deposito Pool. LPS covers bank depositors under its own rules, not the Tawf token'],
+            ['In Indonesia', 'OJK regulates. A BPRS is a licensed Shariah bank and a partner bank in the Deposito Pool (rupiah deposits opening soon). LPS covers bank depositors under its own rules, not the Tawf token'],
           ].map(([h, b]) => (
             <Tile key={h}>
               <h3 className="display text-xl">{h}</h3>

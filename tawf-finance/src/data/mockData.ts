@@ -431,7 +431,7 @@ export const instrumentCatalog: Instrument[] = [
     arabic: 'مضاربة',
     family: 'Equity-based',
     status: 'Live',
-    summary: 'Profit-sharing. One party funds, the other manages. Profit is shared, capital loss sits with the funder absent misconduct. The akad of SME sukuk mudharabah on Tawf, and of the Tawf Deposito Pool when it opens.',
+    summary: 'Profit-sharing. One party funds, the other manages. Profit is shared, capital loss sits with the funder absent misconduct. The akad of SME sukuk mudharabah on Tawf, and of the Tawf Deposito Pool, whose rupiah deposits are opening soon.',
     useCase: 'Investment mandates where the bank or client manages the venture.',
     yieldBand: '7 to 11 percent (variable)',
     dsnRef: 'DSN-MUI No. 07/2000',

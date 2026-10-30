@@ -48,7 +48,7 @@ export function Instruments() {
         eyebrow="Instruments"
         title="One infrastructure for every"
         accent="Islamic finance akad."
-        lead="The pilot runs on sharia crowdfunding for SMEs, using sukuk mudharabah. The Tawf Deposito Pool comes later. The rest of the catalogue is reference for what the same primitive can carry later, and most of it is not in the pilot."
+        lead="The pilot has two products, both using mudharabah: sharia crowdfunding for SMEs, and the Tawf Deposito Pool. The Tawf Deposito Pool, a mudharabah deposito at licensed BPRS, has rupiah deposits opening soon. The rest of the catalogue is reference for what the same primitive can carry later, and most of it is not in the pilot."
         actions={
           <>
             <Link to="/how-it-works" className={solid}>How it works</Link>

@@ -56,7 +56,7 @@ export function About() {
 
       <Chapter tint="paper" from="stone" eyebrow="Mission" title="A wider funding channel for SMEs">
         <Reveal className="max-w-3xl text-[1.1rem] leading-relaxed text-ink/75">
-          Indonesian SMEs often find bank funding out of reach. We bring them a regulated crowdfunding channel, and bring licensed rural banks funding from outside their district. Investors get Shariah-aligned exposure with the limit, the identity check and the reserve enforced on chain.
+          Indonesian SMEs often find bank funding out of reach. We bring them a crowdfunding channel through a licensed partner platform, and bring licensed rural banks funding from outside their district. Investors get Shariah-aligned exposure with the limit, the identity check and the reserve enforced on chain.
         </Reveal>
         <Reveal className="mt-12 grid gap-4 sm:grid-cols-3">
           <Tile>
@@ -96,9 +96,9 @@ export function About() {
               <ul className="mt-5 space-y-3 text-ink/70">
                 <li className="flex items-start gap-3"><X className="mt-1 h-4 w-4 shrink-0 text-clay" /> Interest-based (riba)</li>
                 <li className="flex items-start gap-3"><X className="mt-1 h-4 w-4 shrink-0 text-clay" /> Funding out of reach for small firms</li>
-                <li className="flex items-start gap-3"><X className="mt-1 h-4 w-4 shrink-0 text-clay" /> Slow, paper-based onboarding</li>
+                <li className="flex items-start gap-3"><X className="mt-1 h-4 w-4 shrink-0 text-clay" /> Onboarding on paper</li>
                 <li className="flex items-start gap-3"><X className="mt-1 h-4 w-4 shrink-0 text-clay" /> A quarterly PDF as the only proof</li>
-                <li className="flex items-start gap-3"><X className="mt-1 h-4 w-4 shrink-0 text-clay" /> Limits checked by hand</li>
+                <li className="flex items-start gap-3"><X className="mt-1 h-4 w-4 shrink-0 text-clay" /> Limits checked off chain</li>
               </ul>
             </Tile>
           </Reveal>

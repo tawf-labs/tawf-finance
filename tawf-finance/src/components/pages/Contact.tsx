@@ -12,7 +12,7 @@ const partnershipTypes = [
   {
     icon: Building2,
     title: 'BPRS Deposito Partnership',
-    description: 'Licensed Shariah rural banks that want to host a Tawf deposito account for the later Deposito Pool',
+    description: 'Licensed Shariah rural banks that want to host a Tawf deposito account for the Deposito Pool, where rupiah deposits are opening soon',
   },
   {
     icon: Users,
@@ -58,7 +58,7 @@ export function Contact() {
         eyebrow="Contact"
         title="Partner"
         accent="with us"
-        lead="We are building tokenized sharia crowdfunding for SMEs, and later Shariah deposito at licensed BPRS. Talk to us if you run an SME offering, operate a licensed crowdfunding platform, run a BPRS, invest, or build the rails around them. The pilot is on testnet."
+        lead="We are building tokenized sharia crowdfunding for SMEs, and Shariah deposito at licensed BPRS (rupiah deposits opening soon). Talk to us if you run an SME offering, operate a licensed crowdfunding platform, run a BPRS, invest, or build the rails around them. The pilot is on testnet."
       />
 
       <Chapter tint="paper" from="stone" eyebrow="Partnerships" title="Partnership" accent="opportunities">

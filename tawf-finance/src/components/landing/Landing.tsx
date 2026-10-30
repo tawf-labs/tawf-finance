@@ -40,28 +40,28 @@ const DEPOSITO: ProductCopy = {
   receiptId: 'deposito-receipt',
   badge: 'Rupiah deposits opening soon',
   lifecycleTitle: ['Follow one rupiah,', 'to the banks and back.'],
-  lifecycleLead: 'Seven steps. The rupiah flow opens soon, and every bank balance is already on chain.',
+  lifecycleLead: 'Planned flow, seven steps. Rupiah deposits are opening soon. The bank balances on the pool ledger are already on chain.',
   steps: [
-    { k: 'Request', t: 'You choose an amount and a tenor.', b: 'Say how much rupiah you want to place and for how long. Your wallet is checked for a verified identity first.', c: 'Deposito request' },
-    { k: 'Pay rupiah', t: 'You pay in rupiah.', b: 'Transfer rupiah from your own bank account to Tawf. There is no exchange rate in between.', c: 'Rupiah transfer' },
-    { k: 'Placed', t: 'Tawf places it at the BPRS.', b: 'Tawf opens a mudharabah deposito at each licensed BPRS in the region and spreads the placement across them. Each bank confirms its balance.', c: 'ReserveRecorded' },
-    { k: 'Receipt', t: 'A tokenized receipt is minted.', b: 'You get a soulbound receipt on chain, tied to your verified wallet. It can never be minted above what the banks hold in total.', c: 'ERC-3643 receipt' },
-    { k: 'Proof', t: 'Every bank’s balance is public.', b: 'The balance at each bank is recorded on the pool ledger, so anyone can compare the receipts outstanding with what the banks hold.', c: 'ReserveRecorded · proof of reserve' },
-    { k: 'Profit', t: 'The banks credit their share.', b: 'Each period the banks credit profit under the nisbah fixed before you commit. Profit depends on the banks and is not guaranteed.', c: 'ProfitRecorded' },
-    { k: 'Maturity', t: 'You redeem at maturity.', b: 'At maturity the receipt is redeemed for your principal share. In a mudharabah the capital is not guaranteed.', c: 'Redeemed' },
+    { k: 'Request', t: 'You choose an amount and a tenor.', b: 'You will say how much rupiah you want to place and for how long. Your wallet is checked for a verified identity first.', c: 'Off chain: your request' },
+    { k: 'Pay rupiah', t: 'You pay in rupiah.', b: 'You will transfer rupiah from your own bank account to Tawf. There is no exchange rate in between.', c: 'Off chain: rupiah transfer' },
+    { k: 'Placed', t: 'Tawf places it at the BPRS.', b: 'Tawf will open a mudharabah deposito at each licensed BPRS in the region (demo banks in the pilot) and spread the placement across them. Each bank confirms its balance.', c: 'DepositoPoolLedger: ReserveRecorded event' },
+    { k: 'Receipt', t: 'A tokenized receipt is minted.', b: 'You will get a receipt on chain: a non-transferable token tied to your verified wallet. It can never be minted above what the banks hold in total.', c: 'Planned receipt token (ERC-3643)' },
+    { k: 'Proof', t: 'Every bank’s balance is public.', b: 'The balance at each bank is recorded on the pool ledger today, so anyone can compare the receipts outstanding with what the banks hold.', c: 'DepositoPoolLedger: ReserveRecorded event' },
+    { k: 'Profit', t: 'The banks credit their share.', b: 'Each period the banks will credit profit under the nisbah fixed before you commit. Profit depends on the banks and is not guaranteed.', c: 'DepositoPoolLedger: ProfitRecorded event' },
+    { k: 'Maturity', t: 'You redeem at maturity.', b: 'At maturity the receipt will be redeemed for your principal share. In a mudharabah the capital is not guaranteed.', c: 'Redeemed event' },
   ],
   stepTint: ['bg-mint', 'bg-butter', 'bg-peach', 'bg-mint', 'bg-butter', 'bg-peach', 'bg-mint'],
   receiptTitle: ['One receipt,', 'many banks.'],
-  receiptLead: 'Your position is one soulbound receipt for a deposito Tawf holds at several licensed BPRS. The balance at every bank is public, and the receipt ends when you redeem.',
+  receiptLead: 'Your position will be one receipt for a deposito Tawf holds at several licensed BPRS. The receipt will be a non-transferable token tied to your verified wallet. The balance at every bank is public, and the receipt ends when you redeem.',
   receipt: [
-    { s: 'Placed', fn: 'receipt minted', stamp: 'Placed', tone: 'text-honey', b: 'Your rupiah is placed as a mudharabah deposito and the receipt is minted to your verified wallet. Specimen values.' },
-    { s: 'Earning', fn: 'ProfitRecorded', stamp: 'Earning', tone: 'text-jade', b: 'Each period the banks credit their share of profit. Profit depends on the banks and is not guaranteed.' },
-    { s: 'Redeemed', fn: 'Redeemed', stamp: 'Redeemed', tone: 'text-clay', b: 'At maturity the receipt is redeemed for your principal share and then ends.' },
+    { s: 'Placed', fn: 'planned: receipt minted', stamp: 'Placed', tone: 'text-honey', b: 'Your rupiah is placed as a mudharabah deposito and the receipt is minted to your verified wallet. Specimen values.' },
+    { s: 'Earning', fn: 'ProfitRecorded event', stamp: 'Earning', tone: 'text-jade', b: 'Each period the banks credit their share of profit. Profit depends on the banks and is not guaranteed.' },
+    { s: 'Redeemed', fn: 'planned: redeem', stamp: 'Redeemed', tone: 'text-clay', b: 'At maturity the receipt is redeemed for your principal share and then ends.' },
   ],
   notes: [
-    { t: 'Backed bank by bank', b: 'The receipts outstanding are matched against the balance Tawf holds at each BPRS, recorded on the pool ledger.', c: 'DepositoPoolLedger' },
+    { t: 'Backed bank by bank', b: 'The receipts outstanding will be matched against the balance Tawf holds at each BPRS, recorded on the pool ledger.', c: 'DepositoPoolLedger' },
     { t: 'Readable by anyone', b: 'Any wallet or auditor can read the banks and their balances without asking Tawf.', c: '/proof-of-reserve' },
-    { t: 'Verified wallets only', b: 'The receipt belongs to one verified wallet and is not transferable.', c: 'ERC-3643' },
+    { t: 'Verified wallets only', b: 'The receipt will belong to one verified wallet and will not be transferable.', c: 'ERC-3643' },
   ],
   fade: { lifecycle: FADE.lifecycle, receipt: FADE.receipt },
 };
@@ -111,8 +111,8 @@ const WHY = [
 
 const WHY_DEPOSITO = [
   { t: 'Funding from outside the district', b: 'A BPRS can only collect deposits in its own operating area. The pool brings it depositors from anywhere.' },
-  { t: 'More insured, bank by bank', b: 'LPS insures Tawf’s deposit at each bank up to Rp2bn. Spreading a pool across banks raises what is insured.' },
-  { t: 'The regulator is the attestation layer', b: 'Every bank in a pool is OJK-supervised, LPS-insured, audited, and reports into SLIK.' },
+  { t: 'Spread across banks', b: 'A pool places Tawf’s deposito at several banks, and each bank’s balance is recorded separately and public.' },
+  { t: 'Licensed and supervised banks', b: 'The banks are licensed and supervised. LPS covers bank depositors under its own rules, not the Tawf receipt.' },
 ];
 
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -137,7 +137,7 @@ function ReceiptCard({ p = SCF, state = 0, className = '', stub, intro = false }
           <div className="flex items-start justify-between">
             <Emblem id={dep ? 'tawf-pool-jabar' : 'tawf-scf-demo'} tenor={90} className="h-12 w-12 text-jade" />
             <div className="text-right">
-              <p className="font-mono text-[11px] text-tawf-muted">{dep ? 'Soulbound receipt' : 'Sukuk token'}</p>
+              <p className="font-mono text-[11px] text-tawf-muted">{dep ? 'Planned receipt, specimen' : 'Sukuk token'}</p>
               <p className="font-mono text-sm font-medium tabular-nums">{dep ? 'Deposito Pool' : 'tSCF-DEMO-1'}</p>
             </div>
           </div>
@@ -157,7 +157,7 @@ function ReceiptCard({ p = SCF, state = 0, className = '', stub, intro = false }
                   <span key={n} className="h-full bg-jade" style={{ width: `${w}%`, opacity: 1 - n * 0.25 }} />
                 ))}
               </div>
-              <p className="mt-1 text-[11px] text-tawf-muted">Spread across 3 licensed BPRS</p>
+              <p className="mt-1 text-[11px] text-tawf-muted">Spread across 3 demo BPRS</p>
             </div>
           ) : (
           <div className="mt-5 text-sm">
@@ -179,7 +179,7 @@ function ReceiptCard({ p = SCF, state = 0, className = '', stub, intro = false }
           )}
           <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             {[
-              dep ? ['Transfer', 'Soulbound, not transferable'] : ['Yearly limit', 'On your ONCHAINID'],
+              dep ? ['Transfer', 'Planned: not transferable'] : ['Yearly limit', 'On your ONCHAINID'],
               dep ? ['Reserve', 'Per bank, on chain'] : ['Reserve', 'Verified on chain'],
             ].map(([k, v]) => (
               <div key={k}>
@@ -359,7 +359,7 @@ function Hero() {
       {/* Facts for both products, read across like a ledger line. */}
       <dl className="relative z-10 mx-auto mt-4 grid max-w-7xl border-t border-ink/15 sm:grid-cols-3 lg:mt-0">
         {[
-          ['3', 'BPRS', 'Banks in the first regional Deposito Pool'],
+          ['3', 'demo BPRS', 'Banks in the first regional Deposito Pool'],
           ['Rp', 'deposito', 'Rupiah deposits with a tokenized receipt, opening soon'],
           ['57/2020', 'POJK', 'Urun Dana yearly limit, enforced in the token'],
         ].map(([n, u, l], i) => (
@@ -666,7 +666,7 @@ function Coverage() {
   );
 }
 
-// ── 4 · Why SCF on Tawf, and the Deposito Pool as a later product ────
+// ── 4 · Why SCF on Tawf ────
 function WhyScf() {
   return (
     <section id="impact" className={`scroll-mt-20 px-5 pb-24 pt-36 sm:px-10 md:pb-32 md:pt-44 lg:px-20 ${FADE.impact}`}>
@@ -728,10 +728,10 @@ function WhyBprs() {
       <div className="mx-auto max-w-7xl">
         <Reveal className="grid gap-6 lg:grid-cols-12 lg:items-end">
           <h2 className="display text-[clamp(2.4rem,5.4vw,4.8rem)] lg:col-span-7">
-            <Words text="Rural Shariah banks pay more" /> <Words text="for every rupiah." className="text-jade" delay={0.3} />
+            <Words text="Rural Shariah banks look" /> <Words text="beyond their district." className="text-jade" delay={0.3} />
           </h2>
           <p className="text-[1.05rem] leading-relaxed text-ink/75 lg:col-span-4 lg:col-start-9">
-            The LPS caps the guaranteed deposit rate higher for BPR and BPRS. That spread is what their deposits cost, and what a Deposito Pool earns from outside their district.
+            The LPS caps the guaranteed deposit rate higher for BPR and BPRS than for commercial banks. The chart shows the two caps. It is context for why these banks look for funding from outside their district, not a rate Tawf pays.
           </p>
         </Reveal>
 

@@ -8,7 +8,7 @@ const APP = 'https://app.tawf.finance/login';
 
 const steps = [
   { title: 'Verify and get test funds', body: 'Connect a wallet, complete the test KYC and take test funds from the faucet.' },
-  { title: 'Choose a product', body: 'Urun Dana (SCF) is open on testnet: subscribe within your yearly limit and your test funds are held in escrow until the offering closes. The Deposito Pool opens for rupiah deposits soon.' },
+  { title: 'Choose a product', body: 'Urun Dana (SCF) is open on testnet: subscribe within your yearly limit and your test funds are held in escrow until the offering closes. The Deposito Pool has rupiah deposits opening soon.' },
   { title: 'Track and claim', body: 'Follow your balance and the reserve behind it, and claim profit when it is distributed.' },
 ];
 
@@ -19,7 +19,7 @@ export function Earn() {
         eyebrow="Earn"
         title="Two ways to take part,"
         accent="on testnet"
-        lead="The Tawf Deposito Pool places rupiah as mudharabah deposito at licensed BPRS (rupiah deposits open soon). Urun Dana backs SMEs through sharia crowdfunding and is open on the Arbitrum Sepolia testnet with test funds. Profit depends on the banks and the underlying businesses and is never guaranteed."
+        lead="The Tawf Deposito Pool places rupiah as mudharabah deposito at licensed BPRS (rupiah deposits opening soon). Urun Dana backs SMEs through sharia crowdfunding and is open on the Arbitrum Sepolia testnet with test funds. Profit depends on the banks and the underlying businesses and is never guaranteed."
         actions={
           <>
             <a href={APP} className={solid}>Open the investor app</a>
