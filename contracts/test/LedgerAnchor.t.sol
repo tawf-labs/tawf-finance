@@ -3,14 +3,20 @@ pragma solidity ^0.8.20;
 
 import { Test } from "forge-std/Test.sol";
 import { LedgerAnchor } from "../src/LedgerAnchor.sol";
+import { Proxies } from "../src/proxy/Proxies.sol";
+import { Initializable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
+import { ERC1967Proxy } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { ERC1967Utils } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
 contract LedgerAnchorTest is Test {
     LedgerAnchor internal anchor;
     address internal operator = makeAddr("operator");
     address internal stranger = makeAddr("stranger");
+    address internal timelock = makeAddr("timelock");
 
     function setUp() public {
-        anchor = new LedgerAnchor(46630, operator);
+        anchor = Proxies.ledgerAnchor(46630, operator, timelock);
     }
 
     function _pair(bytes32 a, bytes32 b) internal pure returns (bytes32) {
@@ -54,7 +60,60 @@ contract LedgerAnchorTest is Test {
     }
 
     function test_constructor_rejectsZeroOperator() public {
+        address impl = address(new LedgerAnchor());
         vm.expectRevert(LedgerAnchor.ZeroAddress.selector);
-        new LedgerAnchor(1, address(0));
+        new ERC1967Proxy(impl, abi.encodeCall(LedgerAnchor.initialize, (1, address(0), timelock)));
+    }
+
+    function test_constructor_rejectsZeroUpgrader() public {
+        address impl = address(new LedgerAnchor());
+        vm.expectRevert(LedgerAnchor.ZeroAddress.selector);
+        new ERC1967Proxy(impl, abi.encodeCall(LedgerAnchor.initialize, (1, operator, address(0))));
+    }
+
+    // ---- upgrade controls ----
+
+    function test_initialize_cannotRunTwice() public {
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        anchor.initialize(1, operator, timelock);
+    }
+
+    function test_implementation_isLocked() public {
+        address impl = address(uint160(uint256(vm.load(address(anchor), ERC1967Utils.IMPLEMENTATION_SLOT))));
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        LedgerAnchor(impl).initialize(1, operator, timelock);
+    }
+
+    function test_onlyTimelockUpgrades_andStateIsKept() public {
+        vm.prank(operator);
+        anchor.push(bytes32(uint256(7)));
+        LedgerAnchorV2 v2 = new LedgerAnchorV2();
+        vm.prank(operator); // the operator is not an upgrader
+        vm.expectRevert();
+        anchor.upgradeToAndCall(address(v2), "");
+        vm.prank(timelock);
+        anchor.upgradeToAndCall(address(v2), "");
+        assertEq(LedgerAnchorV2(address(anchor)).version(), 2);
+        assertEq(anchor.epochs(), 1);
+        assertEq(anchor.operator(), operator);
+        assertEq(anchor.ledgerChainId(), 46630);
+    }
+
+    function test_upgraderRole_onlyUpgraderCanGrantIt() public {
+        bytes32 role = anchor.UPGRADER_ROLE();
+        vm.prank(operator);
+        vm.expectRevert();
+        anchor.grantRole(role, operator);
+        vm.prank(timelock);
+        anchor.grantRole(role, stranger);
+        assertTrue(anchor.hasRole(role, stranger));
+    }
+}
+
+contract LedgerAnchorV2 is LedgerAnchor {
+    uint256 public extra;
+
+    function version() external pure returns (uint256) {
+        return 2;
     }
 }

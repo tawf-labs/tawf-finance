@@ -7,6 +7,7 @@ import { DealRegistry } from "../DealRegistry.sol";
 import { BondReceiptNFT } from "../BondReceiptNFT.sol";
 import { RedemptionVault } from "../RedemptionVault.sol";
 import { PooledFinancingVault } from "../PooledFinancingVault.sol";
+import { LedgerAnchor } from "../LedgerAnchor.sol";
 
 /**
  * @title Proxies
@@ -35,6 +36,13 @@ library Proxies {
         address impl = address(new PooledFinancingVault());
         return PooledFinancingVault(
             address(new ERC1967Proxy(impl, abi.encodeCall(PooledFinancingVault.initialize, (asset, admin))))
+        );
+    }
+
+    function ledgerAnchor(uint256 ledgerChainId, address operator, address upgrader) internal returns (LedgerAnchor) {
+        address impl = address(new LedgerAnchor());
+        return LedgerAnchor(
+            address(new ERC1967Proxy(impl, abi.encodeCall(LedgerAnchor.initialize, (ledgerChainId, operator, upgrader))))
         );
     }
 }
