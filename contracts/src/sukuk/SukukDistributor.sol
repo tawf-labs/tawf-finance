@@ -105,7 +105,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     }
 
     /// @dev Accepted settlement coins (1 to 4), fixed at construction.
-    address[] private _coins;
+    address[] internal _coins;
     mapping(address => bool) public isCoin;
     ILedgerAnchor public immutable anchor;
     ITawfIdentityRegistry public immutable identityRegistry;
