@@ -5,6 +5,8 @@ pragma solidity 0.8.17;
 // Tawf contracts under test (SukukDistributor ^0.8.20, TawfDepositoSeries ^0.8.24,
 // MockUSDC/MockUSDT ^0.8.20) are reached only via vm.deployCode and minimal interfaces.
 
+import { TrexProxies } from "../../src/proxy/TrexProxies.sol";
+import { TREXImplementationAuthority } from "@erc3643org/erc-3643/contracts/proxy/authority/TREXImplementationAuthority.sol";
 import { ModuleProxies } from "../../src/proxy/ModuleProxies.sol";
 import "forge-std/Test.sol";
 import {ProxyDeployer} from "../../script/lib/ProxyDeployer.sol";
@@ -43,6 +45,8 @@ abstract contract TrexFixture is Test, ProxyDeployer {
     IdentityRegistryStorage internal irs;
     IdentityRegistry internal ir;
     ClaimIssuer internal claimIssuer;
+    /// @dev T-REX implementation authority every proxy of the suite reads its logic from.
+    TREXImplementationAuthority internal trexIA;
 
     /// @dev Deploy and wire the shared identity suite. Call from a test's setUp while pranking as
     ///      the deployer is handled internally.
@@ -50,14 +54,11 @@ abstract contract TrexFixture is Test, ProxyDeployer {
         claimIssuerSigner = vm.addr(claimIssuerKey);
 
         vm.startPrank(deployer);
-        ctr = new ClaimTopicsRegistry();
-        ctr.init();
-        tir = new TrustedIssuersRegistry();
-        tir.init();
-        irs = new IdentityRegistryStorage();
-        irs.init();
-        ir = new IdentityRegistry();
-        ir.init(address(tir), address(ctr), address(irs));
+        trexIA = TrexProxies.authority();
+        ctr = TrexProxies.claimTopicsRegistry(address(trexIA));
+        tir = TrexProxies.trustedIssuersRegistry(address(trexIA));
+        irs = TrexProxies.identityRegistryStorage(address(trexIA));
+        ir = TrexProxies.identityRegistry(address(trexIA), address(tir), address(ctr), address(irs));
         irs.bindIdentityRegistry(address(ir));
         ctr.addClaimTopic(KYC_TOPIC);
 
@@ -80,10 +81,8 @@ abstract contract TrexFixture is Test, ProxyDeployer {
         returns (Token token, ModularCompliance mc, DistributionCheckpointModule module)
     {
         vm.startPrank(deployer);
-        mc = new ModularCompliance();
-        mc.init();
-        token = new Token();
-        token.init(address(ir), address(mc), name_, symbol_, decimals_, address(0));
+        mc = TrexProxies.modularCompliance(address(trexIA));
+        token = TrexProxies.token(address(trexIA), address(ir), address(mc), name_, symbol_, decimals_, address(0));
         module = ModuleProxies.checkpoint();
         vm.stopPrank();
     }
