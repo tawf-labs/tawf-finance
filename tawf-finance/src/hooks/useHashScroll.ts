@@ -9,6 +9,9 @@ import { useLocation } from 'react-router-dom';
  * reveal and sticky sections), honours the section's scroll-margin, and stops as soon as
  * the visitor scrolls or touches the page. Reduced motion gets an instant jump either way.
  */
+// Old shared links whose section moved. The landing no longer has #how-it-works: the Deposito flow opens it.
+const ALIAS: Record<string, string> = { 'how-it-works': 'deposito' };
+
 export function useHashScroll() {
   const { pathname, hash } = useLocation();
 
@@ -18,7 +21,7 @@ export function useHashScroll() {
 
     let stopped = false;
     const align = () => {
-      const el = document.getElementById(id);
+      const el = document.getElementById(id) ?? (ALIAS[id] ? document.getElementById(ALIAS[id]) : null);
       if (el) el.scrollIntoView({ block: 'start', behavior: 'auto' });
     };
     const stop = () => {

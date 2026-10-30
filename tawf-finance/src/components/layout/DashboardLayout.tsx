@@ -48,7 +48,7 @@ const navConfigs: Record<string, NavItem[]> = {
   investor: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/investor/dashboard' },
     ...(FINANCING_POOL_ENABLED ? [{ id: 'pools', label: 'Investment Pools', icon: TrendingUp, href: '/investor/pools' }] : []),
-    { id: 'deposito', label: 'Deposito Pool', icon: PiggyBank, href: '/investor/deposito', ...(DEPOSITO_STABLECOIN_FLOW_ENABLED ? {} : { chip: 'Opening soon' }) },
+    { id: 'deposito', label: 'Deposito Pool', icon: PiggyBank, href: '/investor/deposito', ...(DEPOSITO_STABLECOIN_FLOW_ENABLED ? {} : { chip: 'Soon' }) },
     { id: 'scf', label: 'Urun Dana (SCF)', icon: Store, href: '/investor/scf' },
     { id: 'portfolio', label: 'Portfolio', icon: Briefcase, href: '/investor/portfolio' },
     { id: 'transactions', label: 'Transactions', icon: CreditCard, href: '/investor/transactions' },
