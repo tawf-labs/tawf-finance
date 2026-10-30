@@ -8,6 +8,8 @@ const extraAbi = parseAbi([
   'function subscriptionDeadline() view returns (uint40)',
   'function lastPeriod() view returns (uint16)',
   'function reserveOutstanding() view returns (uint256)',
+  'function reserveSnapshotAt() view returns (uint64)',
+  'function isFullyBacked() view returns (bool)',
 ])
 
 const coinAbi = parseAbi(['function symbol() view returns (string)'])
@@ -29,13 +31,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const dist = addresses.scfDistributor
-    const [terms, status, raised, deadline, lastPeriod, reserve, offering] = await Promise.all([
+    const [terms, status, supply, deadline, lastPeriod, reserve, snapshotAt, fullyBacked, offering] = await Promise.all([
       publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'terms' }) as Promise<readonly unknown[]>,
       publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'status' }),
       publicClient.readContract({ address: addresses.scfToken, abi: extraAbi, functionName: 'totalSupply' }),
       publicClient.readContract({ address: dist, abi: extraAbi, functionName: 'subscriptionDeadline' }),
       publicClient.readContract({ address: dist, abi: extraAbi, functionName: 'lastPeriod' }),
       publicClient.readContract({ address: dist, abi: extraAbi, functionName: 'reserveOutstanding' }),
+      publicClient.readContract({ address: dist, abi: extraAbi, functionName: 'reserveSnapshotAt' }),
+      publicClient.readContract({ address: dist, abi: extraAbi, functionName: 'isFullyBacked' }),
       publicClient.readContract({ address: addresses.scfLimitModule, abi: scfLimitModuleAbi, functionName: 'offeringOf', args: [addresses.scfCompliance] }),
     ])
 
@@ -99,16 +103,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       minRaise: String(terms[3]),
       minSubscription: String(terms[4]),
       issuerTreasury: terms[6],
-      // `raised` is the live token supply (kept for older clients). `supply` says the same, and
-      // `totalRaised` is the cumulative amount subscribed over all coins.
-      raised: String(raised),
-      supply: String(raised),
+      // `raised` is the raise net of refunds (it equals the live token supply until redemption starts, since
+      // tokens are minted 1:1 on subscribe). `totalRaised` is the cumulative amount subscribed over all coins.
+      raised: String(netRaised),
       totalRaised: String(totalRaised),
       netRaised: String(netRaised),
       coins,
       subscriptionDeadline: Number(deadline),
       lastPeriod: Number(lastPeriod),
       reserve: String(reserve),
+      supply: String(supply),
+      reserveSnapshotAt: Number(snapshotAt),
+      isFullyBacked: Boolean(fullyBacked),
       offeringCap: String((offering as readonly unknown[])[1]),
       investor,
     })

@@ -40,7 +40,7 @@ export function Onboarding() {
             </div>
             <h3 className="font-serif text-2xl text-tawf-green mb-3">Two Ways to Take Part</h3>
             <p className="text-tawf-muted max-w-md mx-auto">
-              Place rupiah in the Deposito Pool when it opens, or invest in SME sukuk mudharabah through Urun Dana. Profit depends on the results and is not guaranteed.
+              Place rupiah in the Deposito Pool when rupiah deposits open (opening soon), or invest in SME sukuk mudharabah through Urun Dana. Profit depends on the results and is not guaranteed.
             </p>
             <div className="flex justify-center gap-4 mt-6">
               <Badge variant="success" size="md">Shariah Aligned</Badge>

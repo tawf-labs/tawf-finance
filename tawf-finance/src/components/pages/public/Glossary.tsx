@@ -5,7 +5,7 @@ export function Glossary() {
   const terms = [
     {
       term: 'Akad (Aqd)',
-      definition: 'A contract or agreement in Islamic finance. In the Tawf pilot, the Deposito Pool rests on a mudharabah akad between Tawf and each partner BPRS.',
+      definition: 'A contract or agreement in Islamic finance. In the Tawf pilot, an SME sukuk rests on a mudharabah akad between the investors and the SME.',
       category: 'General',
     },
     {
@@ -15,7 +15,7 @@ export function Glossary() {
     },
     {
       term: 'BPRS (Bank Pembiayaan Rakyat Syariah)',
-      definition: 'A licensed Islamic rural bank in Indonesia. Unlike a BMT, a BPRS is OJK-supervised and LPS-insured. LPS covers bank depositors under its own rules, not the Tawf token. The partner banks in the Tawf Deposito Pool are BPRS.',
+      definition: 'A licensed Islamic rural bank in Indonesia. Unlike a BMT, a BPRS is OJK-supervised and LPS-insured. LPS covers bank depositors under its own rules, not the Tawf token. The partner banks of the Tawf Deposito Pool are BPRS (demo banks in the pilot).',
       category: 'Organizations',
     },
     {
@@ -25,7 +25,7 @@ export function Glossary() {
     },
     {
       term: 'Deposito Pool',
-      definition: 'The pilot product. Tawf holds mudharabah deposito at several licensed BPRS in one region and wraps it into one ERC-3643 token, with each bank\'s balance shown in the proof of reserve.',
+      definition: 'Rupiah deposits are opening soon, for investors in Indonesia. Tawf holds mudharabah deposito at several licensed BPRS in one region, with each bank\'s balance shown in the proof of reserve. The receipt will be a non-transferable token tied to your verified wallet.',
       category: 'Products',
     },
     {
@@ -45,7 +45,7 @@ export function Glossary() {
     },
     {
       term: 'Mudharabah',
-      definition: 'A profit-sharing partnership where one party provides capital and the other provides expertise. Profits are shared according to a pre-agreed ratio, while losses are borne by the capital provider (unless due to misconduct). The akad behind the Deposito Pool.',
+      definition: 'A profit-sharing partnership where one party provides capital and the other provides expertise. Profits are shared according to a pre-agreed ratio, while losses are borne by the capital provider. The managing party is liable only for losses caused by its misconduct or negligence. The akad behind SME sukuk mudharabah and, later, the Deposito Pool.',
       category: 'Contracts',
     },
     {
@@ -182,7 +182,7 @@ export function Glossary() {
           {[
             ['Prohibited', 'Riba (interest), Gharar (excessive uncertainty), Maysir (gambling)'],
             ['Key principles', 'Profit-sharing, risk-sharing, asset-backing, ethical investment'],
-            ['In Indonesia', 'OJK regulates. A BPRS is a licensed Shariah bank and a partner bank in the pilot. LPS covers bank depositors under its own rules, not the Tawf token'],
+            ['In Indonesia', 'OJK regulates. A BPRS is a licensed Shariah bank and a partner bank in the Deposito Pool (rupiah deposits opening soon). LPS covers bank depositors under its own rules, not the Tawf token'],
           ].map(([h, b]) => (
             <Tile key={h}>
               <h3 className="display text-xl">{h}</h3>

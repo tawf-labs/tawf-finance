@@ -92,9 +92,12 @@ export interface ScfStatus {
   subscriptionDeadline?: number;
   lastPeriod?: number;
   reserve?: string;
-  offeringCap?: string;
-  /** The live token supply (the same as `raised`). */
+  /** Sukuk token total supply (equal to `raised` until redemption starts). */
   supply?: string;
+  /** Unix seconds of the latest verified reserve snapshot, 0 when none. */
+  reserveSnapshotAt?: number;
+  isFullyBacked?: boolean;
+  offeringCap?: string;
   /** Everything ever subscribed over all coins, and the part left after refunds. */
   totalRaised?: string;
   netRaised?: string;

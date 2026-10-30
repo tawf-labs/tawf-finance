@@ -6,10 +6,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { FINANCING_POOL_ENABLED } from '@/config/features';
 
 const homeLinks = [
-  { name: 'Lifecycle', id: 'how-it-works' },
-  { name: 'Pool token', id: 'receipt' },
+  { name: 'Deposito Pool', id: 'deposito', soon: true },
+  { name: 'Urun Dana', id: 'scf' },
   { name: 'Coverage', id: 'instruments' },
-  { name: 'Why BPRS', id: 'impact' },
+  { name: 'Why Tawf', id: 'impact' },
   ...(FINANCING_POOL_ENABLED ? [{ name: 'Pools', id: 'pools' }] : []),
 ];
 
@@ -108,7 +108,7 @@ export function Navigation() {
                       {active === l.id && (
                         <motion.span layoutId="nav-dot" className="absolute inset-0 rounded-full bg-ink/[0.06]" transition={{ type: 'spring', stiffness: 380, damping: 32 }} />
                       )}
-                      <span className="relative">{l.name}</span>
+                      <span className="relative">{l.name}{l.soon && <span className="ml-1.5 rounded-full bg-butter px-1.5 py-0.5 align-middle text-[10px] font-semibold text-ink">Opening soon</span>}</span>
                     </a>
                   ))
                 : pageLinks.map((l) => (
@@ -159,7 +159,7 @@ export function Navigation() {
                   (isHomePage
                     ? homeLinks.map((l) => (
                         <a key={l.id} href={`#${l.id}`} onClick={close} className={`rounded-lg px-3 py-3 text-base ${th.item}`}>
-                          {l.name}
+                          {l.name}{l.soon && <span className="ml-2 rounded-full bg-butter px-2 py-0.5 align-middle text-[10px] font-semibold text-ink">Opening soon</span>}
                         </a>
                       ))
                     : pageLinks.map((l) => (

@@ -5,14 +5,14 @@ import { Reveal } from '../landing/Reveal';
 
 const partnershipTypes = [
   {
-    icon: Building2,
-    title: 'BPRS Deposito Partnership',
-    description: 'Licensed Shariah rural banks that want to host a Tawf deposito account and a wider funding channel',
-  },
-  {
     icon: Rocket,
     title: 'SCF Platform Partnership',
     description: 'Licensed crowdfunding (urun dana) platforms and SME issuers',
+  },
+  {
+    icon: Building2,
+    title: 'BPRS Deposito Partnership',
+    description: 'Licensed Shariah rural banks that want to host a Tawf deposito account for the Deposito Pool, where rupiah deposits are opening soon',
   },
   {
     icon: Users,
@@ -58,7 +58,7 @@ export function Contact() {
         eyebrow="Contact"
         title="Partner"
         accent="with us"
-        lead="We are building tokenized Shariah deposito at licensed BPRS and sharia crowdfunding for SMEs. Talk to us if you run a BPRS, operate a licensed crowdfunding platform, invest, or build the rails around them. The pilot is on testnet."
+        lead="We are building tokenized sharia crowdfunding for SMEs, and Shariah deposito at licensed BPRS (rupiah deposits opening soon). Talk to us if you run an SME offering, operate a licensed crowdfunding platform, run a BPRS, invest, or build the rails around them. The pilot is on testnet."
       />
 
       <Chapter tint="paper" from="stone" eyebrow="Partnerships" title="Partnership" accent="opportunities">
@@ -111,8 +111,8 @@ export function Contact() {
               </label>
               <select id="partnershipType" name="partnershipType" required defaultValue={presetType} className={field}>
                 <option value="">Select partnership type</option>
-                <option value="BPRS Deposito Partnership">BPRS Deposito Partnership</option>
                 <option value="SCF Platform Partnership">SCF Platform Partnership</option>
+                <option value="BPRS Deposito Partnership">BPRS Deposito Partnership</option>
                 <option value="Investor Partnership">Investor Partnership</option>
                 <option value="Strategic Alliance">Strategic Alliance</option>
                 <option value="Other">Other</option>

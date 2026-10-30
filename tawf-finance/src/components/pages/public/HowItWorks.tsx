@@ -10,21 +10,57 @@ interface Step {
   description: string;
 }
 
-const investorSteps: Step[] = [
+const scfSteps: Step[] = [
   {
-    icon: <Search className="h-6 w-6" />,
-    title: 'Pick a Deposito Pool',
-    description: 'The pool wraps the mudharabah deposito Tawf holds at several licensed BPRS in one region. See every bank and its balance before you commit.',
+    icon: <FileText className="h-6 w-6" />,
+    title: 'Declare your limit',
+    description: 'Sign a suitability declaration. Your POJK 57/2020 yearly limit is recorded on your ONCHAINID and applies across the platform\'s offerings.',
   },
   {
     icon: <Wallet className="h-6 w-6" />,
-    title: 'Verify and subscribe',
-    description: 'Verify your identity, then subscribe in USDC, USDT or USDG. Tawf converts to IDR and places the funds across the banks.',
+    title: 'Subscribe',
+    description: 'Verify your identity, then subscribe in USDC, USDT or USDG. Funds wait in escrow while the offering is open. If the minimum raise is missed you are refunded in the coin you paid.',
   },
   {
     icon: <CheckCircle className="h-6 w-6" />,
-    title: 'Receive your profit share',
-    description: 'If there is profit, the banks credit their share each period and you claim yours. At maturity you redeem the principal. Principal is not guaranteed.',
+    title: 'Claim profit and redeem',
+    description: 'Once issued, you hold sukuk tokens 1:1. If the SME makes a profit, you claim your share each period in the coin you choose. At maturity you redeem the principal. Principal is not guaranteed.',
+  },
+];
+
+const smeSteps: Step[] = [
+  {
+    icon: <FileText className="h-6 w-6" />,
+    title: 'Offering on a licensed platform',
+    description: 'An SME raises funds through a licensed crowdfunding (urun dana) partner platform. Tawf provides the token and the rails.',
+  },
+  {
+    icon: <Shield className="h-6 w-6" />,
+    title: 'Reserve is proven',
+    description: 'The reserve behind the token is recorded on the Tawf Network ledger and anchored on chain. Tokens cannot be minted above it.',
+  },
+  {
+    icon: <TrendingUp className="h-6 w-6" />,
+    title: 'Profit and maturity on chain',
+    description: 'Each profit period and the final settlement are recorded on chain, so investors and the SME see the same figures.',
+  },
+];
+
+const investorSteps: Step[] = [
+  {
+    icon: <Search className="h-6 w-6" />,
+    title: 'Request and pay in rupiah',
+    description: 'Say how much you want to place and for how long, then transfer rupiah from your own bank account. The pool wraps the mudharabah deposito Tawf holds at several licensed BPRS in one region, and every bank and its balance is visible before you commit.',
+  },
+  {
+    icon: <Wallet className="h-6 w-6" />,
+    title: 'Placed, and a receipt minted',
+    description: 'Tawf will place your rupiah at the licensed banks (demo banks in the pilot), and you will get a receipt on chain: a non-transferable token tied to your verified wallet.',
+  },
+  {
+    icon: <CheckCircle className="h-6 w-6" />,
+    title: 'Profit and maturity',
+    description: 'If there is profit, the banks credit their share each period. At maturity you redeem the receipt for your principal share. Principal is not guaranteed.',
   },
 ];
 
@@ -32,12 +68,12 @@ const bankSteps: Step[] = [
   {
     icon: <FileText className="h-6 w-6" />,
     title: 'Tawf places the deposito',
-    description: 'Tawf opens one dedicated mudharabah deposito account at each BPRS in the region and places the converted funds there.',
+    description: 'Tawf opens one dedicated mudharabah deposito account at each BPRS in the region and places the rupiah there.',
   },
   {
     icon: <Shield className="h-6 w-6" />,
     title: 'Balances are proven',
-    description: "Each bank's balance is recorded on the pool ledger, and the token can never be minted above their total.",
+    description: "Each bank's balance is recorded on the pool ledger, and the receipt can never be minted above their total.",
   },
   {
     icon: <TrendingUp className="h-6 w-6" />,
@@ -49,13 +85,13 @@ const bankSteps: Step[] = [
 const safeguards: Step[] = [
   {
     icon: <BadgeCheck className="h-6 w-6" />,
-    title: 'Verified wallets only',
-    description: 'The ERC-3643 token moves only between wallets that hold a verified identity claim.',
+    title: 'Verified wallets and a yearly limit',
+    description: 'The ERC-3643 token moves only between wallets that hold a verified identity claim, and the POJK 57/2020 limit is checked on every purchase.',
   },
   {
     icon: <Lock className="h-6 w-6" />,
-    title: 'Capped by the banks',
-    description: 'Supply cannot pass the total of the bank balances recorded on the pool ledger.',
+    title: 'Capped by the reserve',
+    description: 'Supply cannot pass the reserve figure recorded on the ledger and anchored on Arbitrum.',
   },
   {
     icon: <Wallet className="h-6 w-6" />,
@@ -65,7 +101,7 @@ const safeguards: Step[] = [
   {
     icon: <FlaskConical className="h-6 w-6" />,
     title: 'A testnet pilot',
-    description: 'The pilot runs on test stablecoins, so no real money moves while we prove the flow.',
+    description: 'The pilot runs on testnet with test funds, so no real money moves while we prove the flow.',
   },
 ];
 
@@ -95,7 +131,7 @@ export function HowItWorks() {
         eyebrow="How it works"
         title="Simple, ethical,"
         accent="and checkable."
-        lead="Put stablecoins into mudharabah deposito across licensed Indonesian Islamic rural banks, wrapped into one Tawf Deposito Pool with a per-bank proof of reserve. The financing sell-down pool comes after the pilot."
+        lead="Two products with the same standard of proof. The Tawf Deposito Pool places rupiah as mudharabah deposito at licensed BPRS, with every bank's balance on chain (rupiah deposits opening soon). Urun Dana backs Indonesian SMEs through sharia securities crowdfunding, with the investor limit and the reserve enforced in the token."
         actions={
           <>
             <a href="https://app.tawf.finance/login" className={solid}>Open the investor app</a>
@@ -107,19 +143,14 @@ export function HowItWorks() {
       <Chapter
         tint="paper"
         from="stone"
-        eyebrow="For investors"
+        eyebrow="Tawf Deposito Pool · opening soon"
         title="Three steps from"
-        accent="stablecoin to deposito."
+        accent="rupiah to deposito."
         lead="Take Shariah-aligned exposure to mudharabah deposito at licensed BPRS, with the balances visible on chain."
       >
         <StepGrid steps={investorSteps} tint="stone" />
         <Reveal className="mt-6 max-w-3xl text-sm leading-relaxed text-ink/70">
-          Risk: mudharabah shares profit and loss. Returns depend on the banks' results and are not guaranteed, and capital can be lost except through misconduct.
-        </Reveal>
-        <Reveal className="mt-10">
-          <Link to="/earn" className={solid}>
-            Explore the pools <ArrowRight className="ml-2 h-4 w-4" />
-          </Link>
+          Risk: mudharabah shares profit and loss. Returns depend on the banks&apos; results and are not guaranteed, and capital can be lost. The bank is liable only for losses caused by its misconduct or negligence.
         </Reveal>
       </Chapter>
 
@@ -135,15 +166,45 @@ export function HowItWorks() {
       </Chapter>
 
       <Chapter
-        tint="stone"
+        tint="paper"
         from="butter"
+        eyebrow="Urun Dana (SCF)"
+        title="Three steps from"
+        accent="stablecoin to sukuk."
+        lead="Back an SME offering with Shariah-aligned sukuk mudharabah, with the raise and the reserve visible on chain."
+      >
+        <StepGrid steps={scfSteps} tint="stone" />
+        <Reveal className="mt-6 max-w-3xl text-sm leading-relaxed text-ink/70">
+          Risk: sukuk mudharabah shares profit and loss. Profit depends on the SME and is not guaranteed, and capital can be lost. The SME is liable only for losses caused by its misconduct or negligence.
+        </Reveal>
+        <Reveal className="mt-10">
+          <Link to="/earn" className={solid}>
+            Explore the offerings <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
+        </Reveal>
+      </Chapter>
+
+      <Chapter
+        tint="stone"
+        from="paper"
+        eyebrow="For SMEs and platforms"
+        title="A raise that is"
+        accent="checkable."
+        lead="Offerings run on a licensed partner platform. Every figure investors see is on chain."
+      >
+        <StepGrid steps={smeSteps} tint="white" />
+      </Chapter>
+
+      <Chapter
+        tint="mint"
+        from="stone"
         eyebrow="Fees"
         title="No fees"
         accent="in the pilot."
-        lead="The pilot runs on testnet with test stablecoins, so nothing is charged. Fee terms for a live pool will be published before anyone subscribes."
+        lead="The pilot runs on testnet with test funds, so nothing is charged. Fee terms for a live offering will be published before anyone subscribes."
       />
 
-      <Chapter tint="mint" from="stone" eyebrow="Safeguards" title="Built so you can" accent="verified.">
+      <Chapter tint="peach" from="mint" eyebrow="Safeguards" title="Built so you can" accent="verify.">
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           {safeguards.map((s, i) => (
             <Reveal key={s.title} delay={(i % 2) * 0.08}>

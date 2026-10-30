@@ -7,8 +7,8 @@ const groups: { title: string; links: FooterLink[] }[] = [
   {
     title: 'Explore',
     links: [
-      { name: 'Lifecycle', href: '/#how-it-works' },
-      { name: 'Pool token', href: '/#receipt' },
+      { name: 'Deposito Pool', href: '/#deposito' },
+      { name: 'Urun Dana (SCF)', href: '/#scf' },
       { name: 'Instruments', href: '/instruments' },
       { name: 'Glossary', href: '/glossary' },
     ],
