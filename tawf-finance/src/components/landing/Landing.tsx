@@ -8,27 +8,95 @@ import { Emblem, Pools } from './Pools';
 import { FADE, FAMILY_TINT } from './tint';
 import { ghost, solid } from './PublicPage';
 import { CountUp, Reveal, Words } from './Reveal';
-import { DEPOSITO_POOL_ENABLED, FINANCING_POOL_ENABLED } from '@/config/features';
+import { FINANCING_POOL_ENABLED } from '@/config/features';
 
 // ── Copy ───────────────────────────────────────────────────────────────
-// Order follows the contracts of an SCF offering: SukukDistributor holds the escrow, and the
-// ScfInvestorLimitModule on the sukuk token enforces the POJK 57/2020 yearly limit.
-const STEPS = [
-  { k: 'Declare', t: 'Your yearly limit is set.', b: 'You sign a suitability declaration. The POJK 57/2020 yearly limit is then recorded on your ONCHAINID and applied across the platform’s offerings.', c: 'ScfInvestorLimitModule.setProfile()' },
-  { k: 'Subscribe', t: 'You commit stablecoins.', b: 'USDC, USDT or USDG into the offering escrow, within your limit and the offering size. Sukuk tokens are minted 1:1 to you within the verified reserve.', c: 'SukukDistributor.subscribe()' },
-  { k: 'Close or refund', t: 'The minimum raise decides.', b: 'If the minimum raise is not met, the offering is cancelled, the tokens are burned and everyone is refunded in the coin they paid.', c: 'closeSubscription() · refund()' },
-  { k: 'Issue', t: 'The raise is released.', b: 'The offering closes, the raise goes to the SME and the profit periods begin. Your tokens stay with you.', c: 'SukukDistributor.closeSubscription()' },
-  { k: 'Profit', t: 'The SME pays each period.', b: 'Profit is distributed per period and you claim it in the coin you choose. Profit depends on the SME and is not guaranteed.', c: 'distribute() · claim()' },
-  { k: 'Maturity', t: 'You redeem the principal.', b: 'At maturity the SME settles, your tokens are burned and you redeem your share. If the SME defaults, recovery is shared pro rata.', c: 'settleMaturity() · redeem()' },
-];
-// Each step's card takes the next pastel, so the sticky dial visibly changes chapter.
-const STEP_TINT = ['bg-mint', 'bg-butter', 'bg-peach', 'bg-mint', 'bg-butter', 'bg-peach'];
+// Two products with equal weight. Deposito comes first: rupiah placed as mudharabah deposito at licensed
+// BPRS, with a tokenized receipt and a per-bank proof of reserve (opening soon). Then SCF, in the order of the
+// contracts of an SCF offering: SukukDistributor holds the escrow and the ScfInvestorLimitModule on the
+// sukuk token enforces the POJK 57/2020 yearly limit.
+interface Step { k: string; t: string; b: string; c: string }
+interface ReceiptState { s: string; fn: string; stamp: string; tone: string; b: string }
+interface Note { t: string; b: string; c: string }
+interface ProductCopy {
+  key: 'deposito' | 'scf';
+  lifecycleId: string;
+  receiptId: string;
+  badge?: string;
+  lifecycleTitle: [string, string];
+  lifecycleLead: string;
+  steps: Step[];
+  stepTint: string[];
+  receiptTitle: [string, string];
+  receiptLead: string;
+  receipt: ReceiptState[];
+  notes: Note[];
+  fade: { lifecycle: string; receipt: string };
+}
 
-const RECEIPT = [
-  { s: 'Subscribed', fn: 'subscribe()', stamp: 'Escrowed', tone: 'text-honey', b: 'Your stablecoins wait in escrow while the offering is open and sukuk tokens are minted to you 1:1. If the minimum raise is missed you are refunded.' },
-  { s: 'Issued', fn: 'closeSubscription()', stamp: 'Issued', tone: 'text-jade', b: 'The raise closed and went to the SME. You keep your tokens and each period you claim the profit the SME pays.' },
-  { s: 'Redeemed', fn: 'redeem()', stamp: 'Redeemed', tone: 'text-clay', b: 'At maturity your tokens are burned for your principal share. Profit depends on the SME and is not guaranteed.' },
-];
+const DEPOSITO: ProductCopy = {
+  key: 'deposito',
+  lifecycleId: 'deposito',
+  receiptId: 'deposito-receipt',
+  badge: 'Rupiah deposits opening soon',
+  lifecycleTitle: ['Follow one rupiah,', 'to the banks and back.'],
+  lifecycleLead: 'Seven steps. The rupiah flow opens soon, and every bank balance is already on chain.',
+  steps: [
+    { k: 'Request', t: 'You choose an amount and a tenor.', b: 'Say how much rupiah you want to place and for how long. Your wallet is checked for a verified identity first.', c: 'Deposito request' },
+    { k: 'Pay rupiah', t: 'You pay in rupiah.', b: 'Transfer rupiah from your own bank account to Tawf. There is no exchange rate in between.', c: 'Rupiah transfer' },
+    { k: 'Placed', t: 'Tawf places it at the BPRS.', b: 'Tawf opens a mudharabah deposito at each licensed BPRS in the region and spreads the placement across them. Each bank confirms its balance.', c: 'ReserveRecorded' },
+    { k: 'Receipt', t: 'A tokenized receipt is minted.', b: 'You get a soulbound receipt on chain, tied to your verified wallet. It can never be minted above what the banks hold in total.', c: 'ERC-3643 receipt' },
+    { k: 'Proof', t: 'Every bank’s balance is public.', b: 'The balance at each bank is recorded on the pool ledger, so anyone can compare the receipts outstanding with what the banks hold.', c: 'ReserveRecorded · proof of reserve' },
+    { k: 'Profit', t: 'The banks credit their share.', b: 'Each period the banks credit profit under the nisbah fixed before you commit. Profit depends on the banks and is not guaranteed.', c: 'ProfitRecorded' },
+    { k: 'Maturity', t: 'You redeem at maturity.', b: 'At maturity the receipt is redeemed for your principal share. In a mudharabah the capital is not guaranteed.', c: 'Redeemed' },
+  ],
+  stepTint: ['bg-mint', 'bg-butter', 'bg-peach', 'bg-mint', 'bg-butter', 'bg-peach', 'bg-mint'],
+  receiptTitle: ['One receipt,', 'many banks.'],
+  receiptLead: 'Your position is one soulbound receipt for a deposito Tawf holds at several licensed BPRS. The balance at every bank is public, and the receipt ends when you redeem.',
+  receipt: [
+    { s: 'Placed', fn: 'receipt minted', stamp: 'Placed', tone: 'text-honey', b: 'Your rupiah is placed as a mudharabah deposito and the receipt is minted to your verified wallet. Specimen values.' },
+    { s: 'Earning', fn: 'ProfitRecorded', stamp: 'Earning', tone: 'text-jade', b: 'Each period the banks credit their share of profit. Profit depends on the banks and is not guaranteed.' },
+    { s: 'Redeemed', fn: 'Redeemed', stamp: 'Redeemed', tone: 'text-clay', b: 'At maturity the receipt is redeemed for your principal share and then ends.' },
+  ],
+  notes: [
+    { t: 'Backed bank by bank', b: 'The receipts outstanding are matched against the balance Tawf holds at each BPRS, recorded on the pool ledger.', c: 'DepositoPoolLedger' },
+    { t: 'Readable by anyone', b: 'Any wallet or auditor can read the banks and their balances without asking Tawf.', c: '/proof-of-reserve' },
+    { t: 'Verified wallets only', b: 'The receipt belongs to one verified wallet and is not transferable.', c: 'ERC-3643' },
+  ],
+  fade: { lifecycle: FADE.lifecycle, receipt: FADE.receipt },
+};
+
+const SCF: ProductCopy = {
+  key: 'scf',
+  lifecycleId: 'scf',
+  receiptId: 'receipt',
+  lifecycleTitle: ['Follow one raise,', 'from escrow to maturity.'],
+  lifecycleLead: 'Six steps. Each one is a contract call you can check on chain.',
+  steps: [
+    { k: 'Declare', t: 'Your yearly limit is set.', b: 'You sign a suitability declaration. The POJK 57/2020 yearly limit is then recorded on your ONCHAINID and applied across the platform’s offerings.', c: 'ScfInvestorLimitModule.setProfile()' },
+    { k: 'Subscribe', t: 'You commit stablecoins.', b: 'USDC, USDT or USDG into the offering escrow, within your limit and the offering size. Sukuk tokens are minted 1:1 to you within the verified reserve.', c: 'SukukDistributor.subscribe()' },
+    { k: 'Close or refund', t: 'The minimum raise decides.', b: 'If the minimum raise is not met, the offering is cancelled, the tokens are burned and everyone is refunded in the coin they paid.', c: 'closeSubscription() · refund()' },
+    { k: 'Issue', t: 'The raise is released.', b: 'The offering closes, the raise goes to the SME and the profit periods begin. Your tokens stay with you.', c: 'SukukDistributor.closeSubscription()' },
+    { k: 'Profit', t: 'The SME pays each period.', b: 'Profit is distributed per period and you claim it in the coin you choose. Profit depends on the SME and is not guaranteed.', c: 'distribute() · claim()' },
+    { k: 'Maturity', t: 'You redeem the principal.', b: 'At maturity the SME settles, your tokens are burned and you redeem your share. If the SME defaults, recovery is shared pro rata.', c: 'settleMaturity() · redeem()' },
+  ],
+  // Each step's card takes the next pastel, so the sticky dial visibly changes chapter.
+  stepTint: ['bg-mint', 'bg-butter', 'bg-peach', 'bg-mint', 'bg-butter', 'bg-peach'],
+  receiptTitle: ['One token,', 'one offering.'],
+  receiptLead: 'Your position is one sukuk token in an SME offering. You can see the amount raised and the reserve behind it, and it ends when you redeem.',
+  receipt: [
+    { s: 'Subscribed', fn: 'subscribe()', stamp: 'Escrowed', tone: 'text-honey', b: 'Your stablecoins wait in escrow while the offering is open and sukuk tokens are minted to you 1:1. If the minimum raise is missed you are refunded.' },
+    { s: 'Issued', fn: 'closeSubscription()', stamp: 'Issued', tone: 'text-jade', b: 'The raise closed and went to the SME. You keep your tokens and each period you claim the profit the SME pays.' },
+    { s: 'Redeemed', fn: 'redeem()', stamp: 'Redeemed', tone: 'text-clay', b: 'At maturity your tokens are burned for your principal share. Profit depends on the SME and is not guaranteed.' },
+  ],
+  notes: [
+    { t: 'Backed by a verified reserve', b: 'Tokens are minted only up to a reserve figure proven on the ledger and anchored on chain.', c: 'SukukDistributor.reserveOf()' },
+    { t: 'Readable by anyone', b: 'Any wallet or auditor can check a position and the total raised without asking Tawf.', c: 'balanceOf()' },
+    { t: 'Verified wallets only', b: 'The token moves only between wallets with a verified identity, within the yearly limit.', c: 'ERC-3643' },
+  ],
+  fade: { lifecycle: FADE.lifecycle, receipt: FADE.receipt },
+};
+
 // Specimen profit periods elapsed (of 3) for each state.
 const MONTHS = [0, 2, 3];
 // Specimen raise (USD thousands) per state: open and part filled, then closed at the offering size.
@@ -40,7 +108,7 @@ const WHY = [
   { t: 'Only verified wallets hold it', b: 'The sukuk token moves only between wallets with a verified identity claim, so the investor list is checked at every transfer.' },
   { t: 'The raise and the reserve are public', b: 'The amount raised, the profit periods paid and the reserve behind the token can be read on chain, and the proof of reserve page checks them live.' },
 ];
-// Only shown while the Deposito Pool is switched on.
+
 const WHY_DEPOSITO = [
   { t: 'Funding from outside the district', b: 'A BPRS can only collect deposits in its own operating area. The pool brings it depositors from anywhere.' },
   { t: 'More insured, bank by bank', b: 'LPS insures Tawf’s deposit at each bank up to Rp2bn. Spreading a pool across banks raises what is insured.' },
@@ -56,9 +124,10 @@ const cut = (at: string) =>
 const BODY_CUT = { mask: cut('100%'), WebkitMask: cut('100%') };
 const STUB_CUT = { mask: cut('0'), WebkitMask: cut('0') };
 
-// The product's one physical object: the SME sukuk token, backed by a verified reserve. Values are a specimen.
-function ReceiptCard({ state = 0, className = '', stub, intro = false }: { state?: number; className?: string; stub?: MotionStyle; intro?: boolean }) {
-  const r = RECEIPT[state];
+// Each product's one physical object: the soulbound Deposito receipt, or the SME sukuk token, each backed by a verified reserve. Values are a specimen.
+function ReceiptCard({ p = SCF, state = 0, className = '', stub, intro = false }: { p?: ProductCopy; state?: number; className?: string; stub?: MotionStyle; intro?: boolean }) {
+  const r = p.receipt[state];
+  const dep = p.key === 'deposito';
   const burned = state === 2;
   return (
     // Shadow as a filter on the wrapper: box-shadow would be cut away by the masks.
@@ -66,16 +135,31 @@ function ReceiptCard({ state = 0, className = '', stub, intro = false }: { state
       <div style={BODY_CUT} className="relative bg-paper">
         <div className={`px-6 pb-6 pt-6 transition-[opacity,filter] duration-500 ${burned ? 'opacity-50 grayscale' : ''}`}>
           <div className="flex items-start justify-between">
-            <Emblem id="tawf-scf-demo" tenor={90} className="h-12 w-12 text-jade" />
+            <Emblem id={dep ? 'tawf-pool-jabar' : 'tawf-scf-demo'} tenor={90} className="h-12 w-12 text-jade" />
             <div className="text-right">
-              <p className="font-mono text-[11px] text-tawf-muted">Sukuk token</p>
-              <p className="font-mono text-sm font-medium tabular-nums">tSCF-DEMO-1</p>
+              <p className="font-mono text-[11px] text-tawf-muted">{dep ? 'Soulbound receipt' : 'Sukuk token'}</p>
+              <p className="font-mono text-sm font-medium tabular-nums">{dep ? 'Deposito Pool' : 'tSCF-DEMO-1'}</p>
             </div>
           </div>
-          <p className="mt-5 font-display text-lg font-semibold leading-tight tracking-[-0.02em]">SME crowdfunding offering</p>
+          <p className="mt-5 font-display text-lg font-semibold leading-tight tracking-[-0.02em]">{dep ? 'Regional Deposito Pool' : 'SME crowdfunding offering'}</p>
           <p className="mt-1 text-sm text-tawf-muted">
-            Sukuk mudharabah <span lang="ar" className="font-arabic">مضاربة</span>
+            {dep ? 'Mudharabah deposito' : 'Sukuk mudharabah'} <span lang="ar" className="font-arabic">مضاربة</span>
           </p>
+          {dep ? (
+            <div className="mt-5 text-sm">
+              <div className="flex justify-between">
+                <span>Placed</span>
+                <span className={`font-semibold tabular-nums ${burned ? 'line-through decoration-clay/60' : ''}`}>Rp10 million</span>
+              </div>
+              {/* Spread across the banks, one segment each. */}
+              <div className="mt-1 flex h-1.5 gap-0.5 overflow-hidden rounded-full">
+                {[40, 35, 25].map((w, n) => (
+                  <span key={n} className="h-full bg-jade" style={{ width: `${w}%`, opacity: 1 - n * 0.25 }} />
+                ))}
+              </div>
+              <p className="mt-1 text-[11px] text-tawf-muted">Spread across 3 licensed BPRS</p>
+            </div>
+          ) : (
           <div className="mt-5 text-sm">
             <div className="flex justify-between">
               <span>Raised</span>
@@ -92,10 +176,11 @@ function ReceiptCard({ state = 0, className = '', stub, intro = false }: { state
             </div>
             <p className="mt-1 text-[11px] text-tawf-muted">Minimum raise ${MIN_RAISE}k, else everyone is refunded</p>
           </div>
+          )}
           <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             {[
-              ['Yearly limit', 'On your ONCHAINID'],
-              ['Reserve', 'Verified on chain'],
+              dep ? ['Transfer', 'Soulbound, not transferable'] : ['Yearly limit', 'On your ONCHAINID'],
+              dep ? ['Reserve', 'Per bank, on chain'] : ['Reserve', 'Verified on chain'],
             ].map(([k, v]) => (
               <div key={k}>
                 <dt className="text-[11px] text-tawf-muted">{k}</dt>
@@ -107,7 +192,7 @@ function ReceiptCard({ state = 0, className = '', stub, intro = false }: { state
           <div className="mt-5">
             <div className="flex justify-between text-[11px] text-tawf-muted">
               <span className="tabular-nums">Period {MONTHS[state]} of 3</span>
-              <span>{['Subscription open', 'Paying profit', 'Matured'][state]}</span>
+              <span>{(dep ? ['Placed', 'Earning profit', 'Matured'] : ['Subscription open', 'Paying profit', 'Matured'])[state]}</span>
             </div>
             <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink/[0.07]">
               <motion.div
@@ -139,7 +224,7 @@ function ReceiptCard({ state = 0, className = '', stub, intro = false }: { state
         animate={stub ? undefined : burned ? { y: 48, rotate: 9, opacity: 0 } : { y: 0, rotate: 0, opacity: 1 }}
         transition={{ duration: 0.7, ease }}
         className="flex h-[84px] origin-top-left items-center justify-between border-t-2 border-dashed border-ink/15 bg-paper px-6">
-        <p className="max-w-[9rem] text-[11px] leading-snug text-tawf-muted">Reserve verified on chain. Specimen values.</p>
+        <p className="max-w-[9rem] text-[11px] leading-snug text-tawf-muted">{dep ? 'Bank balances on chain. Specimen values.' : 'Reserve verified on chain. Specimen values.'}</p>
         <AnimatePresence mode="wait" initial={intro}>
           {!burned && (
             <motion.span
@@ -207,7 +292,7 @@ function HeroStage({ scroll }: { scroll: MotionValue<number> }) {
           transition={{ duration: 1.25, delay: 0.55, ease }}
         >
           <motion.div style={{ rotateX: rx, rotateY: ry, transformPerspective: 1000 }}>
-            <ReceiptCard intro state={1} stub={{ y: stubY, rotate: stubR }} />
+            <ReceiptCard p={DEPOSITO} intro state={1} stub={{ y: stubY, rotate: stubR }} />
           </motion.div>
         </motion.div>
       </motion.div>
@@ -231,7 +316,7 @@ function Hero() {
       <div className="mx-auto grid max-w-7xl gap-14 lg:grid-cols-12 lg:gap-6">
         <div className="relative z-10 lg:col-span-7 lg:pb-24">
           <motion.p {...rise(0)} className="text-sm font-medium text-tawf-muted">
-            Tokenized sharia crowdfunding, Indonesia
+            Tokenized Shariah deposito and crowdfunding, Indonesia
           </motion.p>
           <h1 className="display mt-6 text-[clamp(3.4rem,10.5vw,9.5rem)]">
             <motion.span {...rise(1)} className="block">Capital,</motion.span>
@@ -254,12 +339,16 @@ function Hero() {
             </motion.span>
           </h1>
           <motion.p {...rise(3)} className="mt-8 max-w-md text-[1.1rem] leading-relaxed text-ink/75">
-            Back Indonesian SMEs through sharia securities crowdfunding (urun dana). Your yearly investor limit is enforced in the sukuk token, and the raise and the reserve behind it are public on chain.
+            Two ways in. The Tawf Deposito Pool places rupiah as mudharabah deposito at licensed Indonesian Islamic rural banks, with every bank’s balance on chain. Urun Dana backs Indonesian SMEs through sharia securities crowdfunding, with your yearly limit enforced in the token.
           </motion.p>
           <motion.div {...rise(4)} className="mt-9 flex flex-wrap items-center gap-3">
             <a href="https://app.tawf.finance/login" className={solid}>Open the investor app</a>
             <a href="/proof-of-reserve" className={ghost}>See the proof of reserve</a>
           </motion.div>
+          <motion.p {...rise(5)} className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-semibold">
+            <a href="#deposito" className="text-jade hover:underline">Tawf Deposito Pool</a>
+            <a href="#scf" className="text-jade hover:underline">Urun Dana (SCF)</a>
+          </motion.p>
         </div>
 
         <div className="relative lg:col-span-5">
@@ -267,12 +356,12 @@ function Hero() {
         </div>
       </div>
 
-      {/* Facts that hold for every offering, read across like a ledger line. */}
+      {/* Facts for both products, read across like a ledger line. */}
       <dl className="relative z-10 mx-auto mt-4 grid max-w-7xl border-t border-ink/15 sm:grid-cols-3 lg:mt-0">
         {[
-          ['57/2020', 'POJK', 'Yearly investor limit, enforced in the token'],
-          ['1:1', 'sukuk', 'Tokens minted per stablecoin unit raised'],
-          ['3', 'coins', 'Pay and claim in USDC, USDT or USDG'],
+          ['3', 'BPRS', 'Banks in the first regional Deposito Pool'],
+          ['Rp', 'deposito', 'Rupiah deposits with a tokenized receipt, opening soon'],
+          ['57/2020', 'POJK', 'Urun Dana yearly limit, enforced in the token'],
         ].map(([n, u, l], i) => (
           <div key={l} className={`py-6 sm:px-6 ${i ? 'border-ink/15 max-sm:border-t sm:border-l' : 'sm:pl-0'}`}>
             <dt className="sr-only">{l}</dt>
@@ -289,7 +378,8 @@ function Hero() {
 }
 
 // ── 1 · Lifecycle: sticky dial on the left, steps scroll on the right ──
-function Lifecycle() {
+function Lifecycle({ p }: { p: ProductCopy }) {
+  const STEPS = p.steps;
   const track = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: track, offset: ['start 55%', 'end 55%'] });
   const [i, setI] = useState(0);
@@ -297,23 +387,24 @@ function Lifecycle() {
   const s = STEPS[i];
 
   return (
-    <section id="how-it-works" className={`scroll-mt-20 px-5 py-24 sm:px-10 md:py-32 lg:px-20 ${FADE.lifecycle}`}>
+    <section id={p.lifecycleId} className={`scroll-mt-20 px-5 py-24 sm:px-10 md:py-32 lg:px-20 ${p.fade.lifecycle}`}>
       <div className="mx-auto max-w-7xl">
         <Reveal className="grid gap-6 lg:grid-cols-12 lg:items-end">
           <h2 className="display text-[clamp(2.4rem,5.4vw,4.8rem)] lg:col-span-8">
-            <Words text="Follow one raise," /> <Words text="from escrow to maturity." className="text-jade" delay={0.25} />
+            <Words text={p.lifecycleTitle[0]} /> <Words text={p.lifecycleTitle[1]} className="text-jade" delay={0.25} />
           </h2>
           <p className="text-[1.05rem] leading-relaxed text-tawf-muted lg:col-span-3 lg:col-start-10">
-            Six steps. Each one is a contract call you can check on chain.
+            {p.lifecycleLead}
           </p>
+          {p.badge && <p className="lg:col-span-12"><span className="inline-flex rounded-full bg-butter px-3 py-1 font-mono text-xs text-ink">{p.badge}</span></p>}
         </Reveal>
 
         <div ref={track} className="relative mt-16 lg:grid lg:grid-cols-12 lg:gap-10">
           <div className="hidden lg:col-span-5 lg:block">
-            <div className={`sticky top-28 flex h-[min(34rem,calc(100svh-9rem))] flex-col justify-between overflow-hidden rounded-[32px] p-8 transition-colors duration-700 ${STEP_TINT[i]}`}>
+            <div className={`sticky top-28 flex h-[min(34rem,calc(100svh-9rem))] flex-col justify-between overflow-hidden rounded-[32px] p-8 transition-colors duration-700 ${p.stepTint[i]}`}>
               <div className="flex items-center justify-between text-sm font-semibold">
                 <span>{s.k}</span>
-                <span className="tabular-nums text-ink/60">{String(i + 1).padStart(2, '0')} / 06</span>
+                <span className="tabular-nums text-ink/60">{String(i + 1).padStart(2, '0')} / {String(STEPS.length).padStart(2, '0')}</span>
               </div>
               <div className="relative h-[13rem] overflow-hidden">
                 <AnimatePresence mode="popLayout" initial={false}>
@@ -367,23 +458,19 @@ function Lifecycle() {
 }
 
 // ── 2 · Receipt: one object, three states, stepped through on the right ─
-const NOTES = [
-  { t: 'Backed by a verified reserve', b: 'Tokens are minted only up to a reserve figure proven on the ledger and anchored on chain.', c: 'SukukDistributor.reserveOf()' },
-  { t: 'Readable by anyone', b: 'Any wallet or auditor can check a position and the total raised without asking Tawf.', c: 'balanceOf()' },
-  { t: 'Verified wallets only', b: 'The token moves only between wallets with a verified identity, within the yearly limit.', c: 'ERC-3643' },
-];
-
-function Receipt() {
+function Receipt({ p }: { p: ProductCopy }) {
+  const NOTES = p.notes;
+  const RECEIPT = p.receipt;
   const [state, setState] = useState(0);
   return (
-    <section id="receipt" className={`scroll-mt-20 overflow-hidden px-5 pb-24 pt-36 sm:px-10 md:pb-32 md:pt-44 lg:px-20 ${FADE.receipt}`}>
+    <section id={p.receiptId} className={`scroll-mt-20 overflow-hidden px-5 pb-24 pt-36 sm:px-10 md:pb-32 md:pt-44 lg:px-20 ${p.fade.receipt}`}>
       <div className="mx-auto max-w-7xl">
         <Reveal className="mx-auto max-w-3xl text-center">
           <h2 className="display text-[clamp(2.6rem,6.4vw,5.6rem)]">
-            <Words text="One token," /> <Words text="one offering." className="text-jade" delay={0.15} />
+            <Words text={p.receiptTitle[0]} /> <Words text={p.receiptTitle[1]} className="text-jade" delay={0.15} />
           </h2>
           <p className="mx-auto mt-5 max-w-lg text-[1.05rem] leading-relaxed text-ink/75">
-            Your position is one sukuk token in an SME offering. You can see the amount raised and the reserve behind it, and it ends when you redeem.
+            {p.receiptLead}
           </p>
         </Reveal>
 
@@ -414,7 +501,7 @@ function Receipt() {
           <div className="relative order-1 flex justify-center py-6 lg:order-2">
             <div aria-hidden="true" className="absolute left-1/2 top-1/2 h-[min(32rem,110vw)] w-[min(32rem,110vw)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-paper/45" />
             <div aria-hidden="true" className="absolute left-1/2 top-1/2 h-[min(24rem,84vw)] w-[min(24rem,84vw)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-paper/80" />
-            <ReceiptCard state={state} className="rotate-[-2deg]" />
+            <ReceiptCard p={p} state={state} className="rotate-[-2deg]" />
           </div>
 
           {/* Stepper: the three states a receipt can be in, in order. */}
@@ -612,23 +699,12 @@ function WhyScf() {
           ))}
         </ol>
 
-        {!DEPOSITO_POOL_ENABLED && (
-          <Reveal className="mt-16">
-            <div className="rounded-[32px] bg-paper p-8 sm:p-10">
-              <p className="font-mono text-xs uppercase tracking-[0.12em] text-ink/50">Coming later</p>
-              <h3 className="display mt-2 text-3xl">Tawf Deposito Pool</h3>
-              <p className="mt-3 max-w-2xl leading-relaxed text-ink/70">
-                Mudharabah deposito at licensed BPRS, wrapped into one token with a per-bank proof of reserve. It opens later, for investors in Indonesia, once rupiah settlement is in place.
-              </p>
-            </div>
-          </Reveal>
-        )}
       </div>
     </section>
   );
 }
 
-// ── 4b · Why BPRS (Deposito Pool, only while its flag is on): the spread between two rate caps, drawn to scale ────
+// ── 4b · Why BPRS (Deposito Pool): the spread between two rate caps, drawn to scale ────
 const CAP = 7; // top of the scale, in percent
 const TICKS = [0, 1, 2, 3, 4, 5, 6, 7];
 const LOW = 3.75;
@@ -648,7 +724,7 @@ function WhyBprs() {
   });
 
   return (
-    <section id="deposito" className={`scroll-mt-20 px-5 pb-24 pt-36 sm:px-10 md:pb-32 md:pt-44 lg:px-20 ${FADE.impact}`}>
+    <section id="why-bprs" className={`scroll-mt-20 px-5 pb-24 pt-36 sm:px-10 md:pb-32 md:pt-44 lg:px-20 ${FADE.coverage}`}>
       <div className="mx-auto max-w-7xl">
         <Reveal className="grid gap-6 lg:grid-cols-12 lg:items-end">
           <h2 className="display text-[clamp(2.4rem,5.4vw,4.8rem)] lg:col-span-7">
@@ -775,10 +851,10 @@ function Epilogue() {
           </h2>
           <div className="mt-10 flex flex-wrap items-center gap-3">
             <a href="https://app.tawf.finance/login" className={solid}>Open the investor app</a>
-            <Link to="/contact" className={ghost}>Bring your offering to Tawf</Link>
+            <Link to="/contact" className={ghost}>Bring your BPRS or offering to Tawf</Link>
           </div>
           <p className="mt-10 max-w-md text-xs leading-relaxed text-ink/70">
-            Arbitrum Sepolia testnet with test stablecoins. Not an offer of securities. Profit depends on the SME and is not guaranteed.
+            Arbitrum Sepolia testnet. Not an offer of securities. Profit depends on the banks and the SMEs and is not guaranteed.
           </p>
         </Reveal>
       </div>
@@ -790,11 +866,13 @@ export function Landing() {
   return (
     <MotionConfig reducedMotion="user">
       <Hero />
-      <Lifecycle />
-      <Receipt />
+      <Lifecycle p={DEPOSITO} />
+      <Receipt p={DEPOSITO} />
+      <WhyBprs />
+      <Lifecycle p={SCF} />
+      <Receipt p={SCF} />
       <Coverage />
       <WhyScf />
-      {DEPOSITO_POOL_ENABLED && <WhyBprs />}
       {FINANCING_POOL_ENABLED && <Pools />}
       <Epilogue />
     </MotionConfig>

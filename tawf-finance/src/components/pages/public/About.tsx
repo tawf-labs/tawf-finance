@@ -49,28 +49,27 @@ export function About() {
     <PublicPage>
       <PageHero
         eyebrow="About Tawf"
-        title="Sharia crowdfunding,"
+        title="Shariah deposito and crowdfunding,"
         accent="on chain"
-        lead="Tawf Finance tokenizes sharia securities crowdfunding (urun dana) for Indonesian SMEs through a licensed partner platform. A Shariah deposito pool at licensed Islamic rural banks (BPRS) comes later. The pilot runs on the Arbitrum Sepolia testnet."
+        lead="Tawf Finance tokenizes Shariah deposito at licensed Islamic rural banks (BPRS), with rupiah deposits opening soon, and sharia securities crowdfunding (urun dana) for Indonesian SMEs through a licensed partner platform. The pilot runs on the Arbitrum Sepolia testnet."
       />
 
       <Chapter tint="paper" from="stone" eyebrow="Mission" title="A wider funding channel for SMEs">
         <Reveal className="max-w-3xl text-[1.1rem] leading-relaxed text-ink/75">
-          Indonesian SMEs often find bank funding out of reach. We bring them a regulated crowdfunding channel, and give investors
-          Shariah-aligned exposure with the limit, the identity check and the reserve enforced on chain.
+          Indonesian SMEs often find bank funding out of reach. We bring them a regulated crowdfunding channel, and bring licensed rural banks funding from outside their district. Investors get Shariah-aligned exposure with the limit, the identity check and the reserve enforced on chain.
         </Reveal>
         <Reveal className="mt-12 grid gap-4 sm:grid-cols-3">
           <Tile>
-            <p className="display text-5xl text-jade">SCF first</p>
-            <p className="mt-3 text-ink/70">Deposito Pool comes later</p>
+            <p className="display text-5xl text-jade">2 products</p>
+            <p className="mt-3 text-ink/70">Deposito Pool and Urun Dana</p>
           </Tile>
           <Tile>
             <p className="display text-5xl text-jade">Testnet</p>
             <p className="mt-3 text-ink/70">Arbitrum Sepolia pilot</p>
           </Tile>
           <Tile>
-            <p className="display text-5xl text-jade">1 token</p>
-            <p className="mt-3 text-ink/70">With a public proof of reserve</p>
+            <p className="display text-5xl text-jade">Public</p>
+            <p className="mt-3 text-ink/70">Proof of reserve for both products</p>
           </Tile>
         </Reveal>
       </Chapter>

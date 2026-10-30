@@ -3,7 +3,6 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Reveal } from '@/components/landing/Reveal';
 import { Chapter, PageHero, PublicPage, Tile, ghost, solid } from '@/components/landing/PublicPage';
-import { DEPOSITO_POOL_ENABLED } from '@/config/features';
 
 interface Step {
   icon: ReactNode;
@@ -50,18 +49,18 @@ const smeSteps: Step[] = [
 const investorSteps: Step[] = [
   {
     icon: <Search className="h-6 w-6" />,
-    title: 'Pick a Deposito Pool',
-    description: 'The pool wraps the mudharabah deposito Tawf holds at several licensed BPRS in one region. See every bank and its balance before you commit.',
+    title: 'Request and pay in rupiah',
+    description: 'Say how much you want to place and for how long, then transfer rupiah from your own bank account. The pool wraps the mudharabah deposito Tawf holds at several licensed BPRS in one region, and every bank and its balance is visible before you commit.',
   },
   {
     icon: <Wallet className="h-6 w-6" />,
-    title: 'Verify and subscribe',
-    description: 'Verify your identity, then subscribe in USDC, USDT or USDG. Tawf converts to IDR and places the funds across the banks.',
+    title: 'Placed, and a receipt minted',
+    description: 'Tawf places your rupiah at the licensed banks, and you get a soulbound receipt on chain, tied to your verified wallet.',
   },
   {
     icon: <CheckCircle className="h-6 w-6" />,
-    title: 'Receive your profit share',
-    description: 'If there is profit, the banks credit their share each period and you claim yours. At maturity you redeem the principal. Principal is not guaranteed.',
+    title: 'Profit and maturity',
+    description: 'If there is profit, the banks credit their share each period. At maturity you redeem the receipt for your principal share. Principal is not guaranteed.',
   },
 ];
 
@@ -69,12 +68,12 @@ const bankSteps: Step[] = [
   {
     icon: <FileText className="h-6 w-6" />,
     title: 'Tawf places the deposito',
-    description: 'Tawf opens one dedicated mudharabah deposito account at each BPRS in the region and places the converted funds there.',
+    description: 'Tawf opens one dedicated mudharabah deposito account at each BPRS in the region and places the rupiah there.',
   },
   {
     icon: <Shield className="h-6 w-6" />,
     title: 'Balances are proven',
-    description: "Each bank's balance is recorded on the pool ledger, and the token can never be minted above their total.",
+    description: "Each bank's balance is recorded on the pool ledger, and the receipt can never be minted above their total.",
   },
   {
     icon: <TrendingUp className="h-6 w-6" />,
@@ -102,7 +101,7 @@ const safeguards: Step[] = [
   {
     icon: <FlaskConical className="h-6 w-6" />,
     title: 'A testnet pilot',
-    description: 'The pilot runs on test stablecoins, so no real money moves while we prove the flow.',
+    description: 'The pilot runs on testnet with test funds, so no real money moves while we prove the flow.',
   },
 ];
 
@@ -132,7 +131,7 @@ export function HowItWorks() {
         eyebrow="How it works"
         title="Simple, ethical,"
         accent="and checkable."
-        lead="Back Indonesian SMEs through sharia securities crowdfunding (urun dana), with the investor limit and the reserve enforced in the token. The Tawf Deposito Pool comes later, for investors in Indonesia."
+        lead="Two products with the same standard of proof. The Tawf Deposito Pool places rupiah as mudharabah deposito at licensed BPRS, with every bank's balance on chain (rupiah deposits open soon). Urun Dana backs Indonesian SMEs through sharia securities crowdfunding, with the investor limit and the reserve enforced in the token."
         actions={
           <>
             <a href="https://app.tawf.finance/login" className={solid}>Open the investor app</a>
@@ -144,7 +143,32 @@ export function HowItWorks() {
       <Chapter
         tint="paper"
         from="stone"
-        eyebrow="For investors"
+        eyebrow="Tawf Deposito Pool · opening soon"
+        title="Three steps from"
+        accent="rupiah to deposito."
+        lead="Take Shariah-aligned exposure to mudharabah deposito at licensed BPRS, with the balances visible on chain."
+      >
+        <StepGrid steps={investorSteps} tint="stone" />
+        <Reveal className="mt-6 max-w-3xl text-sm leading-relaxed text-ink/70">
+          Risk: mudharabah shares profit and loss. Returns depend on the banks&apos; results and are not guaranteed, and capital can be lost. The bank is liable only for losses caused by its misconduct or negligence.
+        </Reveal>
+      </Chapter>
+
+      <Chapter
+        tint="butter"
+        from="paper"
+        eyebrow="For partner banks"
+        title="Funding from"
+        accent="outside your district."
+        lead="A funding channel priced outside the local deposit market, with every balance proven on chain."
+      >
+        <StepGrid steps={bankSteps} tint="white" />
+      </Chapter>
+
+      <Chapter
+        tint="paper"
+        from="butter"
+        eyebrow="Urun Dana (SCF)"
         title="Three steps from"
         accent="stablecoin to sukuk."
         lead="Back an SME offering with Shariah-aligned sukuk mudharabah, with the raise and the reserve visible on chain."
@@ -161,7 +185,7 @@ export function HowItWorks() {
       </Chapter>
 
       <Chapter
-        tint="butter"
+        tint="stone"
         from="paper"
         eyebrow="For SMEs and platforms"
         title="A raise that is"
@@ -171,53 +195,16 @@ export function HowItWorks() {
         <StepGrid steps={smeSteps} tint="white" />
       </Chapter>
 
-      {DEPOSITO_POOL_ENABLED ? (
-        <>
-          <Chapter
-            tint="paper"
-            from="butter"
-            eyebrow="Tawf Deposito Pool"
-            title="Three steps from"
-            accent="stablecoin to deposito."
-            lead="Take Shariah-aligned exposure to mudharabah deposito at licensed BPRS, with the balances visible on chain."
-          >
-            <StepGrid steps={investorSteps} tint="stone" />
-            <Reveal className="mt-6 max-w-3xl text-sm leading-relaxed text-ink/70">
-              Risk: mudharabah shares profit and loss. Returns depend on the banks' results and are not guaranteed, and capital can be lost. The bank is liable only for losses caused by its misconduct or negligence.
-            </Reveal>
-          </Chapter>
-          <Chapter
-            tint="butter"
-            from="paper"
-            eyebrow="For partner banks"
-            title="Funding from"
-            accent="outside your district."
-            lead="A funding channel priced outside the local deposit market, with every balance proven on chain."
-          >
-            <StepGrid steps={bankSteps} tint="white" />
-          </Chapter>
-        </>
-      ) : (
-        <Chapter
-          tint="paper"
-          from="butter"
-          eyebrow="Coming later"
-          title="Tawf Deposito"
-          accent="Pool."
-          lead="Mudharabah deposito at licensed BPRS, wrapped into one token with a per-bank proof of reserve. It opens later, for investors in Indonesia, once rupiah settlement is in place."
-        />
-      )}
-
       <Chapter
-        tint="stone"
-        from="butter"
+        tint="mint"
+        from="stone"
         eyebrow="Fees"
         title="No fees"
         accent="in the pilot."
-        lead="The pilot runs on testnet with test stablecoins, so nothing is charged. Fee terms for a live offering will be published before anyone subscribes."
+        lead="The pilot runs on testnet with test funds, so nothing is charged. Fee terms for a live offering will be published before anyone subscribes."
       />
 
-      <Chapter tint="mint" from="stone" eyebrow="Safeguards" title="Built so you can" accent="verify.">
+      <Chapter tint="peach" from="mint" eyebrow="Safeguards" title="Built so you can" accent="verify.">
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           {safeguards.map((s, i) => (
             <Reveal key={s.title} delay={(i % 2) * 0.08}>

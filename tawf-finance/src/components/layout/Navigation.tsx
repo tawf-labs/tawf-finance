@@ -6,10 +6,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { FINANCING_POOL_ENABLED } from '@/config/features';
 
 const homeLinks = [
-  { name: 'Lifecycle', id: 'how-it-works' },
-  { name: 'Sukuk token', id: 'receipt' },
+  { name: 'Deposito Pool', id: 'deposito' },
+  { name: 'Urun Dana', id: 'scf' },
   { name: 'Coverage', id: 'instruments' },
-  { name: 'Why SCF', id: 'impact' },
+  { name: 'Why Tawf', id: 'impact' },
   ...(FINANCING_POOL_ENABLED ? [{ name: 'Pools', id: 'pools' }] : []),
 ];
 

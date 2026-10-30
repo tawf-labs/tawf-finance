@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { getScfStatus, type ScfStatus } from '@/lib/scf';
-import { DEPOSITO_POOL_ENABLED } from '@/config/features';
 import { getJson, type ReserveResponse, type SeriesReserveLine, type PoolReserveLine, type ProofResponse } from '@/lib/tokenization';
 import { LedgerAnchorAbi, DepositoPoolLedgerAbi } from '@/web3/tokenizationAbis';
 import { LEDGER_ANCHOR_ADDRESS, LEDGER_CHAIN_ID, isTokenizationConfigured } from '@/web3/tokenization';
@@ -291,12 +290,12 @@ export function ProofOfReserve() {
         lead={
           <>
             <p>
-              For each SCF offering we show the sukuk tokens outstanding on Arbitrum against the reserve figure the contract
-              verifies, the amount raised against the offering size, and the profit periods paid. A token can only be minted
-              against a reserve fact that verifies under an anchored root, so what you see is verified against the ledger,
-              not asserted.{DEPOSITO_POOL_ENABLED ? ' The Tawf Deposito Pool is shown below with its bank balances.' : ' The Tawf Deposito Pool comes later and will be shown here bank by bank.'}
+              For the Tawf Deposito Pool we show the receipts outstanding against the balance Tawf holds at each licensed BPRS, bank by bank.
+              For each SCF offering we show the sukuk tokens outstanding against the reserve figure the contract verifies, the amount raised
+              against the offering size, and the profit periods paid. A token can only be minted against a reserve fact that verifies under
+              an anchored root, so what you see is verified against the ledger, not asserted.
             </p>
-            {DEPOSITO_POOL_ENABLED && data?.lastSyncAt && (
+            {data?.lastSyncAt && (
               <p className="mt-3 text-sm text-ink/60">Last BPRS sync: {new Date(data.lastSyncAt).toLocaleString('en-SG')}</p>
             )}
           </>
@@ -312,11 +311,11 @@ export function ProofOfReserve() {
           <div className="flex items-center justify-center py-20 text-ink/60">
             <Loader2 className="mr-2 h-6 w-6 animate-spin" /> Loading reserve…
           </div>
-        ) : scf?.configured || (DEPOSITO_POOL_ENABLED && data && (data.pool || data.series)) ? (
+        ) : scf?.configured || (data && (data.pool || data.series)) ? (
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            {scf?.configured && <Reveal><ScfReserveRow scf={scf} /></Reveal>}
-            {DEPOSITO_POOL_ENABLED && data?.pool && <Reveal delay={0.08}><ReserveRow line={poolRow(data.pool)} /></Reveal>}
-            {DEPOSITO_POOL_ENABLED && data?.series && <Reveal delay={0.16}><ReserveRow line={seriesRow(data.series)} /></Reveal>}
+            {data?.pool && <Reveal><ReserveRow line={poolRow(data.pool)} /></Reveal>}
+            {data?.series && <Reveal delay={0.08}><ReserveRow line={seriesRow(data.series)} /></Reveal>}
+            {scf?.configured && <Reveal delay={0.16}><ScfReserveRow scf={scf} /></Reveal>}
           </div>
         ) : error ? (
           <div className="max-w-3xl rounded-3xl bg-peach p-6"><p className="text-sm text-ink">{error}</p></div>
@@ -330,8 +329,8 @@ export function ProofOfReserve() {
           <Tile className="max-w-4xl">
             <div className="flex flex-col gap-3 text-sm md:flex-row md:items-center">
               {[
-                DEPOSITO_POOL_ENABLED ? 'BPRS core banking' : 'Partner platform',
-                DEPOSITO_POOL_ENABLED ? 'bprs-connector' : 'Reserve connector',
+                'BPRS core banking or partner platform',
+                'Reserve connector',
                 'Tawf Network ledger',
                 'LedgerAnchor on Arbitrum',
                 'Mint gate',
@@ -343,7 +342,7 @@ export function ProofOfReserve() {
               ))}
             </div>
             <p className="mt-6 leading-relaxed text-ink/70">
-              The partner platform records each offering&apos;s reserve (demo data on testnet). The connector reads it
+              Each bank records Tawf&apos;s deposito balance and the partner platform records each offering&apos;s reserve (demo data on testnet). The connector reads them
               and writes reserve snapshots to the Tawf Network ledger, with no personal documents on chain. The
               relayer anchors the ledger&apos;s Merkle root on Arbitrum through the LedgerAnchor. tawf.finance contracts only mint
               a token against a leaf that verifies under an anchored root, so supply can never run ahead of the proven reserve.
