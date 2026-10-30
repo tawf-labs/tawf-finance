@@ -28,6 +28,7 @@ pragma solidity 0.8.17;
 import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
 import { TrexProxies } from "../src/proxy/TrexProxies.sol";
 import { AuthorityGuard } from "../src/governance/AuthorityGuard.sol";
+import { ComplianceGuard } from "../src/governance/ComplianceGuard.sol";
 import { TREXImplementationAuthority } from "@erc3643org/erc-3643/contracts/proxy/authority/TREXImplementationAuthority.sol";
 import "forge-std/Script.sol";
 import {ProxyDeployer} from "./lib/ProxyDeployer.sol";
@@ -71,13 +72,23 @@ contract DeployTokenization is Script, ProxyDeployer {
         _owned.push(c);
     }
 
-    /// @dev A compliance with a SandboxModule is driven by operator-run admin controls (mode, caps, series end
-    ///      through callModuleFunction, which only the compliance owner may call), so by default its owner stays
-    ///      with the operator. Set KEEP_SANDBOX_COMPLIANCE=false to move it to the timelock too.
+    struct SandboxPair {
+        address compliance;
+        address sandbox;
+    }
+
+    /// @dev Compliances that have a SandboxModule. The operator runs mode, caps and series end through the
+    ///      admin screens, which needs the compliance owner. So the owner is a ComplianceGuard: the timelock
+    ///      owns the guard and can forward any owner call, and the operator can only forward those three
+    ///      sandbox settings. The guards are created in the hand-over.
+    SandboxPair[] internal _sandboxPairs;
+    address[] internal _sandboxGuards;
+
     function _ownCompliance(address mc, bool sandboxed) internal {
-        if (sandboxed && vm.envOr("KEEP_SANDBOX_COMPLIANCE", true)) return;
+        require(!sandboxed, "use _sandboxPairs for sandboxed compliances");
         _own(mc);
     }
+
 
     /// @dev Deploys the TawfTimelock. Delay: TIMELOCK_DELAY seconds (default 1 hour, use 2 to 7 days on
     ///      mainnet). Proposer and canceller: SAFE_ADDRESS, or the operator on testnet until a Safe exists.
@@ -125,7 +136,7 @@ contract DeployTokenization is Script, ProxyDeployer {
             for (uint256 i; i < _tokens.length; i++) IAgentLike(_tokens[i]).addAgent(safe);
         }
         for (uint256 i; i < _owned.length; i++) IOwnableLike(_owned[i]).transferOwnership(timelock);
-        _handoverModules(timelock, safe);
+        _handoverModules(operator, timelock, safe);
         for (uint256 i; i < _operatorUups.length; i++) {
             IUupsRoleLike(_operatorUups[i]).grantRole(upgrader, timelock);
             IUupsRoleLike(_operatorUups[i]).renounceRole(upgrader, operator);
@@ -136,10 +147,11 @@ contract DeployTokenization is Script, ProxyDeployer {
     ///      the operator is the proposer, so the batch is scheduled here and anyone can execute it after the
     ///      delay (open executors). With a Safe, the Safe must schedule the same batch, so the call data is
     ///      logged.
-    function _handoverModules(address timelock, address safe) internal {
+    function _handoverModules(address operator, address timelock, address safe) internal {
         // The AuthorityGuard is two-step too, so the timelock accepts it in the same batch as the modules.
         bool guarded = address(_authorityGuard) != address(0);
-        uint256 n = _modules.length + (guarded ? 1 : 0);
+        uint256 nGuards = _sandboxPairs.length;
+        uint256 n = _modules.length + (guarded ? 1 : 0) + nGuards;
         if (n == 0) return;
         address[] memory targets = new address[](n);
         uint256[] memory values = new uint256[](n);
@@ -149,10 +161,21 @@ contract DeployTokenization is Script, ProxyDeployer {
             targets[i] = _modules[i];
             datas[i] = abi.encodeWithSignature("acceptOwnership()");
         }
+        uint256 k = _modules.length;
         if (guarded) {
             _authorityGuard.transferOwnership(timelock);
-            targets[n - 1] = address(_authorityGuard);
-            datas[n - 1] = abi.encodeWithSignature("acceptOwnership()");
+            targets[k] = address(_authorityGuard);
+            datas[k++] = abi.encodeWithSignature("acceptOwnership()");
+        }
+        for (uint256 i; i < nGuards; i++) {
+            ComplianceGuard g = new ComplianceGuard(
+                ModularCompliance(_sandboxPairs[i].compliance), _sandboxPairs[i].sandbox, operator
+            );
+            ModularCompliance(_sandboxPairs[i].compliance).transferOwnership(address(g));
+            g.transferOwnership(timelock);
+            _sandboxGuards.push(address(g));
+            targets[k] = address(g);
+            datas[k++] = abi.encodeWithSignature("acceptOwnership()");
         }
         bytes32 salt = keccak256("tawf.accept-module-ownership");
         if (safe == address(0)) {
@@ -183,7 +206,7 @@ contract DeployTokenization is Script, ProxyDeployer {
         return _trexAuthority;
     }
 
-    function _upgrader(address operator) internal view returns (address) {
+    function _upgrader(address operator) internal view virtual returns (address) {
         return vm.envOr("UPGRADER", operator);
     }
 
@@ -363,7 +386,7 @@ contract DeployTokenization is Script, ProxyDeployer {
         DistributionCheckpointModule checkpoint = ModuleProxies.checkpoint();
         SandboxModule sandbox = ModuleProxies.sandbox();
         _ownToken(address(token));
-        _ownCompliance(address(mc), true);
+        _sandboxPairs.push(SandboxPair(address(mc), address(sandbox)));
         _ownModule(address(checkpoint));
         _ownModule(address(sandbox));
 
