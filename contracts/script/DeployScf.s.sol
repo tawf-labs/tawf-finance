@@ -2,6 +2,7 @@
 pragma solidity 0.8.17;
 
 import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
+import { TrexProxies } from "../src/proxy/TrexProxies.sol";
 import { DeployExtra } from "./DeployExtra.s.sol";
 import { ModularCompliance } from "@erc3643org/erc-3643/contracts/compliance/modular/ModularCompliance.sol";
 import { Token } from "@erc3643org/erc-3643/contracts/token/Token.sol";
@@ -105,16 +106,18 @@ contract DeployScf is DeployExtra {
         limit.setAgent(operator, true);
         s.limitModule = address(limit);
 
-        ModularCompliance mc = new ModularCompliance();
-        mc.init();
-        Token token = new Token();
-        token.init(
-            _sharedIdentityRegistry, address(mc), "Sukuk Mudharabah UMKM SCF Demo 2026", "tSCF-UMKM-2026", 6, address(0)
+        ModularCompliance mc = TrexProxies.modularCompliance(_authority());
+        Token token = TrexProxies.token(
+            _authority(), _sharedIdentityRegistry, address(mc), "Sukuk Mudharabah UMKM SCF Demo 2026", "tSCF-UMKM-2026", 6, address(0)
         );
+        _ownToken(address(token));
+        _ownCompliance(address(mc), false);
+        _own(address(limit));
         s.token = address(token);
         s.compliance = address(mc);
 
         DistributionCheckpointModule checkpoint = ModuleProxies.checkpoint();
+        _own(address(checkpoint));
         s.distributor = _deployProxy(
             "SukukDistributor.sol:SukukDistributor",
             abi.encodePacked(

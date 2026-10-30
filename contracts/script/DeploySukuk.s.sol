@@ -12,6 +12,7 @@ pragma solidity 0.8.17;
 // (identity + deposito + sukuk, written to deployments JSON), use DeployTokenization.s.sol.
 
 import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
+import { TrexProxies } from "../src/proxy/TrexProxies.sol";
 import "forge-std/Script.sol";
 import {ProxyDeployer} from "./lib/ProxyDeployer.sol";
 
@@ -57,10 +58,13 @@ contract DeploySukuk is Script, ProxyDeployer {
         vm.startBroadcast();
 
         // 1. Series compliance + token (starts paused per T-REX init, zero onchainID, 6 decimals).
-        ModularCompliance mc = new ModularCompliance();
-        mc.init();
-        Token token = new Token();
-        token.init(identityRegistry, address(mc), vm.envString("SUKUK_NAME"), vm.envString("SUKUK_SYMBOL"), 6, address(0));
+        // One TREXImplementationAuthority for this deploy. TREX_AUTHORITY reuses an existing one.
+        address ia = vm.envOr("TREX_AUTHORITY", address(0));
+        if (ia == address(0)) ia = address(TrexProxies.authority());
+        ModularCompliance mc = TrexProxies.modularCompliance(ia);
+        Token token = TrexProxies.token(
+            ia, identityRegistry, address(mc), vm.envString("SUKUK_NAME"), vm.envString("SUKUK_SYMBOL"), 6, address(0)
+        );
 
         // 2. Checkpoint module (operator is its deployer/owner so it can set the hook).
         DistributionCheckpointModule module = ModuleProxies.checkpoint();
