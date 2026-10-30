@@ -35,6 +35,7 @@ abstract contract TrexFixture is Test, ProxyDeployer {
     address internal deployer = address(0xA11CE);
     /// @dev Stand-in for the TimelockController that holds UPGRADER_ROLE on the proxied contracts.
     address internal timelock = address(0x71AE10C0);
+    bytes4 internal constant DIST_INIT = bytes4(keccak256("initialize(address[],address,address,address,address,(bytes32,uint256,uint40,uint256,uint256,uint40,address),address,address)"));
     bytes4 internal constant SERIES_INIT = bytes4(keccak256("initialize(address,address,address,address,address,(bytes32,uint8,uint16),address,address,address,uint64,address)"));
     uint256 internal claimIssuerKey = 0xC1A1;
     address internal claimIssuerSigner;

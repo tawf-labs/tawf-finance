@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
-import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
+import { Initializable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import { UUPSUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import { AccessControlUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { SafeERC20 } from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -65,7 +67,7 @@ import { ProfitAccumulator } from "../lib/ProfitAccumulator.sol";
  *      the ledger caps how much may ever be minted. closeSubscription and
  *      subscription both enforce totalSupply <= latest verified outstanding.
  */
-contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint {
+contract SukukDistributor is Initializable, AccessControlUpgradeable, ReentrancyGuard, UUPSUpgradeable, IBalanceCheckpoint {
     using SafeERC20 for IERC20;
     using ProfitAccumulator for ProfitAccumulator.State;
 
@@ -74,6 +76,8 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     ///         Granted to the admin at construction. Restricting it means a stranger
     ///         holding a ledger proof cannot choose which coin funds a payout.
     bytes32 public constant FUNDER_ROLE = keccak256("FUNDER_ROLE");
+    /// @notice Held by the timelock only. Its role admin is itself, so nobody else can grant it.
+    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
     uint256 private constant PRECISION = 1e18;
     /// @notice Highest Tawf nisbah accepted (50% of profit).
@@ -107,10 +111,10 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     /// @dev Accepted settlement coins (1 to 4), fixed at construction.
     address[] internal _coins;
     mapping(address => bool) public isCoin;
-    ILedgerAnchor public immutable anchor;
-    ITawfIdentityRegistry public immutable identityRegistry;
-    ITrexToken public immutable token;
-    uint256 public immutable ledgerChainId;
+    ILedgerAnchor public anchor;
+    ITawfIdentityRegistry public identityRegistry;
+    ITrexToken public token;
+    uint256 public ledgerChainId;
 
     Terms public terms;
     Status public status;
@@ -158,7 +162,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     uint256 public lastReleaseAt;
     /// @notice How long after the last release holders can claim before the
     ///         remainder may be swept. Admin-configurable.
-    uint256 public claimWindow = 365 days;
+    uint256 public claimWindow;
     /// @notice Shariah-board-approved destination for unclaimed profit.
     address public sweepDestination;
 
@@ -168,7 +172,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     uint256 public reserveOutstanding;
     /// @notice Oldest reserve snapshot (seconds before now) that subscription
     ///         and close will accept. Admin-configurable.
-    uint64 public maxReserveAge = 3 days;
+    uint64 public maxReserveAge;
 
     // --- Tawf's profit share (nisbah) -----------------------------------
     // Of each declared profit distribution, Tawf keeps `tawfNisbahBps` and
@@ -218,7 +222,7 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     error RefundShortfall(uint256 missing);
 
     /// @notice The compliance module authorized to report balance changes.
-    address public immutable module;
+    address public module;
 
     event SubscriptionOpened(uint40 deadline);
     event Subscribed(address indexed investor, address indexed coin, uint256 amount);
@@ -244,6 +248,17 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     event TawfShareSet(uint16 nisbahBps, address feeRecipient);
     event TawfShareTaken(uint16 indexed period, address indexed coin, uint256 share, address indexed feeRecipient);
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _lockImplementation();
+    }
+
+    /// @dev Locks the bare implementation so only proxies can be initialised.
+    ///      Virtual so a verification harness can skip it.
+    function _lockImplementation() internal virtual {
+        _disableInitializers();
+    }
+
     /// @param coins_ Accepted settlement stablecoins (1 to 4, distinct, 6 decimals, USD at par).
     /// @param anchor_ LedgerAnchor the ledger roots are anchored on.
     /// @param identityRegistry_ Shared T-REX IdentityRegistry (isVerified).
@@ -252,21 +267,24 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     /// @param module_ The DistributionCheckpointModule bound to the token's
     ///        compliance; the only address allowed to call afterBalanceChange.
     /// @param terms_ Issuance terms; must match the ledger record.
-    /// @param admin Address granted DEFAULT_ADMIN_ROLE and ADMIN_ROLE.
-    constructor(
+    /// @param admin Address granted DEFAULT_ADMIN_ROLE, ADMIN_ROLE and FUNDER_ROLE.
+    /// @param upgrader_ UPGRADER_ROLE holder (the timelock). Only it can grant that role.
+    function initialize(
         address[] memory coins_,
         ILedgerAnchor anchor_,
         ITawfIdentityRegistry identityRegistry_,
         ITrexToken token_,
         address module_,
         Terms memory terms_,
-        address admin
-    ) {
+        address admin,
+        address upgrader_
+    ) public initializer {
         if (
             address(anchor_) == address(0)
                 || address(identityRegistry_) == address(0) || address(token_) == address(0) || module_ == address(0)
-                || terms_.issuerTreasury == address(0) || admin == address(0)
+                || terms_.issuerTreasury == address(0) || admin == address(0) || upgrader_ == address(0)
         ) revert InvalidAddress();
+        __AccessControl_init();
         if (
             terms_.sukukId == bytes32(0) || terms_.faceValue == 0 || terms_.minRaise == 0
                 || terms_.minRaise > terms_.faceValue || terms_.subscriptionPeriod == 0
@@ -286,10 +304,17 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         module = module_;
         ledgerChainId = anchor_.ledgerChainId();
         terms = terms_;
+        claimWindow = 365 days;
+        maxReserveAge = 3 days;
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
         _grantRole(FUNDER_ROLE, admin);
+        _setRoleAdmin(UPGRADER_ROLE, UPGRADER_ROLE);
+        _grantRole(UPGRADER_ROLE, upgrader_);
     }
+
+    /// @dev UUPS: only UPGRADER_ROLE may point the proxy at a new implementation.
+    function _authorizeUpgrade(address) internal override onlyRole(UPGRADER_ROLE) {}
 
     // ---------------------------------------------------------------
     // Reserve
@@ -810,4 +835,6 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     {
         return LedgerLeaf.hash(ledgerChainId_, kind, subjectId, a, b);
     }
+
+    uint256[40] private __gap;
 }

@@ -1,0 +1,224 @@
+[
+ {
+  "label": "_coins",
+  "slot": "0",
+  "offset": 0,
+  "type": "address[]"
+ },
+ {
+  "label": "isCoin",
+  "slot": "1",
+  "offset": 0,
+  "type": "mapping(address => bool)"
+ },
+ {
+  "label": "anchor",
+  "slot": "2",
+  "offset": 0,
+  "type": "contract ILedgerAnchor"
+ },
+ {
+  "label": "identityRegistry",
+  "slot": "3",
+  "offset": 0,
+  "type": "contract ITawfIdentityRegistry"
+ },
+ {
+  "label": "token",
+  "slot": "4",
+  "offset": 0,
+  "type": "contract ITrexToken"
+ },
+ {
+  "label": "ledgerChainId",
+  "slot": "5",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "terms",
+  "slot": "6",
+  "offset": 0,
+  "type": "struct SukukDistributor.Terms"
+ },
+ {
+  "label": "status",
+  "slot": "12",
+  "offset": 0,
+  "type": "enum SukukDistributor.Status"
+ },
+ {
+  "label": "subscriptionDeadline",
+  "slot": "12",
+  "offset": 1,
+  "type": "uint40"
+ },
+ {
+  "label": "lastPeriod",
+  "slot": "12",
+  "offset": 6,
+  "type": "uint16"
+ },
+ {
+  "label": "paidOf",
+  "slot": "13",
+  "offset": 0,
+  "type": "mapping(address => mapping(address => uint256))"
+ },
+ {
+  "label": "raisedOf",
+  "slot": "14",
+  "offset": 0,
+  "type": "mapping(address => uint256)"
+ },
+ {
+  "label": "refundedOf",
+  "slot": "15",
+  "offset": 0,
+  "type": "mapping(address => uint256)"
+ },
+ {
+  "label": "heldBalanceOf",
+  "slot": "16",
+  "offset": 0,
+  "type": "mapping(address => uint256)"
+ },
+ {
+  "label": "coinPaused",
+  "slot": "17",
+  "offset": 0,
+  "type": "mapping(address => bool)"
+ },
+ {
+  "label": "redemptionPerToken",
+  "slot": "18",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "totalUnitsAtMaturity",
+  "slot": "19",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "redeemedUnits",
+  "slot": "20",
+  "offset": 0,
+  "type": "mapping(address => uint256)"
+ },
+ {
+  "label": "heldProfitPerUnit",
+  "slot": "21",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "heldProfitPaidPerUnit",
+  "slot": "22",
+  "offset": 0,
+  "type": "mapping(address => uint256)"
+ },
+ {
+  "label": "sweptPerUnitMark",
+  "slot": "23",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "heldReleases",
+  "slot": "24",
+  "offset": 0,
+  "type": "uint16"
+ },
+ {
+  "label": "totalHeldReleased",
+  "slot": "25",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "totalHeldClaimed",
+  "slot": "26",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "totalHeldSwept",
+  "slot": "27",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "heldBalance",
+  "slot": "28",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "lastReleaseAt",
+  "slot": "29",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "claimWindow",
+  "slot": "30",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "sweepDestination",
+  "slot": "31",
+  "offset": 0,
+  "type": "address"
+ },
+ {
+  "label": "reserveSnapshotAt",
+  "slot": "31",
+  "offset": 20,
+  "type": "uint64"
+ },
+ {
+  "label": "reserveOutstanding",
+  "slot": "32",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "maxReserveAge",
+  "slot": "33",
+  "offset": 0,
+  "type": "uint64"
+ },
+ {
+  "label": "tawfNisbahBps",
+  "slot": "33",
+  "offset": 8,
+  "type": "uint16"
+ },
+ {
+  "label": "feeRecipient",
+  "slot": "33",
+  "offset": 10,
+  "type": "address"
+ },
+ {
+  "label": "totalTawfShare",
+  "slot": "34",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "_profit",
+  "slot": "35",
+  "offset": 0,
+  "type": "struct ProfitAccumulator.State"
+ },
+ {
+  "label": "module",
+  "slot": "38",
+  "offset": 0,
+  "type": "address"
+ }
+]

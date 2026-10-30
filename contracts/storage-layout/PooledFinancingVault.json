@@ -1,0 +1,14 @@
+[
+ {
+  "label": "identityRegistry",
+  "slot": "0",
+  "offset": 0,
+  "type": "contract ITawfIdentityRegistry"
+ },
+ {
+  "label": "transferPolicy",
+  "slot": "0",
+  "offset": 20,
+  "type": "enum PooledFinancingVault.TransferPolicy"
+ }
+]

@@ -96,7 +96,10 @@ contract DeployScf is DeployExtra {
         s.face = vm.envOr("SCF_FACE", uint256(50_000e6));
         s.maturity = uint40(vm.envOr("SCF_MATURITY", block.timestamp + 365 days));
 
-        s.anchor = deployCode("LedgerAnchor.sol:LedgerAnchor", abi.encode(ledgerChainId, operator));
+        s.anchor = _deployProxy(
+            "LedgerAnchor.sol:LedgerAnchor",
+            abi.encodeWithSignature("initialize(uint256,address,address)", ledgerChainId, operator, _upgrader(operator))
+        );
 
         ScfInvestorLimitModule limit = ModuleProxies.scfLimit(_sharedIdentityRegistry);
         limit.setAgent(operator, true);
@@ -112,23 +115,27 @@ contract DeployScf is DeployExtra {
         s.compliance = address(mc);
 
         DistributionCheckpointModule checkpoint = ModuleProxies.checkpoint();
-        s.distributor = deployCode(
+        s.distributor = _deployProxy(
             "SukukDistributor.sol:SukukDistributor",
-            abi.encode(
-                _coinList,
-                s.anchor,
-                _sharedIdentityRegistry,
-                address(token),
-                address(checkpoint),
-                // Terms { sukukId, faceValue, maturity, minRaise, minSubscription, subscriptionPeriod, issuerTreasury }
-                SCF_ID,
-                s.face,
-                s.maturity,
-                vm.envOr("SCF_MIN_RAISE", uint256(500e6)),
-                vm.envOr("SCF_MIN_SUBSCRIPTION", uint256(10e6)),
-                uint40(vm.envOr("SCF_SUBSCRIPTION_PERIOD", uint256(30 days))),
-                operator,
-                operator
+            abi.encodePacked(
+                DIST_INIT,
+                abi.encode(
+                    _coinList,
+                    s.anchor,
+                    _sharedIdentityRegistry,
+                    address(token),
+                    address(checkpoint),
+                    // Terms { sukukId, faceValue, maturity, minRaise, minSubscription, subscriptionPeriod, issuerTreasury }
+                    SCF_ID,
+                    s.face,
+                    s.maturity,
+                    vm.envOr("SCF_MIN_RAISE", uint256(500e6)),
+                    vm.envOr("SCF_MIN_SUBSCRIPTION", uint256(10e6)),
+                    uint40(vm.envOr("SCF_SUBSCRIPTION_PERIOD", uint256(30 days))),
+                    operator,
+                    operator,
+                    _upgrader(operator)
+                )
             )
         );
 

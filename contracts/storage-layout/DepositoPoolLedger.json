@@ -1,0 +1,74 @@
+[
+ {
+  "label": "ledgerChainId",
+  "slot": "0",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "seriesId",
+  "slot": "1",
+  "offset": 0,
+  "type": "bytes32"
+ },
+ {
+  "label": "operator",
+  "slot": "2",
+  "offset": 0,
+  "type": "address"
+ },
+ {
+  "label": "_bankIds",
+  "slot": "3",
+  "offset": 0,
+  "type": "bytes32[]"
+ },
+ {
+  "label": "bankOf",
+  "slot": "4",
+  "offset": 0,
+  "type": "mapping(bytes32 => struct DepositoPoolLedger.Bank)"
+ },
+ {
+  "label": "balanceOf",
+  "slot": "5",
+  "offset": 0,
+  "type": "mapping(bytes32 => uint256)"
+ },
+ {
+  "label": "snapshotAt",
+  "slot": "6",
+  "offset": 0,
+  "type": "uint64"
+ },
+ {
+  "label": "totalBalance",
+  "slot": "7",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "profitOf",
+  "slot": "8",
+  "offset": 0,
+  "type": "mapping(uint32 => mapping(bytes32 => uint256))"
+ },
+ {
+  "label": "epochs",
+  "slot": "9",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "reserveEpoch",
+  "slot": "10",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "_leafIn",
+  "slot": "11",
+  "offset": 0,
+  "type": "mapping(uint256 => mapping(bytes32 => bool))"
+ }
+]

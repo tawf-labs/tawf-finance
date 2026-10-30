@@ -1,0 +1,32 @@
+[
+ {
+  "label": "vault",
+  "slot": "0",
+  "offset": 0,
+  "type": "address"
+ },
+ {
+  "label": "receiptNft",
+  "slot": "1",
+  "offset": 0,
+  "type": "address"
+ },
+ {
+  "label": "_deals",
+  "slot": "2",
+  "offset": 0,
+  "type": "struct DealRegistry.Deal[]"
+ },
+ {
+  "label": "_nextId",
+  "slot": "3",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "investorPrincipal",
+  "slot": "4",
+  "offset": 0,
+  "type": "mapping(uint256 => mapping(address => uint96))"
+ }
+]

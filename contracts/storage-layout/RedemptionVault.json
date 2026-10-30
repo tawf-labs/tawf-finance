@@ -1,0 +1,110 @@
+[
+ {
+  "label": "usdc",
+  "slot": "0",
+  "offset": 0,
+  "type": "contract IERC20"
+ },
+ {
+  "label": "acceptedInput",
+  "slot": "1",
+  "offset": 0,
+  "type": "mapping(address => bool)"
+ },
+ {
+  "label": "swapRouter",
+  "slot": "2",
+  "offset": 0,
+  "type": "contract ISwapRouter"
+ },
+ {
+  "label": "swapFee",
+  "slot": "2",
+  "offset": 20,
+  "type": "uint24"
+ },
+ {
+  "label": "slippageBps",
+  "slot": "3",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "yieldRecipient",
+  "slot": "4",
+  "offset": 0,
+  "type": "address"
+ },
+ {
+  "label": "liabilities",
+  "slot": "5",
+  "offset": 0,
+  "type": "uint256"
+ },
+ {
+  "label": "registry",
+  "slot": "6",
+  "offset": 0,
+  "type": "contract DealRegistry"
+ },
+ {
+  "label": "nft",
+  "slot": "7",
+  "offset": 0,
+  "type": "contract BondReceiptNFT"
+ },
+ {
+  "label": "feeRecipient",
+  "slot": "8",
+  "offset": 0,
+  "type": "address"
+ },
+ {
+  "label": "dealNisbahBps",
+  "slot": "9",
+  "offset": 0,
+  "type": "mapping(uint256 => uint16)"
+ },
+ {
+  "label": "disbursedPrincipal",
+  "slot": "10",
+  "offset": 0,
+  "type": "mapping(uint256 => uint96)"
+ },
+ {
+  "label": "defaultRecovery",
+  "slot": "11",
+  "offset": 0,
+  "type": "mapping(uint256 => uint96)"
+ },
+ {
+  "label": "defaultSettled",
+  "slot": "12",
+  "offset": 0,
+  "type": "mapping(uint256 => bool)"
+ },
+ {
+  "label": "negligenceLiability",
+  "slot": "13",
+  "offset": 0,
+  "type": "mapping(uint256 => uint96)"
+ },
+ {
+  "label": "negligencePaid",
+  "slot": "14",
+  "offset": 0,
+  "type": "mapping(uint256 => uint96)"
+ },
+ {
+  "label": "defaultClaimsOpen",
+  "slot": "15",
+  "offset": 0,
+  "type": "mapping(uint256 => bool)"
+ },
+ {
+  "label": "_configured",
+  "slot": "16",
+  "offset": 0,
+  "type": "bool"
+ }
+]
