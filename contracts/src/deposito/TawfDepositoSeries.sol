@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.24;
 
-import { AccessControl } from "openzeppelin-contracts/contracts/access/AccessControl.sol";
+import { Initializable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import { UUPSUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import { AccessControlUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { SafeERC20 } from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -56,13 +58,15 @@ interface ISandboxEligibility {
  *
  *      Checks-effects-interactions and ReentrancyGuard guard every cash move.
  */
-contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoint {
+contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, ReentrancyGuard, UUPSUpgradeable, IBalanceCheckpoint {
     using SafeERC20 for IERC20;
     using ProfitAccumulator for ProfitAccumulator.State;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant FX_ROLE = keccak256("FX_ROLE");
+    /// @notice Held by the timelock only. Its role admin is itself, so nobody else can grant it.
+    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
     uint256 private constant PRECISION = 1e18;
     /// @dev Stablecoin base units per whole token (all settlement coins are 6 decimals).
@@ -86,14 +90,14 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
         uint64 updatedAt;
     }
 
-    ILedgerAnchor public immutable anchor;
-    ITrexToken public immutable token;
+    ILedgerAnchor public anchor;
+    ITrexToken public token;
     /// @dev The DistributionCheckpointModule bound to the token's compliance.
-    address public immutable module;
+    address public module;
     /// @dev The SandboxModule eligibility gate and the compliance it guards.
-    ISandboxEligibility public immutable sandbox;
-    address public immutable compliance;
-    uint256 public immutable ledgerChainId;
+    ISandboxEligibility public sandbox;
+    address public compliance;
+    uint256 public ledgerChainId;
     /// @dev Where escrowed stablecoins go on allocation, and the source of
     ///      stablecoins for profit and principal funding: the Tawf treasury.
     address public treasury;
@@ -184,6 +188,17 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
     /// @notice Tawf's share already paid out, in sen.
     uint256 public tawfSharePaidSen;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _lockImplementation();
+    }
+
+    /// @dev Locks the bare implementation so only proxies can be initialised.
+    ///      Virtual so a verification harness can skip it.
+    function _lockImplementation() internal virtual {
+        _disableInitializers();
+    }
+
     /// @param anchor_ LedgerAnchor the Tawf Network roots are anchored on.
     /// @param token_ The series T-REX token (2 decimals, sen); this contract
     ///        must be one of its AGENTs.
@@ -196,7 +211,8 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
     /// @param admin DEFAULT_ADMIN_ROLE + ADMIN_ROLE holder.
     /// @param operator OPERATOR_ROLE holder (Tawf ops).
     /// @param maxRateAge_ Maximum age of an FX rate for rate-using actions.
-    constructor(
+    /// @param upgrader_ UPGRADER_ROLE holder (the timelock).
+    function initialize(
         ILedgerAnchor anchor_,
         ITrexToken token_,
         address module_,
@@ -206,13 +222,15 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
         address treasury_,
         address admin,
         address operator,
-        uint64 maxRateAge_
-    ) {
+        uint64 maxRateAge_,
+        address upgrader_
+    ) public initializer {
         if (
             address(anchor_) == address(0) || address(token_) == address(0) || module_ == address(0)
                 || address(sandbox_) == address(0) || compliance_ == address(0) || treasury_ == address(0)
-                || admin == address(0) || operator == address(0)
+                || admin == address(0) || operator == address(0) || upgrader_ == address(0)
         ) revert InvalidAddress();
+        __AccessControl_init();
         if (terms_.seriesId == bytes32(0) || terms_.nisbahBps > 10_000) revert InvalidTerms();
 
         anchor = anchor_;
@@ -228,7 +246,12 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
         _grantRole(OPERATOR_ROLE, operator);
+        _setRoleAdmin(UPGRADER_ROLE, UPGRADER_ROLE);
+        _grantRole(UPGRADER_ROLE, upgrader_);
     }
+
+    /// @dev UUPS: only UPGRADER_ROLE may point the proxy at a new implementation.
+    function _authorizeUpgrade(address) internal override onlyRole(UPGRADER_ROLE) {}
 
     // ---------------------------------------------------------------
     // Settlement stablecoin allowlist
@@ -642,4 +665,6 @@ contract TawfDepositoSeries is AccessControl, ReentrancyGuard, IBalanceCheckpoin
     {
         return LedgerLeaf.hash(ledgerChainId_, kind, subjectId, a, b);
     }
+
+    uint256[40] private __gap;
 }

@@ -60,7 +60,7 @@ contract DepositoPoolLedgerTest is TrexFixture {
         tir.addTrustedIssuer(claimIssuer, topics);
         vm.stopPrank();
 
-        ledger = IPoolLedger(deployCode("DepositoPoolLedger.sol:DepositoPoolLedger", abi.encode(LEDGER_CHAIN_ID, SERIES_ID, operator)));
+        ledger = IPoolLedger(_deployProxy("DepositoPoolLedger.sol:DepositoPoolLedger", abi.encodeWithSignature("initialize(uint256,bytes32,address,address)", LEDGER_CHAIN_ID, SERIES_ID, operator, timelock)));
         usdc = deployCode("MockUSDC.sol:MockUSDC");
         usdt = deployCode("MockUSDT.sol:MockUSDT");
         (token, mc,) = _deployTrexToken("Tawf Deposito Pool: Jawa Barat", "tDEP-JABAR-1", 2);
@@ -68,12 +68,12 @@ contract DepositoPoolLedgerTest is TrexFixture {
         vm.startPrank(deployer);
         SandboxModule sandbox = new SandboxModule();
         DistributionCheckpointModule checkpoint = new DistributionCheckpointModule();
-        series = deployCode(
+        series = _deployProxy(
             "TawfDepositoSeries.sol:TawfDepositoSeries",
-            abi.encode(
+            abi.encodePacked(SERIES_INIT, abi.encode(
                 address(ledger), address(token), address(checkpoint), address(sandbox), address(mc),
-                SERIES_ID, uint8(3), uint16(6000), operator, operator, operator, uint64(1 days)
-            )
+                SERIES_ID, uint8(3), uint16(6000), operator, operator, operator, uint64(1 days),
+                timelock))
         );
         sandbox.initConfig(
             address(mc), SandboxModule.Mode.SCREENED_GROUP, operator, address(claimIssuer),

@@ -35,8 +35,12 @@ contract DeployDepositoPool is DeployExtra {
         address usdg = vm.parseJsonAddress(json, ".mockUsdg");
 
         vm.startBroadcast(key);
-        address ledger =
-            deployCode("DepositoPoolLedger.sol:DepositoPoolLedger", abi.encode(ledgerChainId, POOL_SERIES_ID, operator));
+        address ledger = _deployProxy(
+            "DepositoPoolLedger.sol:DepositoPoolLedger",
+            abi.encodeWithSignature(
+                "initialize(uint256,bytes32,address,address)", ledgerChainId, POOL_SERIES_ID, operator, _upgrader(operator)
+            )
+        );
         bytes32[] memory ids = new bytes32[](3);
         ids[0] = keccak256("bprs.demo.bandung");
         ids[1] = keccak256("bprs.demo.bogor");

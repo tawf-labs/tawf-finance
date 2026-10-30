@@ -26,6 +26,7 @@ pragma solidity 0.8.17;
 // claims itself off each holder's ONCHAINID, so the gate is per-series, not registry-wide.
 
 import "forge-std/Script.sol";
+import {ProxyDeployer} from "./lib/ProxyDeployer.sol";
 
 import {ClaimTopicsRegistry} from "@erc3643org/erc-3643/contracts/registry/implementation/ClaimTopicsRegistry.sol";
 import {TrustedIssuersRegistry} from "@erc3643org/erc-3643/contracts/registry/implementation/TrustedIssuersRegistry.sol";
@@ -47,7 +48,15 @@ import {SandboxModule} from "../src/deposito/SandboxModule.sol";
 /// @notice Single-operator ("everything") demo deployment of the Tawf tokenization suite:
 ///         shared T-REX identity, the Tawf deposito series (Model B) and one sukuk series on
 ///         Arbitrum Sepolia.
-contract DeployTokenization is Script {
+contract DeployTokenization is Script, ProxyDeployer {
+    /// @dev Holder of UPGRADER_ROLE on the proxied contracts: the TimelockController from the
+    ///      UPGRADER env var. Falls back to the operator only for local and early testnet runs.
+    bytes4 internal constant SERIES_INIT = bytes4(keccak256("initialize(address,address,address,address,address,(bytes32,uint8,uint16),address,address,address,uint64,address)"));
+
+    function _upgrader(address operator) internal view returns (address) {
+        return vm.envOr("UPGRADER", operator);
+    }
+
     uint256 internal constant KYC_TOPIC = 1;
     uint16 internal constant COUNTRY_ID = 360; // Indonesia
 
@@ -226,9 +235,9 @@ contract DeployTokenization is Script {
         // TawfDepositoSeries: (anchor, token, checkpointModule, sandbox, compliance,
         // Terms{seriesId, tenorMonths, nisbahBps}, treasury, admin, operator, maxRateAge).
         // Settlement stablecoins are added after construction via addStablecoin.
-        series = deployCode(
+        series = _deployProxy(
             "TawfDepositoSeries.sol:TawfDepositoSeries",
-            abi.encode(
+            abi.encodePacked(SERIES_INIT, abi.encode(
                 anchor,
                 address(token),
                 address(checkpoint),
@@ -240,8 +249,8 @@ contract DeployTokenization is Script {
                 operator, // treasury (demo: the operator wallet is the Tawf treasury)
                 operator, // admin
                 operator, // operator
-                uint64(1 days) // maxRateAge
-            )
+                uint64(1 days), // maxRateAge
+                _upgrader(operator)))
         );
 
         // Configure and bind the SandboxModule first: mode PILOT_ONLY, treasury = operator,

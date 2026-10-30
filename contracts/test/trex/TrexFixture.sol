@@ -6,6 +6,7 @@ pragma solidity 0.8.17;
 // MockUSDC/MockUSDT ^0.8.20) are reached only via vm.deployCode and minimal interfaces.
 
 import "forge-std/Test.sol";
+import {ProxyDeployer} from "../../script/lib/ProxyDeployer.sol";
 
 import {ClaimTopicsRegistry} from "@erc3643org/erc-3643/contracts/registry/implementation/ClaimTopicsRegistry.sol";
 import {TrustedIssuersRegistry} from "@erc3643org/erc-3643/contracts/registry/implementation/TrustedIssuersRegistry.sol";
@@ -24,11 +25,14 @@ import {IBalanceCheckpoint} from "../../src/sukuk/IBalanceCheckpoint.sol";
 /// @notice Shared T-REX identity + token fixture for the ERC-3643 Tawf test suites. Mirrors the
 ///         wiring in tawf-gold-bsi's TBSI.t.sol: identities are registered through ONCHAINID with
 ///         a KYC claim signed by a trusted ClaimIssuer, so isVerified reflects real claims.
-abstract contract TrexFixture is Test {
+abstract contract TrexFixture is Test, ProxyDeployer {
     uint256 internal constant KYC_TOPIC = 1;
 
     // Actors shared across suites.
     address internal deployer = address(0xA11CE);
+    /// @dev Stand-in for the TimelockController that holds UPGRADER_ROLE on the proxied contracts.
+    address internal timelock = address(0x71AE10C0);
+    bytes4 internal constant SERIES_INIT = bytes4(keccak256("initialize(address,address,address,address,address,(bytes32,uint8,uint16),address,address,address,uint64,address)"));
     uint256 internal claimIssuerKey = 0xC1A1;
     address internal claimIssuerSigner;
 

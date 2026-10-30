@@ -106,12 +106,12 @@ contract TawfDepositoSeriesTest is TrexFixture {
         sandbox = new SandboxModule();
         DistributionCheckpointModule checkpoint = new DistributionCheckpointModule();
 
-        series = deployCode(
+        series = _deployProxy(
             "TawfDepositoSeries.sol:TawfDepositoSeries",
-            abi.encode(
+            abi.encodePacked(SERIES_INIT, abi.encode(
                 anchor, address(token), address(checkpoint), address(sandbox), address(mc),
-                SERIES_ID, uint8(3), uint16(6000), operator, operator, operator, uint64(1 days)
-            )
+                SERIES_ID, uint8(3), uint16(6000), operator, operator, operator, uint64(1 days),
+                timelock))
         );
 
         // SCREENED_GROUP so investors with a screening claim can subscribe.
