@@ -35,7 +35,20 @@ contract DeployDepositoPool is DeployExtra {
         address usdg = vm.parseJsonAddress(json, ".mockUsdg");
 
         vm.startBroadcast(key);
-        address ledger = _deployProxy(
+        (address ledger, address token, address series, address sandbox) =
+            _deployPool(operator, usdc, usdt, usdg, ledgerChainId);
+        vm.stopBroadcast();
+
+        _setShare(key, series);
+        _writePool(ledger, token, series, sandbox);
+    }
+
+    /// @dev The pool deploy itself, without its own broadcast, so a single-broadcast orchestrator can run it.
+    function _deployPool(address operator, address usdc, address usdt, address usdg, uint256 ledgerChainId)
+        internal
+        returns (address ledger, address token, address series, address sandbox)
+    {
+        ledger = _deployProxy(
             "DepositoPoolLedger.sol:DepositoPoolLedger",
             abi.encodeWithSignature(
                 "initialize(uint256,bytes32,address,address)", ledgerChainId, POOL_SERIES_ID, operator, _upgrader(operator)
@@ -49,7 +62,7 @@ contract DeployDepositoPool is DeployExtra {
         IPoolLedger(ledger).addBank(ids[1], "BPRS Demo Bogor", "TAWF-JB-BGR");
         IPoolLedger(ledger).addBank(ids[2], "BPRS Demo Cirebon", "TAWF-JB-CRB");
 
-        (address token, address series, address sandbox) = _deployTawfSeries(
+        (token, series, sandbox) = _deployTawfSeries(
             operator, usdc, usdt, ledger, POOL_SERIES_ID, "Tawf Deposito Pool: Jawa Barat", "tDEP-JABAR-1"
         );
 
@@ -73,9 +86,9 @@ contract DeployDepositoPool is DeployExtra {
         balances[1] = OPEN_BGR;
         balances[2] = OPEN_CRB;
         IPoolLedger(ledger).postReserve(uint64(block.timestamp), ids, balances);
-        vm.stopBroadcast();
+    }
 
-        _setShare(key, series);
+    function _writePool(address ledger, address token, address series, address sandbox) internal {
         vm.writeJson(vm.toString(series), PATH, ".depositoPool");
         vm.writeJson(vm.toString(token), PATH, ".depositoPoolToken");
         vm.writeJson(vm.toString(sandbox), PATH, ".depositoPoolSandbox");

@@ -69,6 +69,10 @@ contract DeployScf is DeployExtra {
         vm.stopBroadcast();
 
         _keepV1(json);
+        _writeScf(s);
+    }
+
+    function _writeScf(Scf memory s) internal {
         vm.writeJson(vm.toString(s.anchor), PATH, ".scfAnchor");
         vm.writeJson(vm.toString(s.limitModule), PATH, ".scfLimitModule");
         vm.writeJson(vm.toString(s.token), PATH, ".scfToken");

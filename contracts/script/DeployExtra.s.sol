@@ -21,7 +21,8 @@ import { DeployTokenization } from "./DeployTokenization.s.sol";
  *               forge script script/DeployExtra.s.sol:DeployExtra --sig "runSukuk()" --broadcast
  */
 contract DeployExtra is DeployTokenization {
-    string internal constant PATH = "../tawf-finance/src/web3/tokenization.deployments.json";
+    /// @dev DEPLOYMENTS_PATH lets a dry run or a second chain write elsewhere, so the app JSON is not touched.
+    string internal PATH = vm.envOr("DEPLOYMENTS_PATH", string("../tawf-finance/src/web3/tokenization.deployments.json"));
 
     function _loadShared() internal returns (address usdc, address usdt) {
         string memory json = vm.readFile(PATH);
