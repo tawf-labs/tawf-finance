@@ -79,7 +79,7 @@ export function InvestorDashboard() {
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-8">
       <motion.div variants={itemVariants}>
         <h1 className="font-serif text-3xl text-tawf-green mb-2">Investor Dashboard</h1>
-        <p className="text-tawf-muted">{DEPOSITO_STABLECOIN_FLOW_ENABLED ? 'Your Deposito Pool and crowdfunding overview, read from the chain.' : 'Your Urun Dana crowdfunding overview, read from the chain.'}</p>
+        <p className="text-tawf-muted">Your Deposito Pool and Urun Dana overview, read from the chain.</p>
       </motion.div>
 
       {!isConnected ? (
