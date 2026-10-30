@@ -299,7 +299,7 @@ contract DeployTokenization is Script {
         distributor = deployCode(
             "SukukDistributor.sol:SukukDistributor",
             abi.encode(
-                _sukukUsdc,
+                _singleCoin(_sukukUsdc),
                 anchor,
                 _sharedIdentityRegistry,
                 address(token),
@@ -447,6 +447,12 @@ contract DeployTokenization is Script {
         console.log("DealRegistry:       ", d.dealRegistry);
         console.log("RedemptionVault:    ", d.redemptionVault);
         console.log("deployL1Block:      ", d.deployBlock);
+    }
+
+    /// @dev The distributor takes a coin list. These scripts keep the single-coin setup.
+    function _singleCoin(address c) internal pure returns (address[] memory a) {
+        a = new address[](1);
+        a[0] = c;
     }
 }
 

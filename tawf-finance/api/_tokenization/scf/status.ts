@@ -12,6 +12,8 @@ const extraAbi = parseAbi([
   'function isFullyBacked() view returns (bool)',
 ])
 
+const coinAbi = parseAbi(['function symbol() view returns (string)'])
+
 const STATUS = ['Pending', 'Subscription', 'Active', 'Matured', 'Defaulted', 'Cancelled'] as const
 
 /**
@@ -39,6 +41,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       publicClient.readContract({ address: dist, abi: extraAbi, functionName: 'reserveSnapshotAt' }),
       publicClient.readContract({ address: dist, abi: extraAbi, functionName: 'isFullyBacked' }),
       publicClient.readContract({ address: addresses.scfLimitModule, abi: scfLimitModuleAbi, functionName: 'offeringOf', args: [addresses.scfCompliance] }),
+    ])
+
+    // The accepted coins, each with what was raised in it and what it can pay out now.
+    const coinList = (await publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'coins' })) as readonly Address[]
+    const coins = await Promise.all(
+      coinList.map(async (coin) => {
+        const [symbol, raisedOf, refundedOf, freeBalance, coinBalance, heldBalance, paused] = await Promise.all([
+          publicClient.readContract({ address: coin, abi: coinAbi, functionName: 'symbol' }).catch(() => 'COIN'),
+          publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'raisedOf', args: [coin] }),
+          publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'refundedOf', args: [coin] }),
+          publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'freeBalance', args: [coin] }),
+          publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'coinBalance', args: [coin] }),
+          publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'heldBalanceOf', args: [coin] }),
+          publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'coinPaused', args: [coin] }),
+        ])
+        return {
+          address: coin,
+          symbol,
+          raisedOf: String(raisedOf),
+          refundedOf: String(refundedOf),
+          freeBalance: String(freeBalance),
+          coinBalance: String(coinBalance),
+          heldBalance: String(heldBalance),
+          paused,
+        }
+      }),
+    )
+    const [totalRaised, netRaised] = await Promise.all([
+      publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'totalRaised' }),
+      publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'netRaised' }),
     ])
 
     let investor: Record<string, string | number> | null = null
@@ -71,9 +103,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       minRaise: String(terms[3]),
       minSubscription: String(terms[4]),
       issuerTreasury: terms[6],
-      // The distributor has no cumulative raised counter: tokens are minted 1:1 on subscribe and
-      // burned on refund and redeem, so this equals the supply until redemption starts.
-      raised: String(supply),
+      // `raised` is the raise net of refunds (it equals the live token supply until redemption starts, since
+      // tokens are minted 1:1 on subscribe). `totalRaised` is the cumulative amount subscribed over all coins.
+      raised: String(netRaised),
+      totalRaised: String(totalRaised),
+      netRaised: String(netRaised),
+      coins,
       subscriptionDeadline: Number(deadline),
       lastPeriod: Number(lastPeriod),
       reserve: String(reserve),

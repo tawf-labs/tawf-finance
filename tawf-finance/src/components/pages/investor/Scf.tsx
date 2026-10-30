@@ -17,16 +17,17 @@ import {
   useSukukRedeem,
   useSukukRefund,
   useSukukAllowance,
+  useSukukCoins,
   useScfLimit,
 } from '@/web3/tokenizationHooks';
 import { SUKUK_STATUS_LABEL } from '@/web3/tokenizationAbis';
+import type { SukukCoinView } from '@/web3/tokenizationHooks';
 import { formatUsdc, usdcToNumber, getRevertReason } from '@/web3/format';
 import {
   isScfConfigured,
   SCF_SYMBOL,
   SCF_DISTRIBUTOR_ADDRESS,
   SCF_TOKEN_ADDRESS,
-  TOKENIZATION_USDC_ADDRESS,
 } from '@/web3/tokenization';
 import { explorerTxUrl, INVEST_TOKENS } from '@/web3/constants';
 import { SCF_PLATFORM, SCF_OFFERING } from '@/data/issuers';
@@ -50,14 +51,20 @@ const STATUS_VARIANT: Record<number, 'info' | 'success' | 'warning' | 'error' | 
 
 const MAX_UINT = (1n << 256n) - 1n;
 const target = { distributor: SCF_DISTRIBUTOR_ADDRESS, token: SCF_TOKEN_ADDRESS };
-const usdcToken = INVEST_TOKENS.find((t) => t.symbol === 'USDC');
 
 export function InvestorScf() {
   const { address, isConnected } = useAccount();
   const { state, isLoading, refetch } = useSukuk(address, target);
   const { state: limit, refetch: refetchLimit } = useScfLimit(address);
   const { isVerified } = useIsVerified(address);
-  const { allowance, refetch: refetchAllowance } = useSukukAllowance(address, TOKENIZATION_USDC_ADDRESS, target);
+  const { coins, refetch: refetchCoins } = useSukukCoins(address, target);
+  const [investCoin, setInvestCoin] = useState<`0x${string}` | null>(null);
+  const [payCoin, setPayCoin] = useState<`0x${string}` | null>(null);
+  // Invest in the first coin that is not paused and that the wallet holds, until the investor picks one.
+  const selectedInvest =
+    coins.find((c) => c.address === investCoin) ?? coins.find((c) => !c.paused && c.walletBalance > 0n) ?? coins.find((c) => !c.paused) ?? coins[0];
+  const selectedPay = coins.find((c) => c.address === payCoin) ?? coins.find((c) => !c.paused && c.freeBalance > 0n) ?? coins.find((c) => !c.paused) ?? coins[0];
+  const { allowance, refetch: refetchAllowance } = useSukukAllowance(address, selectedInvest?.address, target);
   const { subscribe, isPending: subscribing } = useSukukSubscribe(target);
   const { claim, isPending: claiming } = useSukukClaim(target);
   const { redeem, isPending: redeeming } = useSukukRedeem(target);
@@ -84,20 +91,25 @@ export function InvestorScf() {
   const isCancelled = state.status === 5;
 
   const runSubscribe = async () => {
-    if (!TOKENIZATION_USDC_ADDRESS) return;
+    if (!selectedInvest) return;
     reset();
     const baseUnits = BigInt(Math.round(amount * 1e6));
+    if (selectedInvest.walletBalance < baseUnits) {
+      setError(`You hold ${formatUsdc(selectedInvest.walletBalance)} ${selectedInvest.symbol}. Pick another coin or get test funds first.`);
+      return;
+    }
     if (baseUnits > maxBase) {
       setError(`That is above what you can invest now (${formatUsdc(maxBase)}). Your POJK 57/2020 yearly limit and the offering size both apply.`);
       return;
     }
     try {
-      const { hash } = await subscribe(TOKENIZATION_USDC_ADDRESS, baseUnits, allowance);
+      const { hash } = await subscribe(selectedInvest.address, baseUnits, allowance);
       setTxHash(hash);
       setOpen(false);
       refetch();
       refetchLimit();
       refetchAllowance();
+      refetchCoins();
     } catch (e) {
       const reason = getRevertReason(e);
       setError(/compliance/i.test(reason) ? 'The token rejected this amount: it exceeds your yearly SCF limit or the offering cap.' : reason);
@@ -110,6 +122,7 @@ export function InvestorScf() {
       const { hash } = await fn();
       setTxHash(hash);
       refetch();
+      refetchCoins();
     } catch (e) {
       setError(getRevertReason(e));
     }
@@ -196,7 +209,9 @@ export function InvestorScf() {
             <p className="text-xs uppercase tracking-wide text-tawf-muted mb-3">Step 1 · Verify and fund</p>
             <div className="flex flex-wrap items-center gap-4">
               <TestKycButton onVerified={() => { refetchLimit(); }} />
-              {usdcToken && <GetTestToken token={usdcToken} compact />}
+              {INVEST_TOKENS.filter((t) => coins.some((c) => c.address.toLowerCase() === t.address.toLowerCase())).map((t) => (
+                <GetTestToken key={t.symbol} token={t} compact />
+              ))}
             </div>
           </Card>
 
@@ -256,13 +271,16 @@ export function InvestorScf() {
                     Invest
                   </Button>
                 )}
+                {(isActive || isSettled) && coins.length > 0 && (
+                  <PayoutCoin coins={coins} selected={selectedPay} amount={isActive ? state.claimable : state.balance} onPick={setPayCoin} />
+                )}
                 {isActive && (
-                  <Button size="md" disabled={state.claimable === 0n || claiming} onClick={() => runAction(claim)}>
+                  <Button size="md" disabled={state.claimable === 0n || claiming || !selectedPay} onClick={() => selectedPay && runAction(() => claim(selectedPay.address))}>
                     {claiming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Claim profit'}
                   </Button>
                 )}
                 {isSettled && (
-                  <Button size="md" disabled={state.balance === 0n || redeeming} onClick={() => runAction(redeem)}>
+                  <Button size="md" disabled={state.balance === 0n || redeeming || !selectedPay} onClick={() => selectedPay && runAction(() => redeem(selectedPay.address))}>
                     {redeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Redeem'}
                   </Button>
                 )}
@@ -289,10 +307,32 @@ export function InvestorScf() {
         <div className="space-y-6">
           <div className="p-4 bg-tawf-sand-30 rounded-xl">
             <p className="text-sm text-tawf-muted mb-1">{SCF_SYMBOL}</p>
-            <p className="font-medium text-tawf-green">Min {formatUsdc(state.minSubscription)} · max {formatUsdc(maxBase)} for you now · 1 USDC = 1 token</p>
+            <p className="font-medium text-tawf-green">Min {formatUsdc(state.minSubscription)} · max {formatUsdc(maxBase)} for you now · 1 {selectedInvest?.symbol ?? 'USD'} = 1 token</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-tawf-ink mb-2">Amount (USDC)</label>
+            <label className="block text-sm font-medium text-tawf-ink mb-2">Pay with</label>
+            <div className="grid grid-cols-3 gap-2">
+              {coins.map((c) => {
+                const short = c.walletBalance < BigInt(Math.round(Math.max(amount, 0) * 1e6));
+                const off = c.paused;
+                return (
+                  <button
+                    key={c.address}
+                    type="button"
+                    disabled={off}
+                    onClick={() => setInvestCoin(c.address)}
+                    className={`rounded-xl border px-3 py-2 text-left text-sm transition-colors disabled:opacity-50 ${selectedInvest?.address === c.address ? 'border-tawf-green bg-tawf-green-10' : 'border-tawf-green-10 bg-white hover:border-tawf-green-20'}`}
+                  >
+                    <span className="block font-medium text-tawf-green">{c.symbol}</span>
+                    <span className="block text-xs text-tawf-muted">{off ? 'Paused, not accepted now' : `You hold ${formatUsdc(c.walletBalance)}`}</span>
+                    {!off && short && <span className="block text-xs text-amber-700">Not enough for this amount</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-tawf-ink mb-2">Amount ({selectedInvest?.symbol ?? 'USD'})</label>
             <input
               type="number"
               value={amount}
@@ -303,7 +343,7 @@ export function InvestorScf() {
             />
           </div>
           <p className="text-xs text-tawf-muted">
-            USDC approval is handled automatically if needed. Funds go to the issuer only if the minimum raise is met when the subscription closes, otherwise you can claim a full refund.
+            {selectedInvest?.symbol ?? 'Coin'} approval is handled automatically if needed. Funds go to the issuer only if the minimum raise is met when the subscription closes, otherwise you can claim a full refund.
           </p>
           {!overMax && amount < minSub && <p className="text-sm text-red-600">Minimum is {formatUsdc(state.minSubscription)}.</p>}
           {overMax && <p className="text-sm text-red-600">That is above what you can invest now ({formatUsdc(maxBase)}).</p>}
@@ -313,6 +353,36 @@ export function InvestorScf() {
           </Button>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+/** Choose the coin to be paid in. The offering pays that coin first and the rest in the others if it runs short. */
+function PayoutCoin({ coins, selected, amount, onPick }: {
+  coins: SukukCoinView[];
+  selected: SukukCoinView | undefined;
+  amount: bigint;
+  onPick: (a: `0x${string}`) => void;
+}) {
+  const short = selected ? selected.freeBalance < amount : false;
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs text-tawf-muted" htmlFor="scf-pay-coin">Get paid in</label>
+      <select
+        id="scf-pay-coin"
+        value={selected?.address}
+        onChange={(e) => onPick(e.target.value as `0x${string}`)}
+        className="rounded-xl border border-tawf-green-10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-tawf-gold"
+      >
+        {coins.map((c) => (
+          <option key={c.address} value={c.address} disabled={c.paused}>
+            {c.symbol} ({formatUsdc(c.freeBalance)} available){c.paused ? ', paused' : ''}
+          </option>
+        ))}
+      </select>
+      {short && selected && (
+        <span className="text-xs text-tawf-muted">{selected.symbol} covers part of this. The rest is paid in the other coins.</span>
+      )}
     </div>
   );
 }

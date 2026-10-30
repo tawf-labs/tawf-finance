@@ -22,7 +22,7 @@ const extraAbi = parseAbi([
   'function approve(address spender, uint256 amount) returns (bool)',
 ])
 
-type Action = 'reserve' | 'close' | 'distribute' | 'settle' | 'resetUsage'
+type Action = 'reserve' | 'close' | 'distribute' | 'settle' | 'release' | 'resetUsage'
 
 /**
  * Issuer and platform actions for the securities crowdfunding (SCF) offering.
@@ -34,8 +34,12 @@ type Action = 'reserve' | 'close' | 'distribute' | 'settle' | 'resetUsage'
  *
  *   POST /api/tokenization/scf/admin { action: "reserve" }                 refresh the reserve snapshot
  *   POST /api/tokenization/scf/admin { action: "close" }                   close the subscription
- *   POST /api/tokenization/scf/admin { action: "distribute", amount }      next profit period (USDC)
- *   POST /api/tokenization/scf/admin { action: "settle", amount? }         maturity (default: at par)
+ *   POST /api/tokenization/scf/admin { action: "distribute", amount, coin? } next profit period
+ *   POST /api/tokenization/scf/admin { action: "settle", amount?, coin? }     maturity (default: at par)
+ *   POST /api/tokenization/scf/admin { action: "release", amount, coin? }    one Shariah-board release of held profit
+ *
+ * `coin` is USDC, USDT or USDG (default USDC), or the coin's address. The offering accepts all three,
+ * and the operator holds the funder role, so it funds the payout in the coin that is asked for.
  *   POST /api/tokenization/scf/admin { action: "resetUsage", wallet }      clear an investor's usage this period
  *
  * resetUsage is the recovery step after a cancelled raise: refunds burn the
@@ -66,12 +70,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await send(`Anchored ${name}`, () => wc.writeContract({ address: addresses.scfAnchor, abi: operatorAnchorAbi, functionName: 'push', args: [leaf] }))
       return epoch
     }
-    const fund = async (amount: bigint) => {
-      await send('Minted test mUSDC for the issuer payment', () =>
-        wc.writeContract({ address: addresses.mockUsdc, abi: mockTokenAbi, functionName: 'faucet', args: [amount] }),
+    // The coin that funds a payout, checked against the distributor's accepted list.
+    const accepted = (await publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'coins' })) as readonly Address[]
+    const bySymbol: Record<string, Address> = { USDC: addresses.mockUsdc, USDT: addresses.mockUsdt, USDG: addresses.mockUsdg }
+    const pickCoin = (v: unknown): Address | null => {
+      const raw = typeof v === 'string' && v.trim() ? v.trim() : 'USDC'
+      const c = isAddress(raw) ? (getAddress(raw) as Address) : bySymbol[raw.toUpperCase().replace(/^M/, '')]
+      return c && accepted.some((a) => a.toLowerCase() === c.toLowerCase()) ? c : null
+    }
+    const fund = async (coin: Address, amount: bigint) => {
+      await send('Minted test coins for the issuer payment', () =>
+        wc.writeContract({ address: coin, abi: mockTokenAbi, functionName: 'faucet', args: [amount] }),
       )
       await send('Approved the distributor', () =>
-        wc.writeContract({ address: addresses.mockUsdc, abi: extraAbi, functionName: 'approve', args: [dist, amount] }),
+        wc.writeContract({ address: coin, abi: extraAbi, functionName: 'approve', args: [dist, amount] }),
       )
     }
     const usdc = (v: unknown): bigint => BigInt(Math.round(Number(v ?? 0) * 1e6))
@@ -91,6 +103,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await send('Subscription closed', () => wc.writeContract({ address: dist, abi: sukukDistributorAbi, functionName: 'closeSubscription' }))
         break
       case 'distribute': {
+        const coin = pickCoin(req.body?.coin)
+        if (!coin) {
+          res.status(400).json({ error: 'coin must be USDC, USDT or USDG (an accepted coin).' })
+          return
+        }
         const amount = usdc(req.body?.amount)
         if (amount <= 0n) {
           res.status(400).json({ error: 'amount (USDC) must be positive.' })
@@ -98,19 +115,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         const period = Number(await publicClient.readContract({ address: dist, abi: extraAbi, functionName: 'lastPeriod' })) + 1
         const epoch = await anchorFact('tawf.sukuk.distribution', BigInt(period), amount)
-        await fund(amount)
+        await fund(coin, amount)
         await send(`Profit period ${period} distributed`, () =>
-          wc.writeContract({ address: dist, abi: sukukDistributorAbi, functionName: 'distribute', args: [period, amount, epoch, []] }),
+          wc.writeContract({ address: dist, abi: sukukDistributorAbi, functionName: 'distribute', args: [period, coin, amount, epoch, []] }),
         )
         break
       }
       case 'settle': {
+        const coin = pickCoin(req.body?.coin)
+        if (!coin) {
+          res.status(400).json({ error: 'coin must be USDC, USDT or USDG (an accepted coin).' })
+          return
+        }
         const supply = (await publicClient.readContract({ address: addresses.scfToken as Address, abi: extraAbi, functionName: 'totalSupply' })) as bigint
         const amount = req.body?.amount === undefined ? supply : usdc(req.body.amount)
         const epoch = await anchorFact('tawf.sukuk.redemption', amount, 0n)
-        if (amount > 0n) await fund(amount)
+        if (amount > 0n) await fund(coin, amount)
         await send('Maturity settled', () =>
-          wc.writeContract({ address: dist, abi: sukukDistributorAbi, functionName: 'settleMaturity', args: [amount, epoch, []] }),
+          wc.writeContract({ address: dist, abi: sukukDistributorAbi, functionName: 'settleMaturity', args: [coin, amount, epoch, []] }),
+        )
+        break
+      }
+      case 'release': {
+        const coin = pickCoin(req.body?.coin)
+        if (!coin) {
+          res.status(400).json({ error: 'coin must be USDC, USDT or USDG (an accepted coin).' })
+          return
+        }
+        const amount = usdc(req.body?.amount)
+        if (amount <= 0n) {
+          res.status(400).json({ error: 'amount must be positive.' })
+          return
+        }
+        const index = Number(await publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'heldReleases' })) + 1
+        const epoch = await anchorFact('tawf.sukuk.profit-resolution', amount, BigInt(index))
+        await fund(coin, amount)
+        await send(`Held profit release ${index}`, () =>
+          wc.writeContract({ address: dist, abi: sukukDistributorAbi, functionName: 'releaseHeldProfit', args: [index, coin, amount, epoch, []] }),
         )
         break
       }
@@ -137,7 +178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         break
       }
       default:
-        res.status(400).json({ error: 'action must be reserve, close, distribute, settle or resetUsage.' })
+        res.status(400).json({ error: 'action must be reserve, close, distribute, settle, release or resetUsage.' })
         return
     }
 

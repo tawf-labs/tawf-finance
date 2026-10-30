@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { getJson, HttpError } from '@/lib/tokenization';
 import { formatIdr, formatUsdc } from '@/web3/format';
+import { SETTLEMENT_STABLECOINS } from '@/web3/tokenization';
 
 export type ActivityProduct = 'pool' | 'series1' | 'scf' | 'ledger' | 'identity';
 
@@ -71,6 +72,7 @@ export const ACTIVITY_LABEL: Record<string, string> = {
   MaturitySettled: 'Maturity settled',
   Redeemed: 'Redeemed',
   Refunded: 'Refunded',
+  PayoutPart: 'Paid out',
   ReserveRecorded: 'Bank balances recorded',
   ProfitRecorded: 'Bank profit recorded',
   ProfileSet: 'SCF limit set',
@@ -224,10 +226,17 @@ export function relevantEvents(events: ActivityEvent[]): ActivityEvent[] {
   });
 }
 
+/** The symbol of a settlement coin, from its address. */
+export function coinSymbol(token: string | null | undefined): string | null {
+  if (!token) return null;
+  return SETTLEMENT_STABLECOINS.find((c) => c.address?.toLowerCase() === token.toLowerCase())?.symbol ?? null;
+}
+
 /** The label for an event. Pool-wide ones are named so they do not read as the wallet's own money. */
 export function eventLabel(e: ActivityEvent): string {
   if (e.kind === 'ProfitDistributed' && isPoolEvent(e)) return 'Pool profit distributed';
   if (e.kind === 'MaturitySettled' && isPoolEvent(e)) return 'Pool maturity settled';
+  if (e.kind === 'PayoutPart') return `Paid out in ${coinSymbol(e.token) ?? 'a stablecoin'}`;
   return ACTIVITY_LABEL[e.kind] ?? e.kind;
 }
 

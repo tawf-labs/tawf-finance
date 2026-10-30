@@ -23,6 +23,15 @@ import { LedgerLeaf } from "../src/lib/LedgerLeaf.sol";
  *      It then anchors the approval and reserve facts and opens the subscription, so the offering
  *      is live straight after the deploy. Writes the scf* keys and leaves every other key.
  *
+ *      The distributor accepts mUSDC, mUSDT and mUSDG (all listed in the deployments file), and
+ *      the operator, who is its admin, also holds FUNDER_ROLE so it can fund distributions and
+ *      maturity in any of the three. The previous offering's addresses are kept under the
+ *      scf*V1 keys (only the first time, so a re-run never overwrites them) so the activity
+ *      history still reads them.
+ *
+ *      scfBlock (the deploy block, an L2 block number) is not written here, because block.number in a
+ *      script is the L1 block on Arbitrum. Set it from the broadcast receipt after the deploy.
+ *
  *      PRIVATE_KEY=.. forge script script/DeployScf.s.sol:DeployScf --sig "runScf()" \
  *          --rpc-url arbitrum_sepolia --broadcast
  *      Optional: SCF_FACE (default 50,000 USDC), SCF_MATURITY (default now + 365 days),
@@ -45,13 +54,19 @@ contract DeployScf is DeployExtra {
         uint256 key = vm.envUint("PRIVATE_KEY");
         address operator = vm.addr(key);
         _loadShared();
-        uint256 ledgerChainId = vm.parseJsonUint(vm.readFile(PATH), ".ledgerChainId");
+        string memory json = vm.readFile(PATH);
+        uint256 ledgerChainId = vm.parseJsonUint(json, ".ledgerChainId");
+        _coinList = new address[](3);
+        _coinList[0] = vm.parseJsonAddress(json, ".mockUsdc");
+        _coinList[1] = vm.parseJsonAddress(json, ".mockUsdt");
+        _coinList[2] = vm.parseJsonAddress(json, ".mockUsdg");
 
         vm.startBroadcast(key);
         Scf memory s = _deployScf(operator, ledgerChainId);
         _open(s, ledgerChainId);
         vm.stopBroadcast();
 
+        _keepV1(json);
         vm.writeJson(vm.toString(s.anchor), PATH, ".scfAnchor");
         vm.writeJson(vm.toString(s.limitModule), PATH, ".scfLimitModule");
         vm.writeJson(vm.toString(s.token), PATH, ".scfToken");
@@ -59,6 +74,21 @@ contract DeployScf is DeployExtra {
         vm.writeJson(vm.toString(s.distributor), PATH, ".scfDistributor");
         vm.writeJson(vm.toString(SCF_ID), PATH, ".scfId");
         vm.writeJson(vm.toString(uint256(s.maturity)), PATH, ".scfMaturity");
+    }
+
+    address[] internal _coinList;
+
+    /// @dev Keep the previous offering under the V1 keys, once.
+    function _keepV1(string memory json) internal {
+        if (vm.keyExists(json, ".scfDistributorV1")) return;
+        vm.writeJson(vm.toString(vm.parseJsonAddress(json, ".scfAnchor")), PATH, ".scfAnchorV1");
+        vm.writeJson(vm.toString(vm.parseJsonAddress(json, ".scfLimitModule")), PATH, ".scfLimitModuleV1");
+        vm.writeJson(vm.toString(vm.parseJsonAddress(json, ".scfToken")), PATH, ".scfTokenV1");
+        vm.writeJson(vm.toString(vm.parseJsonAddress(json, ".scfCompliance")), PATH, ".scfComplianceV1");
+        vm.writeJson(vm.toString(vm.parseJsonAddress(json, ".scfDistributor")), PATH, ".scfDistributorV1");
+        vm.writeJson(vm.toString(vm.parseJsonBytes32(json, ".scfId")), PATH, ".scfIdV1");
+        vm.writeJson(vm.toString(vm.parseJsonUint(json, ".scfMaturity")), PATH, ".scfMaturityV1");
+        vm.writeJson(vm.toString(vm.parseJsonUint(json, ".scfBlock")), PATH, ".scfBlockV1");
     }
 
     function _deployScf(address operator, uint256 ledgerChainId) internal returns (Scf memory s) {
@@ -84,7 +114,7 @@ contract DeployScf is DeployExtra {
         s.distributor = deployCode(
             "SukukDistributor.sol:SukukDistributor",
             abi.encode(
-                _sukukUsdc,
+                _coinList,
                 s.anchor,
                 _sharedIdentityRegistry,
                 address(token),

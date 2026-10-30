@@ -10,7 +10,8 @@ import { LedgerLeaf } from "../../src/lib/LedgerLeaf.sol";
 
 /**
  * @title SukukDistributorHarness
- * @notice Certora harness exposing SukukDistributor's status byte and the
+ * @notice Multi-coin version: the constructor takes the accepted coin list.
+ *         Certora harness exposing SukukDistributor's status byte and the
  *         Terms sub-fields as flat envfree getters. The private `_profit`
  *         accumulator state is surfaced by two getters that must be added to
  *         src (see properties/autospec_sukuk.needs_src_changes.md); the harness
@@ -21,19 +22,29 @@ import { LedgerLeaf } from "../../src/lib/LedgerLeaf.sol";
  */
 contract SukukDistributorHarness is SukukDistributor {
     constructor(
-        IERC20 usdc_,
+        address[] memory coins_,
         ILedgerAnchor anchor_,
         ITawfIdentityRegistry identityRegistry_,
         ITrexToken token_,
         address module_,
         SukukDistributor.Terms memory terms_,
         address admin
-    ) SukukDistributor(usdc_, anchor_, identityRegistry_, token_, module_, terms_, admin) {}
+    ) SukukDistributor(coins_, anchor_, identityRegistry_, token_, module_, terms_, admin) {}
 
     /// @dev Raw status byte (0 Pending, 1 Subscription, 2 Active, 3 Matured,
     ///      4 Defaulted, 5 Cancelled).
     function statusU8() external view returns (uint8) {
         return uint8(status);
+    }
+
+    /// @dev Number of accepted coins and the coin at an index, so the spec can pin the scene's
+    ///      coin list (the constructor does not run for rules, storage starts arbitrary).
+    function coinCount() external view returns (uint256) {
+        return _coins.length;
+    }
+
+    function coinAt(uint256 i) external view returns (address) {
+        return _coins[i];
     }
 
     function faceValueOf() external view returns (uint256) {

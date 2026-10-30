@@ -61,7 +61,7 @@ contract DeploySukuk is Script {
         address distributor = deployCode(
             "SukukDistributor.sol:SukukDistributor",
             abi.encode(
-                usdc,
+                _singleCoin(usdc),
                 anchor,
                 identityRegistry,
                 address(token),
@@ -93,5 +93,11 @@ contract DeploySukuk is Script {
         console.log("SUKUK_TOKEN=%s", address(token));
         console.log("SUKUK_COMPLIANCE=%s", address(mc));
         console.log("SUKUK_MODULE=%s", address(module));
+    }
+
+    /// @dev The distributor takes a coin list. These scripts keep the single-coin setup.
+    function _singleCoin(address c) internal pure returns (address[] memory a) {
+        a = new address[](1);
+        a[0] = c;
     }
 }

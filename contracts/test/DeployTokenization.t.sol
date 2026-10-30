@@ -38,7 +38,7 @@ interface ISeriesT {
 interface ISukukT {
     function openSubscription(uint256 epoch, bytes32[] calldata proof) external;
     function updateReserve(uint64 snapshotAt, uint256 outstanding, uint256 epoch, bytes32[] calldata proof) external;
-    function subscribe(uint256 amount) external;
+    function subscribe(address coin, uint256 amount) external;
     function token() external view returns (address);
 }
 
@@ -293,7 +293,7 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         vm.startPrank(user);
         IMintable(d.mockUsdc).faucet(10e6);
         IMintable(d.mockUsdc).approve(distributor, 10e6);
-        ISukukT(distributor).subscribe(10e6);
+        ISukukT(distributor).subscribe(d.mockUsdc, 10e6);
         vm.stopPrank();
         assertEq(Token(token).balanceOf(user), 10e6);
     }
