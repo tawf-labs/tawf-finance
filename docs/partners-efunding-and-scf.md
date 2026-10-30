@@ -65,6 +65,50 @@ Tawf's planned flow comes from `.herdr-briefs/deposito-idrx-receipt-plan.md` (cu
 
 Recommendation: C first as a pilot, then A once the receipt and reconciliation work in practice. B only if the regulatory scope is confirmed.
 
+## 4a. How we tokenize with efunding
+
+This is model C, and model A reuses it later. It is a proposal. No agreement exists with efunding or any BPRS.
+
+Steps:
+
+1. **The customer deposits through efunding, unchanged.** KYC, rupiah payment, and the deposito opened in the customer's name at the BPRS. The BPRS sends the bilyet.
+2. **efunding sends Tawf one record per bilyet**, by webhook or API, when the bilyet is issued. The record holds the BPRS, amount, tenor and nisbah, start and maturity, an efunding customer ID, and the bilyet number. No name or ID card data.
+3. **Wallet and identity for non-crypto customers.**
+   - Wallet: a smart wallet created by email or phone, or receipts held in a Tawf-managed account per customer that the customer can claim later.
+   - Identity: an ONCHAINID with a KYC claim issued by efunding as a trusted claim issuer, so Tawf never holds the KYC data. The alternative is that Tawf issues the claim after a consented KYC handoff under UU 27/2022 (the PDP law).
+4. **Receipt per bilyet.** A soulbound receipt (the planned `DepositoReceipt` contract) holds the BPRS, amount, tenor, nisbah, the dates and a hash of the bilyet number. A bilyet holder can check theirs against the chain, and nobody else can read it.
+5. **Per-bank proof of reserve.** Each BPRS, or efunding for it, signs its total of customer deposito placed through efunding as an EIP-712 message. This is the bank-signed attestation idea in `docs/aws-tokenized-deposits-comparison.md`. `DepositoPoolLedger` records it and checks that receipts outstanding per bank never exceed the bank's signed total.
+6. **Lifecycle.** Profit credited by each bank is recorded per period. At maturity or early withdrawal the receipt is burned. A rollover burns the receipt and mints a new one.
+7. **What efunding shows.** A "Verified on Arbitrum" badge per deposito that links to a Tawf page to check the bilyet, plus the per-bank proof of reserve. Any rate shown stays the BPRS's displayed nisbah, never a Tawf claim.
+
+Why it works:
+
+| Point | Detail |
+|---|---|
+| No currency or securities problem | No money touches the chain and nothing is converted. The receipt is non-transferable, so it records the customer's own deposito and is not a tradeable security. Legal review still needed |
+| Public per-bank proof | Backed by bank-signed totals. efunding cannot offer that alone |
+| Builds on what exists | The ledger, the identity registry and the receipt design are already in the repo |
+
+New pieces to build:
+
+| Piece | Note |
+|---|---|
+| efunding webhook or API | One record per bilyet |
+| Custodial or smart-wallet option | For customers without a crypto wallet |
+| Bank signature check on the ledger | EIP-712 verify in `DepositoPoolLedger` |
+| Bilyet verify page | Hash lookup against the chain |
+
+What efunding must provide:
+
+| Need | Note |
+|---|---|
+| Per-bilyet data feed | Fields in step 2 |
+| Customer consent | In their terms of service |
+| BPRS agreement | Each BPRS agrees to sign its totals |
+| Claim issuer key or KYC handoff | One of the two identity routes in step 3 |
+
+Model A, where Tawf is the front end with a virtual account at a Bank Umum Syariah, reuses all of this later.
+
 ## 5. SCF platform partner
 
 A licensed securities crowdfunding platform (Penyelenggara Layanan Urun Dana) holds the licence and the customer relationship. Tawf supplies the rail.
