@@ -340,12 +340,9 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
         return isCoin[coin] ? IERC20(coin).balanceOf(address(this)) : 0;
     }
 
-    /// @notice The part of `coin` that can pay ordinary profit and redemption (balance less held profit).
+    /// @notice The part of `coin` that can pay ordinary profit and redemption (balance less held profit and any subscription escrow).
     function freeBalance(address coin) external view returns (uint256) {
-        if (!isCoin[coin]) return 0;
-        uint256 bal = IERC20(coin).balanceOf(address(this));
-        uint256 reserved = heldBalanceOf[coin];
-        return bal > reserved ? bal - reserved : 0;
+        return isCoin[coin] ? _free(coin) : 0;
     }
 
     /// @notice Everything ever subscribed, summed over the coins. `raisedOf` is cumulative and is
@@ -730,26 +727,31 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
     // Internals
     // ---------------------------------------------------------------
 
-    /// @dev Pay `amount` USD units out of the balances that are not held profit. The preferred
-    ///      coin goes first, then the other coins in list order, and one PayoutPart is emitted
-    ///      per coin used. It reverts only when the total free balance cannot cover the payout.
+    /// @dev Pay `amount` USD units out of the balances that are not held profit or subscription escrow.
     function _payFree(address preferred, address to, uint256 amount) private {
-        _requireActiveCoin(preferred);
-        uint256 remaining = amount;
-        remaining -= _payPart(preferred, to, remaining, false);
-        for (uint256 i; i < _coins.length && remaining != 0; ++i) {
-            if (_coins[i] != preferred) remaining -= _payPart(_coins[i], to, remaining, false);
-        }
-        if (remaining != 0) revert InsufficientCoin(preferred, amount - remaining, amount);
+        _payOrdered(preferred, to, amount, false);
     }
 
     /// @dev Same split, but drawing only from released held profit, coin by coin.
     function _payHeld(address preferred, address to, uint256 amount) private {
-        _requireActiveCoin(preferred);
+        _payOrdered(preferred, to, amount, true);
+    }
+
+    /// @dev The preferred coin goes first, unless it is paused (then it counts as no preference). Then the
+    ///      active coins in list order, and the paused coins last. A pause blocks new money and the choice
+    ///      of coin, it never stops a payout. One PayoutPart is emitted per coin used, and it reverts only
+    ///      when the total available balance cannot cover the payout.
+    function _payOrdered(address preferred, address to, uint256 amount, bool held) private {
+        if (!isCoin[preferred]) revert CoinNotAccepted(preferred);
         uint256 remaining = amount;
-        remaining -= _payPart(preferred, to, remaining, true);
+        if (!coinPaused[preferred]) remaining -= _payPart(preferred, to, remaining, held);
         for (uint256 i; i < _coins.length && remaining != 0; ++i) {
-            if (_coins[i] != preferred) remaining -= _payPart(_coins[i], to, remaining, true);
+            address c = _coins[i];
+            if (c != preferred && !coinPaused[c]) remaining -= _payPart(c, to, remaining, held);
+        }
+        for (uint256 i; i < _coins.length && remaining != 0; ++i) {
+            address c = _coins[i];
+            if (coinPaused[c]) remaining -= _payPart(c, to, remaining, held);
         }
         if (remaining != 0) revert InsufficientCoin(preferred, amount - remaining, amount);
     }
@@ -759,13 +761,20 @@ contract SukukDistributor is AccessControl, ReentrancyGuard, IBalanceCheckpoint 
             part = _min(want, heldBalanceOf[coin]);
             if (part != 0) heldBalanceOf[coin] -= part;
         } else {
-            uint256 bal = IERC20(coin).balanceOf(address(this));
-            uint256 reserved = heldBalanceOf[coin];
-            part = _min(want, bal > reserved ? bal - reserved : 0);
+            part = _min(want, _free(coin));
         }
         if (part == 0) return 0;
         IERC20(coin).safeTransfer(to, part);
         emit PayoutPart(to, coin, part);
+    }
+
+    /// @dev The balance of `coin` that can pay ordinary profit and redemption: what the contract holds
+    ///      less released held profit and, while a sale is open or cancelled, the subscription escrow.
+    function _free(address coin) private view returns (uint256) {
+        uint256 bal = IERC20(coin).balanceOf(address(this));
+        uint256 reserved = heldBalanceOf[coin];
+        if (status == Status.Subscription || status == Status.Cancelled) reserved += raisedOf[coin] - refundedOf[coin];
+        return bal > reserved ? bal - reserved : 0;
     }
 
     /// @dev A coin that may receive new money or be named as the preferred payout coin.

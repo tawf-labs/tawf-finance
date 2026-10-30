@@ -538,11 +538,15 @@ contract SukukMulticoinTest is TrexFixture {
         _sub(bob, usdg, 150_000e6);
         _close();
         _distribute(1, usdc, 3_000e6);
-        vm.expectRevert(abi.encodeWithSignature("CoinIsPaused(address)", usdt));
+        // A paused preferred coin is no preference: the claim is paid from the active coins.
+        uint256 usdtBefore = _bal(usdt, alice);
         vm.prank(alice);
         dist.claim(usdt);
-        vm.prank(alice);
+        assertEq(_bal(usdt, alice), usdtBefore);
+        assertEq(_bal(usdc, alice), 1_500e6);
+        vm.prank(bob);
         dist.claim(usdc);
+        assertEq(_bal(usdc, bob), 1_500e6);
     }
 
     function test_pausedCoinStillCompletesAPayout() public {
@@ -735,5 +739,75 @@ contract SukukMulticoinTest is TrexFixture {
             assertEq(multi.raisedOf(c[i]), multi.paidOf(alice, c[i]) + multi.paidOf(bob, c[i]));
         }
         assertEq(multi.totalRaised(), token.totalSupply());
+    }
+
+    // --- pause never stops a payout, ordering, escrow (qa1 N1, N3) -----
+
+    function test_payoutOrderIsPreferredThenActiveThenPaused() public {
+        _issueMixed();
+        _settle(usdc, 300_000e6);
+        _topUp(usdt, 50_000e6);
+        _topUp(usdg, 50_000e6);
+        vm.prank(deployer);
+        multi.setCoinPaused(usdt, true);
+        // alice redeems 200k, preferring USDG (50k), then active USDC in list order (150k), paused USDT untouched.
+        vm.prank(alice);
+        dist.redeem(usdg);
+        assertEq(_bal(usdg, alice), 50_000e6);
+        assertEq(_bal(usdc, alice), 150_000e6);
+        assertEq(_bal(usdt, alice), 0);
+        // bob's 100k: USDC has 150k left, so the paused coin is still untouched.
+        vm.prank(bob);
+        dist.redeem(usdt); // paused preferred means no preference
+        assertEq(_bal(usdc, bob), 100_000e6);
+        assertEq(_bal(usdt, bob), 0);
+    }
+
+    function test_allCoinsPausedStillPays() public {
+        _issueMixed();
+        _distribute(1, usdc, 3_000e6);
+        _settle(usdt, 300_000e6);
+        vm.startPrank(deployer);
+        multi.setCoinPaused(usdc, true);
+        multi.setCoinPaused(usdt, true);
+        multi.setCoinPaused(usdg, true);
+        vm.stopPrank();
+        vm.prank(alice);
+        dist.claim(usdg);
+        vm.prank(alice);
+        dist.redeem(usdc);
+        assertEq(token.balanceOf(alice), 0);
+        assertEq(_bal(usdc, alice) + _bal(usdt, alice) + _bal(usdg, alice), 200_000e6 + 2_000e6);
+    }
+
+    function test_pausedPreferredHeldClaimStillPays() public {
+        _issueMixed();
+        _settle(usdt, 300_000e6);
+        _release(1, usdg, 3_000e6);
+        vm.prank(deployer);
+        multi.setCoinPaused(usdg, true);
+        vm.prank(alice);
+        dist.claimProfit(usdg); // alice's 2k comes from the paused pool, there is nothing else
+        assertEq(_bal(usdg, alice), 2_000e6);
+    }
+
+    function test_freeBalanceExcludesSubscriptionEscrow() public {
+        _open();
+        _sub(alice, usdc, 20_000e6);
+        _sub(bob, usdt, 5_000e6);
+        assertEq(multi.coinBalance(usdc), 20_000e6);
+        assertEq(multi.freeBalance(usdc), 0);
+        assertEq(multi.freeBalance(usdt), 0);
+        _topUp(usdc, 7_000e6);
+        assertEq(multi.freeBalance(usdc), 7_000e6, "a top-up is free, the escrow is not");
+        // after the sale closes (proceeds leave), and a cancel keeps escrow reserved until refunded
+        vm.warp(block.timestamp + WINDOW);
+        vm.prank(deployer);
+        dist.closeSubscription(); // 25k < 100k minimum: cancelled
+        assertEq(multi.freeBalance(usdc), 7_000e6);
+        vm.prank(alice);
+        dist.refund();
+        assertEq(multi.freeBalance(usdc), 7_000e6);
+        assertEq(_bal(usdc, alice), 20_000e6);
     }
 }
