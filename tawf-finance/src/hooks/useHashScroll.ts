@@ -7,7 +7,8 @@ import { useLocation } from 'react-router-dom';
  * (for example from a footer link on another page) would otherwise stay at the top.
  * It keeps aligning the section for ~2s while content above it settles (fonts, images,
  * reveal and sticky sections), honours the section's scroll-margin, and stops as soon as
- * the visitor scrolls or touches the page. Reduced motion gets an instant jump either way.
+ * the visitor scrolls or touches the page.
+ * Stopping also cancels a glide already in flight. Reduced motion gets an instant jump either way.
  */
 export function useHashScroll() {
   const { pathname, hash } = useLocation();
@@ -22,10 +23,14 @@ export function useHashScroll() {
       if (el) el.scrollIntoView({ block: 'start', behavior: 'auto' });
     };
     const stop = () => {
+      if (stopped) return;
       stopped = true;
+      // The page may be mid-glide (smooth scrolling): freeze it where the visitor is.
+      window.scrollTo({ top: window.scrollY, behavior: 'instant' });
     };
+    // Listeners go on before the first align, so input in the first moments is never missed.
     const events = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const;
-    events.forEach((e) => window.addEventListener(e, stop, { passive: true, once: true }));
+    events.forEach((e) => window.addEventListener(e, stop, { passive: true }));
 
     const started = performance.now();
     let timer: number | undefined;
