@@ -10,14 +10,14 @@ import { DEPOSITO_OPENING } from '@/config/features';
 
 const STEPS = [
   { icon: Wallet, title: 'Request', body: 'Say how much you want to place and for how long.' },
-  { icon: Landmark, title: 'Pay in rupiah', body: 'Transfer rupiah from your own bank account.' },
-  { icon: Building2, title: 'Placed at the BPRS', body: 'Tawf places it as a mudharabah deposito at the licensed banks below.' },
-  { icon: Receipt, title: 'Receipt minted', body: 'You get a tokenized receipt on chain, and each bank\'s balance stays public.' },
+  { icon: Landmark, title: 'Pay in rupiah', body: 'Pay rupiah into a virtual account in your name at a Shariah commercial bank.' },
+  { icon: Building2, title: 'Placed at the BPRS', body: 'On Tawf\'s instruction the bank places it as mudharabah deposito in your name at the licensed banks below.' },
+  { icon: Receipt, title: 'Receipt minted', body: 'You get a tokenized receipt on chain, and the customer deposito at each bank stays public.' },
 ];
 
 /**
  * The Deposito Pool page while the rupiah receipt flow is not built yet. It explains the flow, shows the
- * live per-bank balances from the pool ledger (the same data as the proof of reserve), and points to a
+ * live customer deposito per bank from the pool ledger (the same data as the proof of reserve), and points to a
  * waitlist. The old stablecoin subscribe lives in Deposito.tsx behind the stablecoin flow flag.
  */
 export function DepositoOpening() {
@@ -57,7 +57,7 @@ export function DepositoOpening() {
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-serif text-xl text-tawf-green">Banks in the pool, live from the chain</h2>
-            <p className="text-sm text-tawf-muted">The balance Tawf holds at each BPRS, recorded on the pool ledger.</p>
+            <p className="text-sm text-tawf-muted">Customer deposito at each BPRS, recorded on the pool ledger.</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-tawf-muted">Total at the banks</p>
@@ -66,7 +66,7 @@ export function DepositoOpening() {
         </div>
         <div className="divide-y divide-tawf-green-10 rounded-xl border border-tawf-green-10">
           {isLoading && <p className="p-4 text-sm text-tawf-muted">Loading banks...</p>}
-          {!isLoading && banks.length === 0 && <p className="p-4 text-sm text-tawf-muted">No bank balances are recorded yet.</p>}
+          {!isLoading && banks.length === 0 && <p className="p-4 text-sm text-tawf-muted">No customer deposito is recorded yet.</p>}
           {banks.map((b) => (
             <div key={b.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
               <span className="min-w-0 truncate text-tawf-green">{b.name} <span className="font-mono text-xs text-tawf-muted">{b.accountRef}</span></span>

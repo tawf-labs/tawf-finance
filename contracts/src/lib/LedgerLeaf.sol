@@ -61,7 +61,7 @@ library LedgerLeaf {
     ///         a = packMaturity(maturity ts, last profit period), b = principal sen.
     bytes32 internal constant DEPOSITO_MATURITY = keccak256("tawf.deposito.maturity");
     /// @notice One bank's share of a regional Deposito Pool reserve snapshot.
-    ///         subject bankId, a = snapshot ts, b = Tawf's balance at that bank in sen.
+    ///         subject bankId, a = snapshot ts, b = the customer deposito at that bank in sen.
     bytes32 internal constant DEPOSITO_BANK_BALANCE = keccak256("tawf.deposito.bank-balance");
 
     /// @notice `a` of a DEPOSITO_MATURITY leaf, identical to tawf-network's

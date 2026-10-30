@@ -121,7 +121,7 @@ function ReserveRow({ line }: { line: RowLine }) {
         size="md"
         color="green"
         showLabel
-        label={line.kind === 'pool' ? 'Tokens outstanding vs Tawf\u2019s total balance across the banks' : 'Tokens outstanding vs Tawf\u2019s account balance at the BPRS'}
+        label={line.kind === 'pool' ? 'Receipts outstanding vs customer deposito across the banks' : 'Tokens outstanding vs the account balance at the BPRS'}
       />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
         <div>
@@ -129,7 +129,7 @@ function ReserveRow({ line }: { line: RowLine }) {
           <p className="font-medium text-tawf-green">{amount(line.supply)}</p>
         </div>
         <div>
-          <p className="text-xs text-tawf-muted">{line.kind === 'pool' ? 'Total across banks' : 'Account balance'}</p>
+          <p className="text-xs text-tawf-muted">{line.kind === 'pool' ? 'Customer deposito across banks' : 'Account balance'}</p>
           <p className="font-medium text-tawf-green">{amount(line.reserve)}</p>
         </div>
         <div>
@@ -290,7 +290,7 @@ export function ProofOfReserve() {
         lead={
           <>
             <p>
-              For the Tawf Deposito Pool we show the receipts outstanding against the balance Tawf holds at each licensed BPRS, bank by bank.
+              For the Tawf Deposito Pool we show the receipts outstanding against the customer deposito at each licensed BPRS, bank by bank.
               For each SCF offering we show the sukuk tokens outstanding against the reserve figure the contract verifies, the amount raised
               against the offering size, and the profit periods paid. A token can only be minted against a reserve fact that verifies under
               an anchored root, so what you see is verified against the ledger, not asserted.
@@ -342,7 +342,7 @@ export function ProofOfReserve() {
               ))}
             </div>
             <p className="mt-6 leading-relaxed text-ink/70">
-              Each bank records Tawf&apos;s deposito balance and the partner platform records each offering&apos;s reserve (demo data on testnet). The connector reads them
+              Each bank reports the customer deposito it holds through Tawf and the partner platform records each offering&apos;s reserve (demo data on testnet). The connector reads them
               and writes reserve snapshots to the Tawf Network ledger, with no personal documents on chain. The
               relayer anchors the ledger&apos;s Merkle root on Arbitrum through the LedgerAnchor. tawf.finance contracts only mint
               a token against a leaf that verifies under an anchored root, so supply can never run ahead of the proven reserve.

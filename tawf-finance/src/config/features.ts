@@ -29,5 +29,5 @@ export const IMPACT_SOON = {
 /** Copy for the Deposito Pool page while its stablecoin flow is off. */
 export const DEPOSITO_OPENING = {
   title: 'Tawf Deposito Pool: rupiah deposits opening soon',
-  body: 'Pay in rupiah through your bank. Tawf places it as a mudharabah deposito at licensed BPRS, and you get a tokenized receipt on chain. Every bank\'s balance is on chain today.',
+  body: 'Pay rupiah into a virtual account in your name at a Shariah commercial bank. On Tawf\'s instruction the bank places it as mudharabah deposito in your name at licensed BPRS, and you get a tokenized receipt. Customer deposito at each bank is on chain today.',
 };

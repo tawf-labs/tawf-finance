@@ -19,7 +19,7 @@ export function Earn() {
         eyebrow="Earn"
         title="Two ways to take part,"
         accent="on testnet"
-        lead="The Tawf Deposito Pool places rupiah as mudharabah deposito at licensed BPRS (rupiah deposits opening soon). Urun Dana backs SMEs through sharia crowdfunding and is open on the Arbitrum Sepolia testnet with test funds. Profit depends on the banks and the underlying businesses and is never guaranteed."
+        lead="The Tawf Deposito Pool is mudharabah deposito in your own name at licensed BPRS, paid in through a virtual account at a Shariah commercial bank (rupiah deposits opening soon). Urun Dana backs SMEs through sharia crowdfunding and is open on the Arbitrum Sepolia testnet with test funds. Profit depends on the banks and the underlying businesses and is never guaranteed."
         actions={
           <>
             <a href={APP} className={solid}>Open the investor app</a>
@@ -36,7 +36,7 @@ export function Earn() {
               <p className="font-mono text-xs uppercase tracking-[0.12em] text-jade">Opening soon</p>
               <h3 className="display mt-2 text-3xl">Tawf Deposito Pool</h3>
               <p className="mt-3 text-sm leading-relaxed text-ink/70">
-                Rupiah placed as mudharabah deposito at several licensed BPRS in one region, with a tokenized receipt and a per-bank proof of reserve. The nisbah is fixed before you commit.
+                Rupiah paid into a virtual account in your name, then placed by the bank as mudharabah deposito in your name at several licensed BPRS in one region, with a tokenized receipt and a per-bank proof of reserve. The nisbah is fixed before you commit.
               </p>
               <Link to="/proof-of-reserve" className={`${solid} mt-8 self-start`}>See the banks live</Link>
             </Tile>

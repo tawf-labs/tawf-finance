@@ -212,7 +212,7 @@ export interface SeriesCoin {
 
 /** The Tawf deposito series snapshot, from GET /api/tokenization/series/status. */
 export interface SeriesStatus {
-  /** Regional Deposito Pool only: the banks and Tawf's balance at each. */
+  /** Regional Deposito Pool only: the banks and the customer deposito at each. */
   isPool?: boolean;
   ledger?: `0x${string}` | null;
   banks?: { id: `0x${string}`; name: string; accountRef: string; balanceSen: string }[] | null;

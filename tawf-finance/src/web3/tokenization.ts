@@ -95,7 +95,7 @@ export const LEDGER_ANCHOR_ADDRESS = addr(raw.anchor);
 
 /**
  * Deposito products, newest first. A Deposito Pool is one series token backed
- * by the deposito Tawf holds at one or more BPRS: the regional pool spans
+ * by customers' deposito at one or more BPRS: the regional pool spans
  * several banks (its reserve is the DepositoPoolLedger total), series 1 is the
  * single-bank "BPRS Demo" pool from the first pilot.
  */

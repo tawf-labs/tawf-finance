@@ -17,11 +17,11 @@ import { reserveLedgerAbi, trexTokenAbi, tawfSeriesAbi, depositoPoolLedgerAbi } 
 
 /**
  * Public, cached aggregate for the /proof-of-reserve page (Model B):
- *   - the Tawf deposito series: token supply on Arbitrum vs Tawf's dedicated
- *     account balance at the BPRS (anchored DEPOSITO_RESERVE on seriesId),
+ *   - the Tawf deposito series: token supply on Arbitrum vs the customer
+ *     deposito at the BPRS (anchored DEPOSITO_RESERVE on seriesId),
  *     backing ratio and fully-backed flag, plus profits credited vs the last
  *     distributed period.
- *   - the regional Deposito Pool: token supply vs the total of Tawf's
+ *   - the regional Deposito Pool: token supply vs the total of the customer
  *     balances at its BPRS, with each bank's balance from the pool ledger.
  * Also returns the last BPRS sync time.
  */

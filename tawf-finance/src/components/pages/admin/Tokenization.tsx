@@ -168,6 +168,7 @@ function TokenizationOps() {
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">Tokenization Ops</h1>
           <p className="text-tawf-muted">Operator actions for the Tawf Deposito Pools: the regional pool across several BPRS, and the single-bank BPRS Demo pool.</p>
+          <p className="mt-2 text-sm text-amber-800">Legacy testnet demo of the earlier stablecoin model. The live Deposito model is rupiah paid into a virtual account in the customer&apos;s name, with the deposito placed in the customer&apos;s name at each BPRS.</p>
         </div>
         <ConnectButton variant="primary" size="md" />
       </div>
@@ -207,7 +208,7 @@ const coinLabel = (addr: string): string =>
   SETTLEMENT_STABLECOINS.find((c) => c.address?.toLowerCase() === addr.toLowerCase())?.symbol ?? 'COIN';
 
 /**
- * The regional Deposito Pool: Tawf's balance at each BPRS (recorded on the pool
+ * The regional Deposito Pool: the customer deposito at each BPRS (recorded on the pool
  * ledger, whose total backs the token), allocation, per-bank profit and
  * maturity, plus the shared coin, approval and sandbox controls.
  */
@@ -240,7 +241,7 @@ function PoolTab({ busy, run, passcode, pool, events }: {
       <Card className="p-6 space-y-3">
         <p className="font-medium text-tawf-green">Bank balances (pool ledger)</p>
         <p className="text-xs text-tawf-muted">
-          Tawf&apos;s dedicated account at each BPRS. Recording new balances updates the total that backs the token
+          The customer deposito at each BPRS. Recording new balances updates the total that backs the token
           ({formatIdr(total)} now, supply {pool ? formatIdr(BigInt(pool.supply)) : '-'}). In production each balance
           comes from the bank&apos;s core banking through the bprs-connector.
         </p>
@@ -423,9 +424,9 @@ function TreasuryTab({ busy, run, passcode, series, tawf, events }: {
       <Card className="p-6 space-y-3">
         <p className="font-medium text-tawf-green">Place converted funds at the BPRS</p>
         <p className="text-xs text-tawf-muted">
-          Simulates Tawf converting USDC/USDT to IDR (IDRX style) and placing it in the dedicated account TAWF-S1.
+          Legacy demo: simulates converting USDC/USDT to IDR (IDRX style) and placing it in the demo account TAWF-S1.
           This raises the anchored account balance that backs the token. Account balance:{' '}
-          {tawf ? `Rp ${tawf.account.balanceIdr.toLocaleString('id-ID')}` : '—'}
+          {tawf ? `Rp ${tawf.account.balanceIdr.toLocaleString('id-ID')}` : 'n/a'}
         </p>
         <div className="flex flex-wrap gap-2 items-center">
           <input type="number" value={depositIdr} min={0} onChange={(e) => setDepositIdr(Number(e.target.value))} placeholder="IDR" className="px-4 py-3 border border-tawf-green-10 rounded-xl w-48" />
@@ -694,7 +695,7 @@ function SeriesCoinsCards({ busy, run, passcode, series, pool = false }: {
         <p className="font-medium text-tawf-green">Treasury balances &amp; series allowances</p>
         <p className="text-xs text-tawf-muted">
           Profit and principal payouts transfer from the treasury at claim/redeem. The treasury must approve the
-          series per coin. Treasury: <span className="font-mono">{series?.treasury ?? '—'}</span>
+          series per coin. Treasury: <span className="font-mono">{series?.treasury ?? 'n/a'}</span>
         </p>
         <div className="space-y-2">
           {(series?.coins ?? []).map((c) => {
@@ -737,10 +738,10 @@ function SandboxControls({ busy, run, passcode, series, pool = false }: {
     <Card className="p-6 space-y-3">
       <p className="font-medium text-tawf-green">Mode &amp; caps</p>
       <p className="text-xs text-tawf-muted">
-        Current mode: <span className="font-medium text-tawf-green">{series?.sandbox.mode ?? '—'}</span> ·
-        investors {series?.sandbox.investorCount ?? '—'}/{series?.sandbox.maxInvestors ?? '—'} ·
-        cap/investor {series ? formatIdr(BigInt(series.sandbox.maxBalancePerInvestor)) : '—'} ·
-        series cap {series ? formatIdr(BigInt(series.sandbox.seriesCap)) : '—'}
+        Current mode: <span className="font-medium text-tawf-green">{series?.sandbox.mode ?? 'n/a'}</span> ·
+        investors {series?.sandbox.investorCount ?? 'n/a'}/{series?.sandbox.maxInvestors ?? 'n/a'} ·
+        cap/investor {series ? formatIdr(BigInt(series.sandbox.maxBalancePerInvestor)) : 'n/a'} ·
+        series cap {series ? formatIdr(BigInt(series.sandbox.seriesCap)) : 'n/a'}
       </p>
       <div className="flex flex-wrap gap-2">
         {(['PILOT_ONLY', 'SCREENED_GROUP', 'SANDBOX_ADMITTED'] as const).map((m) => (
@@ -789,9 +790,9 @@ function BprsTab({ busy, run, passcode, tawf, onRefresh }: {
         <Button size="md" variant="secondary" onClick={onRefresh}>Refresh</Button>
       </div>
 
-      {/* Tawf dedicated account (bank-side simulation) */}
+      {/* Demo account (bank-side simulation of the earlier stablecoin model) */}
       <Card className="p-6 space-y-3">
-        <p className="font-medium text-tawf-green">Tawf dedicated account (TAWF-S1)</p>
+        <p className="font-medium text-tawf-green">Demo account (TAWF-S1), earlier stablecoin model</p>
         {tawf ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             <Stat label="Owner" value={tawf.account.owner} />
