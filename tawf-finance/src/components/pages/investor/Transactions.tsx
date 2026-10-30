@@ -10,7 +10,7 @@ import { formatUsdc, formatTimestamp } from '@/web3/format';
 import { RECEIPT_NFT_ADDRESS, explorerAddressUrl, explorerTxUrl } from '@/web3/constants';
 import { Button } from '@/components/ui/Button';
 import { useActivity, ACTIVITY_LABEL, PRODUCT_LABEL, eventAmount, timeAgo, ownEvents, type ActivityProduct } from '@/lib/activity';
-import { FINANCING_POOL_ENABLED } from '@/config/features';
+import { DEPOSITO_STABLECOIN_FLOW_ENABLED, FINANCING_POOL_ENABLED } from '@/config/features';
 import { cn } from '@/utils/cn';
 
 const TYPE_LABEL: Record<ReceiptStatus, string> = {
@@ -142,6 +142,8 @@ export function Transactions() {
   const [product, setProduct] = useState<'all' | ActivityProduct>('all');
   const [type, setType] = useState('all');
 
+  // Only enabled products get a filter, plus any product that already has events, so past pool history stays reachable.
+  const productFilters = PRODUCT_FILTERS.filter((f) => f.id === 'all' || f.id === 'scf' || DEPOSITO_STABLECOIN_FLOW_ENABLED || ownEvents(events).some((e) => e.product === f.id));
   const kinds = TYPE_FILTERS.find((t) => t.id === type)?.kinds ?? [];
   const own = ownEvents(events);
   const rows = own.filter((e) => (product === 'all' || e.product === product) && (kinds.length === 0 || kinds.includes(e.kind)));
@@ -150,7 +152,7 @@ export function Transactions() {
     <div className="space-y-8">
       <div>
         <h1 className="font-serif text-3xl text-tawf-green mb-2">Transactions</h1>
-        <p className="text-tawf-muted">Your on-chain history across the Deposito Pools and Urun Dana</p>
+        <p className="text-tawf-muted">{DEPOSITO_STABLECOIN_FLOW_ENABLED ? 'Your on-chain history across the Deposito Pools and Urun Dana' : 'Your on-chain history in Urun Dana and any earlier Deposito Pool activity'}</p>
       </div>
 
       <Card className="p-6">
@@ -171,7 +173,7 @@ export function Transactions() {
         ) : (
           <>
             <div className="flex flex-wrap gap-2 mb-3">
-              {PRODUCT_FILTERS.map((f) => (
+              {productFilters.map((f) => (
                 <Pill key={f.id} active={product === f.id} onClick={() => setProduct(f.id)}>{f.label}</Pill>
               ))}
             </div>

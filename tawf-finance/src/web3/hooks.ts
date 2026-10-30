@@ -33,11 +33,13 @@ function asDeals(data: unknown): Deal[] {
 }
 
 /** All deals in the registry, newest last. */
-export function useDeals() {
+/** `enabled: false` makes no chain reads (the financing pool is hidden in the UI). */
+export function useDeals(opts: { enabled?: boolean } = {}) {
   const { data, isLoading, isError, error, refetch } = useReadContract({
     address: DEAL_REGISTRY_ADDRESS,
     abi: DealRegistryAbi,
     functionName: 'getDeals',
+    query: { enabled: opts.enabled !== false },
   });
   return { deals: asDeals(data), isLoading, isError, error, refetch };
 }
@@ -102,10 +104,11 @@ export function useAccruedYield(dealId: bigint, address: `0x${string}` | undefin
 }
 
 /** The connected investor's full set of receipts, joined with their deals. */
-export function useMyReceipts(address: `0x${string}` | undefined) {
-  const { deals, isLoading: dealsLoading, refetch: refetchDeals } = useDeals();
+export function useMyReceipts(address: `0x${string}` | undefined, opts: { enabled?: boolean } = {}) {
+  const enabled = opts.enabled !== false;
+  const { deals, isLoading: dealsLoading, refetch: refetchDeals } = useDeals({ enabled });
 
-  const contracts = RECEIPT_NFT_ADDRESS
+  const contracts = enabled && RECEIPT_NFT_ADDRESS
     ? deals.map((d) => ({
         address: RECEIPT_NFT_ADDRESS,
         abi: BondReceiptNFTAbi as Abi,
@@ -114,7 +117,7 @@ export function useMyReceipts(address: `0x${string}` | undefined) {
       }))
     : [];
 
-  const { data, isLoading, refetch } = useReadContracts({ contracts });
+  const { data, isLoading, refetch } = useReadContracts({ contracts, query: { enabled } });
 
   const positions = deals
     .map((deal, i) => {

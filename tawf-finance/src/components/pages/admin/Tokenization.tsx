@@ -30,6 +30,8 @@ import {
 import { isTokenizationConfigured, SETTLEMENT_STABLECOINS, DEPOSITO_POOL } from '@/web3/tokenization';
 import { explorerTxUrl } from '@/web3/constants';
 import { formatIdr, formatUsdc } from '@/web3/format';
+import { ComingSoon } from '@/components/ComingSoon';
+import { DEPOSITO_STABLECOIN_FLOW_ENABLED, DEPOSITO_OPENING } from '@/config/features';
 
 function StepList({ steps }: { steps: TxStep[] }) {
   return (
@@ -80,7 +82,12 @@ export function ActionFeedback({ busy, error, steps, lastHash }: {
   );
 }
 
+/** The Deposito Pool operator page. With the Deposito Pool flag off it shows the coming-later page and reads nothing. */
 export function AdminTokenization() {
+  return DEPOSITO_STABLECOIN_FLOW_ENABLED ? <TokenizationOps /> : <ComingSoon {...DEPOSITO_OPENING} />;
+}
+
+function TokenizationOps() {
   const { address } = useAccount();
   const [passcode, setPasscode] = useState(loadPasscode());
   const [series, setSeries] = useState<SeriesStatus | null>(null);

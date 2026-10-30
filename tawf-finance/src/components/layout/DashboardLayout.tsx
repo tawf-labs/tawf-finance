@@ -31,7 +31,7 @@ import { NotificationBell } from '@/components/layout/NotificationBell';
 import { ProfileMenu } from '@/components/layout/ProfileMenu';
 import { ConnectButton } from '@/components/web3/ConnectButton';
 import { cn } from '@/utils/cn';
-import { FINANCING_POOL_ENABLED } from '@/config/features';
+import { DEPOSITO_STABLECOIN_FLOW_ENABLED, FINANCING_POOL_ENABLED } from '@/config/features';
 
 interface NavItem {
   id: string;
@@ -59,8 +59,8 @@ const navConfigs: Record<string, NavItem[]> = {
     { id: 'users', label: 'Users', icon: Users, href: '/admin/users' },
     ...(FINANCING_POOL_ENABLED ? [{ id: 'investments', label: 'Investments', icon: TrendingUp, href: '/admin/investments' }] : []),
     ...(FINANCING_POOL_ENABLED ? [{ id: 'pools', label: 'Pools', icon: Briefcase, href: '/admin/pools' }] : []),
-    { id: 'tokenization', label: 'Tokenization', icon: Landmark, href: '/admin/tokenization' },
     { id: 'scf', label: 'SCF Onboarding', icon: Store, href: '/admin/scf' },
+    ...(DEPOSITO_STABLECOIN_FLOW_ENABLED ? [{ id: 'tokenization', label: 'Tokenization', icon: Landmark, href: '/admin/tokenization' }] : []),
     ...(FINANCING_POOL_ENABLED ? [{ id: 'ops', label: 'Protocol Ops', icon: Wrench, href: '/admin/ops' }] : []),
     { id: 'compliance', label: 'Compliance', icon: Shield, href: '/admin/compliance' },
     { id: 'settings', label: 'Settings', icon: Settings, href: '/admin/settings' },

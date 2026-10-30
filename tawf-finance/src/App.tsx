@@ -23,6 +23,7 @@ import {
   Impact,
   InvestorSettings,
   InvestorDeposito,
+  DepositoOpening,
   InvestorScf,
   AdminDashboard,
   AdminUsers,
@@ -36,7 +37,7 @@ import {
 } from './components/pages';
 import { RouteErrorBoundary } from '@/components/ErrorBoundary';
 import { ComingSoon } from '@/components/ComingSoon';
-import { FINANCING_POOL_ENABLED, FINANCING_POOL_SOON, IMPACT_SOON } from '@/config/features';
+import { DEPOSITO_STABLECOIN_FLOW_ENABLED, FINANCING_POOL_ENABLED, FINANCING_POOL_SOON, IMPACT_SOON } from '@/config/features';
 import { useAuth } from '@/hooks/useAuth';
 import { useHashScroll } from '@/hooks/useHashScroll';
 
@@ -111,8 +112,8 @@ function AppContent() {
           >
             <Route path="dashboard" element={<InvestorDashboard />} />
             <Route path="pools" element={FINANCING_POOL_ENABLED ? <InvestorPools /> : <ComingSoon {...FINANCING_POOL_SOON} />} />
-            <Route path="deposito" element={<InvestorDeposito />} />
-            <Route path="sukuk" element={<Navigate to="/investor/deposito" replace />} />
+            <Route path="deposito" element={DEPOSITO_STABLECOIN_FLOW_ENABLED ? <InvestorDeposito /> : <DepositoOpening />} />
+            <Route path="sukuk" element={<Navigate to="/investor/scf" replace />} />
             <Route path="scf" element={<InvestorScf />} />
             <Route path="portfolio" element={<Portfolio />} />
             <Route path="transactions" element={<Transactions />} />

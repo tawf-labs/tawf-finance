@@ -4,6 +4,7 @@ import { useAccount } from 'wagmi';
 import { Bell, CheckCheck, ExternalLink } from 'lucide-react';
 import { useTawfSeries, useSukuk, useScfLimit, useIsVerified } from '@/web3/tokenizationHooks';
 import { DEPOSITO_POOL, SCF_DISTRIBUTOR_ADDRESS, SCF_TOKEN_ADDRESS } from '@/web3/tokenization';
+import { DEPOSITO_STABLECOIN_FLOW_ENABLED } from '@/config/features';
 import { CHAIN_ID, explorerTxUrl } from '@/web3/constants';
 import { formatIdr, formatUsdc } from '@/web3/format';
 import { getJson, HttpError } from '@/lib/tokenization';
@@ -24,8 +25,10 @@ const seenKey = (who: string) => `tawf.notifySeen.${who.toLowerCase()}`;
 function useInvestorAlerts(enabled: boolean): Alert[] {
   const { address, isConnected, chainId } = useAccount();
   const who = enabled ? address : undefined;
-  const { state: pool } = useTawfSeries(who, POOL_TARGET);
-  const { state: s1 } = useTawfSeries(who);
+  // With the Deposito Pool off there is nothing to read or alert on for it.
+  const depositoWho = DEPOSITO_STABLECOIN_FLOW_ENABLED ? who : undefined;
+  const { state: pool } = useTawfSeries(depositoWho, POOL_TARGET, { enabled: DEPOSITO_STABLECOIN_FLOW_ENABLED });
+  const { state: s1 } = useTawfSeries(depositoWho, {}, { enabled: DEPOSITO_STABLECOIN_FLOW_ENABLED });
   const { state: scf } = useSukuk(who, SCF_TARGET);
   const { state: limit } = useScfLimit(who);
   const { isVerified } = useIsVerified(who);
@@ -37,17 +40,17 @@ function useInvestorAlerts(enabled: boolean): Alert[] {
     if (prefs.network && chainId !== CHAIN_ID) out.push({ key: 'network', text: 'Your wallet is on the wrong network. Switch to Arbitrum Sepolia.', to: '/investor/settings' });
     if (prefs.kyc && !isVerified) out.push({ key: 'kyc', text: 'Verify your identity to invest (test KYC on testnet).', to: '/investor/settings' });
     if (prefs.profit) {
-      if (pool.claimableSen > 0n) out.push({ key: 'pool-profit', text: `${formatIdr(pool.claimableSen)} profit ready to claim in the Deposito Pool: Jawa Barat.`, to: '/investor/deposito' });
-      if (s1.claimableSen > 0n) out.push({ key: 's1-profit', text: `${formatIdr(s1.claimableSen)} profit ready to claim in the BPRS Demo pool.`, to: '/investor/deposito' });
+      if (DEPOSITO_STABLECOIN_FLOW_ENABLED && pool.claimableSen > 0n) out.push({ key: 'pool-profit', text: `${formatIdr(pool.claimableSen)} profit ready to claim in the Deposito Pool: Jawa Barat.`, to: '/investor/deposito' });
+      if (DEPOSITO_STABLECOIN_FLOW_ENABLED && s1.claimableSen > 0n) out.push({ key: 's1-profit', text: `${formatIdr(s1.claimableSen)} profit ready to claim in the BPRS Demo pool.`, to: '/investor/deposito' });
       if (scf.claimable > 0n) out.push({ key: 'scf-profit', text: `${formatUsdc(scf.claimable)} profit ready to claim in Urun Dana.`, to: '/investor/scf' });
     }
-    if (prefs.allocation) {
+    if (prefs.allocation && DEPOSITO_STABLECOIN_FLOW_ENABLED) {
       const pending = pool.coins.reduce((a, c) => a + c.pending, 0n) + s1.coins.reduce((a, c) => a + c.pending, 0n);
       if (pending > 0n) out.push({ key: 'pending', text: `${formatUsdc(pending)} waiting to be allocated. You can still cancel it.`, to: '/investor/deposito' });
     }
     if (prefs.maturity) {
-      if (pool.redemptionOpen && pool.balance > 0n) out.push({ key: 'pool-redeem', text: 'The Deposito Pool has matured. Redeem your principal.', to: '/investor/deposito' });
-      if (s1.redemptionOpen && s1.balance > 0n) out.push({ key: 's1-redeem', text: 'The BPRS Demo pool has matured. Redeem your principal.', to: '/investor/deposito' });
+      if (DEPOSITO_STABLECOIN_FLOW_ENABLED && pool.redemptionOpen && pool.balance > 0n) out.push({ key: 'pool-redeem', text: 'The Deposito Pool has matured. Redeem your principal.', to: '/investor/deposito' });
+      if (DEPOSITO_STABLECOIN_FLOW_ENABLED && s1.redemptionOpen && s1.balance > 0n) out.push({ key: 's1-redeem', text: 'The BPRS Demo pool has matured. Redeem your principal.', to: '/investor/deposito' });
       if ((scf.status === 3 || scf.status === 4) && scf.balance > 0n) out.push({ key: 'scf-redeem', text: 'The Urun Dana offering has matured. Redeem your tokens.', to: '/investor/scf' });
       if (scf.status === 5 && scf.balance > 0n) out.push({ key: 'scf-refund', text: 'The Urun Dana raise was cancelled. Claim your refund.', to: '/investor/scf' });
     }

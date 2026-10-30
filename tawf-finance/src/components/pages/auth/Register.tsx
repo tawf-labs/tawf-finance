@@ -42,7 +42,7 @@ export function Register() {
     investor: {
       title: 'Investor',
       icon: <User className="w-8 h-8" />,
-      description: 'Invest in Tawf Deposito Pools and sharia crowdfunding offerings',
+      description: 'Invest in the Tawf Deposito Pool and in sharia crowdfunding offerings (Urun Dana)',
       color: 'bg-tawf-green',
     },
     issuer: {

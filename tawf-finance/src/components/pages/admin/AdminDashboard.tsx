@@ -5,55 +5,64 @@ import { StatCard } from '@/components/ui/StatCard';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useActivity, ACTIVITY_LABEL, PRODUCT_LABEL, eventAmount, timeAgo } from '@/lib/activity';
-import { getJson, type SeriesStatus } from '@/lib/tokenization';
+import { getJson, type ReserveResponse, type SeriesStatus } from '@/lib/tokenization';
 import { getScfStatus, type ScfStatus } from '@/lib/scf';
 import { formatIdr, formatUsdc } from '@/web3/format';
 import { explorerTxUrl } from '@/web3/constants';
-import { FINANCING_POOL_ENABLED } from '@/config/features';
+import { DEPOSITO_STABLECOIN_FLOW_ENABLED, FINANCING_POOL_ENABLED } from '@/config/features';
 
 type Alert = { id: string; severity: 'critical' | 'high' | 'medium'; title: string; message: string };
-
-const sumBanks = (s: SeriesStatus | null) => (s?.banks ?? []).reduce((t, b) => t + BigInt(b.balanceSen), 0n);
 
 export function AdminDashboard() {
   const { events, loading, error } = useActivity(undefined, { admin: true });
   const [pool, setPool] = useState<SeriesStatus | null>(null);
   const [s1, setS1] = useState<SeriesStatus | null>(null);
+  const [reserve, setReserve] = useState<ReserveResponse | null>(null);
   const [scf, setScf] = useState<ScfStatus | null>(null);
   const [statusLoaded, setStatusLoaded] = useState(false);
   const [nowSec] = useState(() => Math.floor(Date.now() / 1000));
 
   useEffect(() => {
     void Promise.allSettled([
-      getJson<SeriesStatus>('series/status?series=pool').then(setPool),
-      getJson<SeriesStatus>('series/status').then(setS1),
+      // Bank balances against supply come from the ledger and are always read. The stablecoin side
+      // (FX rates, allowances) is only read while the old stablecoin flow is on.
+      getJson<ReserveResponse>('reserve').then(setReserve),
+      ...(DEPOSITO_STABLECOIN_FLOW_ENABLED
+        ? [getJson<SeriesStatus>('series/status?series=pool').then(setPool), getJson<SeriesStatus>('series/status').then(setS1)]
+        : []),
       getScfStatus().then(setScf),
     ]).then(() => setStatusLoaded(true));
   }, []);
 
   const verified = useMemo(() => new Set(events.filter((e) => e.kind === 'IdentityRegistered' && e.investor).map((e) => e.investor!.toLowerCase())).size, [events]);
+  const scfInvestors = useMemo(() => new Set(events.filter((e) => e.kind === 'Subscribed' && e.product === 'scf' && e.investor).map((e) => e.investor!.toLowerCase())).size, [events]);
+  // ProfileSet is keyed by ONCHAINID, so count distinct identities. Events without the field (indexed earlier) count one each.
+  const scfProfiles = useMemo(() => new Set(events.filter((e) => e.kind === 'ProfileSet').map((e) => e.onchainId?.toLowerCase() ?? e.id)).size, [events]);
   const investors = useMemo(() => new Set(events.filter((e) => e.kind === 'Subscribed' && e.investor).map((e) => e.investor!.toLowerCase())).size, [events]);
 
-  const supply = BigInt(pool?.supply ?? '0') + BigInt(s1?.supply ?? '0');
-  // Same scope as the supply card: the pool's banks plus the BPRS Demo series reserve.
-  const atBanks = sumBanks(pool) + BigInt(s1?.reserveSen ?? '0');
+  // The pool's total across its banks plus the BPRS Demo series reserve, against both token supplies.
+  const supply = BigInt(reserve?.pool?.supply ?? '0') + BigInt(reserve?.series?.supply ?? '0');
+  const atBanks = BigInt(reserve?.pool?.reserve ?? '0') + BigInt(reserve?.series?.reserve ?? '0');
+  const haveReserve = Boolean(reserve && (reserve.pool || reserve.series));
 
   const alerts = useMemo<Alert[]>(() => {
     const out: Alert[] = [];
     for (const [name, s] of [['Deposito Pool: Jawa Barat', pool], ['Deposito Pool: BPRS Demo', s1]] as const) {
-      if (!s) continue;
+      if (!DEPOSITO_STABLECOIN_FLOW_ENABLED || !s) continue;
       const stale = s.coins.filter((c) => c.allowed && !c.rate.fresh);
       if (stale.length > 0) out.push({ id: `fx-${name}`, severity: 'high', title: 'Stale FX rate', message: `${name}: ${stale.length} settlement coin rate(s) are stale, so subscriptions in them will revert.` });
-      if (!s.fullyBacked) out.push({ id: `res-${name}`, severity: 'critical', title: 'Reserve below supply', message: `${name}: the recorded reserve does not cover the token supply.` });
       const noAllowance = s.coins.filter((c) => c.allowed && c.seriesAllowance === '0');
       if (noAllowance.length > 0) out.push({ id: `allow-${name}`, severity: 'medium', title: 'Treasury allowance is zero', message: `${name}: the treasury has not approved ${noAllowance.length} coin(s), so profit cannot be paid in them.` });
+    }
+    for (const [name, line] of [['Deposito Pool: Jawa Barat', reserve?.pool], ['Deposito Pool: BPRS Demo', reserve?.series]] as const) {
+      if (line && !line.fullyBacked) out.push({ id: `res-${name}`, severity: 'critical', title: 'Reserve below supply', message: `${name}: the recorded reserve does not cover the token supply.` });
     }
     if (scf?.configured && scf.status === 'Subscription' && scf.subscriptionDeadline) {
       const left = scf.subscriptionDeadline - nowSec;
       if (left > 0 && left < 3 * 86400) out.push({ id: 'scf-close', severity: 'medium', title: 'SCF subscription closing', message: `The Urun Dana subscription window closes in ${Math.max(1, Math.ceil(left / 86400))} day(s).` });
     }
     return out;
-  }, [pool, s1, scf, nowSec]);
+  }, [pool, s1, reserve, scf, nowSec]);
 
   const critical = alerts.filter((a) => a.severity === 'critical');
   const recent = events.slice(0, 10);
@@ -78,12 +87,21 @@ export function AdminDashboard() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total at the banks (both pools)" value={pool && s1 ? formatIdr(atBanks) : statusLoaded ? 'Unavailable' : '...'} icon={<DollarSign className="w-5 h-5" />} color="gold" />
-        <StatCard title="Token supply (both pools)" value={pool && s1 ? formatIdr(supply) : statusLoaded ? 'Unavailable' : '...'} icon={<TrendingUp className="w-5 h-5" />} color="green" />
-        <StatCard title="SCF raised" value={scf?.configured ? formatUsdc(BigInt(scf.raised ?? '0')) : scf ? 'Not live' : statusLoaded ? 'Unavailable' : '...'} icon={<Activity className="w-5 h-5" />} color="blue" />
+        <StatCard title="Deposito: total at the banks" value={haveReserve ? formatIdr(atBanks) : statusLoaded ? 'Unavailable' : '...'} icon={<DollarSign className="w-5 h-5" />} color="gold" />
+        <StatCard title="Deposito: token supply" value={haveReserve ? formatIdr(supply) : statusLoaded ? 'Unavailable' : '...'} icon={<TrendingUp className="w-5 h-5" />} color="green" />
+        <StatCard
+          title="SCF raised"
+          value={scf?.configured ? `${formatUsdc(BigInt(scf.raised ?? '0'))} of ${formatUsdc(BigInt(scf.offeringCap ?? '0'))}` : scf ? 'Not live' : statusLoaded ? 'Unavailable' : '...'}
+          icon={<Activity className="w-5 h-5" />}
+          color="blue"
+        />
         <StatCard title="Verified wallets" value={loading && events.length === 0 ? '...' : verified} icon={<Users className="w-5 h-5" />} color="purple" />
       </div>
-      <p className="text-sm text-tawf-muted -mt-4">{loading && events.length === 0 ? 'Loading investors...' : `${investors} distinct investor(s) have subscribed.`}</p>
+      <p className="text-sm text-tawf-muted -mt-4">
+        {loading && events.length === 0
+          ? 'Loading investors...'
+          : `SCF: ${scfInvestors} investor(s), ${scfProfiles} limit profile(s) set, offering ${scf?.configured ? (scf.status ?? 'unknown').toLowerCase() : 'not live'}.${DEPOSITO_STABLECOIN_FLOW_ENABLED ? ` ${investors} distinct investor(s) have subscribed in all.` : ''}`}
+      </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="p-6">
@@ -116,10 +134,10 @@ export function AdminDashboard() {
             <Link to="/admin/compliance" className="text-sm text-tawf-gold hover:underline">View All</Link>
           </div>
           <div className="space-y-3">
-            {!statusLoaded && <p className="text-sm text-tawf-muted">Checking rates, reserves and allowances...</p>}
+            {!statusLoaded && <p className="text-sm text-tawf-muted">{DEPOSITO_STABLECOIN_FLOW_ENABLED ? 'Checking rates, reserves and allowances...' : 'Checking reserves and the offering...'}</p>}
             {statusLoaded && alerts.length === 0 && (
               <div className="p-4 rounded-xl border border-tawf-green-10 bg-tawf-sand-30 flex items-center gap-2 text-sm text-tawf-green">
-                <CheckCircle className="w-4 h-4" /> All clear. Rates are fresh, reserves cover supply and allowances are set.
+                <CheckCircle className="w-4 h-4" /> {DEPOSITO_STABLECOIN_FLOW_ENABLED ? 'All clear. Rates are fresh, reserves cover supply and allowances are set.' : 'All clear. Reserves cover supply and there are no offering alerts.'}
               </div>
             )}
             {alerts.map((a) => (
@@ -153,15 +171,15 @@ export function AdminDashboard() {
         </Link>
 
         <Link
-          to={FINANCING_POOL_ENABLED ? '/admin/pools' : '/admin/tokenization'}
+          to={FINANCING_POOL_ENABLED ? '/admin/pools' : DEPOSITO_STABLECOIN_FLOW_ENABLED ? '/admin/tokenization' : '/admin/scf'}
           className="flex items-center gap-3 p-4 bg-white rounded-xl border border-tawf-green-10 hover:border-tawf-green-20 hover:shadow-md transition-all"
         >
           <div className="p-3 bg-tawf-gold-10 rounded-xl">
             <TrendingUp className="w-5 h-5 text-tawf-gold" />
           </div>
           <div className="flex-1">
-            <p className="font-medium text-tawf-green">{FINANCING_POOL_ENABLED ? 'Manage Pools' : 'Deposito Pools'}</p>
-            <p className="text-xs text-tawf-muted">{FINANCING_POOL_ENABLED ? 'Edit pools' : 'Bank balances, profit, maturity'}</p>
+            <p className="font-medium text-tawf-green">{FINANCING_POOL_ENABLED ? 'Manage Pools' : DEPOSITO_STABLECOIN_FLOW_ENABLED ? 'Deposito Pools' : 'SCF Onboarding'}</p>
+            <p className="text-xs text-tawf-muted">{FINANCING_POOL_ENABLED ? 'Edit pools' : DEPOSITO_STABLECOIN_FLOW_ENABLED ? 'Bank balances, profit, maturity' : 'Offering, limits, profit'}</p>
           </div>
         </Link>
 

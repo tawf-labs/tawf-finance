@@ -9,7 +9,7 @@ import { ConnectButton } from '@/components/web3/ConnectButton';
 import { GetTestUsdc } from '@/components/web3/GetTestUsdc';
 import { useMyReceipts, usePayoutFor, useRedeem, useClaimDefault, useDefaultPayout } from '@/web3/hooks';
 import { useTawfSeries, useSukuk } from '@/web3/tokenizationHooks';
-import { FINANCING_POOL_ENABLED } from '@/config/features';
+import { DEPOSITO_STABLECOIN_FLOW_ENABLED, FINANCING_POOL_ENABLED } from '@/config/features';
 import { RECEIPT_STATUS_LABEL, type ReceiptStatus, type Deal } from '@/web3/types';
 import { formatUsdc, formatApy, formatTimestamp, formatIdr, getRevertReason } from '@/web3/format';
 import { RECEIPT_NFT_ADDRESS, isConfigured, explorerTxUrl, explorerAddressUrl } from '@/web3/constants';
@@ -120,16 +120,18 @@ const SCF_TARGET = { distributor: SCF_DISTRIBUTOR_ADDRESS, token: SCF_TOKEN_ADDR
 
 export function Portfolio() {
   const { address, isConnected } = useAccount();
-  const { positions, isLoading, refetch } = useMyReceipts(address);
-  const { state: seriesState } = useTawfSeries(address);
-  const { state: poolState } = useTawfSeries(address, POOL_TARGET);
+  const { positions, isLoading, refetch } = useMyReceipts(address, { enabled: FINANCING_POOL_ENABLED });
+  // With the Deposito Pool off in the UI, its positions are not read or shown. Past events stay in Transactions.
+  const depositoAddress = DEPOSITO_STABLECOIN_FLOW_ENABLED ? address : undefined;
+  const { state: seriesState } = useTawfSeries(depositoAddress, {}, { enabled: DEPOSITO_STABLECOIN_FLOW_ENABLED });
+  const { state: poolState } = useTawfSeries(depositoAddress, POOL_TARGET, { enabled: DEPOSITO_STABLECOIN_FLOW_ENABLED });
   const { state: scfState } = useSukuk(address, SCF_TARGET);
   const [action, setAction] = useState<{ deal: Deal; mode: 'redeem' | 'claim' } | null>(null);
 
   const seriesPending = seriesState.coins.reduce((s, c) => s + c.pending, 0n);
-  const hasSeries = seriesState.balance > 0n || seriesPending > 0n;
+  const hasSeries = DEPOSITO_STABLECOIN_FLOW_ENABLED && (seriesState.balance > 0n || seriesPending > 0n);
   const poolPending = poolState.coins.reduce((s, c) => s + c.pending, 0n);
-  const hasPool = Boolean(DEPOSITO_POOL.series) && (poolState.balance > 0n || poolPending > 0n);
+  const hasPool = DEPOSITO_STABLECOIN_FLOW_ENABLED && Boolean(DEPOSITO_POOL.series) && (poolState.balance > 0n || poolPending > 0n);
   const hasScf = Boolean(SCF_DISTRIBUTOR_ADDRESS) && scfState.balance > 0n;
 
   const totalInvested = positions.reduce((s, p) => s + p.meta.principal, 0n);
@@ -145,7 +147,7 @@ export function Portfolio() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">My Portfolio</h1>
-          <p className="text-tawf-muted">Your Deposito Pool and crowdfunding positions</p>
+          <p className="text-tawf-muted">{DEPOSITO_STABLECOIN_FLOW_ENABLED ? 'Your Deposito Pool and crowdfunding positions' : 'Your Urun Dana crowdfunding positions'}</p>
         </div>
         <GetTestUsdc />
       </div>
@@ -280,7 +282,7 @@ export function Portfolio() {
       {isTokenizationConfigured && isConnected && !hasSeries && !hasPool && !hasScf && (
         <Card className="p-10 text-center">
           <FileText className="w-16 h-16 text-tawf-muted mx-auto mb-4" />
-          <p className="text-tawf-muted">No positions yet. Subscribe to a Deposito Pool or invest in a crowdfunding offering to get started.</p>
+          <p className="text-tawf-muted">{DEPOSITO_STABLECOIN_FLOW_ENABLED ? 'No positions yet. Subscribe to a Deposito Pool or invest in a crowdfunding offering to get started.' : 'No positions yet. Invest in a crowdfunding offering to get started.'}</p>
         </Card>
       )}
 
@@ -319,7 +321,7 @@ export function Portfolio() {
             )}
           </div>
           <p className="text-xs text-tawf-muted mt-4">
-            Manage these positions in <span className="font-medium">Deposito Pool</span> and{' '}
+            Manage these positions in {DEPOSITO_STABLECOIN_FLOW_ENABLED && <><span className="font-medium">Deposito Pool</span> and{' '}</>}
             <span className="font-medium">Urun Dana (SCF)</span>.
           </p>
         </Card>
