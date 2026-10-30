@@ -183,8 +183,8 @@ export function InvestorDeposito() {
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">Tawf Deposito Pool</h1>
           <p className="text-tawf-muted">
-            Tawf places mudharabah deposito at licensed Islamic rural banks (BPRS) and wraps them into one token.
-            1 token = IDR 1 claim on Tawf, backed by Tawf&apos;s dedicated accounts at the banks. Settle in {coinNames}.
+            Mudharabah deposito at licensed Islamic rural banks (BPRS), wrapped into one token.
+            1 token = IDR 1, backed by the deposito recorded at the banks. Settle in {coinNames}.
           </p>
         </div>
         <ConnectButton variant="primary" size="md" />
@@ -210,7 +210,7 @@ export function InvestorDeposito() {
       <NisbahNotice
         key={productKey}
         product={isPool ? 'pool' : 'series'}
-        extra={isPool ? 'Tawf places your money across the BPRS in the pool on your behalf (two-tier mudharabah).' : 'Tawf places your money at the BPRS on your behalf (two-tier mudharabah).'}
+        extra={isPool ? 'Your money is placed across the BPRS in the pool on your instruction (two-tier mudharabah).' : 'Your money is placed at the BPRS on your instruction (two-tier mudharabah).'}
       />
 
       <KycStatusCard key={address} compact />
@@ -267,8 +267,8 @@ export function InvestorDeposito() {
             <h3 className="font-serif text-xl text-tawf-green mb-1">{product?.name}</h3>
             <p className="text-tawf-muted text-sm leading-relaxed mb-4">
               {isPool
-                ? `${banks.length} BPRS in ${product?.region}, one dedicated Tawf account at each. Subscribe in ${coinNames}. Tawf converts to IDR and places the funds across the banks.`
-                : `BPRS Demo Syariah · dedicated account TAWF-S1. Subscribe in ${coinNames}. Tawf converts to IDR and places the funds in the account.`}
+                ? `${banks.length} BPRS in ${product?.region}, one dedicated account at each. Subscribe in ${coinNames}. The funds are converted to IDR and placed across the banks.`
+                : `BPRS Demo Syariah · dedicated account TAWF-S1. Subscribe in ${coinNames}. The funds are converted to IDR and placed in the account.`}
             </p>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
@@ -314,7 +314,7 @@ export function InvestorDeposito() {
               size="sm"
               color="green"
               showLabel
-              label={isPool ? 'Supply vs total balance across the banks' : 'Supply vs anchored account balance'}
+              label={isPool ? 'Supply vs customer deposito across the banks' : 'Supply vs anchored account balance'}
             />
             <div className="flex justify-between mt-1 mb-4">
               <span className="text-xs text-tawf-muted">{formatIdr(state.supply)} tokenized</span>

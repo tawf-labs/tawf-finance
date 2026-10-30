@@ -25,7 +25,7 @@ export function Glossary() {
     },
     {
       term: 'Deposito Pool',
-      definition: 'Rupiah deposits are opening soon, for investors in Indonesia. Tawf holds mudharabah deposito at several licensed BPRS in one region, with each bank\'s balance shown in the proof of reserve. The receipt will be a non-transferable token tied to your verified wallet.',
+      definition: 'Rupiah deposits are opening soon, for investors in Indonesia. Customers hold mudharabah deposito in their own name at several licensed BPRS in one region, placed by a Shariah commercial bank on Tawf\'s instruction, with the total at each bank shown in the proof of reserve. The receipt will be a non-transferable token tied to your verified wallet.',
       category: 'Products',
     },
     {

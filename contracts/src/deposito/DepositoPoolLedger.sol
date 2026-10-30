@@ -6,10 +6,11 @@ import { LedgerLeaf } from "../lib/LedgerLeaf.sol";
 
 /**
  * @title DepositoPoolLedger
- * @notice The reserve ledger of a regional Tawf Deposito Pool: Tawf holds one
- *         dedicated mudharabah deposito account at each of several BPRS in a
- *         region, and one series token is backed by the sum of those
- *         balances. This contract records each bank's balance, adds them up,
+ * @notice The reserve ledger of a regional Tawf Deposito Pool: customers hold
+ *         mudharabah deposito in their own name at each of several BPRS in a
+ *         region, placed through Tawf, and one series token is backed by the
+ *         sum of those deposito. This contract records the customer deposito
+ *         at each bank, adds them up,
  *         and serves the totals to a TawfDepositoSeries as ledger facts.
  *
  * @dev It implements ILedgerAnchor, so an unmodified TawfDepositoSeries uses
@@ -93,7 +94,7 @@ contract DepositoPoolLedger is ILedgerAnchor {
     // Banks
     // ---------------------------------------------------------------
 
-    /// @notice List a BPRS where Tawf holds a dedicated account for this pool.
+    /// @notice List a BPRS where customers placed through Tawf hold deposito for this pool.
     function addBank(bytes32 bankId, string calldata name, string calldata accountRef) external onlyOperator {
         if (bankId == bytes32(0) || bankOf[bankId].listed) revert BadBank(bankId);
         bankOf[bankId] = Bank({ name: name, accountRef: accountRef, listed: true });

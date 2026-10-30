@@ -207,7 +207,7 @@ const coinLabel = (addr: string): string =>
   SETTLEMENT_STABLECOINS.find((c) => c.address?.toLowerCase() === addr.toLowerCase())?.symbol ?? 'COIN';
 
 /**
- * The regional Deposito Pool: Tawf's balance at each BPRS (recorded on the pool
+ * The regional Deposito Pool: the customer deposito at each BPRS (recorded on the pool
  * ledger, whose total backs the token), allocation, per-bank profit and
  * maturity, plus the shared coin, approval and sandbox controls.
  */

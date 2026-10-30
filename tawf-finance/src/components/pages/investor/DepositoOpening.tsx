@@ -11,7 +11,7 @@ import { DEPOSITO_OPENING } from '@/config/features';
 const STEPS = [
   { icon: Wallet, title: 'Request', body: 'Say how much you want to place and for how long.' },
   { icon: Landmark, title: 'Pay in rupiah', body: 'Transfer rupiah from your own bank account.' },
-  { icon: Building2, title: 'Placed at the BPRS', body: 'Tawf places it as a mudharabah deposito at the licensed banks below.' },
+  { icon: Building2, title: 'Placed at the BPRS', body: 'On Tawf\'s instruction the bank places it as mudharabah deposito in your name at the licensed banks below.' },
   { icon: Receipt, title: 'Receipt minted', body: 'You get a tokenized receipt on chain, and each bank\'s balance stays public.' },
 ];
 
@@ -57,7 +57,7 @@ export function DepositoOpening() {
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-serif text-xl text-tawf-green">Banks in the pool, live from the chain</h2>
-            <p className="text-sm text-tawf-muted">The balance Tawf holds at each BPRS, recorded on the pool ledger.</p>
+            <p className="text-sm text-tawf-muted">Customer deposito at each BPRS, recorded on the pool ledger.</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-tawf-muted">Total at the banks</p>

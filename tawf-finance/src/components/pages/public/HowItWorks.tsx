@@ -50,12 +50,12 @@ const investorSteps: Step[] = [
   {
     icon: <Search className="h-6 w-6" />,
     title: 'Request and pay in rupiah',
-    description: 'Say how much you want to place and for how long, then transfer rupiah from your own bank account. The pool wraps the mudharabah deposito Tawf holds at several licensed BPRS in one region, and every bank and its balance is visible before you commit.',
+    description: 'Say how much you want to place and for how long, then pay rupiah into a virtual account in your name at a Shariah commercial bank. The pool is mudharabah deposito in your name at several licensed BPRS in one region, and every bank and its total is visible before you commit.',
   },
   {
     icon: <Wallet className="h-6 w-6" />,
     title: 'Placed, and a receipt minted',
-    description: 'Tawf will place your rupiah at the licensed banks (demo banks in the pilot), and you will get a receipt on chain: a non-transferable token tied to your verified wallet.',
+    description: 'On Tawf’s instruction the bank will place your rupiah as mudharabah deposito in your name at the licensed BPRS (demo banks in the pilot), and you will get a receipt on chain: a non-transferable token tied to your verified wallet.',
   },
   {
     icon: <CheckCircle className="h-6 w-6" />,
@@ -67,8 +67,8 @@ const investorSteps: Step[] = [
 const bankSteps: Step[] = [
   {
     icon: <FileText className="h-6 w-6" />,
-    title: 'Tawf places the deposito',
-    description: 'Tawf opens one dedicated mudharabah deposito account at each BPRS in the region and places the rupiah there.',
+    title: 'Deposito in the customer\'s name',
+    description: 'Each customer pays into a virtual account in their own name. On Tawf\'s instruction the commercial bank places the money as mudharabah deposito in the customer\'s name at each BPRS. Tawf instructs and does not hold the deposito.',
   },
   {
     icon: <Shield className="h-6 w-6" />,
@@ -131,7 +131,7 @@ export function HowItWorks() {
         eyebrow="How it works"
         title="Simple, ethical,"
         accent="and checkable."
-        lead="Two products with the same standard of proof. The Tawf Deposito Pool places rupiah as mudharabah deposito at licensed BPRS, with every bank's balance on chain (rupiah deposits opening soon). Urun Dana backs Indonesian SMEs through sharia securities crowdfunding, with the investor limit and the reserve enforced in the token."
+        lead="Two products with the same standard of proof. The Tawf Deposito Pool is mudharabah deposito in your own name at licensed BPRS, with the total at every bank on chain (rupiah deposits opening soon). Urun Dana backs Indonesian SMEs through sharia securities crowdfunding, with the investor limit and the reserve enforced in the token."
         actions={
           <>
             <a href="https://app.tawf.finance/login" className={solid}>Open the investor app</a>

@@ -575,7 +575,7 @@ export interface PoolBank {
   balanceSen: bigint;
 }
 
-/** The banks behind a Deposito Pool and Tawf's balance at each, from its ledger. */
+/** The banks behind a Deposito Pool and the customer deposito at each, from its ledger. */
 export function usePoolBanks(ledger: `0x${string}` | undefined) {
   const { data, isLoading, refetch } = useReadContracts({
     contracts: ledger

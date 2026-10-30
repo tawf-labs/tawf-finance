@@ -11,7 +11,7 @@ import { CountUp, Reveal, Words } from './Reveal';
 import { FINANCING_POOL_ENABLED } from '@/config/features';
 
 // ── Copy ───────────────────────────────────────────────────────────────
-// Two products with equal weight. Deposito comes first: rupiah placed as mudharabah deposito at licensed
+// Two products with equal weight. Deposito comes first: rupiah placed as mudharabah deposito in the customer’s name at licensed
 // BPRS, with a tokenized receipt and a per-bank proof of reserve (opening soon). Then SCF, in the order of the
 // contracts of an SCF offering: SukukDistributor holds the escrow and the ScfInvestorLimitModule on the
 // sukuk token enforces the POJK 57/2020 yearly limit.
@@ -44,7 +44,7 @@ const DEPOSITO: ProductCopy = {
   steps: [
     { k: 'Request', t: 'You choose an amount and a tenor.', b: 'You will say how much rupiah you want to place and for how long. Your wallet is checked for a verified identity first.', c: 'Off chain: your request' },
     { k: 'Pay rupiah', t: 'You pay in rupiah.', b: 'You will transfer rupiah from your own bank account to Tawf. There is no exchange rate in between.', c: 'Off chain: rupiah transfer' },
-    { k: 'Placed', t: 'Tawf places it at the BPRS.', b: 'Tawf will open a mudharabah deposito at each licensed BPRS in the region (demo banks in the pilot) and spread the placement across them. Each bank confirms its balance.', c: 'DepositoPoolLedger: ReserveRecorded event' },
+    { k: 'Placed', t: 'The bank places it at the BPRS.', b: 'On Tawf’s instruction the commercial bank will move your money into a mudharabah deposito in your name at each licensed BPRS in the region (demo banks in the pilot). Each BPRS confirms the deposito.', c: 'DepositoPoolLedger: ReserveRecorded event' },
     { k: 'Receipt', t: 'A tokenized receipt is minted.', b: 'You will get a receipt on chain: a non-transferable token tied to your verified wallet. It can never be minted above what the banks hold in total.', c: 'Planned receipt token (ERC-3643)' },
     { k: 'Proof', t: 'Every bank’s balance is public.', b: 'The balance at each bank is recorded on the pool ledger today, so anyone can compare the receipts outstanding with what the banks hold.', c: 'DepositoPoolLedger: ReserveRecorded event' },
     { k: 'Profit', t: 'The banks credit their share.', b: 'Each period the banks will credit profit under the nisbah fixed before you commit. Profit depends on the banks and is not guaranteed.', c: 'DepositoPoolLedger: ProfitRecorded event' },
@@ -52,14 +52,14 @@ const DEPOSITO: ProductCopy = {
   ],
   stepTint: ['bg-mint', 'bg-butter', 'bg-peach', 'bg-mint', 'bg-butter', 'bg-peach', 'bg-mint'],
   receiptTitle: ['One receipt,', 'many banks.'],
-  receiptLead: 'Your position will be one receipt for a deposito Tawf holds at several licensed BPRS. The receipt will be a non-transferable token tied to your verified wallet. The balance at every bank is public, and the receipt ends when you redeem.',
+  receiptLead: 'Your position will be a receipt for your own deposito, held in your name at several licensed BPRS. The receipt will be a non-transferable token tied to your verified wallet. The balance at every bank is public, and the receipt ends when you redeem.',
   receipt: [
     { s: 'Placed', fn: 'planned: receipt minted', stamp: 'Placed', tone: 'text-honey', b: 'Your rupiah is placed as a mudharabah deposito and the receipt is minted to your verified wallet. Specimen values.' },
     { s: 'Earning', fn: 'ProfitRecorded event', stamp: 'Earning', tone: 'text-jade', b: 'Each period the banks credit their share of profit. Profit depends on the banks and is not guaranteed.' },
     { s: 'Redeemed', fn: 'planned: redeem', stamp: 'Redeemed', tone: 'text-clay', b: 'At maturity the receipt is redeemed for your principal share and then ends.' },
   ],
   notes: [
-    { t: 'Backed bank by bank', b: 'The receipts outstanding will be matched against the balance Tawf holds at each BPRS, recorded on the pool ledger.', c: 'DepositoPoolLedger' },
+    { t: 'Backed bank by bank', b: 'The receipts outstanding will be matched against the customer deposito at each BPRS, recorded on the pool ledger.', c: 'DepositoPoolLedger' },
     { t: 'Readable by anyone', b: 'Any wallet or auditor can read the banks and their balances without asking Tawf.', c: '/proof-of-reserve' },
     { t: 'Verified wallets only', b: 'The receipt will belong to one verified wallet and will not be transferable.', c: 'ERC-3643' },
   ],
@@ -111,7 +111,7 @@ const WHY = [
 
 const WHY_DEPOSITO = [
   { t: 'Funding from outside the district', b: 'A BPRS can only collect deposits in its own operating area. The pool brings it depositors from anywhere.' },
-  { t: 'Spread across banks', b: 'A pool places Tawf’s deposito at several banks, and each bank’s balance is recorded separately and public.' },
+  { t: 'Spread across banks', b: 'A pool spreads customers’ deposito across several banks, and the total at each bank is recorded separately and public.' },
   { t: 'Licensed and supervised banks', b: 'The banks are licensed and supervised. LPS covers bank depositors under its own rules, not the Tawf receipt.' },
 ];
 
@@ -339,7 +339,7 @@ function Hero() {
             </motion.span>
           </h1>
           <motion.p {...rise(3)} className="mt-8 max-w-md text-[1.1rem] leading-relaxed text-ink/75">
-            Two ways in. The Tawf Deposito Pool places rupiah as mudharabah deposito at licensed Indonesian Islamic rural banks, with every bank’s balance on chain. Urun Dana backs Indonesian SMEs through sharia securities crowdfunding, with your yearly limit enforced in the token.
+            Two ways in. The Tawf Deposito Pool is mudharabah deposito in your own name at licensed Indonesian Islamic rural banks, with the total at every bank on chain. Urun Dana backs Indonesian SMEs through sharia securities crowdfunding, with your yearly limit enforced in the token.
           </motion.p>
           <motion.div {...rise(4)} className="mt-9 flex flex-wrap items-center gap-3">
             <a href="https://app.tawf.finance/login" className={solid}>Open the investor app</a>

@@ -36,7 +36,7 @@ function perBank(input: unknown): { ids: Hex[]; sen: bigint[] } | null {
 /**
  * Operator actions for the regional Tawf Deposito Pool. The pool's series
  * verifies facts against its DepositoPoolLedger, where the operator records
- * Tawf's balance and credited profit at each BPRS. In production those
+ * the customer deposito and credited profit at each BPRS. In production those
  * figures come from each bank's core banking through the bprs-connector.
  * Amounts are in rupiah.
  *
