@@ -112,12 +112,12 @@ contract DeployScf is DeployExtra {
         );
         _ownToken(address(token));
         _ownCompliance(address(mc), false);
-        _own(address(limit));
+        _ownModule(address(limit));
         s.token = address(token);
         s.compliance = address(mc);
 
         DistributionCheckpointModule checkpoint = ModuleProxies.checkpoint();
-        _own(address(checkpoint));
+        _ownModule(address(checkpoint));
         s.distributor = _deployProxy(
             "SukukDistributor.sol:SukukDistributor",
             abi.encodePacked(

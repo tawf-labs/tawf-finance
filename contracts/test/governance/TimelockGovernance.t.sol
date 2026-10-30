@@ -9,6 +9,7 @@ pragma solidity 0.8.17;
 import { TrexFixture } from "../trex/TrexFixture.sol";
 import { ITimelock } from "../../script/UpgradeViaTimelock.s.sol";
 import { TrexProxies } from "../../src/proxy/TrexProxies.sol";
+import { AuthorityGuard } from "../../src/governance/AuthorityGuard.sol";
 import { ITREXImplementationAuthority } from
     "@erc3643org/erc-3643/contracts/proxy/authority/ITREXImplementationAuthority.sol";
 import { Token } from "@erc3643org/erc-3643/contracts/token/Token.sol";
@@ -56,6 +57,7 @@ contract TimelockGovernanceTest is TrexFixture {
     address internal anchor; // a UUPS contract behind the timelock
     Token internal token;
     ModularCompliance internal mc;
+    AuthorityGuard internal guard;
 
     function setUp() public {
         _setUpTrex();
@@ -70,8 +72,17 @@ contract TimelockGovernanceTest is TrexFixture {
         );
 
         (token, mc,) = _deployTrexToken("Governed Token", "tGOV", 6);
+        // Hand-over of the T-REX authority, as the deploy script does: the authority goes to an
+        // AuthorityGuard, and the guard goes to the timelock, which accepts it as a scheduled operation.
+        guard = new AuthorityGuard(trexIA);
         vm.prank(deployer);
-        trexIA.transferOwnership(tl); // hand-over of the T-REX authority, as the deploy script does
+        trexIA.transferOwnership(address(guard));
+        guard.transferOwnership(tl);
+        bytes memory accept = abi.encodeWithSignature("acceptOwnership()");
+        vm.prank(safe);
+        ITimelock(tl).schedule(address(guard), 0, accept, bytes32(0), bytes32("accept"), DELAY);
+        vm.warp(block.timestamp + DELAY);
+        ITimelock(tl).execute(address(guard), 0, accept, bytes32(0), bytes32("accept"));
     }
 
     // ------------------------------------------------------------------
@@ -96,7 +107,8 @@ contract TimelockGovernanceTest is TrexFixture {
         IAccess c = IAccess(anchor);
         assertTrue(c.hasRole(c.UPGRADER_ROLE(), tl));
         assertFalse(c.hasRole(c.UPGRADER_ROLE(), operator));
-        assertEq(trexIA.owner(), tl);
+        assertEq(trexIA.owner(), address(guard));
+        assertEq(guard.owner(), tl);
     }
 
     // ------------------------------------------------------------------
@@ -170,14 +182,14 @@ contract TimelockGovernanceTest is TrexFixture {
     }
 
     function _switchData() internal returns (bytes memory) {
-        return abi.encodeWithSelector(trexIA.addAndUseTREXVersion.selector, _v(1), _v2Contracts());
+        return abi.encodeWithSelector(guard.addAndUseTREXVersion.selector, _v(1), _v2Contracts());
     }
 
     /// @dev Why a batch: run as two separate steps, anyone can call the initialiser in between.
     function test_separateSteps_initialiserCanBeFrontRun() public {
         bytes memory data = _switchData(); // build first: it deploys implementations, which would eat the prank
         vm.prank(tl);
-        (bool ok,) = address(trexIA).call(data);
+        (bool ok,) = address(guard).call(data);
         assertTrue(ok);
         // The gap: the new logic is live and the initialiser is still open to everyone.
         vm.prank(attacker);
@@ -191,7 +203,7 @@ contract TimelockGovernanceTest is TrexFixture {
 
     function test_batch_switchAndInitialiseAtomically() public {
         address[] memory targets = new address[](2);
-        targets[0] = address(trexIA);
+        targets[0] = address(guard);
         targets[1] = address(token);
         uint256[] memory values = new uint256[](2);
         bytes[] memory datas = new bytes[](2);
@@ -212,7 +224,7 @@ contract TimelockGovernanceTest is TrexFixture {
 
     function test_batch_isAtomic_failedInitialiserRevertsTheSwitch() public {
         address[] memory targets = new address[](2);
-        targets[0] = address(trexIA);
+        targets[0] = address(guard);
         targets[1] = address(token);
         uint256[] memory values = new uint256[](2);
         bytes[] memory datas = new bytes[](2);
@@ -228,5 +240,48 @@ contract TimelockGovernanceTest is TrexFixture {
         // Still on version 1.0.0: the token has no V2 function.
         (bool ok,) = address(token).call(abi.encodeWithSignature("marker()"));
         assertFalse(ok);
+    }
+
+    // ------------------------------------------------------------------
+    // AuthorityGuard
+    // ------------------------------------------------------------------
+
+    function test_guard_onlyTimelockForwards_andRenounceIsDisabled() public {
+        bytes memory data = _switchData();
+        vm.prank(operator);
+        (bool ok,) = address(guard).call(data);
+        assertFalse(ok);
+        vm.prank(deployer);
+        (ok,) = address(guard).call(data);
+        assertFalse(ok);
+        vm.prank(tl);
+        vm.expectRevert("AuthorityGuard: renounce disabled");
+        guard.renounceOwnership();
+        assertEq(guard.owner(), tl);
+    }
+
+    function test_guard_ownershipIsTwoStep() public {
+        vm.prank(tl);
+        guard.transferOwnership(stranger);
+        assertEq(guard.owner(), tl); // not moved until the new owner accepts
+        assertEq(guard.pendingOwner(), stranger);
+        vm.prank(attacker);
+        vm.expectRevert("Ownable2Step: caller is not the new owner");
+        guard.acceptOwnership();
+    }
+
+    function test_guard_authorityIsNotReachableAnyOtherWay() public {
+        // Neither the old owner nor anyone else can touch the authority directly.
+        bytes memory data = _switchData();
+        vm.prank(deployer);
+        (bool ok,) = address(trexIA).call(data);
+        assertFalse(ok);
+        vm.prank(deployer);
+        vm.expectRevert("Ownable: caller is not the owner");
+        trexIA.transferOwnership(deployer);
+        // The guard has no function that forwards transferOwnership or renounce: only releaseAuthority, owner only.
+        vm.prank(operator);
+        vm.expectRevert("Ownable: caller is not the owner");
+        guard.releaseAuthority(operator);
     }
 }

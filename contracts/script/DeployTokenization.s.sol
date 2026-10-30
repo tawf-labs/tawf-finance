@@ -27,6 +27,8 @@ pragma solidity 0.8.17;
 
 import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
 import { TrexProxies } from "../src/proxy/TrexProxies.sol";
+import { AuthorityGuard } from "../src/governance/AuthorityGuard.sol";
+import { TREXImplementationAuthority } from "@erc3643org/erc-3643/contracts/proxy/authority/TREXImplementationAuthority.sol";
 import "forge-std/Script.sol";
 import {ProxyDeployer} from "./lib/ProxyDeployer.sol";
 
@@ -59,6 +61,7 @@ contract DeployTokenization is Script, ProxyDeployer {
     /// @dev One TREXImplementationAuthority per deploy, shared by every T-REX proxy. The deployer owns it
     ///      until the governance hand-over moves it to the timelock. TREX_AUTHORITY reuses an existing one.
     address internal _trexAuthority;
+    AuthorityGuard internal _authorityGuard;
 
     /// @dev Contracts whose `owner` moves to the timelock in the governance hand-over (T-REX owners,
     ///      compliance modules, the ONCHAINID authority and factory). Filled as they are deployed.
@@ -91,6 +94,16 @@ contract DeployTokenization is Script, ProxyDeployer {
         timelock = vm.deployCode("TawfTimelock.sol:TawfTimelock", abi.encode(delay, proposers, executors));
     }
 
+    /// @dev Compliance modules: two-step ownership (transferOwnership, then acceptOwnership by the new
+    ///      owner), no renounce. The timelock has to accept, so that is a timelock operation, see
+    ///      _handoverToTimelock. The operator stays the configurer for setHook, initOffering, setAgent
+    ///      and the other module settings, so day-to-day configuration is unaffected.
+    address[] internal _modules;
+
+    function _ownModule(address m) internal {
+        _modules.push(m);
+    }
+
     address[] internal _tokens;
     /// @dev UUPS contracts that gave UPGRADER_ROLE to the operator at initialize (the pool contracts).
     address[] internal _operatorUups;
@@ -112,16 +125,60 @@ contract DeployTokenization is Script, ProxyDeployer {
             for (uint256 i; i < _tokens.length; i++) IAgentLike(_tokens[i]).addAgent(safe);
         }
         for (uint256 i; i < _owned.length; i++) IOwnableLike(_owned[i]).transferOwnership(timelock);
+        _handoverModules(timelock, safe);
         for (uint256 i; i < _operatorUups.length; i++) {
             IUupsRoleLike(_operatorUups[i]).grantRole(upgrader, timelock);
             IUupsRoleLike(_operatorUups[i]).renounceRole(upgrader, operator);
         }
     }
 
+    /// @dev Start the two-step transfer on every module, then queue the timelock's acceptance. With no Safe
+    ///      the operator is the proposer, so the batch is scheduled here and anyone can execute it after the
+    ///      delay (open executors). With a Safe, the Safe must schedule the same batch, so the call data is
+    ///      logged.
+    function _handoverModules(address timelock, address safe) internal {
+        // The AuthorityGuard is two-step too, so the timelock accepts it in the same batch as the modules.
+        bool guarded = address(_authorityGuard) != address(0);
+        uint256 n = _modules.length + (guarded ? 1 : 0);
+        if (n == 0) return;
+        address[] memory targets = new address[](n);
+        uint256[] memory values = new uint256[](n);
+        bytes[] memory datas = new bytes[](n);
+        for (uint256 i; i < _modules.length; i++) {
+            IOwnableLike(_modules[i]).transferOwnership(timelock);
+            targets[i] = _modules[i];
+            datas[i] = abi.encodeWithSignature("acceptOwnership()");
+        }
+        if (guarded) {
+            _authorityGuard.transferOwnership(timelock);
+            targets[n - 1] = address(_authorityGuard);
+            datas[n - 1] = abi.encodeWithSignature("acceptOwnership()");
+        }
+        bytes32 salt = keccak256("tawf.accept-module-ownership");
+        if (safe == address(0)) {
+            ITimelockBatch(timelock).scheduleBatch(
+                targets, values, datas, bytes32(0), salt, ITimelockBatch(timelock).getMinDelay()
+            );
+            console.log("Module acceptOwnership batch scheduled. Execute after the delay, salt keccak256('tawf.accept-module-ownership').");
+        } else {
+            console.log("The Safe must schedule acceptOwnership() on each module as one batch (salt below):");
+            console.logBytes32(salt);
+            for (uint256 i; i < n; i++) console.log(targets[i]);
+        }
+    }
+
     function _authority() internal returns (address) {
         if (_trexAuthority == address(0)) {
             address existing = vm.envOr("TREX_AUTHORITY", address(0));
-            _trexAuthority = existing != address(0) ? existing : address(TrexProxies.authority());
+            if (existing != address(0)) {
+                _trexAuthority = existing;
+            } else {
+                // The authority is owned by an AuthorityGuard (two-step, no renounce) which the timelock owns.
+                address ia = address(TrexProxies.authority());
+                _authorityGuard = new AuthorityGuard(TREXImplementationAuthority(ia));
+                TREXImplementationAuthority(ia).transferOwnership(address(_authorityGuard));
+                _trexAuthority = ia;
+            }
         }
         return _trexAuthority;
     }
@@ -241,7 +298,6 @@ contract DeployTokenization is Script, ProxyDeployer {
 
     function _deployShared(address operator) internal returns (Shared memory s) {
         address ia = _authority();
-        _own(ia);
         ClaimTopicsRegistry ctr = TrexProxies.claimTopicsRegistry(ia);
         TrustedIssuersRegistry tir = TrexProxies.trustedIssuersRegistry(ia);
         IdentityRegistryStorage irs = TrexProxies.identityRegistryStorage(ia);
@@ -308,8 +364,8 @@ contract DeployTokenization is Script, ProxyDeployer {
         SandboxModule sandbox = ModuleProxies.sandbox();
         _ownToken(address(token));
         _ownCompliance(address(mc), true);
-        _own(address(checkpoint));
-        _own(address(sandbox));
+        _ownModule(address(checkpoint));
+        _ownModule(address(sandbox));
 
         // TawfDepositoSeries: (anchor, token, checkpointModule, sandbox, compliance,
         // Terms{seriesId, tenorMonths, nisbahBps}, treasury, admin, operator, maxRateAge).
@@ -385,7 +441,7 @@ contract DeployTokenization is Script, ProxyDeployer {
         DistributionCheckpointModule module = ModuleProxies.checkpoint();
         _ownToken(address(token));
         _ownCompliance(address(mc), false);
-        _own(address(module));
+        _ownModule(address(module));
 
         distributor = _deployProxy(
                 "SukukDistributor.sol:SukukDistributor",
@@ -592,4 +648,16 @@ interface IAgentLike {
 interface IUupsRoleLike {
     function grantRole(bytes32 role, address account) external;
     function renounceRole(bytes32 role, address callerConfirmation) external;
+}
+
+interface ITimelockBatch {
+    function scheduleBatch(
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata payloads,
+        bytes32 predecessor,
+        bytes32 salt,
+        uint256 delay
+    ) external;
+    function getMinDelay() external view returns (uint256);
 }
