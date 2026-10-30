@@ -82,10 +82,10 @@ contract OurContractsUpgradeTest is Test, ProxyDeployer {
 
     function _v2(uint256 i) internal returns (address) {
         string[4] memory names = [
-            "LedgerAnchorV2",
-            "DepositoPoolLedgerV2",
-            "TawfDepositoSeriesV2",
-            "SukukDistributorV2"
+            "UpgradeV2Mocks.sol:LedgerAnchorV2",
+            "UpgradeV2Mocks.sol:DepositoPoolLedgerV2",
+            "UpgradeV2Mocks.sol:TawfDepositoSeriesV2",
+            "UpgradeV2Mocks.sol:SukukDistributorV2"
         ];
         return vm.deployCode(names[i]);
     }

@@ -26,6 +26,7 @@ pragma solidity 0.8.17;
 // claims itself off each holder's ONCHAINID, so the gate is per-series, not registry-wide.
 
 import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
+import { TrexProxies } from "../src/proxy/TrexProxies.sol";
 import "forge-std/Script.sol";
 import {ProxyDeployer} from "./lib/ProxyDeployer.sol";
 
@@ -54,6 +55,76 @@ contract DeployTokenization is Script, ProxyDeployer {
     ///      UPGRADER env var. Falls back to the operator only for local and early testnet runs.
     bytes4 internal constant DIST_INIT = bytes4(keccak256("initialize(address[],address,address,address,address,(bytes32,uint256,uint40,uint256,uint256,uint40,address),address,address)"));
     bytes4 internal constant SERIES_INIT = bytes4(keccak256("initialize(address,address,address,address,address,(bytes32,uint8,uint16),address,address,address,uint64,address)"));
+
+    /// @dev One TREXImplementationAuthority per deploy, shared by every T-REX proxy. The deployer owns it
+    ///      until the governance hand-over moves it to the timelock. TREX_AUTHORITY reuses an existing one.
+    address internal _trexAuthority;
+
+    /// @dev Contracts whose `owner` moves to the timelock in the governance hand-over (T-REX owners,
+    ///      compliance modules, the ONCHAINID authority and factory). Filled as they are deployed.
+    address[] internal _owned;
+
+    function _own(address c) internal {
+        _owned.push(c);
+    }
+
+    /// @dev A compliance with a SandboxModule is driven by operator-run admin controls (mode, caps, series end
+    ///      through callModuleFunction, which only the compliance owner may call), so by default its owner stays
+    ///      with the operator. Set KEEP_SANDBOX_COMPLIANCE=false to move it to the timelock too.
+    function _ownCompliance(address mc, bool sandboxed) internal {
+        if (sandboxed && vm.envOr("KEEP_SANDBOX_COMPLIANCE", true)) return;
+        _own(mc);
+    }
+
+    /// @dev Deploys the TawfTimelock. Delay: TIMELOCK_DELAY seconds (default 1 hour, use 2 to 7 days on
+    ///      mainnet). Proposer and canceller: SAFE_ADDRESS, or the operator on testnet until a Safe exists.
+    ///      Executors are open (anyone may execute a ready operation) unless EXECUTOR_OPEN=false, in which
+    ///      case only the proposer executes. There is no admin: the timelock administers itself.
+    function _deployTimelock(address operator) internal returns (address timelock, address safe) {
+        safe = vm.envOr("SAFE_ADDRESS", address(0));
+        uint256 delay = vm.envOr("TIMELOCK_DELAY", uint256(1 hours));
+        address proposer = safe != address(0) ? safe : operator;
+        address[] memory proposers = new address[](1);
+        proposers[0] = proposer;
+        address[] memory executors = new address[](1);
+        executors[0] = vm.envOr("EXECUTOR_OPEN", true) ? address(0) : proposer;
+        timelock = vm.deployCode("TawfTimelock.sol:TawfTimelock", abi.encode(delay, proposers, executors));
+    }
+
+    address[] internal _tokens;
+    /// @dev UUPS contracts that gave UPGRADER_ROLE to the operator at initialize (the pool contracts).
+    address[] internal _operatorUups;
+
+    function _ownToken(address t) internal {
+        _own(t);
+        _tokens.push(t);
+    }
+
+    /// @dev Governance hand-over, run last and with the same broadcaster that deployed everything:
+    ///      1. The Safe becomes a guardian (agent) on every token, so it can pause in an emergency.
+    ///      2. Every registered owner (T-REX authority, registries, tokens, compliance modules, ONCHAINID
+    ///         authority and factory) moves to the timelock.
+    ///      3. UPGRADER_ROLE on the operator-initialised UUPS contracts moves to the timelock.
+    ///      The operator keeps its agent and day-to-day roles. After this only the timelock can upgrade.
+    function _handoverToTimelock(address operator, address timelock, address safe) internal {
+        bytes32 upgrader = keccak256("UPGRADER_ROLE");
+        if (safe != address(0)) {
+            for (uint256 i; i < _tokens.length; i++) IAgentLike(_tokens[i]).addAgent(safe);
+        }
+        for (uint256 i; i < _owned.length; i++) IOwnableLike(_owned[i]).transferOwnership(timelock);
+        for (uint256 i; i < _operatorUups.length; i++) {
+            IUupsRoleLike(_operatorUups[i]).grantRole(upgrader, timelock);
+            IUupsRoleLike(_operatorUups[i]).renounceRole(upgrader, operator);
+        }
+    }
+
+    function _authority() internal returns (address) {
+        if (_trexAuthority == address(0)) {
+            address existing = vm.envOr("TREX_AUTHORITY", address(0));
+            _trexAuthority = existing != address(0) ? existing : address(TrexProxies.authority());
+        }
+        return _trexAuthority;
+    }
 
     function _upgrader(address operator) internal view returns (address) {
         return vm.envOr("UPGRADER", operator);
@@ -169,14 +240,16 @@ contract DeployTokenization is Script, ProxyDeployer {
     }
 
     function _deployShared(address operator) internal returns (Shared memory s) {
-        ClaimTopicsRegistry ctr = new ClaimTopicsRegistry();
-        ctr.init();
-        TrustedIssuersRegistry tir = new TrustedIssuersRegistry();
-        tir.init();
-        IdentityRegistryStorage irs = new IdentityRegistryStorage();
-        irs.init();
-        IdentityRegistry ir = new IdentityRegistry();
-        ir.init(address(tir), address(ctr), address(irs));
+        address ia = _authority();
+        _own(ia);
+        ClaimTopicsRegistry ctr = TrexProxies.claimTopicsRegistry(ia);
+        TrustedIssuersRegistry tir = TrexProxies.trustedIssuersRegistry(ia);
+        IdentityRegistryStorage irs = TrexProxies.identityRegistryStorage(ia);
+        IdentityRegistry ir = TrexProxies.identityRegistry(ia, address(tir), address(ctr), address(irs));
+        _own(address(ctr));
+        _own(address(tir));
+        _own(address(irs));
+        _own(address(ir));
         irs.bindIdentityRegistry(address(ir));
         // Only KYC (topic 1) is registry-wide required. TAWF_SCREENED (2) and
         // OJK_SANDBOX_PARTICIPANT (3) are checked by the SandboxModule itself,
@@ -186,6 +259,8 @@ contract DeployTokenization is Script, ProxyDeployer {
         Identity identityImpl = new Identity(operator, true); // library mode
         ImplementationAuthority implAuth = new ImplementationAuthority(address(identityImpl));
         IdFactory idFactory = new IdFactory(address(implAuth));
+        _own(address(implAuth));
+        _own(address(idFactory));
 
         ClaimIssuer claimIssuer = new ClaimIssuer(operator);
         // The Tawf ClaimIssuer is trusted for KYC and for the screening/sandbox
@@ -226,13 +301,15 @@ contract DeployTokenization is Script, ProxyDeployer {
         string memory name_,
         string memory symbol_
     ) internal returns (address tokenAddr, address series, address sandboxAddr) {
-        ModularCompliance mc = new ModularCompliance();
-        mc.init();
-        Token token = new Token();
-        token.init(_sharedIdentityRegistry, address(mc), name_, symbol_, 2, address(0));
+        ModularCompliance mc = TrexProxies.modularCompliance(_authority());
+        Token token = TrexProxies.token(_authority(), _sharedIdentityRegistry, address(mc), name_, symbol_, 2, address(0));
 
         DistributionCheckpointModule checkpoint = ModuleProxies.checkpoint();
         SandboxModule sandbox = ModuleProxies.sandbox();
+        _ownToken(address(token));
+        _ownCompliance(address(mc), true);
+        _own(address(checkpoint));
+        _own(address(sandbox));
 
         // TawfDepositoSeries: (anchor, token, checkpointModule, sandbox, compliance,
         // Terms{seriesId, tenorMonths, nisbahBps}, treasury, admin, operator, maxRateAge).
@@ -300,12 +377,15 @@ contract DeployTokenization is Script, ProxyDeployer {
         internal
         returns (address tokenAddr, address distributor)
     {
-        ModularCompliance mc = new ModularCompliance();
-        mc.init();
-        Token token = new Token();
-        token.init(_sharedIdentityRegistry, address(mc), "Tawf Sukuk BPRS Demo 2026", "tSUKUK-DEMO-2026", 6, address(0));
+        ModularCompliance mc = TrexProxies.modularCompliance(_authority());
+        Token token = TrexProxies.token(
+            _authority(), _sharedIdentityRegistry, address(mc), "Tawf Sukuk BPRS Demo 2026", "tSUKUK-DEMO-2026", 6, address(0)
+        );
 
         DistributionCheckpointModule module = ModuleProxies.checkpoint();
+        _ownToken(address(token));
+        _ownCompliance(address(mc), false);
+        _own(address(module));
 
         distributor = _deployProxy(
                 "SukukDistributor.sol:SukukDistributor",
@@ -355,6 +435,9 @@ contract DeployTokenization is Script, ProxyDeployer {
         bondReceiptNft = _deployProxy("BondReceiptNFT.sol:BondReceiptNFT", operator);
         dealRegistry = _deployProxy("DealRegistry.sol:DealRegistry", operator);
         redemptionVault = _deployProxy("RedemptionVault.sol:RedemptionVault", operator);
+        _operatorUups.push(bondReceiptNft);
+        _operatorUups.push(dealRegistry);
+        _operatorUups.push(redemptionVault);
 
         IDealRegistry(dealRegistry).setVault(redemptionVault);
         IBondReceiptNFT(bondReceiptNft).setVault(redemptionVault);
@@ -496,4 +579,17 @@ interface IBondReceiptNFT {
 interface IRedemptionVault {
     function configure(address usdc_, address registry_, address nft_) external;
     function grantRole(bytes32 role, address account) external;
+}
+
+interface IOwnableLike {
+    function transferOwnership(address newOwner) external;
+}
+
+interface IAgentLike {
+    function addAgent(address agent) external;
+}
+
+interface IUupsRoleLike {
+    function grantRole(bytes32 role, address account) external;
+    function renounceRole(bytes32 role, address callerConfirmation) external;
 }
