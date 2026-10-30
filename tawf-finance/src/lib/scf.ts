@@ -65,6 +65,17 @@ export function submitScfProfile(body: {
   return postPublic<ScfProfileResult>('scf/profile', body);
 }
 
+export interface ScfCoin {
+  address: `0x${string}`;
+  symbol: string;
+  raisedOf: string;
+  refundedOf: string;
+  freeBalance: string;
+  coinBalance: string;
+  heldBalance: string;
+  paused: boolean;
+}
+
 export interface ScfStatus {
   configured: boolean;
   distributor?: `0x${string}`;
@@ -82,6 +93,13 @@ export interface ScfStatus {
   lastPeriod?: number;
   reserve?: string;
   offeringCap?: string;
+  /** The live token supply (the same as `raised`). */
+  supply?: string;
+  /** Everything ever subscribed over all coins, and the part left after refunds. */
+  totalRaised?: string;
+  netRaised?: string;
+  /** The coins the offering accepts, with what was raised in each and what each can pay out now. */
+  coins?: ScfCoin[];
   investor?: { wallet: `0x${string}`; limit: string; used: string; remaining: string; exemption: number } | null;
 }
 

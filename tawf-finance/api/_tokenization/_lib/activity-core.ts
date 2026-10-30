@@ -20,13 +20,25 @@ const SERIES = parseAbi([
   'event MaturitySettled(uint64 at, uint256 principalSen)',
   'event Redeemed(address indexed investor, address indexed token, uint256 units, uint256 coinPaid, uint256 profitCoinPaid)',
 ])
-const SUKUK = parseAbi([
+// The first SCF offering (single coin), kept so its history still reads.
+const SUKUK_V1 = parseAbi([
   'event Subscribed(address indexed investor, uint256 amount)',
   'event Refunded(address indexed investor, uint256 amount)',
   'event ProfitDistributed(uint16 indexed period, uint256 amount)',
   'event ProfitClaimed(address indexed investor, uint256 amount)',
   'event MaturitySettled(uint256 amount)',
   'event Redeemed(address indexed investor, uint256 units, uint256 principalPaid, uint256 profitPaid)',
+])
+// The multi-coin SCF distributor: every money event names its coin. A payout is one summary event with
+// the preferred coin and the total, plus one PayoutPart per coin actually used (the real coins paid).
+const SUKUK = parseAbi([
+  'event Subscribed(address indexed investor, address indexed coin, uint256 amount)',
+  'event Refunded(address indexed investor, address indexed coin, uint256 amount)',
+  'event ProfitDistributed(uint16 indexed period, address indexed coin, uint256 amount)',
+  'event ProfitClaimed(address indexed investor, address indexed coin, uint256 amount)',
+  'event MaturitySettled(address indexed coin, uint256 amount)',
+  'event Redeemed(address indexed investor, address indexed coin, uint256 units, uint256 principalPaid, uint256 profitPaid)',
+  'event PayoutPart(address indexed to, address indexed coin, uint256 amount)',
 ])
 const LEDGER = parseAbi([
   'event ReserveRecorded(uint256 indexed epoch, uint64 snapshotAt, uint256 total)',
@@ -74,7 +86,11 @@ export function sources(): Source[] {
   if (pool.series !== ZERO) list.push({ product: 'pool', address: pool.series, events: SERIES, from: block('depositoPoolBlock', seriesFrom) })
   if (pool.ledger !== ZERO) list.push({ product: 'ledger', address: pool.ledger, events: LEDGER, from: block('depositoPoolBlock', seriesFrom), admin: true })
   if (addresses.scfDistributor !== ZERO) list.push({ product: 'scf', address: addresses.scfDistributor, events: SUKUK, from: block('scfBlock', seriesFrom) })
+  const scfV1 = addr('scfDistributorV1')
+  if (scfV1) list.push({ product: 'scf', address: scfV1, events: SUKUK_V1, from: block('scfBlockV1', seriesFrom) })
   if (addresses.scfLimitModule !== ZERO) list.push({ product: 'scf', address: addresses.scfLimitModule, events: SCF_MODULE, from: block('scfBlock', seriesFrom), admin: true })
+  const limitV1 = addr('scfLimitModuleV1')
+  if (limitV1) list.push({ product: 'scf', address: limitV1, events: SCF_MODULE, from: block('scfBlockV1', seriesFrom), admin: true })
   list.push({ product: 'identity', address: addresses.identityRegistry, events: IDENTITY, from: seriesFrom, admin: true })
   return list
 }
@@ -84,7 +100,7 @@ export const GLOBAL = new Set(['ProfitDistributed', 'MaturitySettled'])
 /** Events whose first indexed argument is the investor (so the wallet can be a topic filter). */
 export const isInvestorEvent = (e: AbiEvent) => {
   const first = e.inputs[0]
-  return Boolean(first && first.indexed && (first.name === 'investor' || first.name === 'investorAddress'))
+  return Boolean(first && first.indexed && (first.name === 'investor' || first.name === 'investorAddress' || first.name === 'to'))
 }
 
 export const hexBig = (h: string | undefined) => (!h || h === '0x' ? 0n : BigInt(h))
@@ -92,7 +108,7 @@ export const hexBig = (h: string | undefined) => (!h || h === '0x' ? 0n : BigInt
 export function normalize(product: Product, log: Log & { eventName?: string; args?: Record<string, unknown> }): ActivityEvent {
   const a = (log.args ?? {}) as Record<string, unknown>
   const big = (k: string) => (typeof a[k] === 'bigint' ? (a[k] as bigint).toString() : null)
-  const investor = (a.investor ?? a.investorAddress ?? null) as Address | null
+  const investor = (a.investor ?? a.investorAddress ?? a.to ?? null) as Address | null
   const name = log.eventName ?? 'Unknown'
   let coin: string | null = null
   let sen: string | null = null
@@ -120,7 +136,7 @@ export function normalize(product: Product, log: Log & { eventName?: string; arg
     blockNumber: (log.blockNumber ?? 0n).toString(),
     timestamp: ts === undefined || ts === null || Number(ts) === 0 ? null : Number(ts),
     investor: investor ? getAddress(investor) : null,
-    token: (a.token as Address | undefined) ?? null,
+    token: ((a.token ?? a.coin) as Address | undefined) ?? null,
     coin,
     sen,
     limit,
