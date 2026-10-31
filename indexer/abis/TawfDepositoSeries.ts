@@ -164,25 +164,6 @@ export const TawfDepositoSeriesAbi = [
   },
   {
     "type": "event",
-    "name": "ReserveUpdated",
-    "inputs": [
-      {
-        "name": "snapshotAt",
-        "type": "uint64",
-        "indexed": false,
-        "internalType": "uint64"
-      },
-      {
-        "name": "balance",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "Subscribed",
     "inputs": [
       {

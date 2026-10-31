@@ -12,14 +12,14 @@ mkdirSync(dest, { recursive: true })
 /** artifact name, output name, optional allow list of event names (all events when omitted) */
 const targets = [
   ['DepositoPoolLedger', 'DepositoPoolLedger', ['BankAdded', 'BankBalance', 'BankProfit', 'MaturityRecorded', 'ProfitRecorded', 'ReserveRecorded']],
-  ['TawfDepositoSeries', 'TawfDepositoSeries', ['Subscribed', 'SubscriptionCancelled', 'Allocated', 'ProfitDistributed', 'ProfitClaimed', 'MaturitySettled', 'Redeemed', 'RatePosted', 'ReserveUpdated']],
+  ['TawfDepositoSeries', 'TawfDepositoSeries', ['Subscribed', 'SubscriptionCancelled', 'Allocated', 'ProfitDistributed', 'ProfitClaimed', 'MaturitySettled', 'Redeemed', 'RatePosted']],
   [
     'SukukDistributor',
     'SukukDistributor',
     ['SubscriptionOpened', 'Subscribed', 'Issued', 'SubscriptionCancelled', 'Refunded', 'ProfitDistributed', 'ProfitClaimed', 'MaturitySettled', 'DefaultSettled', 'Redeemed', 'ReserveUpdated', 'CoinToppedUp', 'PayoutPart'],
   ],
   ['ScfInvestorLimitModule', 'ScfInvestorLimitModule', ['ProfileSet']],
-  ['IdentityRegistry', 'IdentityRegistry', ['IdentityRegistered', 'IdentityRemoved', 'IdentityUpdated']],
+  ['IdentityRegistry', 'IdentityRegistry', ['IdentityRegistered', 'IdentityRemoved']],
   ['Token', 'Token', ['Transfer', 'Paused', 'Unpaused', 'AddressFrozen', 'TokensFrozen', 'TokensUnfrozen']],
 ]
 

@@ -37,24 +37,5 @@ export const IdentityRegistryAbi = [
       }
     ],
     "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "IdentityUpdated",
-    "inputs": [
-      {
-        "name": "oldIdentity",
-        "type": "address",
-        "indexed": true,
-        "internalType": "contract IIdentity"
-      },
-      {
-        "name": "newIdentity",
-        "type": "address",
-        "indexed": true,
-        "internalType": "contract IIdentity"
-      }
-    ],
-    "anonymous": false
   }
 ] as const
