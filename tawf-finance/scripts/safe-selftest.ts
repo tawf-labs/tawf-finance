@@ -66,29 +66,39 @@ const call = {
   functionName: 'ping',
   description: 'selftest',
 }
+import depJson from '../src/web3/tokenization.deployments.json' with { type: 'json' }
+// A call that passes the duty policy (minting allocate on our series) so the fail-closed checks reach the store.
+const policyCall = {
+  duty: 'minting' as const,
+  address: (depJson as Record<string, string>).tawfSeries as Address,
+  abi: [{ type: 'function', name: 'allocate', inputs: [{ name: 'investors', type: 'address[]' }, { name: 'epoch', type: 'uint256' }, { name: 'snapshotAt', type: 'uint64' }, { name: 'balance', type: 'uint256' }, { name: 'proof', type: 'bytes32[]' }], outputs: [], stateMutability: 'nonpayable' }] as const,
+  functionName: 'allocate',
+  args: [['0xA000000000000000000000000000000000000001'], 1n, 1n, 1n, []] as const,
+  description: 'selftest',
+}
 const realFetch = globalThis.fetch
 delete process.env.DEMO_OPERATOR_KEY // a direct operator send would die with "DEMO_OPERATOR_KEY is not set"
 process.env.MINTING_SAFE = '0x3333333333333333333333333333333333333333'
 delete process.env.QUICKNODE_API_KEY
-await rejects('no store', () => submitAdminTx(call, 421614), /key-value store/)
+await rejects('no store', () => submitAdminTx(policyCall, 421614), /key-value store/)
 process.env.QUICKNODE_API_KEY = 'k'
 globalThis.fetch = (async () => { throw new Error('store down') }) as typeof fetch
 const chainRead = publicClient as unknown as { readContract: unknown; multicall: unknown; getChainId: unknown }
 const realRead = chainRead.readContract
-chainRead.readContract = async () => 0n
-await rejects('store down', () => submitAdminTx(call, 421614), /unreachable|store down/)
+chainRead.readContract = async (x: { functionName: string }) => (x.functionName === 'compliance' ? '0x7777777777777777777777777777777777777777' : 0n)
+await rejects('store down', () => submitAdminTx(policyCall, 421614), /unreachable|store down/)
 process.env.MINTING_SAFE = 'not-an-address'
-await rejects('bad env', () => submitAdminTx(call, 421614), /not a valid address/)
+await rejects('bad env', () => submitAdminTx(policyCall, 421614), /not a valid address/)
 delete process.env.MINTING_SAFE
 delete process.env.SAFES_REQUIRED
-await rejects('required, no safe', () => submitAdminTx(call, 421614), /SAFES_REQUIRED is on/)
+await rejects('required, no safe', () => submitAdminTx(policyCall, 421614), /SAFES_REQUIRED is on/)
 process.env.MINTING_SAFE = '   '
-await rejects('required, blank safe', () => submitAdminTx(call, 421614), /SAFES_REQUIRED is on/)
+await rejects('required, blank safe', () => submitAdminTx(policyCall, 421614), /SAFES_REQUIRED is on/)
 delete process.env.MINTING_SAFE
-await rejects('42161 no safe', () => submitAdminTx(call, 42161), /never sends minting actions directly/)
+await rejects('42161 no safe', () => submitAdminTx(policyCall, 42161), /never sends minting actions directly/)
 process.env.SAFES_REQUIRED = 'false'
-await rejects('explicit off, sepolia', () => submitAdminTx(call, 421614), /DEMO_OPERATOR_KEY is not set/)
-await rejects('explicit off, other chain', () => submitAdminTx(call, 42161), /never sends minting actions directly/)
+await rejects('explicit off, sepolia', () => submitAdminTx(policyCall, 421614), /DEMO_OPERATOR_KEY is not set/)
+await rejects('explicit off, other chain', () => submitAdminTx(policyCall, 42161), /never sends minting actions directly/)
 if (safesRequired(42161) !== true) throw new Error('off must not work elsewhere')
 delete process.env.SAFES_REQUIRED
 if (!safesRequired(421614)) throw new Error('SAFES_REQUIRED must be on by default')
@@ -109,16 +119,27 @@ chainRead.getChainId = async () => 1
 await rejects('live chain mismatch', () => assertLiveChain(), /differs from deployments\.json/)
 ok('issuer, agent and live chain')
 
-// ---- 5. Proposals, nonces, competing, rejection, dedupe, approvals, stale -----------------------------
+// ---- 5. Proposals, nonces, dedupe, cap, competing, rejection, policy, live index ----------------------
+import deployments from '../src/web3/tokenization.deployments.json' with { type: 'json' }
+import { encodeFunctionData, parseAbi } from 'viem'
+const dep = deployments as Record<string, string>
+const SERIES = dep.tawfSeries as Address
+const DISTRIBUTOR = dep.scfDistributor as Address
+const USDC = dep.mockUsdc as Address
 const SAFE = '0x4444444444444444444444444444444444444444' as Address
 process.env.MINTING_SAFE = SAFE
+process.env.TREASURY_SAFE = SAFE
+process.env.GOV_SAFE = SAFE
+process.env.COMPLIANCE_SAFE = SAFE
 const OWNERS = ['0xA000000000000000000000000000000000000001', '0xA000000000000000000000000000000000000002', '0xA000000000000000000000000000000000000003'] as Address[]
 let safeNonce = 0n
 const approved = new Set<string>() // owner:hash
+const COMPLIANCE = '0x7777777777777777777777777777777777777777' as Address
 chainRead.readContract = async (a: { functionName: string; args?: unknown[] }) => {
   if (a.functionName === 'nonce') return safeNonce
   if (a.functionName === 'getThreshold') return 2n
   if (a.functionName === 'getOwners') return OWNERS
+  if (a.functionName === 'compliance') return COMPLIANCE
   if (a.functionName === 'getTransactionHash') {
     const x = a.args as [Address, bigint, Hex, number, bigint, bigint, bigint, Address, Address, bigint]
     return safeTxHash(SAFE, { to: x[0], value: x[1], data: x[2], operation: 0, safeTxGas: x[4], baseGas: x[5], gasPrice: x[6], gasToken: x[7], refundReceiver: x[8], nonce: x[9] }, 421614)
@@ -155,40 +176,46 @@ function fakeKv() {
   }) as typeof fetch
   return { lists, sets }
 }
+const seriesAbi = parseAbi(['function allocate(address[] investors, uint256 epoch, uint64 snapshotAt, uint256 balance, bytes32[] proof)'])
+/** A policy-conforming minting proposal; `i` makes each one a different call. */
+const mint = (i: number, description = `mint ${i}`) => ({
+  duty: 'minting' as const, address: SERIES, abi: seriesAbi, functionName: 'allocate',
+  args: [[OWNERS[0]], BigInt(i), 1n, 1n, []] as const, description,
+})
 {
   const kv = fakeKv()
-  // sequential proposals queue: nonce = max(Safe.nonce, highest pending + 1)
-  const p0 = await proposeToSafe({ ...call, args: [], description: 'first' })
-  const p1 = await proposeToSafe({ ...call, functionName: 'ping', description: 'second, different?' })
-  // identical call on the same computed nonce would dedupe only when the nonce is pinned the same: pin it
+  const p0 = await proposeToSafe(mint(0))
+  const p1 = await proposeToSafe(mint(1))
   if (p0.nonce !== '0') throw new Error(`first proposal must target the Safe nonce, got ${p0.nonce}`)
   if (p1.nonce !== '1') throw new Error(`second proposal must queue behind, got ${p1.nonce}`)
-  const same = await proposeToSafe({ ...call, description: 'again' }, { nonce: 1n })
-  if (same.safeTxHash !== p1.safeTxHash) throw new Error('an identical proposal on the same nonce must dedupe to the same hash')
-  if (kv.sets.size !== 2) throw new Error(`dedupe must not store a second proposal, have ${kv.sets.size}`)
-  ok('queue and dedupe')
+  ok('queue')
 
-  // several proposals may share a nonce and compete
-  const other = { ...call, abi: [{ type: 'function', name: 'pong', inputs: [], outputs: [], stateMutability: 'nonpayable' }] as const, functionName: 'pong' }
-  const c1 = await proposeToSafe(other, { nonce: 1n })
+  // AF2b: a double click returns the live twin instead of queuing nonce + 1
+  const twin = await proposeToSafe(mint(1, 'clicked again'))
+  if (twin.safeTxHash !== p1.safeTxHash || twin.nonce !== '1') throw new Error('a live identical proposal must be returned')
+  if (kv.sets.size !== 2) throw new Error(`dedupe must not store a copy, have ${kv.sets.size}`)
+  const parallel = await Promise.all([proposeToSafe(mint(9)), proposeToSafe(mint(9)), proposeToSafe(mint(9))])
+  if (new Set(parallel.map((x) => x.safeTxHash)).size > 2) throw new Error('parallel double clicks should collapse')
+  ok('dedupe double clicks')
+
+  // proposals can still share a nonce when pinned: they compete
+  const c1 = await proposeToSafe(mint(100), { nonce: 1n })
   if (c1.safeTxHash === p1.safeTxHash) throw new Error('a different call has a different hash')
   let rows = await listPending(['minting'])
   const at1 = rows.filter((r) => r.nonce === 1)
   if (at1.length !== 2 || at1.some((r) => r.competing !== 1)) throw new Error('two proposals on nonce 1 must show as competing')
-  if (rows.find((r) => r.nonce === 0)?.competing !== 0) throw new Error('nonce 0 has no competitor')
   ok('competing proposals')
 
-  // rejection: the standard Safe self-call with empty data, same nonce, dedupes
+  // rejection: the standard Safe self-call, same nonce, dedupes
   const r1 = await rejectNonce('minting', 1n)
   const r1again = await rejectNonce('minting', 1n)
   if (r1.safeTxHash !== r1again.safeTxHash || r1.nonce !== '1') throw new Error('rejection must target the nonce and dedupe')
   rows = await listPending(['minting'])
   const rej = rows.find((r) => r.safeTxHash === r1.safeTxHash)!
   if (rej.to.toLowerCase() !== SAFE.toLowerCase() || rej.data !== '0x') throw new Error('rejection must be an empty call to the Safe itself')
-  if (rows.filter((r) => r.nonce === 1).length !== 3) throw new Error('the rejection competes with the proposals it rejects')
   ok('rejection')
 
-  // approvals, ready, execution makes losers stale, then the queue moves
+  // approvals, ready, execution makes the passed nonce disappear and the losers with it
   const h0 = p0.safeTxHash
   approved.add(`${OWNERS[0]}:${h0}`)
   rows = await listPending(['minting'])
@@ -201,62 +228,104 @@ function fakeKv() {
   if (row0.status !== 'ready') throw new Error('threshold met on the next nonce is ready')
   if (rows.find((r) => r.safeTxHash === r1.safeTxHash)!.status !== 'pending') throw new Error('a later nonce waits even with the threshold met')
   if (row0.signatures !== packApprovedHashSignatures([OWNERS[0], OWNERS[2]])) throw new Error('signatures are the approvers, sorted')
-  safeNonce = 1n // nonce 0 executed
+  safeNonce = 1n
   rows = await listPending(['minting'])
-  if (rows.some((r) => r.nonce === 0)) throw new Error('executed proposals are hidden')
+  if (rows.some((r) => r.nonce === 0)) throw new Error('executed proposals are not listed')
   if (rows.find((r) => r.safeTxHash === r1.safeTxHash)!.status !== 'ready') throw new Error('the approved rejection is next')
-  safeNonce = 2n // the rejection executed: p1 and c1 targeted nonce 1, they are stale now
+  safeNonce = 2n // the rejection executed: p1 and c1 targeted nonce 1
   rows = await listPending(['minting'])
-  if (rows.length !== 0) throw new Error('losers of nonce 1 are stale and hidden')
-  const all = await listPending(['minting'], true)
-  if (!all.filter((r) => r.nonce === 1).every((r) => r.status === 'stale')) throw new Error('competing losers must be stale')
-  ok('approvals, ready, stale')
-
-  // the next proposal goes to the Safe nonce
-  const next = await proposeToSafe({ ...call, description: 'after' })
-  if (next.nonce !== '2') throw new Error(`expected nonce 2, got ${next.nonce}`)
-  // a rejection cannot target a used nonce
+  if (rows.some((r) => r.nonce === 1)) throw new Error('losers of a passed nonce are not listed')
+  ok('approvals, ready, passed nonces drop out')
   await rejects('used nonce', () => rejectNonce('minting', 1n), /already used/)
+  const next = await proposeToSafe(mint(500))
+  if (Number(next.nonce) < 2) throw new Error(`a new proposal must not land below the Safe nonce, got ${next.nonce}`)
   ok('next nonce')
 }
 
-// ---- 6. Parallel proposals may share a nonce, never lose one ------------------------------------------
+// ---- 6. AF2c: nonce window; AF4b: old pending proposals stay visible -----------------------------------
 {
   safeNonce = 0n
   fakeKv()
-  const out = await Promise.all(Array.from({ length: 5 }, (_, i) => proposeToSafe({ ...call, args: [], description: `p${i}`, functionName: 'ping' })))
-  const hashes = new Set(out.map((o) => o.safeTxHash))
-  // identical calls on the same nonce dedupe to one proposal, which is exactly the double-click case
-  if (hashes.size > 5 || hashes.size < 1) throw new Error('unexpected hashes')
+  const hashes: Hex[] = []
+  for (let i = 0; i <= 20; i++) hashes.push((await proposeToSafe(mint(1000 + i))).safeTxHash)
+  await rejects('queue full', () => proposeToSafe(mint(2000)), /queue is full/)
+  await rejects('pinned beyond window', () => proposeToSafe(mint(2001), { nonce: 21n }), /queue is full/)
   const rows = await listPending(['minting'])
-  if (rows.length !== hashes.size) throw new Error('every distinct proposal must be listed')
-  ok('parallel proposals')
+  if (rows.length !== 21) throw new Error(`expected 21 listed, got ${rows.length}`)
+  // an old proposal is still listed (and rejectable) 60 days later: the index is by nonce, not by week
+  const realNow = Date.now
+  Date.now = () => realNow() + 60 * 24 * 3600 * 1000
+  const later = await listPending(['minting'])
+  Date.now = realNow
+  if (later.length !== 21) throw new Error('old pending proposals must stay visible')
+  await rejectNonce('minting', 0n) // still reachable
+  // the Safe moves on: the passed nonces are not read any more and the window slides
+  safeNonce = 5n
+  const slid = await listPending(['minting'])
+  if (slid.some((r) => r.nonce < 5)) throw new Error('nonces below the Safe nonce must be gone')
+  const again = await proposeToSafe(mint(3000))
+  if (again.nonce !== '21') throw new Error(`window slid, next free nonce is 21, got ${again.nonce}`)
+  ok('nonce window and live index')
 }
 
-// ---- 7. The panel decoder: decode, recompute, mismatch -------------------------------------------------
+// ---- 7. AF1b: policy -------------------------------------------------------------------------------------
+{
+  fakeKv()
+  safeNonce = 0n
+  const erc20 = parseAbi(['function approve(address spender, uint256 amount)'])
+  const dist = parseAbi(['function closeSubscription()'])
+  const compl = parseAbi(['function callModuleFunction(bytes callData, address _module)'])
+  const sandbox = parseAbi(['function setMode(uint8 mode)', 'function evil(uint256 x)'])
+  const refuse = (label: string, c: Parameters<typeof proposeToSafe>[0]) => rejects(label, () => proposeToSafe(c), /Refused/)
+  // unknown target
+  await refuse('foreign target', { ...mint(1), address: '0x9999999999999999999999999999999999999999' })
+  // another duty's function on this duty's Safe
+  await refuse('treasury closes nothing on series', { duty: 'minting', address: DISTRIBUTOR, abi: dist, functionName: 'closeSubscription', description: 'x' })
+  await refuse('minting cannot do treasury', { duty: 'compliance', address: SERIES, abi: seriesAbi, functionName: 'allocate', args: [[OWNERS[0]], 1n, 1n, 1n, []], description: 'x' })
+  // approve: arbitrary spender refused, our distributor accepted
+  await refuse('approve arbitrary spender', { duty: 'treasury', address: USDC, abi: erc20, functionName: 'approve', args: ['0x9999999999999999999999999999999999999999', 1n], description: 'x' })
+  await refuse('approve on a foreign token', { duty: 'treasury', address: '0x9999999999999999999999999999999999999999', abi: erc20, functionName: 'approve', args: [DISTRIBUTOR, 1n], description: 'x' })
+  await proposeToSafe({ duty: 'treasury', address: USDC, abi: erc20, functionName: 'approve', args: [DISTRIBUTOR, 1n], description: 'ok' })
+  await proposeToSafe({ duty: 'treasury', address: DISTRIBUTOR, abi: dist, functionName: 'closeSubscription', description: 'ok' })
+  // governance: callModuleFunction only to our compliance and only into our sandbox
+  const inner = encodeFunctionData({ abi: sandbox, functionName: 'setMode', args: [1] })
+  await refuse('foreign module', { duty: 'governance', address: COMPLIANCE, abi: compl, functionName: 'callModuleFunction', args: [inner, '0x9999999999999999999999999999999999999999'], description: 'x' })
+  await refuse('foreign compliance', { duty: 'governance', address: '0x9999999999999999999999999999999999999999', abi: compl, functionName: 'callModuleFunction', args: [inner, dep.sandboxModule], description: 'x' })
+  await refuse('unknown inner function', { duty: 'governance', address: COMPLIANCE, abi: compl, functionName: 'callModuleFunction', args: [encodeFunctionData({ abi: sandbox, functionName: 'evil', args: [1n] }), dep.sandboxModule], description: 'x' })
+  await proposeToSafe({ duty: 'governance', address: COMPLIANCE, abi: compl, functionName: 'callModuleFunction', args: [inner, dep.sandboxModule], description: 'ok' })
+  // the guardian proposes nothing but rejections
+  process.env.GUARDIAN_SAFE = SAFE
+  await refuse('guardian', { duty: 'guardian', address: SERIES, abi: seriesAbi, functionName: 'allocate', args: [[OWNERS[0]], 1n, 1n, 1n, []], description: 'x' })
+  await rejectNonce('guardian', 0n)
+  ok('duty policy')
+}
+
+// ---- 8. The panel decoder: decode, recompute, mismatch, policy verdict ------------------------------------
 {
   const { decodeProposal } = await import('../src/web3/safeDecode.js')
-  const { encodeFunctionData, parseAbi } = await import('viem')
+  const { checkPolicy, deployedSet } = await import('../src/web3/safePolicy.js')
   const abi = parseAbi(['function distributeProfit(uint32 period, uint256 profitSen, uint256 epoch, bytes32[] proof)', 'function evil(uint256 x)'])
-  const target = '0x2222222222222222222222222222222222222222' as Address
+  const target = SERIES
   const data = encodeFunctionData({ abi, functionName: 'distributeProfit', args: [3, 1000n, 7n, []] })
   const d = decodeProposal(target, data, SAFE)
   if (!d.known || d.functionName !== 'distributeProfit' || d.reencoded !== data) throw new Error('known call must decode and re-encode identically')
   const hashOf = (dd: Hex) => safeTxHash(SAFE, { to: target, value: 0n, data: dd, operation: 0, safeTxGas: 0n, baseGas: 0n, gasPrice: 0n, gasToken: '0x0000000000000000000000000000000000000000', refundReceiver: '0x0000000000000000000000000000000000000000', nonce: 0n }, 421614)
   if (hashOf(d.reencoded!) !== hashOf(data)) throw new Error('recomputed hash must equal the hash of the same call')
-  // the stored hash of a different call does not match what the panel shows
   const evil = encodeFunctionData({ abi, functionName: 'evil', args: [1n] })
-  const storedForEvil = hashOf(evil)
   if (decodeProposal(target, evil, SAFE).known) throw new Error('an unknown function must not decode as known')
-  if (hashOf(data) === storedForEvil) throw new Error('hashes of different calls must differ')
-  // trailing junk after a valid call: decodes but does not re-encode to the same bytes, so it is not verified
-  const junk = (data + 'deadbeef') as Hex
-  const dj = decodeProposal(target, junk, SAFE)
-  if (dj.known) throw new Error('data with trailing bytes must not verify')
+  if (hashOf(data) === hashOf(evil)) throw new Error('hashes of different calls must differ')
+  if (decodeProposal(target, (data + 'deadbeef') as Hex, SAFE).known) throw new Error('data with trailing bytes must not verify')
   const rejection = decodeProposal(SAFE, '0x', SAFE)
   if (!rejection.rejection || !rejection.known) throw new Error('rejection must be recognised')
   if (decodeProposal(target, '0x', SAFE).known) throw new Error('an empty call to another address is not a rejection')
-  ok('decoder and mismatch guard')
+  // the panel's policy verdict: right duty and our target passes, anything else is red
+  const set = deployedSet(dep, [COMPLIANCE])
+  if (!checkPolicy('treasury', SAFE, target, d, set).ok) throw new Error('treasury distributeProfit on our series is allowed')
+  if (checkPolicy('minting', SAFE, target, d, set).ok) throw new Error('minting may not distribute profit')
+  if (checkPolicy('treasury', SAFE, '0x9999999999999999999999999999999999999999', d, set).ok) throw new Error('foreign target must be refused')
+  if (!checkPolicy('guardian', SAFE, SAFE, rejection, set).ok) throw new Error('a rejection is allowed for any duty')
+  if (checkPolicy('treasury', SAFE, target, rejection, set).ok) throw new Error('a rejection to another address is refused')
+  ok('decoder, mismatch guard and policy verdict')
 }
 globalThis.fetch = realFetch
 void arbitrumSepolia

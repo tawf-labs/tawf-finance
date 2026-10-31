@@ -6,6 +6,9 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { getPendingApprovals, loadPasscode, rejectSafeNonce, type PendingApprovalsResponse, type PendingSafeTx, type SafeDuty } from '@/lib/tokenization';
 import { decodeProposal, summarize, type DecodedCall } from '@/web3/safeDecode';
+import { checkPolicy, deployedSet, seriesTokens, type DeployedSet } from '@/web3/safePolicy';
+import { TrexComplianceAbi } from '@/web3/tokenizationAbis';
+import deployments from '@/web3/tokenization.deployments.json';
 import { useContractWrite } from '@/web3/hooks';
 import { safeAbi, ZERO_ADDRESS } from '@/web3/safe';
 import type { Abi } from 'viem';
@@ -18,14 +21,16 @@ const DUTY_LABEL: Record<SafeDuty, string> = {
   guardian: 'Guardian',
 };
 
-const STATUS_LABEL = { pending: 'Waiting', ready: 'Ready to execute', stale: 'Replaced or executed' } as const;
+const STATUS_LABEL = { pending: 'Waiting', ready: 'Ready to execute' } as const;
 
 /** What the panel works out itself for a proposal, never taking the stored hash on trust. */
 interface Check {
   decoded: DecodedCall;
   /** Safe.getTransactionHash of the decoded fields, or null when the call could not be decoded. */
   recomputed: `0x${string}` | null;
-  /** Decodes with a known ABI and the recomputed hash equals the stored one. */
+  /** Our contract and a function of this duty (safePolicy), else the reason it is refused. */
+  policy: { ok: boolean; reason: string };
+  /** Decodes with a known ABI, passes the duty policy, and the recomputed hash equals the stored one. */
   verified: boolean;
 }
 
@@ -70,9 +75,21 @@ export function PendingApprovals({ duties, passcode }: { duties: SafeDuty[]; pas
     let live = true;
     void (async () => {
       const next: Record<string, Check> = {};
+      // Our contracts: deployments.json plus the compliance contract of each series token, read on chain.
+      let set: DeployedSet;
+      try {
+        const compliances = await Promise.all(
+          seriesTokens(deployments as Record<string, unknown>).map(
+            (token) => publicClient.readContract({ address: token, abi: TrexComplianceAbi, functionName: 'compliance' }) as Promise<`0x${string}`>,
+          ),
+        );
+        set = deployedSet(deployments as Record<string, unknown>, compliances);
+      } catch {
+        set = deployedSet(deployments as Record<string, unknown>, []);
+      }
       for (const p of data.pending) {
-        if (p.status === 'stale') continue;
         const decoded = decodeProposal(p.to, p.data, p.safe);
+        const policy = checkPolicy(p.duty, p.safe, p.to, decoded, set);
         let recomputed: `0x${string}` | null = null;
         if (decoded.reencoded) {
           try {
@@ -86,7 +103,7 @@ export function PendingApprovals({ duties, passcode }: { duties: SafeDuty[]; pas
             recomputed = null;
           }
         }
-        next[p.safeTxHash] = { decoded, recomputed, verified: decoded.known && recomputed !== null && recomputed.toLowerCase() === p.safeTxHash.toLowerCase() };
+        next[p.safeTxHash] = { decoded, recomputed, policy, verified: policy.ok && decoded.known && recomputed !== null && recomputed.toLowerCase() === p.safeTxHash.toLowerCase() };
       }
       if (live) setChecks(next);
     })();
@@ -143,7 +160,7 @@ export function PendingApprovals({ duties, passcode }: { duties: SafeDuty[]; pas
   };
 
   const configured = data ? duties.filter((d) => data.safes[d]?.address) : [];
-  const rows = data ? data.pending.filter((p) => duties.includes(p.duty) && p.status !== 'stale') : [];
+  const rows = data ? data.pending.filter((p) => duties.includes(p.duty)) : [];
   const me = address?.toLowerCase();
 
   return (
@@ -200,15 +217,17 @@ export function PendingApprovals({ duties, passcode }: { duties: SafeDuty[]; pas
                     )}
                     {mismatch && (
                       <p className="mt-2 text-sm font-semibold text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
-                        {c.decoded.known
-                          ? 'MISMATCH: the stored hash is not the hash of the call shown above. Do not approve.'
-                          : 'This call cannot be decoded with a known contract ABI, so it cannot be verified. Do not approve.'}
+                        {!c.decoded.known
+                          ? 'This call cannot be decoded with a known contract ABI, so it cannot be verified. Do not approve.'
+                          : !c.policy.ok
+                            ? `NOT ALLOWED for the ${DUTY_LABEL[p.duty]} Safe: ${c.policy.reason} Do not approve.`
+                            : 'MISMATCH: the stored hash is not the hash of the call shown above. Do not approve.'}
                       </p>
                     )}
                     {!c && <p className="mt-1 text-xs text-tawf-gray-500">Checking the hash on chain...</p>}
                   </div>
                   <div className="flex flex-col gap-2 shrink-0">
-                    {c?.verified && isOwner && !approved && p.status !== 'stale' && (
+                    {c?.verified && isOwner && !approved && (
                       <Button size="sm" variant="secondary" disabled={busy} onClick={() => void act(p, 'approve')}>
                         Approve
                       </Button>

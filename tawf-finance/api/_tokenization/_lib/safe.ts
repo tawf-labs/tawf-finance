@@ -34,6 +34,10 @@ import { arbitrumSepolia } from 'viem/chains'
 import { addresses, walletClient, publicClient } from './operator.js'
 import { kvEnabled, kvGetJson, kvListAdd, kvListGet, kvPool, kvSetJson } from './qn-kv.js'
 import { safeAbi, ZERO_ADDRESS, packApprovedHashSignatures } from '../../../src/web3/safe.js'
+import { decodeProposal } from '../../../src/web3/safeDecode.js'
+import { checkPolicy, deployedSet, seriesTokens, type DeployedSet } from '../../../src/web3/safePolicy.js'
+import { trexComplianceAbi } from './abis.js'
+import deployments from '../../../src/web3/tokenization.deployments.json' with { type: 'json' }
 
 export type Duty = 'governance' | 'treasury' | 'minting' | 'compliance' | 'guardian'
 
@@ -84,6 +88,22 @@ export function safeFor(duty: Duty): Address | null {
   return getAddress(v.trim()) as Address
 }
 
+let deployedCache: Promise<DeployedSet> | null = null
+/** Our contracts from deployments.json plus the compliance contract of each series token (read on chain). */
+export function loadDeployedSet(): Promise<DeployedSet> {
+  deployedCache ??= (async () => {
+    const raw = deployments as Record<string, unknown>
+    const compliances = await Promise.all(
+      seriesTokens(raw).map((token) => publicClient.readContract({ address: token, abi: trexComplianceAbi, functionName: 'compliance' }) as Promise<Address>),
+    )
+    return deployedSet(raw, compliances)
+  })().catch((e) => {
+    deployedCache = null
+    throw e
+  })
+  return deployedCache
+}
+
 export interface Proposal {
   proposed: true
   duty: Duty
@@ -124,16 +144,16 @@ interface StoredProposal {
 
 const propKey = (safe: Address, hash: Hex) => `tawf:safe:prop:${safe.toLowerCase()}:${hash}`
 
-// The per-Safe index of proposal hashes is split by week so a read stays small: the current week and the
-// three before it are read. A proposal older than that has long been executed, replaced or abandoned.
-const WEEK_MS = 7 * 24 * 3600 * 1000
-const weekOf = (t: number) => Math.floor(t / WEEK_MS)
-const listKey = (safe: Address, week: number) => `tawf:safe:list:${safe.toLowerCase()}:${week}`
-const WEEKS_READ = 4
+// Live index: one append-only list of proposal hashes PER NONCE. The panel reads the lists for nonces in
+// [Safe.nonce, Safe.nonce + NONCE_WINDOW], so every proposal that can still run stays visible however old it is,
+// and the lists of nonces the Safe has passed are simply never read again (that is the pruning).
+const nonceKey = (safe: Address, nonce: bigint) => `tawf:safe:n:${safe.toLowerCase()}:${nonce}`
+/** Proposals are accepted and shown only up to Safe.nonce + NONCE_WINDOW. */
+export const NONCE_WINDOW = 20n
 
-async function readStored(safe: Address): Promise<StoredProposal[]> {
-  const now = weekOf(Date.now())
-  const lists = await Promise.all(Array.from({ length: WEEKS_READ }, (_, i) => kvListGet(listKey(safe, now - i))))
+async function readStored(safe: Address, safeNonce: bigint): Promise<StoredProposal[]> {
+  const nonces = Array.from({ length: Number(NONCE_WINDOW) + 1 }, (_, i) => safeNonce + BigInt(i))
+  const lists = await kvPool(nonces, 6, (n) => kvListGet(nonceKey(safe, n)))
   const hashes = [...new Set(lists.flat())] as Hex[]
   return (await kvPool(hashes, 6, (h) => kvGetJson<StoredProposal | null>(propKey(safe, h), null))).filter(
     (p): p is StoredProposal => p !== null,
@@ -142,10 +162,11 @@ async function readStored(safe: Address): Promise<StoredProposal[]> {
 
 /**
  * Queue `call` on the duty's Safe, the way the Safe apps do. The proposal targets
- * nonce = max(Safe.nonce, highest pending nonce + 1), unless `opts.nonce` pins one (a rejection must target
- * the nonce it burns). Several proposals may share a nonce: they compete, whichever executes first wins and
- * the others become stale. A proposal is stored under its SafeTx hash, so proposing the same call on the same
- * nonce again returns the existing one. The hash comes from Safe.getTransactionHash.
+ * nonce = max(Safe.nonce, highest pending nonce + 1) among nonces up to Safe.nonce + NONCE_WINDOW, unless
+ * `opts.nonce` pins one (a rejection must target the nonce it burns). Several proposals may share a nonce: they
+ * compete, whichever executes first wins and the others become stale. A live proposal of the same duty with the
+ * same target and data is returned instead of queuing a copy (double click). A proposal is stored under its
+ * SafeTx hash. The call must pass the duty policy (our contracts, that duty's functions) before it is stored.
  */
 export async function proposeToSafe(call: AdminCall, opts: { nonce?: bigint } = {}): Promise<Proposal> {
   const safe = safeFor(call.duty)
@@ -155,16 +176,24 @@ export async function proposeToSafe(call: AdminCall, opts: { nonce?: bigint } = 
     ? ('0x' as Hex)
     : encodeFunctionData({ abi: call.abi as Abi, functionName: call.functionName, args: call.args as never })
   const to = call.rejection ? safe : call.address
+  const verdict = checkPolicy(call.duty, safe, to, decodeProposal(to, data, safe), await loadDeployedSet())
+  if (!verdict.ok) throw new Error(`Refused: ${verdict.reason}`)
+
   const safeNonce = (await publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'nonce' })) as bigint
+  const live = await readStored(safe, safeNonce)
   let nonce = opts.nonce
   if (nonce === undefined) {
-    nonce = safeNonce
-    for (const p of await readStored(safe)) {
-      const n = BigInt(p.nonce)
-      if (n >= safeNonce && n + 1n > nonce) nonce = n + 1n
+    const twin = live.find((p) => p.duty === call.duty && p.to.toLowerCase() === to.toLowerCase() && p.data === data)
+    if (twin) {
+      return { proposed: true, duty: twin.duty, safe, safeTxHash: twin.hash, nonce: twin.nonce, description: twin.description }
     }
+    nonce = safeNonce
+    for (const p of live) if (BigInt(p.nonce) + 1n > nonce) nonce = BigInt(p.nonce) + 1n
   } else if (nonce < safeNonce) {
     throw new Error(`Nonce ${nonce} is already used: the Safe is at nonce ${safeNonce}`)
+  }
+  if (nonce > safeNonce + NONCE_WINDOW) {
+    throw new Error(`The approval queue is full: nonce ${nonce} is more than ${NONCE_WINDOW} ahead of the Safe. Execute or reject pending proposals first.`)
   }
   const hash = (await publicClient.readContract({
     address: safe,
@@ -181,7 +210,7 @@ export async function proposeToSafe(call: AdminCall, opts: { nonce?: bigint } = 
     await kvSetJson(propKey(safe, hash), stored)
   }
   // Append-only and idempotent: a duplicate hash is ignored by the list.
-  await kvListAdd(listKey(safe, weekOf(existing?.createdAt ?? Date.now())), hash)
+  await kvListAdd(nonceKey(safe, nonce), hash)
   return { proposed: true, duty: call.duty, safe, safeTxHash: hash, nonce: nonce.toString(), description: existing?.description ?? call.description }
 }
 
@@ -226,7 +255,7 @@ export async function submitAdminTx(call: AdminCall, chainId?: number): Promise<
 }
 
 
-export type ProposalStatus = 'pending' | 'ready' | 'stale'
+export type ProposalStatus = 'pending' | 'ready'
 
 export interface PendingTx {
   duty: Duty
@@ -245,7 +274,7 @@ export interface PendingTx {
   owners: Address[]
   safeNonce: number
   /** pending: waiting for approvals or an earlier nonce. ready: threshold met and it is the next nonce.
-   *  stale: the Safe nonce moved past it (executed, rejected or replaced by a competing proposal). */
+   *  Proposals the Safe has passed (executed, rejected or replaced by a competing one) are no longer listed. */
   status: ProposalStatus
   /** Other live proposals competing for the same nonce. Whichever executes first wins. */
   competing: number
@@ -259,28 +288,25 @@ function methodOf(data: Hex): string | null {
 }
 
 /** Proposals of every configured Safe with their on-chain approvals, for the Pending approvals panels. */
-export async function listPending(only?: Duty[], includeStale = false): Promise<PendingTx[]> {
+export async function listPending(only?: Duty[]): Promise<PendingTx[]> {
   if (!kvEnabled()) return []
   const out: PendingTx[] = []
   for (const duty of only ?? DUTIES) {
     const safe = safeFor(duty)
     if (!safe) continue
-    const props = await readStored(safe)
-    if (props.length === 0) continue
     const [safeNonce, threshold, owners] = (await Promise.all([
       publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'nonce' }),
       publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'getThreshold' }),
       publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'getOwners' }),
     ])) as [bigint, bigint, Address[]]
+    // Only nonces that can still run, up to the window. Everything the Safe has passed is gone from the index.
+    const props = await readStored(safe, safeNonce)
+    if (props.length === 0) continue
     const perNonce = new Map<string, number>()
     for (const p of props) if (BigInt(p.nonce) >= safeNonce) perNonce.set(p.nonce, (perNonce.get(p.nonce) ?? 0) + 1)
     for (const p of props) {
       const nonce = BigInt(p.nonce)
-      const stale = nonce < safeNonce
-      if (stale && !includeStale) continue
-      const approvals = stale
-        ? []
-        : await publicClient.multicall({
+      const approvals = await publicClient.multicall({
             allowFailure: false,
             contracts: owners.map((o) => ({ address: safe, abi: safeAbi, functionName: 'approvedHashes', args: [o, p.hash] }) as const),
           })
@@ -290,8 +316,8 @@ export async function listPending(only?: Duty[], includeStale = false): Promise<
         duty, safe, safeTxHash: p.hash, nonce: Number(p.nonce), to: p.to, data: p.data, value: '0', method: methodOf(p.data),
         description: p.description, createdAt: p.createdAt, approvedBy, required: Number(threshold),
         owners, safeNonce: Number(safeNonce),
-        status: stale ? 'stale' : met && nonce === safeNonce ? 'ready' : 'pending',
-        competing: stale ? 0 : (perNonce.get(p.nonce) ?? 1) - 1,
+        status: met && nonce === safeNonce ? 'ready' : 'pending',
+        competing: (perNonce.get(p.nonce) ?? 1) - 1,
         signatures: packApprovedHashSignatures(approvedBy),
       })
     }

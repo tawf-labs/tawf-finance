@@ -300,7 +300,7 @@ export interface SafeProposal {
   description: string;
 }
 
-export type SafeProposalStatus = 'pending' | 'ready' | 'stale';
+export type SafeProposalStatus = 'pending' | 'ready';
 
 export interface PendingSafeTx {
   duty: SafeDuty;
