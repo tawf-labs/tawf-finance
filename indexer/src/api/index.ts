@@ -5,6 +5,7 @@ import * as schema from 'ponder:schema'
 import { Hono } from 'hono'
 import { client, desc, eq, graphql, inArray, or, and, isNull, replaceBigInts } from 'ponder'
 import { getAddress, isAddress } from 'viem'
+import { addr } from '../lib/deployments'
 
 const app = new Hono()
 const tables = schema as any
@@ -115,13 +116,17 @@ app.get('/governance', async (c) => {
   return json(c, { beacons, safes, events: rows })
 })
 
+// Coins are labelled by address from the deployments file, never by an on-chain symbol (a mock can report another one).
+const COIN_KEYS: Record<string, string> = { mockUsdc: 'USDC', mockUsdt: 'USDT', mockUsdg: 'USDG', usdg: 'USDG' }
+const coinLabel = (coin: string) => Object.entries(COIN_KEYS).find(([k]) => addr(k)?.toLowerCase() === coin.toLowerCase())?.[1] ?? null
+
 /** Raised, refunded and paid out per distributor and coin, from the SCF events (PayoutPart gives the coins actually paid). */
 app.get('/scf/flows', async (c) => {
   const offerings = await db.select().from(tables.scfOffering)
   const flows = await db.select().from(tables.scfCoinFlow)
   const limits = await db.select().from(tables.scfLimitProfile)
   return json(c, {
-    offerings: offerings.map((o: any) => ({ ...o, coins: flows.filter((f: any) => f.distributor === o.id) })),
+    offerings: offerings.map((o: any) => ({ ...o, coins: flows.filter((f: any) => f.distributor === o.id).map((f: any) => ({ ...f, symbol: coinLabel(f.coin) })) })),
     limitProfiles: limits.length,
   })
 })
