@@ -28,3 +28,5 @@ export function getTokenIdentity(token: `0x${string}`): Promise<TokenIdentityVie
 export function hasVerifiedIdentity(v: TokenIdentityView | null): boolean {
   return !!v && !!v.identity && [v.originator, v.platform, v.partner, v.docs].some((c) => c?.verified);
 }
+
+export { safeDocumentLink, IPFS_GATEWAY } from './documentLink';

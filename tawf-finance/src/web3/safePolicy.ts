@@ -4,7 +4,7 @@
  * Safe it was proposed on. The API checks this when proposing and the admin panel checks it again before it
  * offers Approve, so a proposal slipped into the store for another target or another duty shows red.
  */
-import { getAddress, isAddress, maxUint256, parseAbi, type Address } from 'viem';
+import { decodeAbiParameters, getAddress, isAddress, maxUint256, parseAbi, type Address, type Hex } from 'viem';
 import type { DecodedCall } from './safeDecode';
 import type { Duty } from './safeDuty';
 
@@ -20,6 +20,8 @@ export interface DeployedSet {
   tokens: Address[];
   /** Pool ledgers, which are Pausable (Guardian pauses, Governance unpauses). */
   ledgers: Address[];
+  /** The ONCHAINID of each token (deployments keys ending TokenIdentity). */
+  tokenIdentities: Address[];
 }
 
 const SERIES_KEYS = ['tawfSeries', 'tawfSeries2', 'depositoPool'];
@@ -52,6 +54,7 @@ export function deployedSet(raw: Record<string, unknown>, complianceOf: Address[
     stablecoins: pick(raw, STABLE_KEYS),
     tokens: pick(raw, TOKEN_KEYS),
     ledgers: pick(raw, LEDGER_KEYS),
+    tokenIdentities: Object.keys(raw).filter((k) => k.endsWith('TokenIdentity')).flatMap((k) => pick(raw, [k])),
   };
 }
 
@@ -94,7 +97,10 @@ export function checkPolicy(duty: Duty, safe: Address, to: Address, c: DecodedCa
       if (fn === 'pause' || fn === 'unpause') return has(set.tokens, to) ? { ok: true, reason: '' } : no(`${fn} by the Minting Safe is for our tokens only (it is their agent).`);
       return fn === 'allocate' && has(set.series, to) ? { ok: true, reason: '' } : no(`${fn} is not a Minting action on one of our series.`);
     case 'compliance':
-      return (fn === 'resetUsage' || fn === 'setProfile') && has(set.scfLimit, to) ? { ok: true, reason: '' } : no(`${fn} is not a Compliance action on our SCF limit module.`);
+      if (fn === 'addClaim' || fn === 'removeClaim') {
+        return has(set.tokenIdentities, to) ? { ok: true, reason: '' } : no(`${fn} must target the ONCHAINID of one of our tokens.`);
+      }
+      return (fn === 'resetUsage' || fn === 'setProfile') && has(set.scfLimit, to) ? { ok: true, reason: '' } : no(`${fn} is not a Compliance action on our SCF limit module or token identities.`);
     case 'governance':
       if (fn === 'unpause') return has(pausables(set), to) ? { ok: true, reason: '' } : no('unpause must target one of our series, distributors or the pool ledger.');
       if (fn === 'setTawfShare') return has([...set.series, ...set.distributors], to) ? { ok: true, reason: '' } : no('setTawfShare must target one of our series or distributors.');
@@ -122,7 +128,21 @@ const ARG_ABI = parseAbi([
   'function allowedStablecoins() view returns (address[])',
   'function isVerified(address user) view returns (bool)',
   'function pendingOf(address investor, address token) view returns (uint256)',
+  'function issuersRegistry() view returns (address)',
+  'function isTrustedIssuer(address issuer) view returns (bool)',
+  'function hasClaimTopic(address issuer, uint256 claimTopic) view returns (bool)',
+  'function isClaimValid(address identity, uint256 claimTopic, bytes sig, bytes data) view returns (bool)',
+  'function getClaim(bytes32 claimId) view returns (uint256 topic, uint256 scheme, address issuer, bytes signature, bytes data, string uri)',
 ]);
+
+/** Claim topics of the token ONCHAINIDs: 10 ORIGINATOR, 11 PLATFORM, 12 TOKENIZATION_PARTNER, 13 OFFERING_DOCS. */
+const TOKEN_CLAIM_TOPICS = [10n, 11n, 12n, 13n];
+const CLAIM_SHAPES: Record<string, { type: string }[]> = {
+  '10': [{ type: 'string' }, { type: 'string' }, { type: 'string' }, { type: 'address' }],
+  '11': [{ type: 'string' }, { type: 'string' }, { type: 'address' }],
+  '12': [{ type: 'string' }, { type: 'string' }],
+  '13': [{ type: 'bytes32' }, { type: 'string' }],
+};
 
 /**
  * Largest allowance an approve proposal may grant when no paired amount is known: 100,000 units of a 6-decimal
@@ -191,6 +211,29 @@ export async function checkArguments(to: Address, c: DecodedCall, set: DeployedS
       if (end > limit) return no(`setSeriesEnd: the end may be at most ${b.maxYears} years away.`);
     }
     return ok;
+  }
+  if (fn === 'removeClaim') {
+    const [topic] = (await env.chain.readContract({ address: to, abi: ARG_ABI, functionName: 'getClaim', args: [a[0]] })) as readonly [bigint];
+    return TOKEN_CLAIM_TOPICS.includes(topic) ? ok : no('removeClaim may only remove a token claim of topics 10 to 13 that exists.');
+  }
+  if (fn === 'addClaim') {
+    const [topic, , issuer, signature, data] = a as readonly [bigint, bigint, Address, Hex, Hex];
+    if (!TOKEN_CLAIM_TOPICS.includes(topic)) return no('addClaim is limited to the token claim topics 10 to 13.');
+    try {
+      decodeAbiParameters(CLAIM_SHAPES[topic.toString()] as never, data);
+    } catch {
+      return no(`The claim data does not decode as a topic ${topic} claim.`);
+    }
+    if (!env.identityRegistry) return no('The IdentityRegistry is not configured.');
+    // The issuer must be a trusted issuer for this topic and its signature must verify for THIS identity, before a
+    // single owner is asked to approve.
+    const tir = (await env.chain.readContract({ address: env.identityRegistry, abi: ARG_ABI, functionName: 'issuersRegistry' })) as Address;
+    const known = (await env.chain.readContract({ address: tir, abi: ARG_ABI, functionName: 'isTrustedIssuer', args: [issuer] })) as boolean;
+    if (!known) return no('The claim issuer is not a trusted issuer.');
+    const forTopic = (await env.chain.readContract({ address: tir, abi: ARG_ABI, functionName: 'hasClaimTopic', args: [issuer, topic] })) as boolean;
+    if (!forTopic) return no(`The claim issuer is not trusted for topic ${topic}.`);
+    const valid = (await env.chain.readContract({ address: issuer, abi: ARG_ABI, functionName: 'isClaimValid', args: [to, topic, signature, data] })) as boolean;
+    return valid ? ok : no('The claim signature does not verify against the issuer for this identity.');
   }
   if (fn === 'addStablecoin') {
     return has(set.stablecoins, a[0]) ? ok : no('addStablecoin may only add one of our known settlement coins.');

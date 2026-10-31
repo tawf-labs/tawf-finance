@@ -34,6 +34,7 @@ import h34 from './_tokenization/activity.js'
 import h40 from './_tokenization/token-identity.js'
 import h38 from './_tokenization/safe/pending.js'
 import h39 from './_tokenization/safe/reject.js'
+import h41 from './_tokenization/token-identity/claim.js'
 import { requestContext, contextKeyFor } from './_tokenization/_lib/safe.js'
 
 type Handler = (req: VercelRequest, res: VercelResponse) => unknown
@@ -64,6 +65,7 @@ const routes: Record<string, Handler> = {
   'pool/admin': h33,
   'activity': h34,
   'token-identity': h40,
+  'token-identity/claim': h41,
   'safe/pending': h38,
   'safe/reject': h39,
   'qn/stream': h36,

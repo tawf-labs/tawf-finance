@@ -503,6 +503,60 @@ const mint = (i: number, description = `mint ${i}`) => ({
   await proposeToSafe(inner('setSeriesEnd', [BigInt(Math.floor(Date.now() / 1000) + 90 * 24 * 3600)]))
   ok('allocate list and paired approve and sandbox bounds')
 }
+
+// ---- 11. Compliance addClaim / removeClaim on token identities ---------------------------------------------------
+{
+  const { checkProposal, deployedSet } = await import('../src/web3/safePolicy.js')
+  const { decodeProposal } = await import('../src/web3/safeDecode.js')
+  const { encodeAbiParameters } = await import('viem')
+  const IDENT = '0x00000000000000000000000000000000000000a1' as Address
+  const ISSUER = '0x00000000000000000000000000000000000000b1' as Address
+  const FOREIGN_ISSUER = '0x00000000000000000000000000000000000000b2' as Address
+  const TIR = '0x00000000000000000000000000000000000000c1' as Address
+  const IR = '0x00000000000000000000000000000000000000d1' as Address
+  const set = deployedSet({ ...dep, scfTokenIdentity: IDENT }, [])
+  const idAbi = parseAbi(['function addClaim(uint256 topic, uint256 scheme, address issuer, bytes signature, bytes data, string uri)', 'function removeClaim(bytes32 claimId)'])
+  const validFor = new Set<string>() // issuer:topic with a valid signature
+  const claims = new Map<string, bigint>()
+  const reads = {
+    readContract: async (a: { address: Address; functionName: string; args?: readonly unknown[] }) => {
+      if (a.functionName === 'issuersRegistry') return TIR
+      if (a.functionName === 'isTrustedIssuer') return String(a.args![0]).toLowerCase() === ISSUER
+      if (a.functionName === 'hasClaimTopic') return String(a.args![0]).toLowerCase() === ISSUER && [10n, 11n, 12n, 13n].includes(a.args![1] as bigint)
+      if (a.functionName === 'isClaimValid') return validFor.has(`${a.address.toLowerCase()}:${a.args![1]}`)
+      if (a.functionName === 'getClaim') return [claims.get(String(a.args![0]).toLowerCase()) ?? 0n]
+      throw new Error('unexpected ' + a.functionName)
+    },
+  }
+  const env = { chain: reads, feeRecipient: null, identityRegistry: IR }
+  const check = async (duty: 'compliance' | 'governance', to: Address, fn: 'addClaim' | 'removeClaim', args: unknown[]) => {
+    const data = encodeFunctionData({ abi: idAbi, functionName: fn, args: args as never } as never)
+    return checkProposal(duty, SAFE, to, decodeProposal(to, data, SAFE), set, env)
+  }
+  const docs = (h: string) => encodeAbiParameters([{ type: 'bytes32' }, { type: 'string' }], [h as Hex, 'ipfs://x'])
+  const good = docs('0x' + '11'.repeat(32))
+  validFor.add(`${ISSUER}:13`.toLowerCase())
+  const addOk = await check('compliance', IDENT, 'addClaim', [13n, 1n, ISSUER, '0x1234', good, ''])
+  if (!addOk.ok) throw new Error('a valid topic 13 claim from a trusted issuer must pass: ' + addOk.reason)
+  const bad = async (label: string, r: Promise<{ ok: boolean; reason: string }>, m: RegExp) => { const v = await r; if (v.ok || !m.test(v.reason)) throw new Error(`${label}: ${JSON.stringify(v)}`) }
+  await bad('governance cannot', check('governance', IDENT, 'addClaim', [13n, 1n, ISSUER, '0x1234', good, '']), /not a Governance action/)
+  await bad('foreign identity', check('compliance', '0x00000000000000000000000000000000000000ff', 'addClaim', [13n, 1n, ISSUER, '0x1234', good, '']), /ONCHAINID of one of our tokens/)
+  await bad('investor topic 1', check('compliance', IDENT, 'addClaim', [1n, 1n, ISSUER, '0x1234', good, '']), /topics 10 to 13/)
+  await bad('topic 3', check('compliance', IDENT, 'addClaim', [3n, 1n, ISSUER, '0x1234', good, '']), /topics 10 to 13/)
+  await bad('data does not decode', check('compliance', IDENT, 'addClaim', [13n, 1n, ISSUER, '0x1234', '0xdeadbeef', '']), /does not decode/)
+  await bad('untrusted issuer', check('compliance', IDENT, 'addClaim', [13n, 1n, FOREIGN_ISSUER, '0x1234', good, '']), /not a trusted issuer/)
+  validFor.clear()
+  await bad('signature does not verify', check('compliance', IDENT, 'addClaim', [13n, 1n, ISSUER, '0x1234', good, '']), /signature does not verify/)
+  // removeClaim: only an existing claim of topics 10 to 13
+  claims.set('0x' + 'aa'.repeat(32), 12n)
+  claims.set('0x' + 'bb'.repeat(32), 1n)
+  const rm = await check('compliance', IDENT, 'removeClaim', ['0x' + 'aa'.repeat(32)])
+  if (!rm.ok) throw new Error('removing a topic 12 claim must pass: ' + rm.reason)
+  await bad('remove an investor claim', check('compliance', IDENT, 'removeClaim', ['0x' + 'bb'.repeat(32)]), /topics 10 to 13/)
+  await bad('remove a missing claim', check('compliance', IDENT, 'removeClaim', ['0x' + 'cc'.repeat(32)]), /topics 10 to 13/)
+  await bad('governance cannot remove', check('governance', IDENT, 'removeClaim', ['0x' + 'aa'.repeat(32)]), /not a Governance action/)
+  ok('token claim proposals')
+}
 globalThis.fetch = realFetch
 void arbitrumSepolia
 void realRead

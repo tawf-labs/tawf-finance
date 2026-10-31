@@ -107,3 +107,32 @@ v = await readTokenIdentity(TOKEN)
 if (v.originator !== null || decodeOriginator('0xdeadbeef') !== null) throw new Error('undecodable data must not become a claim')
 ok('undecodable data')
 console.log('token-identity-selftest all ok')
+
+// ---- TI3: document links ---------------------------------------------------------------------------------------
+import { safeDocumentLink, IPFS_GATEWAY } from '../src/lib/documentLink.js'
+const CID = 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'
+const cases: [string, boolean, string | null][] = [
+  ['https://example.org/akad.pdf', true, 'https://example.org/akad.pdf'],
+  ['https://example.org/akad.pdf', false, null], // an unverified claim never gets a link
+  [`ipfs://${CID}`, true, `${IPFS_GATEWAY}${CID}`],
+  [`ipfs://${CID}/akad.pdf`, true, `${IPFS_GATEWAY}${CID}/akad.pdf`],
+  [`ipfs://ipfs/${CID}`, true, `${IPFS_GATEWAY}${CID}`],
+  [`ipfs://${CID}`, false, null],
+  ['javascript:alert(1)', true, null],
+  ['JAVASCRIPT:alert(1)', true, null],
+  ['data:text/html;base64,PHNjcmlwdD4=', true, null],
+  ['http://example.org/akad.pdf', true, null], // plain http is not enough
+  ['//example.org/akad.pdf', true, null],
+  ['/relative/akad.pdf', true, null],
+  ['https://user:pass@example.org/x', true, null],
+  ['ipfs://x', true, null], // not a CID
+  [`ipfs://${CID}/../../etc`, true, null],
+  ['ipfs://https://evil.example', true, null],
+  ['', true, null],
+  ['not a url', true, null],
+]
+for (const [uri, verified, want] of cases) {
+  const got = safeDocumentLink(uri, verified)
+  if (got !== want) throw new Error(`safeDocumentLink(${JSON.stringify(uri)}, ${verified}) = ${got}, wanted ${want}`)
+}
+ok('document links')

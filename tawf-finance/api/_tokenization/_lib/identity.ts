@@ -111,7 +111,7 @@ export function selfServiceAgent(chainId: number = Number(addresses.chainId)): {
  * Build the eth-signed KYC claim exactly as ClaimIssuer.isClaimValid expects:
  * dataHash = keccak256(abi.encode(identity, topic, data)); signed as a message.
  */
-async function signKycClaim(identity: Address, topic: bigint, data: Hex): Promise<Hex> {
+export async function signKycClaim(identity: Address, topic: bigint, data: Hex): Promise<Hex> {
   // The signature must come from a claim key of the issuer that is named in addClaim (selfServiceIssuer).
   const dataHash = keccak256(
     encodeAbiParameters(

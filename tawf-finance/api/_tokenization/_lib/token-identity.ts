@@ -6,7 +6,7 @@
  * (ClaimIssuer.isClaimValid), the issuer is a trusted issuer in the TrustedIssuersRegistry, and it is trusted
  * for that topic. Nothing here is read from our own store.
  */
-import { decodeAbiParameters, getAddress, parseAbi, type Address, type Hex } from 'viem'
+import { decodeAbiParameters, encodeAbiParameters, getAddress, parseAbi, type Address, type Hex } from 'viem'
 import { publicClient, addresses } from './operator.js'
 
 export const TOPIC_ORIGINATOR = 10n
@@ -134,4 +134,28 @@ export async function readTokenIdentity(token: Address): Promise<TokenIdentityVi
   view.partner = pick(t, decodePartner)
   view.docs = pick(d, decodeDocs)
   return view
+}
+
+/** Claim data for a topic, the field lists of TokenIdentitySetup.encode*. Returns null when a field is missing or malformed. */
+export function encodeClaimData(topic: number, f: Record<string, unknown>): Hex | null {
+  const str = (v: unknown) => (typeof v === 'string' && v.length > 0 && v.length <= 200 ? v : null)
+  const adr = (v: unknown) => (v === undefined || v === '' ? ZERO : typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v) ? (getAddress(v) as Address) : null)
+  if (topic === 10) {
+    const [name, licence, kind, id] = [str(f.name), str(f.licence), str(f.kind), adr(f.originatorId)]
+    return name && licence && kind && id ? encodeAbiParameters([{ type: 'string' }, { type: 'string' }, { type: 'string' }, { type: 'address' }], [name, licence, kind, id]) : null
+  }
+  if (topic === 11) {
+    const [name, licence, id] = [str(f.name), str(f.licence), adr(f.platformId)]
+    return name && licence && id ? encodeAbiParameters([{ type: 'string' }, { type: 'string' }, { type: 'address' }], [name, licence, id]) : null
+  }
+  if (topic === 12) {
+    const [name, entity] = [str(f.name), str(f.entity)]
+    return name && entity ? encodeAbiParameters([{ type: 'string' }, { type: 'string' }], [name, entity]) : null
+  }
+  if (topic === 13) {
+    const hash = typeof f.documentHash === 'string' && /^0x[0-9a-fA-F]{64}$/.test(f.documentHash) ? (f.documentHash as Hex) : null
+    const uri = str(f.documentUri)
+    return hash && uri ? encodeAbiParameters([{ type: 'bytes32' }, { type: 'string' }], [hash, uri]) : null
+  }
+  return null
 }

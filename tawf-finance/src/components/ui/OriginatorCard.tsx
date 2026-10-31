@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BadgeCheck, CircleDashed, ExternalLink } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
-import { getTokenIdentity, hasVerifiedIdentity, type ClaimMeta, type TokenIdentityView } from '@/lib/tokenIdentity';
+import { getTokenIdentity, hasVerifiedIdentity, safeDocumentLink, type ClaimMeta, type TokenIdentityView } from '@/lib/tokenIdentity';
 import { explorerAddressUrl } from '@/web3/constants';
 
 function Tick({ c }: { c: ClaimMeta }) {
@@ -104,9 +104,13 @@ export function OriginatorCard({ token, title = 'Originator and partners' }: { t
             {view.docs && (
               <>
                 <p className="font-mono text-xs break-all">{view.docs.documentHash}</p>
-                <a href={view.docs.documentUri} target="_blank" rel="noopener noreferrer" className="text-xs text-tawf-green hover:underline inline-flex items-center gap-1">
-                  Open the document <ExternalLink className="w-3 h-3" />
-                </a>
+                {safeDocumentLink(view.docs.documentUri, view.docs.verified) ? (
+                  <a href={safeDocumentLink(view.docs.documentUri, view.docs.verified) as string} target="_blank" rel="noopener noreferrer" className="text-xs text-tawf-green hover:underline inline-flex items-center gap-1">
+                    Open the document <ExternalLink className="w-3 h-3" />
+                  </a>
+                ) : (
+                  <p className="text-xs text-tawf-muted break-all">Document location: {view.docs.documentUri}</p>
+                )}
                 {view.identity && (
                   <a href={explorerAddressUrl(view.identity)} target="_blank" rel="noopener noreferrer" className="text-xs text-tawf-muted hover:underline inline-flex items-center gap-1 ml-3">
                     Verify the claim on chain <ExternalLink className="w-3 h-3" />

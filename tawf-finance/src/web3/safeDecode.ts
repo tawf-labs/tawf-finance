@@ -24,6 +24,8 @@ const PROPOSED_ABI = parseAbi([
   'function resetUsage(address onchainId, uint256 period)',
   'function setProfile(address onchainId, uint128 annualLimit, uint8 bracket, uint8 exemption)',
   'function callModuleFunction(bytes callData, address _module)',
+  'function addClaim(uint256 topic, uint256 scheme, address issuer, bytes signature, bytes data, string uri)',
+  'function removeClaim(bytes32 claimId)',
 ]);
 
 const SANDBOX_ABI = parseAbi([
