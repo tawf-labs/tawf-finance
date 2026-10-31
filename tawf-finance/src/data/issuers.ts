@@ -1,12 +1,13 @@
 /**
- * Issuers onboarded on Tawf, by type.
+ * Asset originators and platforms onboarded on Tawf, by type. Tawf is their tokenization and
+ * verification partner, not an originator.
  *
  * - `bprs`: a licensed Indonesian Islamic rural bank (Bank Pembiayaan Rakyat
  *   Syariah). Tawf wraps the deposito it places at several BPRS of a region
- *   into one Tawf Deposito Pool. A BPRS does not issue sukuk here: that needs
+ *   into one Tawf Deposito Pool, as a partner of the originators. A BPRS does not issue sukuk here: that needs
  *   IDR 80bn core capital (POJK 7/2024 Art 35), which almost no BPRS has.
- * - `scf`: a securities crowdfunding platform licensed by OJK under POJK
- *   57/2020 ("Layanan Urun Dana"), such as LBS Urun Dana. The platform lists
+ * - `scf`: a securities crowdfunding platform licensed by OJK as a
+ *   "Layanan Urun Dana" operator. The platform is the originator: it lists
  *   sharia sukuk and shares of SMEs (UMKM), and Tawf tokenizes each offering
  *   as an ERC-3643 token that enforces the POJK investor limit on chain.
  *
@@ -52,7 +53,7 @@ export const SCF_PLATFORM: IssuerPlatform = {
   license: 'Fictional demo platform. A real platform holds an OJK licence as a Penyelenggara Layanan Urun Dana under POJK 57/2020 (as amended by POJK 16/2021).',
   shariahBoard: 'Platform Dewan Pengawas Syariah (demo)',
   description:
-    'A sharia securities crowdfunding platform that lists sukuk and sharia shares of Indonesian SMEs. Each offering is tokenized on Tawf, and the token enforces the POJK investor limit across all of the platform\'s offerings.',
+    'A sharia securities crowdfunding platform that originates and lists sukuk and sharia shares of Indonesian SMEs. Tawf is its tokenization and verification partner: each offering is tokenized on Tawf, and the token enforces the POJK investor limit across all of the platform\'s offerings.',
   demo: true,
 };
 

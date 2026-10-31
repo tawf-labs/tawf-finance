@@ -1,7 +1,7 @@
 # tawf.finance
 
-> **The all-in-one tokenization infrastructure for Indonesian BPRS, built on Arbitrum.**
-> One platform for every Islamic finance akad a licensed Shariah bank originates: structure, tokenize, sell down, and settle real financing on-chain. Take exposure from $10, with returns from 5%. Transparent, verifiable, and grounded in real serviced financing.
+> **The tokenization and verification partner of licensed Shariah asset originators, built on Arbitrum.**
+> Tawf is the tokenization and verification partner of licensed asset originators: Shariah deposito aggregators and BPRS for the Deposito Pool, and licensed sharia crowdfunding platforms for SCF. Originators keep the assets and the customer relationship. Tawf makes each position verifiable on chain. Tawf does not originate, underwrite, place or hold assets.
 
 Built by [Tawf Labs](https://tawflabs.com) · Shariah-Aligned · Arbitrum (EVM / Solidity)
 
@@ -36,7 +36,7 @@ Built by [Tawf Labs](https://tawflabs.com) · Shariah-Aligned · Arbitrum (EVM /
 
 ### Our Solution
 
-We give a BPRS a wider funding channel. The bank originates and services Shariah financing locally; an outside investor pool takes economic exposure to a defined pool of it through a compliant akad (**wakalah bil istithmar** or **musyarakah**). The bank keeps origination and servicing revenue, releases balance-sheet capacity (CAR/BMPK relief), and gets funding priced outside its local deposit market.
+Tawf is not an asset originator. Licensed originators (BPRS, Shariah deposito aggregators, and licensed sharia crowdfunding platforms) keep the assets, the licence and the customer relationship. Tawf is their tokenization and verification partner: it records each position as a token or receipt on chain and publishes a proof of reserve that anyone can check. For a BPRS this is also a wider funding channel, priced outside its local deposit market.
 
 - **From $10**: anyone can take exposure to real serviced financing
 - **Returns from serviced financing**, not speculative yield
@@ -52,11 +52,11 @@ We give a BPRS a wider funding channel. The bank originates and services Shariah
 
 Infrastructure connecting everyday investors with licensed Indonesian Islamic rural banks (BPRS) and sharia crowdfunding. The pilot product is the **Tawf Deposito Pool**: investors subscribe in stablecoins, Tawf converts to IDR and places mudharabah deposito at several BPRS in one region, and one ERC-3643 token (a claim on Tawf) is backed by the total, with each bank's balance in the proof of reserve. A BPRS cannot issue sukuk without IDR 80bn core capital, so no BPRS product is called a sukuk. The financing sell-down pool is built and tested but switched off for the pilot (`VITE_FEATURE_FINANCING_POOL`).
 
-**Issuer types.** Tawf onboards two kinds of issuer: licensed Indonesian Islamic rural banks (BPRS), whose deposito it wraps into regional Deposito Pools, and securities crowdfunding platforms licensed under POJK 57/2020 ("Layanan Urun Dana", such as LBS Urun Dana), whose SME sukuk and sharia shares it tokenizes with the POJK investor limit enforced on chain. The demo uses fictional names for both.
+**Originator types.** Tawf partners with two kinds of licensed originator: Indonesian Islamic rural banks (BPRS) and Shariah deposito aggregators, whose deposito Tawf wraps into regional Deposito Pools as a receipt and a proof of reserve, and OJK-licensed securities crowdfunding platforms ("Layanan Urun Dana"), whose SME sukuk and sharia shares Tawf tokenizes with the investor limit enforced on chain. The originators keep the assets and the customer relationship. The demo uses fictional names for both.
 
 ### Instrument coverage
 
-Tawf is designed as one primitive for the full range of Islamic finance instruments a BPRS originates. Status is honest about what is live in the demo today versus structured, in the pipeline, or on the roadmap.
+Tawf is designed as one tokenization primitive for the range of Islamic finance instruments that licensed originators offer. Status is honest about what is live in the demo today versus structured, in the pipeline, or on the roadmap.
 
 | Instrument | Family | Status | Return band | Role |
 |---|---|---|---|---|

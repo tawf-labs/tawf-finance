@@ -339,7 +339,7 @@ function Hero() {
             </motion.span>
           </h1>
           <motion.p {...rise(3)} className="mt-8 max-w-md text-[1.1rem] leading-relaxed text-ink/75">
-            Two ways in. The Tawf Deposito Pool is mudharabah deposito in your own name at licensed Indonesian Islamic rural banks, with the total at every bank on chain. Urun Dana backs Indonesian SMEs through sharia securities crowdfunding, with your yearly limit enforced in the token.
+            Tawf is the tokenization and verification partner of licensed asset originators. The Tawf Deposito Pool is mudharabah deposito in your own name at licensed Indonesian Islamic rural banks, with the total at every bank on chain. Urun Dana backs Indonesian SMEs through licensed sharia crowdfunding platforms, with your yearly limit enforced in the token.
           </motion.p>
           <motion.div {...rise(4)} className="mt-9 flex flex-wrap items-center gap-3">
             <a href="https://app.tawf.finance/login" className={solid}>Open the investor app</a>
@@ -676,7 +676,7 @@ function WhyScf() {
             <Words text="Crowdfunding where the rules" /> <Words text="live in the token." className="text-jade" delay={0.3} />
           </h2>
           <p className="text-[1.05rem] leading-relaxed text-ink/75 lg:col-span-4 lg:col-start-9">
-            SMEs raise funds through a licensed partner platform. Tawf puts the investor limit, the identity check and the reserve in the contracts, where anyone can read them.
+            SMEs raise funds through a licensed originator platform, which keeps the offering and the customer relationship. Tawf is its tokenization and verification partner: it puts the investor limit, the identity check and the reserve in the contracts, where anyone can read them.
           </p>
         </Reveal>
 

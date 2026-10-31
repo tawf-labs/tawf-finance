@@ -4,24 +4,24 @@ import { Section } from '../ui/Section';
 
 const partnerCategories = [
   {
-    icon: ShieldCheck,
-    title: 'Sekuritas Partners',
-    description: 'Licensed financial firms who issue tradable instruments where a pool clears the issuance threshold. They carry the regulatory burden.',
-    partners: ['Ina Sekuritas', 'Trimegah Sekuritas', 'Mandiri Sekuritas'],
-    status: 'Tier-2 Issuance Path',
+    icon: Building,
+    title: 'Asset originators',
+    description: 'Licensed originators keep the assets, the licence and the customer relationship. Tawf is their tokenization and verification partner, not an originator.',
+    partners: ['Licensed SCF platforms', 'Shariah deposito aggregators', 'BPRS'],
+    status: 'Originator Partnerships',
   },
   {
-    icon: Building,
-    title: 'BPRS Originators',
-    description: 'Licensed Shariah rural banks originate and service the financing. OJK-supervised, LPS-insured, and reporting into SLIK, they are the attestation layer.',
-    partners: ['Hijra Bank', 'Design-partner BPRS', '~175 BPRS Segment'],
-    status: 'First Customer Segment',
+    icon: ShieldCheck,
+    title: 'Licensed banks',
+    description: 'Licensed Shariah rural banks (BPRS) hold each customer\'s deposito in the customer\'s own name. They are OJK-supervised, and LPS covers bank depositors under its own rules.',
+    partners: ['BPRS', 'Shariah commercial bank'],
+    status: 'Deposito Pool',
   },
   {
     icon: Store,
     title: 'Shariah Governance',
-    description: 'Each sell-down akad is reviewed by the bank\'s Dewan Pengawas Syariah and an independent DSN-MUI-aligned board.',
-    partners: ['BPRS DPS', 'DSN-MUI Aligned', 'Independent Board'],
+    description: 'Each offering is reviewed by the originator\'s Dewan Pengawas Syariah and an independent DSN-MUI-aligned board.',
+    partners: ['Originator DPS', 'DSN-MUI Aligned', 'Independent Board'],
     status: 'Akad Reviewed Before Code',
   },
   {
@@ -72,8 +72,8 @@ export function Partners() {
             <span className="block text-tawf-gold">Infrastructure</span>
           </h2>
           <p className="text-tawf-muted text-lg">
-            We don&apos;t compete with banks. We give a licensed Shariah bank a
-            wider funding channel, and connect its financing to investors who care.
+            We are not an originator. Licensed originators keep the assets and the
+            customer relationship, and Tawf tokenizes and verifies each position on chain.
           </p>
         </motion.div>
 
@@ -121,8 +121,8 @@ export function Partners() {
           className="text-center p-8 rounded-2xl bg-tawf-green/5 border border-tawf-green/10"
         >
           <p className="text-tawf-ink font-medium text-lg">
-            &quot;We don&apos;t hold your funds. We don&apos;t issue bonds.
-            We build the technology that connects investors to real businesses.&quot;
+            &quot;We don&apos;t originate, underwrite or hold assets. We tokenize
+            and verify what licensed originators offer.&quot;
           </p>
           <p className="text-tawf-muted mt-4">tawf.finance Operating Principle</p>
         </motion.div>

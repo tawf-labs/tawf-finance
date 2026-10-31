@@ -19,7 +19,7 @@ export function Earn() {
         eyebrow="Earn"
         title="Two ways to take part,"
         accent="on testnet"
-        lead="The Tawf Deposito Pool is mudharabah deposito in your own name at licensed BPRS, paid in through a virtual account at a Shariah commercial bank (rupiah deposits opening soon). Urun Dana backs SMEs through sharia crowdfunding and is open on the Arbitrum Sepolia testnet with test funds. Profit depends on the banks and the underlying businesses and is never guaranteed."
+        lead="Tawf is the tokenization and verification partner of the licensed originators. The Tawf Deposito Pool is mudharabah deposito in your own name at licensed BPRS, paid in through a virtual account at a Shariah commercial bank (rupiah deposits opening soon). Urun Dana backs SMEs through licensed sharia crowdfunding platforms and is open on the Arbitrum Sepolia testnet with test funds. Profit depends on the banks and the underlying businesses and is never guaranteed."
         actions={
           <>
             <a href={APP} className={solid}>Open the investor app</a>
@@ -47,7 +47,7 @@ export function Earn() {
               <p className="font-mono text-xs uppercase tracking-[0.12em] text-jade">Open on testnet</p>
               <h3 className="display mt-2 text-3xl">Sharia crowdfunding (SCF)</h3>
               <p className="mt-3 text-sm leading-relaxed text-ink/70">
-                Back an SME offering (urun dana) through a licensed partner platform. Your yearly investment limit is enforced by
+                Back an SME offering (urun dana) originated by a licensed platform and tokenized by Tawf. Your yearly investment limit is enforced by
                 the token itself.
               </p>
               <a href={APP} className={`${solid} mt-8 self-start`}>Open Urun Dana</a>
