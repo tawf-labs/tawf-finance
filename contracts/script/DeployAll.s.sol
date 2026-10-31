@@ -57,6 +57,11 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         // Hand everything over, last, after every owner-only setup call above.
         _handoverToSafes(operator);
         _verifyOwnership(_allBeacons);
+        if (_moduleBeaconsSet) {
+            require(_moduleBeacons.sandbox.owner() == _safes.governance, "module beacon not owned by GOV_SAFE");
+            require(_moduleBeacons.checkpoint.owner() == _safes.governance, "module beacon not owned by GOV_SAFE");
+            require(_moduleBeacons.scfLimit.owner() == _safes.governance, "module beacon not owned by GOV_SAFE");
+        }
 
         vm.stopBroadcast();
 
@@ -107,6 +112,9 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         vm.writeJson(vm.toString(_safes.compliance), PATH, ".complianceSafe");
         vm.writeJson(vm.toString(_safes.guardian), PATH, ".guardianSafe");
         vm.writeJson(vm.toString(govStart), PATH, ".governanceStartBlock");
+        vm.writeJson(vm.toString(address(_moduleBeacons.sandbox)), PATH, ".sandboxModuleBeacon");
+        vm.writeJson(vm.toString(address(_moduleBeacons.checkpoint)), PATH, ".distributionCheckpointBeacon");
+        vm.writeJson(vm.toString(address(_moduleBeacons.scfLimit)), PATH, ".scfLimitModuleBeacon");
         vm.writeJson(vm.toString(_trexAuthority), PATH, ".trexImplementationAuthority");
         for (uint256 i; i < _allBeacons.length; i++) {
             vm.writeJson(vm.toString(_allBeacons[i]), PATH, string.concat(".", _beaconKey(_beaconArtifacts[i])));

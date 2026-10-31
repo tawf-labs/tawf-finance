@@ -64,7 +64,7 @@ contract DeploySukuk is Script, ProxyDeployer {
         );
 
         // 2. Checkpoint module (operator is its deployer/owner so it can set the hook).
-        DistributionCheckpointModule module = ModuleProxies.checkpoint();
+        DistributionCheckpointModule module = ModuleProxies.checkpointProxy(address(ModuleProxies.checkpointBeacon()));
 
         // 3. SukukDistributor via deployCode (0.8.20 unit). The Terms struct has only static
         //    members, so its ABI encoding is byte-identical to the flattened field encoding.

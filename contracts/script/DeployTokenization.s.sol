@@ -98,6 +98,9 @@ contract DeployTokenization is Script, ProxyDeployer {
             require(allowEoa || all[i].code.length > 0, "a Safe address has no code (set ALLOW_EOA_SAFES=true for a dry run)");
             for (uint256 j = i + 1; j < 5; j++) require(all[i] != all[j], "one Safe per duty: two duties share a Safe");
         }
+        // The Governance Safe is the upgrade key for everything, so it must really be a multisig: at least 2 owners
+        // and a threshold of at least 2 (the same check the module hand-over uses).
+        if (!allowEoa) ModuleProxies.requireMultisig(_safes.governance);
         beaconOwner = _safes.governance; // every beacon is created owned by the Governance Safe
     }
 
@@ -108,6 +111,19 @@ contract DeployTokenization is Script, ProxyDeployer {
     address[] internal _modules;
     address[] internal _tokens;
     address internal _trexAuthority;
+
+    /// @dev One beacon per compliance module type for the whole deployment (dev1's ModuleProxies), created on first
+    ///      use and handed to the Governance Safe in the hand-over, with the owner read back.
+    ModuleProxies.Beacons internal _moduleBeacons;
+    bool internal _moduleBeaconsSet;
+
+    function _mb() internal returns (ModuleProxies.Beacons memory) {
+        if (!_moduleBeaconsSet) {
+            _moduleBeacons = ModuleProxies.beacons();
+            _moduleBeaconsSet = true;
+        }
+        return _moduleBeacons;
+    }
 
     function _own(address c) internal {
         _owned.push(c);
@@ -141,6 +157,7 @@ contract DeployTokenization is Script, ProxyDeployer {
             IAgentLike(_tokens[i]).addAgent(_safes.compliance);
         }
         for (uint256 i; i < _owned.length; i++) IOwnableLike(_owned[i]).transferOwnership(_safes.governance);
+        if (_moduleBeaconsSet) ModuleProxies.handOverAll(_moduleBeacons, _safes.governance); // owner read back inside
         for (uint256 i; i < _modules.length; i++) IOwnableLike(_modules[i]).transferOwnership(_safes.governance);
         operator; // the operator keeps only the data roles, see _wireRoles in DeployAll
         console.log("The Governance Safe must accept ownership (acceptOwnership) on these two-step contracts:");
@@ -351,8 +368,8 @@ contract DeployTokenization is Script, ProxyDeployer {
         ModularCompliance mc = TrexProxies.modularCompliance(_authority());
         Token token = TrexProxies.token(_authority(), _sharedIdentityRegistry, address(mc), name_, symbol_, 2, address(0));
 
-        DistributionCheckpointModule checkpoint = ModuleProxies.checkpoint();
-        SandboxModule sandbox = ModuleProxies.sandbox();
+        DistributionCheckpointModule checkpoint = ModuleProxies.checkpointProxy(address(_mb().checkpoint));
+        SandboxModule sandbox = ModuleProxies.sandboxProxy(address(_mb().sandbox));
         _ownToken(address(token));
         _own(address(mc)); // series compliance: the Governance Safe owns it directly
         _ownModule(address(checkpoint));
@@ -429,7 +446,7 @@ contract DeployTokenization is Script, ProxyDeployer {
             _authority(), _sharedIdentityRegistry, address(mc), "Tawf Sukuk BPRS Demo 2026", "tSUKUK-DEMO-2026", 6, address(0)
         );
 
-        DistributionCheckpointModule module = ModuleProxies.checkpoint();
+        DistributionCheckpointModule module = ModuleProxies.checkpointProxy(address(_mb().checkpoint));
         _ownToken(address(token));
         _ownCompliance(address(mc), false);
         _ownModule(address(module));
