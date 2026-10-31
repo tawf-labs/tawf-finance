@@ -10,6 +10,7 @@ A [Ponder](https://ponder.sh) indexer for Tawf on Arbitrum Sepolia (chain 421614
 | SCF | `SukukDistributor` (multi-coin, including `PayoutPart`), the V1 distributor, `ScfInvestorLimitModule` | `activity`, `scf_offering`, `scf_coin_flow`, `scf_limit_profile` |
 | Identity | `IdentityRegistry` | `identity` |
 | T-REX tokens | `Transfer`, `Paused`, `Unpaused`, freeze events | `token_transfer_count`, `token_control` |
+| Token identity | `ClaimAdded`, `ClaimChanged`, `ClaimRemoved` on each token ONCHAINID (the originator, platform, tokenization partner and offering document claims, topics 10 to 13) | `token_claim` |
 | Governance | every `UpgradeableBeacon` (`Upgraded`), every Safe (`ExecutionSuccess`, `ExecutionFailure`, owners, threshold) | `governance_event` |
 
 Addresses and start blocks are read from `tawf-finance/src/web3/tokenization.deployments.json`, V1 keys included, so there is one source of truth. After a redeploy only that file changes. Key conventions for governance sources:
@@ -17,6 +18,7 @@ Addresses and start blocks are read from `tawf-finance/src/web3/tokenization.dep
 - Beacons: any key that ends in `Beacon`.
 - Safes: `govSafe`, `treasurySafe`, `mintingSafe`, `complianceSafe`, `guardianSafe` (any key ending in `Safe`).
 - `governanceStartBlock`: a top-level key, the block governance sources start from.
+- `<token key>Identity` (for example `tawfSeriesTokenIdentity`, `scfTokenIdentity`): the token ONCHAINID of each token, recorded by the deploy. Indexed from `governanceStartBlock`.
 
 A key that is missing or zero is skipped, so the config works before the beacon deploy. There is no timelock. Not yet covered: the factory pattern for offerings deployed as new `BeaconProxy` instances (it needs the creating event once the factory exists) and `DepositoReceipt` (once built).
 
@@ -31,6 +33,7 @@ A key that is missing or zero is skipped, so the config works before the beacon 
 | Path | Returns |
 |---|---|
 | `GET /activity?wallet=0x..&from=<block>` | Same JSON as `/api/tokenization/activity`: `{ toBlock, partial, source, wallet, events }`. Series 2 is left out unless `include=series2` |
+| `GET /token-claims?token=0x..&topic=10&limit=` | Claim events on the token ONCHAINIDs, newest first |
 | `GET /governance?source=beacon\|safe&limit=` | Events newest first, plus current beacon implementation and Safe threshold per contract |
 | `GET /scf/flows` | Offerings with raised, refunded, paid out and `PayoutPart` totals per coin |
 | `GET /banks?bank=<bankId>` | Banks with latest balance, balance and profit series, ledger epochs |

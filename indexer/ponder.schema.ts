@@ -193,3 +193,24 @@ export const fxRate = onchainTable('fx_rate', (t) => ({
   blockNumber: t.bigint().notNull(),
   timestamp: t.integer().notNull(),
 }))
+
+// Claims added, changed and removed on a token's ONCHAINID: when the originator, platform, partner or document data changed.
+export const tokenClaim = onchainTable(
+  'token_claim',
+  (t) => ({
+    id: t.text().primaryKey(), // txHash:logIndex
+    token: t.hex().notNull(), // the token this identity belongs to
+    identity: t.hex().notNull(),
+    kind: t.text().notNull(), // ClaimAdded | ClaimChanged | ClaimRemoved
+    topic: t.bigint().notNull(), // 10 ORIGINATOR, 11 PLATFORM, 12 TOKENIZATION_PARTNER, 13 OFFERING_DOCS
+    claimId: t.hex().notNull(),
+    issuer: t.hex().notNull(),
+    scheme: t.bigint().notNull(),
+    data: t.hex().notNull(), // abi-encoded fields, decoded by the app
+    uri: t.text().notNull(),
+    blockNumber: t.bigint().notNull(),
+    txHash: t.hex().notNull(),
+    timestamp: t.integer().notNull(),
+  }),
+  (t) => ({ tokenIdx: index().on(t.token), identityIdx: index().on(t.identity), topicIdx: index().on(t.topic) }),
+)

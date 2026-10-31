@@ -116,6 +116,21 @@ app.get('/governance', async (c) => {
   return json(c, { beacons, safes, events: rows })
 })
 
+/** Claims added, changed and removed on the token ONCHAINIDs (topics 10 to 13), newest first. ?token= and ?topic= narrow it. */
+app.get('/token-claims', async (c) => {
+  const t = tables.tokenClaim
+  const token = c.req.query('token')
+  const topic = c.req.query('topic')
+  const filters = [token ? eq(t.token, token.toLowerCase() as `0x${string}`) : undefined, topic && /^\d+$/.test(topic) ? eq(t.topic, BigInt(topic)) : undefined].filter((f) => f !== undefined)
+  const rows = await db
+    .select()
+    .from(t)
+    .where(filters.length ? and(...filters) : undefined)
+    .orderBy(desc(t.blockNumber), desc(t.id))
+    .limit(limitOf(c.req.query('limit'), 100, 500))
+  return json(c, { events: rows })
+})
+
 // Coins are labelled by address from the deployments file, never by an on-chain symbol (a mock can report another one).
 const COIN_KEYS: Record<string, string> = { mockUsdc: 'USDC', mockUsdt: 'USDT', mockUsdg: 'USDG', usdg: 'USDG' }
 const coinLabel = (coin: string) => Object.entries(COIN_KEYS).find(([k]) => addr(k)?.toLowerCase() === coin.toLowerCase())?.[1] ?? null

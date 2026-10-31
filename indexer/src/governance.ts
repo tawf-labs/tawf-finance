@@ -1,9 +1,10 @@
-// Beacon upgrades, Safe executions, owner and threshold changes, and token pause and freeze events.
+// Beacon upgrades, Safe executions, owner and threshold changes, token pause and freeze events, and token identity claims.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ponder } from 'ponder:registry'
-import { governanceEvent, tokenControl, tokenTransferCount } from 'ponder:schema'
+import { governanceEvent, tokenClaim, tokenControl, tokenTransferCount } from 'ponder:schema'
 import config from '../ponder.config'
 import { ts } from './lib/db'
+import { bySuffix, addr } from './lib/deployments'
 
 const on = (name: string, fn: (a: { event: any; context: any }) => Promise<void>) => (ponder as any).on(name, fn)
 const has = (n: string) => n in config.contracts
@@ -29,6 +30,37 @@ async function gov(context: any, event: any, source: 'beacon' | 'safe', kind: st
 if (has('Beacon')) {
   on('Beacon:Upgraded', async ({ event, context }) => gov(context, event, 'beacon', 'Upgraded', { subject: event.args.implementation }))
   on('Beacon:OwnershipTransferred', async ({ event, context }) => gov(context, event, 'beacon', 'OwnershipTransferred', { subject: event.args.newOwner }))
+}
+
+// Token ONCHAINID claims: which token an identity belongs to comes from the deployments keys (<token key>Identity).
+if (has('TokenIdentity')) {
+  const tokenOf = new Map<string, string>()
+  for (const [key, identity] of Object.entries(bySuffix('TokenIdentity'))) {
+    const token = addr(key.slice(0, -'Identity'.length))
+    if (token) tokenOf.set(identity.toLowerCase(), token)
+  }
+  const claim = async (context: any, event: any, kind: 'ClaimAdded' | 'ClaimChanged' | 'ClaimRemoved') =>
+    context.db
+      .insert(tokenClaim)
+      .values({
+        id: `${event.transaction.hash}:${event.log.logIndex}`,
+        token: (tokenOf.get(String(event.log.address).toLowerCase()) ?? event.log.address) as `0x${string}`,
+        identity: event.log.address,
+        kind,
+        topic: event.args.topic,
+        claimId: event.args.claimId,
+        issuer: event.args.issuer,
+        scheme: event.args.scheme,
+        data: event.args.data,
+        uri: event.args.uri,
+        blockNumber: event.block.number,
+        txHash: event.transaction.hash,
+        timestamp: ts(event),
+      })
+      .onConflictDoNothing()
+  on('TokenIdentity:ClaimAdded', async ({ event, context }) => claim(context, event, 'ClaimAdded'))
+  on('TokenIdentity:ClaimChanged', async ({ event, context }) => claim(context, event, 'ClaimChanged'))
+  on('TokenIdentity:ClaimRemoved', async ({ event, context }) => claim(context, event, 'ClaimRemoved'))
 }
 
 if (has('Safe')) {

@@ -7,6 +7,7 @@ import { SukukDistributorAbi } from './abis/SukukDistributor'
 import { SukukDistributorV1Abi } from './abis/SukukDistributorV1'
 import { TawfDepositoSeriesAbi } from './abis/TawfDepositoSeries'
 import { TokenAbi } from './abis/Token'
+import { TokenIdentityAbi } from './abis/TokenIdentity'
 import { addr, block, bySuffix } from './src/lib/deployments'
 import { splitTransport } from './src/lib/transport'
 
@@ -30,6 +31,8 @@ const tokens = ['tawfSeriesToken', 'tawfSeries2Token', 'depositoPoolToken', 'scf
   .map(addr)
   .filter((a): a is `0x${string}` => a !== null)
 
+// Token ONCHAINIDs: the deploy records one <token key>Identity per token (tawfSeriesTokenIdentity, scfTokenIdentity, ...).
+const tokenIdentities = Object.values(bySuffix('TokenIdentity'))
 const beacons = Object.values(bySuffix('Beacon'))
 const safes = Object.values(bySuffix('Safe'))
 
@@ -44,6 +47,7 @@ const candidates = {
   ScfLimitV1: one(addr('scfLimitModuleV1'), scfV1From, { abi: ScfInvestorLimitModuleAbi }),
   IdentityRegistry: one(addr('identityRegistry'), seriesFrom, { abi: IdentityRegistryAbi }),
   Token: many(tokens, seriesFrom, { abi: TokenAbi }),
+  TokenIdentity: many(tokenIdentities, govFrom, { abi: TokenIdentityAbi }),
   Beacon: many(beacons, govFrom, { abi: BeaconAbi }),
   Safe: many(safes, govFrom, { abi: SafeAbi }),
 }
