@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { ShieldCheck, Loader2, ExternalLink, CheckCircle2, XCircle, ArrowRight } from 'lucide-react';
 import { encodeAbiParameters, keccak256, stringToHex } from 'viem';
 import { Reveal } from '@/components/landing/Reveal';
+import { OriginatorCard } from '@/components/ui/OriginatorCard';
 import { Chapter, PageHero, PublicPage, Tile, ghost } from '@/components/landing/PublicPage';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -11,7 +12,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { getScfStatus, type ScfStatus } from '@/lib/scf';
 import { getJson, type ReserveResponse, type SeriesReserveLine, type PoolReserveLine, type ProofResponse } from '@/lib/tokenization';
 import { LedgerAnchorAbi, DepositoPoolLedgerAbi } from '@/web3/tokenizationAbis';
-import { LEDGER_ANCHOR_ADDRESS, LEDGER_CHAIN_ID, isTokenizationConfigured } from '@/web3/tokenization';
+import { LEDGER_ANCHOR_ADDRESS, LEDGER_CHAIN_ID, isTokenizationConfigured, DEPOSITO_POOL, TAWF_SERIES_TOKEN_ADDRESS, SCF_TOKEN_ADDRESS } from '@/web3/tokenization';
 import { explorerTxUrl, explorerAddressUrl } from '@/web3/constants';
 import { formatBps, formatIdr, formatUsdc } from '@/web3/format';
 
@@ -321,6 +322,13 @@ export function ProofOfReserve() {
           <div className="max-w-3xl rounded-3xl bg-peach p-6"><p className="text-sm text-ink">{error}</p></div>
         ) : (
           <p className="text-ink/60">No reserve snapshots anchored yet.</p>
+        )}
+        {isTokenizationConfigured && !loading && (
+          <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-3">
+            <OriginatorCard token={DEPOSITO_POOL.token} title="Deposito Pool: who is behind it" />
+            <OriginatorCard token={TAWF_SERIES_TOKEN_ADDRESS} title="Deposito series: who is behind it" />
+            <OriginatorCard token={SCF_TOKEN_ADDRESS} title="SCF offering: who is behind it" />
+          </div>
         )}
       </Chapter>
 

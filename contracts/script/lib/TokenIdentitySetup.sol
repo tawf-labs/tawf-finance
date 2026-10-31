@@ -33,6 +33,7 @@ library TokenIdentitySetup {
     uint256 internal constant PLATFORM = 11;
     uint256 internal constant TOKENIZATION_PARTNER = 12;
     uint256 internal constant OFFERING_DOCS = 13;
+    uint256 internal constant TESTNET_CHAIN_ID = 421614; // Arbitrum Sepolia
     uint256 internal constant MANAGEMENT = 1;
     uint256 internal constant CLAIM_SIGNER = 3; // implied by MANAGEMENT in keyHasPurpose
     uint256 internal constant ECDSA = 1;
@@ -81,8 +82,15 @@ library TokenIdentitySetup {
         return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", keccak256(abi.encode(identity, topic, data))));
     }
 
-    /// @notice Sign a claim with an issuer key held by the script (testnet issuer only, never a real issuer key).
-    function signClaim(address identity, uint256 topic, bytes memory data, uint256 issuerKey) internal pure returns (bytes memory) {
+    /// @notice Sign a claim with an issuer key held by the script. TESTNET ONLY: it refuses to run on any chain
+    ///         but Arbitrum Sepolia (421614), so a real issuer key can never be put through it.
+    ///
+    ///         Real claims are signed by a claim-signing EOA, ideally a hardware wallet, whose key is listed on the
+    ///         real ClaimIssuer. The Compliance Safe adds and rotates that key (ClaimIssuer.addKey / removeKey), but a
+    ///         Safe cannot produce the ECDSA claim signature itself: the claim is signed off chain by that EOA and then
+    ///         added to the token identity with `addClaim` by the Compliance Safe.
+    function signClaim(address identity, uint256 topic, bytes memory data, uint256 issuerKey) internal view returns (bytes memory) {
+        require(block.chainid == TESTNET_CHAIN_ID, "signClaim is testnet only");
         (uint8 v, bytes32 r, bytes32 s) = VM.sign(issuerKey, claimDigest(identity, topic, data));
         return abi.encodePacked(r, s, v);
     }

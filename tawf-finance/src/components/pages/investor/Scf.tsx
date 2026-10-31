@@ -1,3 +1,4 @@
+import { OriginatorCard } from '@/components/ui/OriginatorCard';
 import { useState } from 'react';
 import { useAccount, useSignMessage } from 'wagmi';
 import { Loader2, ExternalLink, ShieldCheck, Wallet, Clock, Target, Layers, Store, Scale, Info } from 'lucide-react';
@@ -139,6 +140,8 @@ export function InvestorScf() {
         </div>
         <ConnectButton variant="primary" size="md" />
       </div>
+
+      <OriginatorCard token={SCF_TOKEN_ADDRESS} />
 
       <div className="bg-amber-50 rounded-2xl border border-amber-200 p-4 flex gap-3">
         <Info className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />

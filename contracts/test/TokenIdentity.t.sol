@@ -36,6 +36,7 @@ contract TokenIdentityTest is Test {
     address internal stranger = makeAddr("stranger");
 
     function setUp() public {
+        vm.chainId(421614); // signClaim is testnet only
         address ia = address(TrexProxies.authority());
         ctr = TrexProxies.claimTopicsRegistry(ia);
         tir = TrexProxies.trustedIssuersRegistry(ia);
@@ -224,5 +225,19 @@ contract TokenIdentityTest is Test {
 
     function callLink(string memory salt) external returns (Identity) {
         return TokenIdentitySetup.link(factory, token, salt, address(this));
+    }
+
+    function callSign() external view returns (bytes memory) {
+        return TokenIdentitySetup.signClaim(address(1), 10, "", ISSUER_KEY);
+    }
+
+    function test_signClaimRefusesEveryChainButArbitrumSepolia() public {
+        this.callSign(); // 421614 works
+        uint256[3] memory others = [uint256(1), 42161, 31337];
+        for (uint256 i; i < 3; i++) {
+            vm.chainId(others[i]);
+            vm.expectRevert(bytes("signClaim is testnet only"));
+            this.callSign();
+        }
     }
 }

@@ -1,3 +1,4 @@
+import { OriginatorCard } from '@/components/ui/OriginatorCard';
 import { useMemo, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { motion } from 'framer-motion';
@@ -190,6 +191,8 @@ export function InvestorDeposito() {
         </div>
         <ConnectButton variant="primary" size="md" />
       </div>
+
+      <OriginatorCard token={product?.token} />
 
       {DEPOSITO_PRODUCTS.length > 1 && (
         <div className="flex flex-wrap gap-2">
