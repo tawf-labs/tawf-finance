@@ -59,13 +59,6 @@ if (SAFE_TX_TYPEHASH !== '0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6e
 }
 
 // ---- 3. Fail closed ---------------------------------------------------------------------------------
-const call = {
-  duty: 'minting' as const,
-  address: '0x2222222222222222222222222222222222222222' as Address,
-  abi: [{ type: 'function', name: 'ping', inputs: [], outputs: [], stateMutability: 'nonpayable' }] as const,
-  functionName: 'ping',
-  description: 'selftest',
-}
 import depJson from '../src/web3/tokenization.deployments.json' with { type: 'json' }
 // A call that passes the duty policy (minting allocate on our series) so the fail-closed checks reach the store.
 const policyCall = {
