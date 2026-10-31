@@ -52,7 +52,7 @@ contract DeployDepositoPool is DeployExtra {
         ledger = _deployProxy(
             "DepositoPoolLedger.sol:DepositoPoolLedger",
             abi.encodeWithSignature(
-                "initialize(uint256,bytes32,address)", ledgerChainId, POOL_SERIES_ID, operator
+                "initialize(uint256,bytes32,address,address)", ledgerChainId, POOL_SERIES_ID, operator, operator
             )
         );
         bytes32[] memory ids = new bytes32[](3);
@@ -70,7 +70,7 @@ contract DeployDepositoPool is DeployExtra {
         // mUSDG as a third settlement coin, at the USDC demo rate.
         IPoolSeries(series).addStablecoin(usdg);
         IPoolSeries(series).postRate(usdg, FX_INITIAL_RATE_USDC);
-        IPoolApprove(usdg).approve(series, type(uint256).max);
+        if (_treasury(operator) == operator) IPoolApprove(usdg).approve(series, type(uint256).max);
 
         // Same admission as series 1: wallets with a Tawf screening claim.
         address compliance = IPoolToken(token).compliance();

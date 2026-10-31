@@ -104,7 +104,7 @@ contract DeployScf is DeployExtra {
 
         s.anchor = _deployProxy(
             "LedgerAnchor.sol:LedgerAnchor",
-            abi.encodeWithSignature("initialize(uint256,address)", ledgerChainId, operator)
+            abi.encodeWithSignature("initialize(uint256,address,address)", ledgerChainId, operator, operator)
         );
 
         ScfInvestorLimitModule limit = ModuleProxies.scfLimitProxy(address(_mb().scfLimit), _sharedIdentityRegistry);

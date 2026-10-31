@@ -38,7 +38,7 @@ contract DeployAll is DeployScf, DeployDepositoPool {
 
         address anchor = vm.envOr("LEDGER_ANCHOR", address(0));
         if (anchor == address(0)) {
-            anchor = _deployProxy("LedgerAnchor.sol:LedgerAnchor", abi.encodeWithSignature("initialize(uint256,address)", ledgerChainId, operator));
+            anchor = _deployProxy("LedgerAnchor.sol:LedgerAnchor", abi.encodeWithSignature("initialize(uint256,address,address)", ledgerChainId, operator, operator));
         }
         _loadSukukTerms();
         Deployment memory d = _deployAll(operator, anchor, ledgerChainId);
@@ -55,8 +55,10 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         _setShareInBroadcast(pSeries);
 
         // Hand everything over, last, after every owner-only setup call above.
+        _wireRoles(operator, d, pLedger, pSeries, scf, anchor);
         _handoverToSafes(operator);
         _verifyOwnership(_allBeacons);
+        _verifyRoles(operator, d, pLedger, pSeries, scf, anchor);
         if (_moduleBeaconsSet) {
             require(_moduleBeacons.sandbox.owner() == _safes.governance, "module beacon not owned by GOV_SAFE");
             require(_moduleBeacons.checkpoint.owner() == _safes.governance, "module beacon not owned by GOV_SAFE");
@@ -161,4 +163,129 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         (bool ok, bytes memory ret) = address(100).staticcall(abi.encodeWithSignature("arbBlockNumber()"));
         return ok && ret.length == 32 ? abi.decode(ret, (uint256)) : block.number;
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // Role table. Each duty has one Safe. After this the operator EOA holds FX_ROLE and the data posts and nothing
+    // else. MINTER and FUNDER sit on different Safes (and the contracts refuse both on one address).
+    // ---------------------------------------------------------------------------------------------
+
+    bytes32 internal constant R_ADMIN = keccak256("ADMIN_ROLE");
+    bytes32 internal constant R_MINTER = keccak256("MINTER_ROLE");
+    bytes32 internal constant R_FUNDER = keccak256("FUNDER_ROLE");
+    bytes32 internal constant R_GUARDIAN = keccak256("GUARDIAN_ROLE");
+    bytes32 internal constant R_OPS = keccak256("OPS_ROLE");
+    bytes32 internal constant R_ORIGINATOR = keccak256("ORIGINATOR_ROLE");
+    bytes32 internal constant R_SHARIAH = keccak256("SHARIAH_ROLE");
+
+    function _wireRoles(
+        address operator,
+        Deployment memory d,
+        address pLedger,
+        address pSeries,
+        Scf memory scf,
+        address anchor
+    ) internal {
+        // Deposito series (legacy and pool): mint = Minting Safe, money commitments = Treasury Safe.
+        address[2] memory seriesList = [d.series, pSeries];
+        for (uint256 i; i < 2; i++) {
+            IRoles s = IRoles(seriesList[i]);
+            s.grantRole(R_MINTER, _safes.minting);
+            s.grantRole(R_FUNDER, _safes.treasury);
+            s.grantRole(R_GUARDIAN, _safes.guardian);
+            s.grantRole(DEFAULT_ADMIN, _safes.governance);
+            s.grantRole(R_ADMIN, _safes.governance);
+            s.revokeRole(R_ADMIN, operator);
+            s.renounceRole(DEFAULT_ADMIN, operator); // the operator keeps FX_ROLE only
+        }
+        // Distributors (sukuk and SCF): money out = Treasury Safe.
+        address[2] memory dists = [d.sukukDistributor, scf.distributor];
+        for (uint256 i; i < 2; i++) {
+            IRoles s = IRoles(dists[i]);
+            s.grantRole(R_FUNDER, _safes.treasury);
+            s.grantRole(R_GUARDIAN, _safes.guardian);
+            s.grantRole(DEFAULT_ADMIN, _safes.governance);
+            s.grantRole(R_ADMIN, _safes.governance);
+            s.revokeRole(R_FUNDER, operator);
+            s.revokeRole(R_ADMIN, operator);
+            s.renounceRole(DEFAULT_ADMIN, operator);
+        }
+        // Ledger and anchors: governance administers, the operator only posts data.
+        IRoles led = IRoles(pLedger);
+        led.grantRole(R_GUARDIAN, _safes.guardian);
+        led.grantRole(DEFAULT_ADMIN, _safes.governance);
+        led.renounceRole(DEFAULT_ADMIN, operator);
+        address[2] memory anchors = [anchor, scf.anchor];
+        for (uint256 i; i < 2; i++) {
+            if (anchors[i] == address(0) || (i == 0 && vm.envOr("LEDGER_ANCHOR", address(0)) != address(0))) continue;
+            IRoles(anchors[i]).grantRole(DEFAULT_ADMIN, _safes.governance);
+            IRoles(anchors[i]).renounceRole(DEFAULT_ADMIN, operator);
+        }
+        // Financing pool: governance admin, vault operations = Treasury Safe, deal approvals = Compliance Safe.
+        IRoles reg = IRoles(d.dealRegistry);
+        reg.grantRole(R_ORIGINATOR, _safes.compliance);
+        reg.grantRole(R_SHARIAH, _safes.compliance);
+        reg.grantRole(R_OPS, _safes.compliance);
+        reg.revokeRole(R_ORIGINATOR, operator);
+        reg.revokeRole(R_SHARIAH, operator);
+        reg.revokeRole(R_OPS, operator);
+        IRoles vault = IRoles(d.redemptionVault);
+        vault.grantRole(R_OPS, _safes.treasury);
+        vault.revokeRole(R_OPS, operator);
+        address[3] memory pool = [d.dealRegistry, d.bondReceiptNft, d.redemptionVault];
+        for (uint256 i; i < 3; i++) {
+            IRoles(pool[i]).grantRole(DEFAULT_ADMIN, _safes.governance);
+            IRoles(pool[i]).grantRole(R_ADMIN, _safes.governance);
+            IRoles(pool[i]).revokeRole(R_ADMIN, operator);
+            IRoles(pool[i]).renounceRole(DEFAULT_ADMIN, operator);
+        }
+    }
+
+    /// @dev Readback of the role table. Reverts the deploy unless the operator holds no admin, mint or money role
+    ///      anywhere, the Governance Safe is the admin, and the mint and money Safes hold their one duty each.
+    function _verifyRoles(
+        address operator,
+        Deployment memory d,
+        address pLedger,
+        address pSeries,
+        Scf memory scf,
+        address anchor
+    ) internal view {
+        address[2] memory seriesList = [d.series, pSeries];
+        for (uint256 i; i < 2; i++) {
+            IRoles s = IRoles(seriesList[i]);
+            require(s.hasRole(R_MINTER, _safes.minting) && !s.hasRole(R_FUNDER, _safes.minting), "roles: minting safe");
+            require(s.hasRole(R_FUNDER, _safes.treasury) && !s.hasRole(R_MINTER, _safes.treasury), "roles: treasury safe");
+            require(!s.hasRole(R_MINTER, operator) && !s.hasRole(R_FUNDER, operator), "roles: operator holds mint or fund");
+            require(!s.hasRole(R_MINTER, _safes.guardian) && !s.hasRole(R_FUNDER, _safes.guardian), "roles: guardian holds mint or fund");
+            require(!s.hasRole(R_ADMIN, operator) && !s.hasRole(DEFAULT_ADMIN, operator), "roles: operator is an admin");
+            require(s.hasRole(DEFAULT_ADMIN, _safes.governance) && s.hasRole(R_GUARDIAN, _safes.guardian), "roles: governance or guardian");
+        }
+        address[2] memory dists = [d.sukukDistributor, scf.distributor];
+        for (uint256 i; i < 2; i++) {
+            IRoles s = IRoles(dists[i]);
+            require(s.hasRole(R_FUNDER, _safes.treasury) && !s.hasRole(R_FUNDER, operator), "roles: distributor funder");
+            require(!s.hasRole(R_ADMIN, operator) && !s.hasRole(DEFAULT_ADMIN, operator), "roles: operator is an admin");
+            require(s.hasRole(DEFAULT_ADMIN, _safes.governance) && s.hasRole(R_GUARDIAN, _safes.guardian), "roles: governance or guardian");
+        }
+        require(!IRoles(pLedger).hasRole(DEFAULT_ADMIN, operator) && IRoles(pLedger).hasRole(DEFAULT_ADMIN, _safes.governance), "roles: ledger admin");
+        require(!IRoles(scf.anchor).hasRole(DEFAULT_ADMIN, operator) && IRoles(scf.anchor).hasRole(DEFAULT_ADMIN, _safes.governance), "roles: scf anchor admin");
+        if (vm.envOr("LEDGER_ANCHOR", address(0)) == address(0)) {
+            require(!IRoles(anchor).hasRole(DEFAULT_ADMIN, operator) && IRoles(anchor).hasRole(DEFAULT_ADMIN, _safes.governance), "roles: anchor admin");
+        }
+        address[3] memory pool = [d.dealRegistry, d.bondReceiptNft, d.redemptionVault];
+        for (uint256 i; i < 3; i++) {
+            require(!IRoles(pool[i]).hasRole(DEFAULT_ADMIN, operator) && !IRoles(pool[i]).hasRole(R_ADMIN, operator), "roles: pool admin");
+            require(IRoles(pool[i]).hasRole(DEFAULT_ADMIN, _safes.governance), "roles: pool governance");
+        }
+        require(!IRoles(d.dealRegistry).hasRole(R_OPS, operator) && !IRoles(d.redemptionVault).hasRole(R_OPS, operator), "roles: operator ops");
+    }
+
+    bytes32 internal constant DEFAULT_ADMIN = 0x00;
+}
+
+interface IRoles {
+    function grantRole(bytes32 role, address account) external;
+    function revokeRole(bytes32 role, address account) external;
+    function renounceRole(bytes32 role, address account) external;
+    function hasRole(bytes32 role, address account) external view returns (bool);
 }

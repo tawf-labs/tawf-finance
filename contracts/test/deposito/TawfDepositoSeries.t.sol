@@ -79,6 +79,7 @@ contract TawfDepositoSeriesTest is TrexFixture {
     ModularCompliance internal mc;
     SandboxModule internal sandbox;
 
+    address internal funder = address(0xF00D0);
     address internal operator; // deployer; treasury + ops + fx
     address internal alice = makeAddr("alice");
     address internal bob = makeAddr("bob");
@@ -134,6 +135,8 @@ contract TawfDepositoSeriesTest is TrexFixture {
         ISeries(series).addStablecoin(usdc);
         ISeries(series).addStablecoin(usdt);
         ISeries(series).grantRole(keccak256("FX_ROLE"), operator);
+        ISeries(series).grantRole(keccak256("MINTER_ROLE"), operator);
+        ISeries(series).grantRole(keccak256("FUNDER_ROLE"), funder);
         ISeries(series).postRate(usdc, RATE_USDC);
         ISeries(series).postRate(usdt, RATE_USDT);
         IMintableCoin(usdc).approve(series, type(uint256).max);
@@ -302,7 +305,7 @@ contract TawfDepositoSeriesTest is TrexFixture {
         _allocate(alice, usdc, 100e6);
         uint256 profitSen = RATE_USDC; // 1 USDC worth at the USDC rate
         uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_PROFIT, 1, profitSen));
-        vm.prank(operator);
+        vm.prank(funder);
         ISeries(series).distributeProfit(1, profitSen, e, noProof);
         assertEq(ISeries(series).claimableSen(alice), profitSen);
 
@@ -325,7 +328,7 @@ contract TawfDepositoSeriesTest is TrexFixture {
 
         uint256 profitSen = 100 * RATE_USDC; // 100 USDC worth
         uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_PROFIT, 1, profitSen));
-        vm.prank(operator);
+        vm.prank(funder);
         ISeries(series).distributeProfit(1, profitSen, e, noProof);
         assertEq(ISeries(series).claimableSen(alice), (profitSen * 85) / 100);
         assertEq(ISeries(series).tawfShareAccruedSen(), (profitSen * 15) / 100);
@@ -355,7 +358,7 @@ contract TawfDepositoSeriesTest is TrexFixture {
         _allocate(alice, usdc, 100e6);
         uint256 profitSen = RATE_USDT; // 1 USDT worth at the USDT rate
         uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_PROFIT, 1, profitSen));
-        vm.prank(operator);
+        vm.prank(funder);
         ISeries(series).distributeProfit(1, profitSen, e, noProof);
 
         _fundTreasury(10e6);
@@ -374,7 +377,7 @@ contract TawfDepositoSeriesTest is TrexFixture {
         _allocate(alice, usdc, 100e6);
         uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_PROFIT, 1, 999));
         vm.expectRevert(bytes4(keccak256("ProofInvalid()")));
-        vm.prank(operator);
+        vm.prank(funder);
         ISeries(series).distributeProfit(1, RATE_USDC, e, noProof);
     }
 
@@ -385,7 +388,7 @@ contract TawfDepositoSeriesTest is TrexFixture {
 
         uint256 profitSen = 2 * RATE_USDC; // 2 USDC worth total
         uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_PROFIT, 1, profitSen));
-        vm.prank(operator);
+        vm.prank(funder);
         ISeries(series).distributeProfit(1, profitSen, e, noProof);
 
         // Each holds half the supply -> each accrues ~1 USDC worth of sen.
@@ -398,7 +401,7 @@ contract TawfDepositoSeriesTest is TrexFixture {
     function test_maturityAndRedeemInUsdc() public {
         uint256 sen = _allocate(alice, usdc, 100e6);
         uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, 0), sen));
-        vm.prank(operator);
+        vm.prank(funder);
         ISeries(series).settleMaturity(2000, 0, sen, e, noProof);
 
         _fundTreasury(200e6);
@@ -413,7 +416,7 @@ contract TawfDepositoSeriesTest is TrexFixture {
     function test_maturityAndRedeemInUsdt() public {
         uint256 sen = _allocate(alice, usdc, 100e6);
         uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, 0), sen));
-        vm.prank(operator);
+        vm.prank(funder);
         ISeries(series).settleMaturity(2000, 0, sen, e, noProof);
 
         _fundTreasury(200e6);
@@ -432,7 +435,7 @@ contract TawfDepositoSeriesTest is TrexFixture {
         uint256 sen = _allocate(alice, usdc, 100e6);
         uint256 returned = sen + 40_600_00; // face plus IDR 40,600 of nisbah
         uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, 0), returned));
-        vm.prank(operator);
+        vm.prank(funder);
         ISeries(series).settleMaturity(2000, 0, returned, e, noProof);
 
         _fundTreasury(200e6);
@@ -447,7 +450,7 @@ contract TawfDepositoSeriesTest is TrexFixture {
         uint256 sen = _allocate(alice, usdc, 100e6);
         uint256 returned = sen / 2;
         uint256 e = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, 0), returned));
-        vm.prank(operator);
+        vm.prank(funder);
         ISeries(series).settleMaturity(2000, 0, returned, e, noProof);
 
         _fundTreasury(200e6);
@@ -485,14 +488,14 @@ contract TawfDepositoSeriesTest is TrexFixture {
         if (profitUsdc > 0) {
             profitSen = (uint256(profitUsdc) * RATE_USDC) / 1e6;
             uint256 ep = IAnchor(anchor).push(_leaf(DEPOSITO_PROFIT, 1, profitSen));
-            vm.prank(operator);
+            vm.prank(funder);
             ISeries(series).distributeProfit(1, profitSen, ep, noProof);
         }
 
         // Settle maturity at the anchored principal (the minted sen).
         uint32 finalPeriod = profitUsdc > 0 ? 1 : 0;
         uint256 em = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, finalPeriod), sen));
-        vm.prank(operator);
+        vm.prank(funder);
         ISeries(series).settleMaturity(2000, finalPeriod, sen, em, noProof);
 
         _fundTreasury(type(uint96).max);
@@ -527,7 +530,7 @@ contract TawfDepositoSeriesTest is TrexFixture {
         // fact carries finalPeriod 1; it is not distributed here yet.
         uint256 sen = _allocate(alice, usdc, 100e6);
         uint256 em = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, 1), sen));
-        vm.prank(operator);
+        vm.prank(funder);
         vm.expectRevert(abi.encodeWithSignature("ProfitPeriodsOutstanding(uint32,uint32)", uint32(0), uint32(1)));
         ISeries(series).settleMaturity(2000, 1, sen, em, noProof);
     }
@@ -537,7 +540,7 @@ contract TawfDepositoSeriesTest is TrexFixture {
         uint256 sen = _allocate(alice, usdc, 100e6);
         // Anchored with finalPeriod 1, but the operator claims 0.
         uint256 em = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, 1), sen));
-        vm.prank(operator);
+        vm.prank(funder);
         vm.expectRevert(abi.encodeWithSignature("ProofInvalid()"));
         ISeries(series).settleMaturity(2000, 0, sen, em, noProof);
     }
@@ -546,11 +549,11 @@ contract TawfDepositoSeriesTest is TrexFixture {
     function test_noProfitAfterMaturity() public {
         uint256 sen = _allocate(alice, usdc, 100e6);
         uint256 em = IAnchor(anchor).push(_leaf(DEPOSITO_MATURITY, _packMaturity(2000, 0), sen));
-        vm.prank(operator);
+        vm.prank(funder);
         ISeries(series).settleMaturity(2000, 0, sen, em, noProof);
 
         uint256 ep = IAnchor(anchor).push(_leaf(DEPOSITO_PROFIT, 1, 100));
-        vm.prank(operator);
+        vm.prank(funder);
         vm.expectRevert(abi.encodeWithSignature("ProfitAfterMaturity()"));
         ISeries(series).distributeProfit(1, 100, ep, noProof);
     }

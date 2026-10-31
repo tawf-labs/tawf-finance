@@ -7,6 +7,7 @@ import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol"
 import { IERC20Metadata } from "openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { SafeERC20 } from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import { PausableUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import { ITawfIdentityRegistry } from "../interfaces/ITawfIdentityRegistry.sol";
 import { ITrexToken } from "../interfaces/ITrexToken.sol";
 import { ILedgerAnchor } from "./ILedgerAnchor.sol";
@@ -66,7 +67,7 @@ import { ProfitAccumulator } from "../lib/ProfitAccumulator.sol";
  *      the ledger caps how much may ever be minted. closeSubscription and
  *      subscription both enforce totalSupply <= latest verified outstanding.
  */
-contract SukukDistributor is Initializable, AccessControlUpgradeable, ReentrancyGuard, IBalanceCheckpoint {
+contract SukukDistributor is Initializable, AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuard, IBalanceCheckpoint {
     using SafeERC20 for IERC20;
     using ProfitAccumulator for ProfitAccumulator.State;
 
@@ -75,6 +76,8 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
     ///         Granted to the admin at construction. Restricting it means a stranger
     ///         holding a ledger proof cannot choose which coin funds a payout.
     bytes32 public constant FUNDER_ROLE = keccak256("FUNDER_ROLE");
+    /// @notice Pause only (a coin), never unpause. Held by the Guardian Safe.
+    bytes32 public constant GUARDIAN_ROLE = keccak256("GUARDIAN_ROLE");
 
     uint256 private constant PRECISION = 1e18;
     /// @notice Highest Tawf nisbah accepted (50% of profit).
@@ -280,6 +283,7 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
                 || terms_.issuerTreasury == address(0) || admin == address(0)
         ) revert InvalidAddress();
         __AccessControl_init();
+        __Pausable_init();
         if (
             terms_.sukukId == bytes32(0) || terms_.faceValue == 0 || terms_.minRaise == 0
                 || terms_.minRaise > terms_.faceValue || terms_.subscriptionPeriod == 0
@@ -304,6 +308,19 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
         _grantRole(FUNDER_ROLE, admin);
+    }
+
+    // ---------------------------------------------------------------
+    // Emergency pause. The Guardian Safe can only pause, Governance (DEFAULT_ADMIN) unpauses. The exits stay
+    // open while paused: investors can always cancel or get their refund.
+    // ---------------------------------------------------------------
+
+    function pause() external onlyRole(GUARDIAN_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
     }
 
     // ---------------------------------------------------------------
@@ -415,7 +432,7 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
     /// @dev The T-REX token enforces holder verification on mint; the explicit
     ///      isVerified check here fails fast with a clear error before cash
     ///      moves. A recent verified reserve snapshot must cover supply after mint.
-    function subscribe(address coin, uint256 amount) external nonReentrant {
+    function subscribe(address coin, uint256 amount) external whenNotPaused nonReentrant {
         if (status != Status.Subscription) revert WrongStatus(status);
         _requireActiveCoin(coin);
         if (block.timestamp >= subscriptionDeadline) revert SubscriptionClosed();
@@ -435,7 +452,8 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
     /// @notice Close the sale once the window has ended or the issue is fully
     ///         subscribed. Releases proceeds to the issuer, or cancels for
     ///         refund if the minimum raise was missed.
-    function closeSubscription() external onlyRole(ADMIN_ROLE) nonReentrant {
+    /// @dev Sends the raise to the issuer, so it is a money-out step: FUNDER_ROLE (the Treasury Safe).
+    function closeSubscription() external onlyRole(FUNDER_ROLE) whenNotPaused nonReentrant {
         if (status != Status.Subscription) revert WrongStatus(status);
         uint256 raised = token.totalSupply();
         if (block.timestamp < subscriptionDeadline && raised < terms.faceValue) revert SubscriptionStillOpen();
@@ -495,7 +513,7 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
     function distribute(uint16 period, address coin, uint256 amount, uint256 epoch, bytes32[] calldata proof)
         external
         onlyRole(FUNDER_ROLE)
-        nonReentrant
+        whenNotPaused nonReentrant
     {
         if (status != Status.Active) revert WrongStatus(status);
         _requireActiveCoin(coin);
@@ -517,7 +535,7 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
     }
 
     /// @notice Withdraw the caller's distributed profit, paid in `coin`.
-    function claim(address coin) external nonReentrant {
+    function claim(address coin) external whenNotPaused nonReentrant {
         _profit.settle(msg.sender, token.balanceOf(msg.sender));
         uint256 amount = _profit.take(msg.sender);
         if (amount == 0) revert NothingToClaim();
@@ -554,7 +572,7 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
     function settleMaturity(address coin, uint256 amount, uint256 epoch, bytes32[] calldata proof)
         external
         onlyRole(FUNDER_ROLE)
-        nonReentrant
+        whenNotPaused nonReentrant
     {
         if (status != Status.Active) revert WrongStatus(status);
         _requireActiveCoin(coin);
@@ -570,7 +588,7 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
     function settleDefault(address coin, uint256 recovery, uint256 epoch, bytes32[] calldata proof)
         external
         onlyRole(FUNDER_ROLE)
-        nonReentrant
+        whenNotPaused nonReentrant
     {
         if (status != Status.Active) revert WrongStatus(status);
         _requireActiveCoin(coin);
@@ -582,7 +600,8 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
 
     /// @notice Pause or unpause a coin. A paused coin is not accepted for new money (subscribe, funding,
     ///         topUp) or as a preferred payout coin, but payouts still draw on it when the other
-    ///         coins cannot cover them, so no holder is stranded.
+    ///         coins cannot cover them, so no holder is stranded. Governance only. The Guardian Safe's emergency
+    ///         stop is the whole-contract pause().
     function setCoinPaused(address coin, bool paused) external onlyRole(ADMIN_ROLE) {
         if (!isCoin[coin]) revert CoinNotAccepted(coin);
         coinPaused[coin] = paused;
@@ -593,7 +612,7 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
     ///         example the issuer topping up a coin a redemption was not funded in,
     ///         so holders can redeem and claim in the coin they prefer. It changes
     ///         no accounting, the coin is simply available to pay out.
-    function topUp(address coin, uint256 amount) external nonReentrant {
+    function topUp(address coin, uint256 amount) external whenNotPaused nonReentrant {
         _requireActiveCoin(coin);
         IERC20(coin).safeTransferFrom(msg.sender, address(this), amount);
         emit CoinToppedUp(msg.sender, coin, amount);
@@ -601,7 +620,7 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
 
     /// @notice Burn the caller's tokens for their share of the redemption (or
     ///         recovery) amount, plus any unclaimed profit, paid in `coin`.
-    function redeem(address coin) external nonReentrant {
+    function redeem(address coin) external whenNotPaused nonReentrant {
         if (status != Status.Matured && status != Status.Defaulted) revert WrongStatus(status);
         uint256 units = token.balanceOf(msg.sender);
         if (units == 0) revert NothingToClaim();
@@ -627,7 +646,7 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
     function releaseHeldProfit(uint16 index, address coin, uint256 amount, uint256 epoch, bytes32[] calldata proof)
         external
         onlyRole(FUNDER_ROLE)
-        nonReentrant
+        whenNotPaused nonReentrant
     {
         if (status != Status.Matured) revert WrongStatus(status);
         _requireActiveCoin(coin);
@@ -659,7 +678,7 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
     }
 
     /// @notice Pull the caller's share of released profit, paid in `coin`.
-    function claimProfit(address coin) external nonReentrant {
+    function claimProfit(address coin) external whenNotPaused nonReentrant {
         if (status != Status.Matured) revert WrongStatus(status);
         uint256 amount = claimableHeldProfit(msg.sender);
         heldProfitPaidPerUnit[msg.sender] = heldProfitPerUnit;
@@ -687,8 +706,8 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, Reentrancy
 
     /// @notice After the claim window (from the last release), send unclaimed
     ///         released profit to the board-approved destination. Profit swept
-    ///         is no longer claimable.
-    function sweepUnclaimed() external nonReentrant {
+    ///         is no longer claimable. Money out: FUNDER_ROLE (the Treasury Safe).
+    function sweepUnclaimed() external onlyRole(FUNDER_ROLE) whenNotPaused nonReentrant {
         if (sweepDestination == address(0)) revert SweepDestinationNotSet();
         if (lastReleaseAt == 0 || block.timestamp < lastReleaseAt + claimWindow) {
             revert ClaimWindowOpen(lastReleaseAt + claimWindow);

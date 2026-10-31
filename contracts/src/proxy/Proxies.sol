@@ -66,11 +66,17 @@ library Proxies {
     }
 
     // ---- LedgerAnchor ----
-    function ledgerAnchor(uint256 ledgerChainId, address operator, address beaconOwner) internal returns (LedgerAnchor) {
-        return ledgerAnchorOn(address(beacon(address(new LedgerAnchor()), beaconOwner)), ledgerChainId, operator);
+    function ledgerAnchor(uint256 ledgerChainId, address operator, address admin, address beaconOwner)
+        internal
+        returns (LedgerAnchor)
+    {
+        return ledgerAnchorOn(address(beacon(address(new LedgerAnchor()), beaconOwner)), ledgerChainId, operator, admin);
     }
 
-    function ledgerAnchorOn(address beacon_, uint256 ledgerChainId, address operator) internal returns (LedgerAnchor) {
-        return LedgerAnchor(_proxy(beacon_, abi.encodeCall(LedgerAnchor.initialize, (ledgerChainId, operator))));
+    function ledgerAnchorOn(address beacon_, uint256 ledgerChainId, address operator, address admin)
+        internal
+        returns (LedgerAnchor)
+    {
+        return LedgerAnchor(_proxy(beacon_, abi.encodeCall(LedgerAnchor.initialize, (ledgerChainId, operator, admin))));
     }
 }

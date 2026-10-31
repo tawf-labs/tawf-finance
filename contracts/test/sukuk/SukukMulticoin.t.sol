@@ -626,6 +626,7 @@ contract SukukMulticoinTest is TrexFixture {
 
         vm.warp(block.timestamp + 366 days);
         uint256 usdcBefore = _bal(usdc, address(dist));
+        vm.prank(deployer);
         dist.sweepUnclaimed();
         assertEq(_bal(usdg, waqf), 1_000e6);
         assertEq(_bal(usdt, waqf), 500e6);

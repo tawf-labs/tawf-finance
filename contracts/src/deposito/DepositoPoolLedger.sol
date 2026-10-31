@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import { Initializable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import { AccessControlUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
+import { PausableUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import { ILedgerAnchor } from "../sukuk/ILedgerAnchor.sol";
 import { LedgerLeaf } from "../lib/LedgerLeaf.sol";
 
@@ -31,7 +32,11 @@ import { LedgerLeaf } from "../lib/LedgerLeaf.sol";
  *      anchored ledger roots. This is the same operator-attested model as the
  *      standalone LedgerAnchor.
  */
-contract DepositoPoolLedger is Initializable, AccessControlUpgradeable, ILedgerAnchor {
+/// @dev GUARDIAN_ROLE pauses the data posts.
+contract DepositoPoolLedger is Initializable, AccessControlUpgradeable, PausableUpgradeable, ILedgerAnchor {
+    /// @notice Pause only (the data posts). Held by the Guardian Safe. Governance unpauses.
+    bytes32 public constant GUARDIAN_ROLE = keccak256("GUARDIAN_ROLE");
+
 
     struct Bank {
         string name;
@@ -90,21 +95,32 @@ contract DepositoPoolLedger is Initializable, AccessControlUpgradeable, ILedgerA
     function _lockImplementation() internal virtual {
         _disableInitializers();
     }
-    function initialize(uint256 ledgerChainId_, bytes32 seriesId_, address operator_)
+    function initialize(uint256 ledgerChainId_, bytes32 seriesId_, address operator_, address admin_)
         public
         initializer
     {
         if (operator_ == address(0)) revert ZeroAddress();
         __AccessControl_init();
+        __Pausable_init();
+        if (admin_ == address(0)) revert ZeroAddress();
+        _grantRole(DEFAULT_ADMIN_ROLE, admin_); // Governance: banks and the operator key
         ledgerChainId = ledgerChainId_;
         seriesId = seriesId_;
         operator = operator_;
     }
 
-    function transferOperator(address newOperator) external onlyOperator {
+    function transferOperator(address newOperator) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newOperator == address(0)) revert ZeroAddress();
         emit OperatorTransferred(operator, newOperator);
         operator = newOperator;
+    }
+
+    function pause() external onlyRole(GUARDIAN_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
     }
 
     // ---------------------------------------------------------------
@@ -112,7 +128,7 @@ contract DepositoPoolLedger is Initializable, AccessControlUpgradeable, ILedgerA
     // ---------------------------------------------------------------
 
     /// @notice List a BPRS where customers placed through Tawf hold deposito for this pool.
-    function addBank(bytes32 bankId, string calldata name, string calldata accountRef) external onlyOperator {
+    function addBank(bytes32 bankId, string calldata name, string calldata accountRef) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (bankId == bytes32(0) || bankOf[bankId].listed) revert BadBank(bankId);
         bankOf[bankId] = Bank({ name: name, accountRef: accountRef, listed: true });
         _bankIds.push(bankId);
@@ -152,6 +168,7 @@ contract DepositoPoolLedger is Initializable, AccessControlUpgradeable, ILedgerA
     function postReserve(uint64 at, bytes32[] calldata bankIds, uint256[] calldata balances)
         external
         onlyOperator
+        whenNotPaused
         returns (uint256 epoch)
     {
         if (bankIds.length != balances.length) revert LengthMismatch();
@@ -182,6 +199,7 @@ contract DepositoPoolLedger is Initializable, AccessControlUpgradeable, ILedgerA
     function postProfit(uint32 period, bytes32[] calldata bankIds, uint256[] calldata profits)
         external
         onlyOperator
+        whenNotPaused
         returns (uint256 epoch, uint256 total)
     {
         if (bankIds.length != profits.length) revert LengthMismatch();
@@ -200,6 +218,7 @@ contract DepositoPoolLedger is Initializable, AccessControlUpgradeable, ILedgerA
     function postMaturity(uint64 at, uint32 finalPeriod, uint256 principal)
         external
         onlyOperator
+        whenNotPaused
         returns (uint256 epoch)
     {
         epoch = epochs++;

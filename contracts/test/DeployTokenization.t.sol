@@ -50,6 +50,7 @@ interface IMintable {
 
 contract DeployTokenizationTest is Test, DeployTokenization {
     uint256 internal operatorKey = 0xA11CE;
+    address internal funder = address(0xF00D0);
     address internal operator;
     uint256 internal userKey = 0xBEEF;
     address internal user;
@@ -77,6 +78,8 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         beaconOwner = address(0x6075); // stand-in for the Governance Safe that owns every beacon
         vm.startPrank(operator);
         d = _deployAll(operator, anchor, 1);
+        ISeriesT(d.series).grantRole(keccak256("MINTER_ROLE"), operator);
+        ISeriesT(d.series).grantRole(keccak256("FUNDER_ROLE"), funder);
         vm.stopPrank();
     }
 
@@ -244,7 +247,7 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         // profitSen chosen as 1 USDC worth at the USDC rate.
         uint256 profitSen = d.fxInitialRateUsdc; // 1 USDC at the USDC rate
         uint256 ep = IAnchorMut(anchor).push(_leaf(DEPOSITO_PROFIT, d.seriesId, 1, profitSen));
-        vm.prank(operator);
+        vm.prank(funder);
         ISeriesT(d.series).distributeProfit(1, profitSen, ep, noProof);
 
         assertEq(ISeriesT(d.series).claimableSen(user), profitSen);
@@ -261,7 +264,7 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         // Settle maturity: principal = minted sen. Redeem in USDC, pulled from treasury.
         // Period 1 was distributed above, so the bank's maturity fact carries finalPeriod 1.
         uint256 em = IAnchorMut(anchor).push(_leaf(DEPOSITO_MATURITY, d.seriesId, (uint256(1) << 64) | 2000, sen));
-        vm.prank(operator);
+        vm.prank(funder);
         ISeriesT(d.series).settleMaturity(2000, 1, sen, em, noProof);
 
         vm.prank(user);

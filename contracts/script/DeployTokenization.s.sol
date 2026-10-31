@@ -152,9 +152,17 @@ contract DeployTokenization is Script, ProxyDeployer {
         // Every compliance module's configurer becomes the Compliance Safe (setHook, initOffering, setOfferingCap,
         // initConfig, agents). The operator keeps no module role. Owner-only, so it runs before the owner moves.
         for (uint256 i; i < _modules.length; i++) IConfigurerLike(_modules[i]).setConfigurer(_safes.compliance);
+        // Token agents can mint, burn, force transfers, freeze and recover. So the Guardian Safe and the operator are NOT
+        // agents. Only the Minting Safe is a token agent (the series and distributor contracts that mint keep their own
+        // agent role), and the Compliance Safe becomes the identity registry agent below. Pausing the system is done
+        // with pause() on our own contracts (GUARDIAN_ROLE), not through the token.
         for (uint256 i; i < _tokens.length; i++) {
-            IAgentLike(_tokens[i]).addAgent(_safes.guardian);
-            IAgentLike(_tokens[i]).addAgent(_safes.compliance);
+            IAgentLike(_tokens[i]).addAgent(_safes.minting);
+            IAgentLike(_tokens[i]).removeAgent(operator);
+        }
+        if (_sharedIdentityRegistry != address(0)) {
+            IAgentLike(_sharedIdentityRegistry).addAgent(_safes.compliance);
+            IAgentLike(_sharedIdentityRegistry).removeAgent(operator);
         }
         for (uint256 i; i < _owned.length; i++) IOwnableLike(_owned[i]).transferOwnership(_safes.governance);
         if (_moduleBeaconsSet) ModuleProxies.handOverAll(_moduleBeacons, _safes.governance); // owner read back inside
@@ -181,6 +189,10 @@ contract DeployTokenization is Script, ProxyDeployer {
 
     /// @dev Standalone entry points (run, runSeries, runSukuk, runPool, runScf) deploy beacon proxies, so they
     ///      need the Governance Safe as beacon owner. DeployAll loads all five Safes instead.
+    function _treasury(address operator) internal view returns (address) {
+        return _safes.treasury != address(0) ? _safes.treasury : operator;
+    }
+
     function _initBeaconOwner() internal {
         if (beaconOwner == address(0)) beaconOwner = vm.envAddress("GOV_SAFE");
     }
@@ -389,7 +401,7 @@ contract DeployTokenization is Script, ProxyDeployer {
                 seriesId,
                 SERIES_TENOR,
                 SERIES_NISBAH,
-                operator, // treasury (demo: the operator wallet is the Tawf treasury)
+                _treasury(operator), // treasury: the Treasury Safe in a Safe deploy, else the operator (local runs)
                 operator, // admin
                 operator, // operator
                 uint64(1 days) // maxRateAge
@@ -401,7 +413,7 @@ contract DeployTokenization is Script, ProxyDeployer {
         sandbox.initConfig(
             address(mc),
             SandboxModule.Mode.PILOT_ONLY,
-            operator, // treasury
+            _treasury(operator), // treasury
             _sharedClaimIssuer, // Tawf ClaimIssuer for topic 2/3 claims
             0, // maxInvestors -> default 50
             0, // maxBalancePerInvestor -> default Rp10,000,000
@@ -430,8 +442,11 @@ contract DeployTokenization is Script, ProxyDeployer {
 
         // The treasury (operator) pre-approves the series to pull both coins
         // for profit and principal payouts at claim/redeem time.
-        IApprove(usdc).approve(series, type(uint256).max);
-        IApprove(usdt).approve(series, type(uint256).max);
+        // Only when the operator IS the treasury (local runs). With a Treasury Safe, the Safe approves later.
+        if (_treasury(operator) == operator) {
+            IApprove(usdc).approve(series, type(uint256).max);
+            IApprove(usdt).approve(series, type(uint256).max);
+        }
 
         tokenAddr = address(token);
         sandboxAddr = address(sandbox);
@@ -652,6 +667,7 @@ interface IConfigurerLike {
 
 interface IAgentLike {
     function addAgent(address agent) external;
+    function removeAgent(address agent) external;
 }
 
 interface IUupsRoleLike {

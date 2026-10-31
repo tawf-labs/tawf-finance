@@ -46,6 +46,7 @@ contract DepositoPoolLedgerTest is TrexFixture {
     address internal usdt;
     Token internal token;
     ModularCompliance internal mc;
+    address internal funder = address(0xF00D0);
     address internal operator;
     address internal alice = makeAddr("alice");
     bytes32[] internal noProof;
@@ -61,7 +62,7 @@ contract DepositoPoolLedgerTest is TrexFixture {
         tir.addTrustedIssuer(claimIssuer, topics);
         vm.stopPrank();
 
-        ledger = IPoolLedger(_deployProxy("DepositoPoolLedger.sol:DepositoPoolLedger", abi.encodeWithSignature("initialize(uint256,bytes32,address)", LEDGER_CHAIN_ID, SERIES_ID, operator)));
+        ledger = IPoolLedger(_deployProxy("DepositoPoolLedger.sol:DepositoPoolLedger", abi.encodeWithSignature("initialize(uint256,bytes32,address,address)", LEDGER_CHAIN_ID, SERIES_ID, operator, operator)));
         usdc = deployCode("MockUSDC.sol:MockUSDC");
         usdt = deployCode("MockUSDT.sol:MockUSDT");
         (token, mc,) = _deployTrexToken("Tawf Deposito Pool: Jawa Barat", "tDEP-JABAR-1", 2);
@@ -92,6 +93,8 @@ contract DepositoPoolLedgerTest is TrexFixture {
 
         ISeries(series).addStablecoin(usdc);
         ISeries(series).grantRole(keccak256("FX_ROLE"), operator);
+        ISeries(series).grantRole(keccak256("MINTER_ROLE"), operator);
+        ISeries(series).grantRole(keccak256("FUNDER_ROLE"), funder);
         ISeries(series).postRate(usdc, RATE_USDC);
         IMintableCoin(usdc).approve(series, type(uint256).max);
         vm.stopPrank();
@@ -245,11 +248,11 @@ contract DepositoPoolLedgerTest is TrexFixture {
         uint256[] memory profits = new uint256[](2);
         profits[0] = 600_000;
         profits[1] = 400_000;
-        vm.startPrank(operator);
+        vm.prank(operator);
         (uint256 pe, uint256 total) = ledger.postProfit(1, ids, profits);
         assertEq(total, 1_000_000);
+        vm.prank(funder);
         ISeries(series).distributeProfit(1, total, pe, noProof);
-        vm.stopPrank();
         uint256 claimable = ISeries(series).claimableSen(alice);
         assertGt(claimable, 0);
         assertLe(claimable, 1_000_000);
@@ -257,9 +260,11 @@ contract DepositoPoolLedgerTest is TrexFixture {
         // Maturity at par across the pool.
         uint64 mAt = uint64(block.timestamp + 90 days);
         vm.warp(mAt);
-        vm.startPrank(operator);
+        vm.prank(operator);
         uint256 me = ledger.postMaturity(mAt, 1, 162_500_000);
+        vm.prank(funder);
         ISeries(series).settleMaturity(mAt, 1, 162_500_000, me, noProof);
+        vm.startPrank(operator);
         IMintableCoin(usdc).faucet(1_000e6);
         ISeries(series).postRate(usdc, RATE_USDC); // a fresh rate for the payout
         vm.stopPrank();
@@ -273,7 +278,11 @@ contract DepositoPoolLedgerTest is TrexFixture {
     function test_transferOperator() public {
         vm.prank(operator);
         ledger.transferOperator(alice);
+        // Adding banks is an admin (Governance) act, not the data operator's, even the new one.
         vm.prank(alice);
+        vm.expectRevert();
+        ledger.addBank(keccak256("bprs.demo.depok"), "BPRS Demo Depok", "TAWF-JB-DPK");
+        vm.prank(operator); // admin
         ledger.addBank(keccak256("bprs.demo.depok"), "BPRS Demo Depok", "TAWF-JB-DPK");
         assertEq(ledger.bankCount(), 4);
     }

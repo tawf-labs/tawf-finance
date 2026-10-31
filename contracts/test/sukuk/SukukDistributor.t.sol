@@ -562,9 +562,11 @@ contract SukukDistributorTest is TrexFixture {
         dist.setSweepDestination(waqf, eW, noProof);
 
         vm.expectRevert();
+        vm.prank(deployer);
         dist.sweepUnclaimed(); // window still open
 
         vm.warp(block.timestamp + 365 days);
+        vm.prank(deployer);
         dist.sweepUnclaimed();
         assertEq(IMockUSDC(usdc).balanceOf(waqf), 1_000e6);
         assertEq(dist.heldBalance(), 0);
@@ -620,6 +622,7 @@ contract SukukDistributorTest is TrexFixture {
         _release(1, 4_000e6);
         vm.warp(block.timestamp + 365 days);
         vm.expectRevert(abi.encodeWithSignature("SweepDestinationNotSet()"));
+        vm.prank(deployer);
         dist.sweepUnclaimed();
     }
 

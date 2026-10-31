@@ -62,9 +62,9 @@ contract OurContractsUpgradeTest is Test, ProxyDeployer {
             "UpgradeV2Mocks.sol:PooledFinancingVaultV2"
         ];
 
-        inits[0] = abi.encodeWithSignature("initialize(uint256,address)", 42, operator);
+        inits[0] = abi.encodeWithSignature("initialize(uint256,address,address)", 42, operator, operator);
         address anchor = _deployProxy(names[0], inits[0]);
-        inits[1] = abi.encodeWithSignature("initialize(uint256,bytes32,address)", 42, keccak256("series"), operator);
+        inits[1] = abi.encodeWithSignature("initialize(uint256,bytes32,address,address)", 42, keccak256("series"), operator, operator);
         inits[2] = abi.encodePacked(
             bytes4(keccak256("initialize(address,address,address,address,address,(bytes32,uint8,uint16),address,address,address,uint64)")),
             abi.encode(

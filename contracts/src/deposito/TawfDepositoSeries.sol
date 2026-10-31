@@ -7,6 +7,7 @@ import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol"
 import { IERC20Metadata } from "openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { SafeERC20 } from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import { PausableUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import { ITrexToken } from "../interfaces/ITrexToken.sol";
 import { ILedgerAnchor } from "../sukuk/ILedgerAnchor.sol";
 import { IBalanceCheckpoint } from "../sukuk/IBalanceCheckpoint.sol";
@@ -57,12 +58,18 @@ interface ISandboxEligibility {
  *
  *      Checks-effects-interactions and ReentrancyGuard guard every cash move.
  */
-contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, ReentrancyGuard, IBalanceCheckpoint {
+contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuard, IBalanceCheckpoint {
     using SafeERC20 for IERC20;
     using ProfitAccumulator for ProfitAccumulator.State;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+    /// @notice Mints: allocate. Held by the Minting Safe. Never on the same address as FUNDER_ROLE.
+    /// @notice Pause only. Held by the Guardian Safe.
+    bytes32 public constant GUARDIAN_ROLE = keccak256("GUARDIAN_ROLE");
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    /// @notice Money commitments: distributeProfit and settleMaturity (they fix what holders can claim). Held by the
+    ///         Treasury Safe. Never on the same address as MINTER_ROLE.
+    bytes32 public constant FUNDER_ROLE = keccak256("FUNDER_ROLE");
     bytes32 public constant FX_ROLE = keccak256("FX_ROLE");
 
     uint256 private constant PRECISION = 1e18;
@@ -149,6 +156,7 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
     error BadDecimals(uint8 got);
     error ConversionZero();
     error TawfShareLocked();
+    error SegregationOfDuties(address account);
 
     event StablecoinAdded(address indexed token);
     event StablecoinRemoved(address indexed token);
@@ -206,7 +214,7 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
     /// @param terms_ Series terms (seriesId, tenor, nisbah).
     /// @param treasury_ The Tawf treasury (escrow sink + funding source).
     /// @param admin DEFAULT_ADMIN_ROLE + ADMIN_ROLE holder.
-    /// @param operator OPERATOR_ROLE holder (Tawf ops).
+    /// @param operator FX_ROLE holder (the data-posting operator EOA).
     /// @param maxRateAge_ Maximum age of an FX rate for rate-using actions.
     function initialize(
         ILedgerAnchor anchor_,
@@ -226,6 +234,7 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
                 || admin == address(0) || operator == address(0)
         ) revert InvalidAddress();
         __AccessControl_init();
+        __Pausable_init();
         if (terms_.seriesId == bytes32(0) || terms_.nisbahBps > 10_000) revert InvalidTerms();
 
         anchor = anchor_;
@@ -240,7 +249,20 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
-        _grantRole(OPERATOR_ROLE, operator);
+        _grantRole(FX_ROLE, operator); // the operator EOA only posts data (FX rates). MINTER and FUNDER are granted by the admin to the Safes.
+    }
+
+    // ---------------------------------------------------------------
+    // Emergency pause. The Guardian Safe can only pause, Governance (DEFAULT_ADMIN) unpauses. The exits stay
+    // open while paused: investors can always cancel or get their refund.
+    // ---------------------------------------------------------------
+
+    function pause() external onlyRole(GUARDIAN_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
     }
 
     // ---------------------------------------------------------------
@@ -330,7 +352,7 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
     ///         must be allowlisted and the caller must be eligible under the
     ///         SandboxModule's current mode, so cash never escrows for a wallet
     ///         that could not be allocated or in a coin Tawf does not accept.
-    function subscribe(address token_, uint256 coinAmount) external nonReentrant {
+    function subscribe(address token_, uint256 coinAmount) external whenNotPaused nonReentrant {
         if (!isStablecoin[token_]) revert NotStablecoin(token_);
         if (coinAmount == 0) revert ZeroAmount();
         if (!sandbox.isEligible(compliance, msg.sender)) revert NotEligible(msg.sender);
@@ -374,7 +396,7 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
         uint64 snapshotAt,
         uint256 balance,
         bytes32[] calldata proof
-    ) external nonReentrant onlyRole(OPERATOR_ROLE) {
+    ) external whenNotPaused nonReentrant onlyRole(MINTER_ROLE) {
         // Accept a snapshot newer than or equal to the stored one, so an
         // allocation can reuse the latest anchored balance.
         if (snapshotAt < reserveSnapshotAt) revert ReserveNotNewer(reserveSnapshotAt, snapshotAt);
@@ -424,8 +446,8 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
     ///         holders are paid, in their chosen coin, when they claim.
     function distributeProfit(uint32 period, uint256 profitSen, uint256 epoch, bytes32[] calldata proof)
         external
-        nonReentrant
-        onlyRole(OPERATOR_ROLE)
+        whenNotPaused nonReentrant
+        onlyRole(FUNDER_ROLE)
     {
         // Every profit period is paid out before maturity opens redemption, so
         // no holder who redeems early can miss a period.
@@ -449,7 +471,7 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
     ///         that coin's current rate and pulled from the treasury (which
     ///         pre-approves this series per coin). The sen entitlement is the
     ///         anchored profit pro rata, so the payout can never exceed it.
-    function claim(address token_) external nonReentrant {
+    function claim(address token_) external whenNotPaused nonReentrant {
         if (!isStablecoin[token_]) revert NotStablecoin(token_);
         _profit.settle(msg.sender, token.balanceOf(msg.sender));
         uint256 sen = _profit.take(msg.sender);
@@ -475,7 +497,7 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
 
     /// @notice Pay Tawf's accrued share to the fee wallet in `token_`, at that
     ///         coin's current rate, from the treasury (as holder claims are).
-    function claimTawfShare(address token_) external nonReentrant {
+    function claimTawfShare(address token_) external whenNotPaused nonReentrant {
         if (!isStablecoin[token_]) revert NotStablecoin(token_);
         uint256 sen = tawfShareAccruedSen - tawfSharePaidSen;
         if (sen == 0) revert NothingToClaim();
@@ -500,8 +522,8 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
     ///         their chosen coin, when they redeem.
     function settleMaturity(uint64 at, uint32 finalPeriod, uint256 principalSen, uint256 epoch, bytes32[] calldata proof)
         external
-        nonReentrant
-        onlyRole(OPERATOR_ROLE)
+        whenNotPaused nonReentrant
+        onlyRole(FUNDER_ROLE)
     {
         if (redemptionOpen) revert RedemptionAlreadyOpen();
         if (lastPeriod != finalPeriod) revert ProfitPeriodsOutstanding(lastPeriod, finalPeriod);
@@ -523,7 +545,7 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
     /// @notice Burn the caller's tokens for their pro-rata share of the funded
     ///         principal plus any unclaimed profit, both converted to `token_`
     ///         at its current rate and pulled from the treasury.
-    function redeem(address token_) external nonReentrant {
+    function redeem(address token_) external whenNotPaused nonReentrant {
         if (!isStablecoin[token_]) revert NotStablecoin(token_);
         if (!redemptionOpen) revert RedemptionNotOpen();
         uint256 units = token.balanceOf(msg.sender);
@@ -654,6 +676,14 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
         returns (bytes32)
     {
         return LedgerLeaf.hash(ledgerChainId_, kind, subjectId, a, b);
+    }
+
+    /// @dev Segregation of duties: one address can never hold both MINTER_ROLE and FUNDER_ROLE, so no single
+    ///      key or Safe can both mint tokens and commit money. Enforced on every grant, by anyone.
+    function _grantRole(bytes32 role, address account) internal override returns (bool) {
+        if (role == MINTER_ROLE && hasRole(FUNDER_ROLE, account)) revert SegregationOfDuties(account);
+        if (role == FUNDER_ROLE && hasRole(MINTER_ROLE, account)) revert SegregationOfDuties(account);
+        return super._grantRole(role, account);
     }
 
     uint256[40] private __gap;

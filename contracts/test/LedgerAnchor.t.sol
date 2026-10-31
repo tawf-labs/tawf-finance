@@ -14,10 +14,11 @@ contract LedgerAnchorTest is Test {
     address internal operator = makeAddr("operator");
     address internal stranger = makeAddr("stranger");
     address internal governance = makeAddr("governance");
+    address internal admin = makeAddr("admin");
 
     function setUp() public {
         beacon = Proxies.beacon(address(new LedgerAnchor()), governance);
-        anchor = Proxies.ledgerAnchorOn(address(beacon), 46630, operator);
+        anchor = Proxies.ledgerAnchorOn(address(beacon), 46630, operator, admin);
     }
 
     function _pair(bytes32 a, bytes32 b) internal pure returns (bytes32) {
@@ -48,8 +49,14 @@ contract LedgerAnchorTest is Test {
         anchor.push(bytes32(uint256(1)));
     }
 
-    function test_transferOperator() public {
+    function test_operatorCannotRotateItself_adminDoes() public {
         vm.prank(operator);
+        vm.expectRevert();
+        anchor.transferOperator(operator);
+    }
+
+    function test_transferOperator() public {
+        vm.prank(admin);
         anchor.transferOperator(stranger);
         assertEq(anchor.operator(), stranger);
         vm.prank(operator);
@@ -62,24 +69,24 @@ contract LedgerAnchorTest is Test {
 
     function test_initialize_rejectsZeroOperator() public {
         vm.expectRevert(LedgerAnchor.ZeroAddress.selector);
-        new BeaconProxy(address(beacon), abi.encodeCall(LedgerAnchor.initialize, (1, address(0))));
+        new BeaconProxy(address(beacon), abi.encodeCall(LedgerAnchor.initialize, (1, address(0), operator)));
     }
 
     // ---- beacon controls ----
 
     function test_initialize_cannotRunTwice() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        anchor.initialize(1, operator);
+        anchor.initialize(1, operator, admin);
     }
 
     function test_implementation_isLocked() public {
         address impl = beacon.implementation();
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        LedgerAnchor(impl).initialize(1, operator);
+        LedgerAnchor(impl).initialize(1, operator, admin);
     }
 
     function test_onlyBeaconOwnerUpgrades_everyInstanceFollows_stateIsKept() public {
-        LedgerAnchor second = Proxies.ledgerAnchorOn(address(beacon), 7, stranger);
+        LedgerAnchor second = Proxies.ledgerAnchorOn(address(beacon), 7, stranger, admin);
         vm.prank(operator);
         anchor.push(bytes32(uint256(7)));
         LedgerAnchorV2 v2 = new LedgerAnchorV2();
