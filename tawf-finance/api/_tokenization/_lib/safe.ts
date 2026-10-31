@@ -29,7 +29,7 @@ import {
   type Hex,
 } from 'viem'
 import { arbitrumSepolia } from 'viem/chains'
-import { account, fetchWithTimeout, walletClient, publicClient } from './operator.js'
+import { account, addresses, fetchWithTimeout, walletClient, publicClient } from './operator.js'
 
 export type Duty = 'governance' | 'treasury' | 'minting' | 'compliance' | 'guardian'
 
@@ -46,10 +46,22 @@ export const DUTIES = Object.keys(DUTY_ENV) as Duty[]
 const SERVICE_URL = () =>
   (process.env.SAFE_TX_SERVICE_URL ?? 'https://api.safe.global/tx-service/arb-sepolia').replace(/\/$/, '')
 
-/** The Safe for a duty, or null when it is not configured. */
+/**
+ * The Safe for a duty, or null when its env var is unset. A value that is set but not a valid
+ * address THROWS: a typo must never turn into "no Safe, operator sends directly".
+ */
 export function safeFor(duty: Duty): Address | null {
   const v = process.env[DUTY_ENV[duty]]
-  return v && isAddress(v) ? (getAddress(v) as Address) : null
+  if (v === undefined || v.trim() === '') return null
+  if (!isAddress(v.trim())) throw new Error(`${DUTY_ENV[duty]} is set but is not a valid address`)
+  return getAddress(v.trim()) as Address
+}
+
+/** The operator may send a Safe-duty action itself only on Arbitrum Sepolia, and only with no Safe set. */
+export function assertOperatorFallbackAllowed(duty: Duty, chainId: number): void {
+  if (chainId !== arbitrumSepolia.id) {
+    throw new Error(`${DUTY_ENV[duty]} is not set: off Arbitrum Sepolia the operator never sends ${duty} actions directly`)
+  }
 }
 
 function headers(): Record<string, string> {
@@ -197,11 +209,14 @@ export async function proposeToSafe(call: AdminCall): Promise<Proposal> {
 
 /**
  * The single entry point for an admin action. With the duty's Safe configured it proposes and
- * returns the Safe tx hash (the action happens after the owners approve). Without it, the operator
- * signs and sends, as before the Safes existed.
+ * returns the Safe tx hash (the action happens after the owners approve). If the proposal fails
+ * (service down, timeout, rejected) it throws: it NEVER falls back to the operator once a Safe is
+ * set. Only with no Safe set, on Arbitrum Sepolia, does the operator sign and send, as before the
+ * Safes existed. Data posts (FX, ledger snapshots, profit records, anchor roots) do not use this.
  */
-export async function submitAdminTx(call: AdminCall): Promise<Proposal | DirectSend> {
+export async function submitAdminTx(call: AdminCall, chainId: number = Number(addresses.chainId)): Promise<Proposal | DirectSend> {
   if (safeFor(call.duty)) return proposeToSafe(call)
+  assertOperatorFallbackAllowed(call.duty, chainId)
   const txHash = (await walletClient().writeContract({
     address: call.address,
     abi: call.abi as Abi,

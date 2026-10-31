@@ -10,6 +10,7 @@ import {
   requirePasscode,
   readableError,
 } from '../_lib/operator.js'
+import { submitAdminTx, type AdminCall, type Duty, type Proposal } from '../_lib/safe.js'
 import { depositoPoolLedgerAbi, tawfSeriesAbi, trexTokenAbi } from '../_lib/abis.js'
 import { fundTreasuryForSen } from '../series/distribute-profit.js'
 import type { IdentityStep } from '../_lib/identity.js'
@@ -62,6 +63,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await publicClient.waitForTransactionReceipt({ hash, timeout: TX_TIMEOUT_MS })
       steps.push({ label, txHash: hash })
     }
+    // Safe-gated steps (mint, money out). The pool ledger posts (postReserve, postProfit, postMaturity) are
+    // data posts and keep using `send` with the operator.
+    const proposals: Proposal[] = []
+    const gated = async (label: string, duty: Duty, call: Omit<AdminCall, 'duty' | 'description'>) => {
+      const sent = await submitAdminTx({ ...call, duty, description: label })
+      if (sent.proposed) proposals.push(sent)
+      else steps.push({ label, txHash: sent.txHash })
+    }
     const chainNow = async () => (await publicClient.getBlock()).timestamp
     const nextEpoch = async () =>
       (await publicClient.readContract({ address: pool.ledger, abi: depositoPoolLedgerAbi, functionName: 'epochs' })) as bigint
@@ -107,9 +116,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ])
         const args = [investors, epoch as bigint, BigInt(at), total as bigint, []] as const
         await publicClient.simulateContract({ account: account().address, address: pool.series, abi: tawfSeriesAbi, functionName: 'allocate', args })
-        await send(`Allocated ${investors.length} subscriber(s)`, () =>
-          wc.writeContract({ address: pool.series, abi: tawfSeriesAbi, functionName: 'allocate', args }),
-        )
+        await gated(`Allocate ${investors.length} subscriber(s), mints the pool token`, 'minting', { address: pool.series, abi: tawfSeriesAbi, functionName: 'allocate', args })
         break
       }
       case 'distribute': {
@@ -125,9 +132,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           wc.writeContract({ address: pool.ledger, abi: depositoPoolLedgerAbi, functionName: 'postProfit', args: [period, p.ids, p.sen] }),
         )
         await fundTreasuryForSen(total, wc, pool.series)
-        await send(`Profit period ${period} distributed`, () =>
-          wc.writeContract({ address: pool.series, abi: tawfSeriesAbi, functionName: 'distributeProfit', args: [period, total, epoch, []] }),
-        )
+        await gated(`Distribute pool profit period ${period}`, 'treasury', { address: pool.series, abi: tawfSeriesAbi, functionName: 'distributeProfit', args: [period, total, epoch, []] })
         break
       }
       case 'settle': {
@@ -140,9 +145,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           wc.writeContract({ address: pool.ledger, abi: depositoPoolLedgerAbi, functionName: 'postMaturity', args: [at, finalPeriod, principal] }),
         )
         await fundTreasuryForSen(principal, wc, pool.series)
-        await send('Maturity settled', () =>
-          wc.writeContract({ address: pool.series, abi: tawfSeriesAbi, functionName: 'settleMaturity', args: [at, finalPeriod, principal, epoch, []] }),
-        )
+        await gated('Settle pool maturity', 'treasury', { address: pool.series, abi: tawfSeriesAbi, functionName: 'settleMaturity', args: [at, finalPeriod, principal, epoch, []] })
         break
       }
       default:
@@ -150,6 +153,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return
     }
 
+    if (proposals.length) {
+      res.status(202).json({ action, steps, proposals })
+      return
+    }
     res.status(200).json({ action, steps })
   } catch (err) {
     res.status(500).json({ error: readableError(err, 'Pool action failed'), steps })

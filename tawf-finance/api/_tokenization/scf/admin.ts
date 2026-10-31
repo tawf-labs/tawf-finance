@@ -13,6 +13,7 @@ import {
 } from '../_lib/operator.js'
 import { identityRegistryAbi, mockTokenAbi, operatorAnchorAbi, scfLimitModuleAbi, sukukDistributorAbi } from '../_lib/abis.js'
 import type { IdentityStep } from '../_lib/identity.js'
+import { submitAdminTx, type AdminCall, type Duty, type Proposal } from '../_lib/safe.js'
 
 const TX_TIMEOUT_MS = 30_000
 
@@ -64,6 +65,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await publicClient.waitForTransactionReceipt({ hash, timeout: TX_TIMEOUT_MS })
       steps.push({ label, txHash: hash })
     }
+    // Safe-gated steps (money out, compliance). Data posts below keep using `send` with the operator.
+    const proposals: Proposal[] = []
+    const gated = async (label: string, duty: Duty, call: Omit<AdminCall, 'duty' | 'description'>) => {
+      const sent = await submitAdminTx({ ...call, duty, description: label })
+      if (sent.proposed) proposals.push(sent)
+      else steps.push({ label, txHash: sent.txHash })
+    }
     const anchorFact = async (name: string, a: bigint, b: bigint): Promise<bigint> => {
       const epoch = (await publicClient.readContract({ address: addresses.scfAnchor, abi: operatorAnchorAbi, functionName: 'epochs' })) as bigint
       const leaf = leafHash(kind(name), addresses.scfId, a, b)
@@ -100,7 +108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         break
       }
       case 'close':
-        await send('Subscription closed', () => wc.writeContract({ address: dist, abi: sukukDistributorAbi, functionName: 'closeSubscription' }))
+        await gated('Close the subscription, sends the raise to the issuer', 'treasury', { address: dist, abi: sukukDistributorAbi, functionName: 'closeSubscription' })
         break
       case 'distribute': {
         const coin = pickCoin(req.body?.coin)
@@ -116,9 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const period = Number(await publicClient.readContract({ address: dist, abi: extraAbi, functionName: 'lastPeriod' })) + 1
         const epoch = await anchorFact('tawf.sukuk.distribution', BigInt(period), amount)
         await fund(coin, amount)
-        await send(`Profit period ${period} distributed`, () =>
-          wc.writeContract({ address: dist, abi: sukukDistributorAbi, functionName: 'distribute', args: [period, coin, amount, epoch, []] }),
-        )
+        await gated(`Distribute profit period ${period}`, 'treasury', { address: dist, abi: sukukDistributorAbi, functionName: 'distribute', args: [period, coin, amount, epoch, []] })
         break
       }
       case 'settle': {
@@ -131,9 +137,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const amount = req.body?.amount === undefined ? supply : usdc(req.body.amount)
         const epoch = await anchorFact('tawf.sukuk.redemption', amount, 0n)
         if (amount > 0n) await fund(coin, amount)
-        await send('Maturity settled', () =>
-          wc.writeContract({ address: dist, abi: sukukDistributorAbi, functionName: 'settleMaturity', args: [coin, amount, epoch, []] }),
-        )
+        await gated('Settle maturity', 'treasury', { address: dist, abi: sukukDistributorAbi, functionName: 'settleMaturity', args: [coin, amount, epoch, []] })
         break
       }
       case 'release': {
@@ -150,9 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const index = Number(await publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'heldReleases' })) + 1
         const epoch = await anchorFact('tawf.sukuk.profit-resolution', amount, BigInt(index))
         await fund(coin, amount)
-        await send(`Held profit release ${index}`, () =>
-          wc.writeContract({ address: dist, abi: sukukDistributorAbi, functionName: 'releaseHeldProfit', args: [index, coin, amount, epoch, []] }),
-        )
+        await gated(`Release held profit ${index}`, 'treasury', { address: dist, abi: sukukDistributorAbi, functionName: 'releaseHeldProfit', args: [index, coin, amount, epoch, []] })
         break
       }
       case 'resetUsage': {
@@ -172,9 +174,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return
         }
         const period = (await publicClient.readContract({ address: addresses.scfLimitModule, abi: scfLimitModuleAbi, functionName: 'currentPeriod' })) as bigint
-        await send(`Usage reset for period ${period}`, () =>
-          wc.writeContract({ address: addresses.scfLimitModule, abi: scfLimitModuleAbi, functionName: 'resetUsage', args: [identity, period] }),
-        )
+        await gated(`Reset usage for period ${period}`, 'compliance', { address: addresses.scfLimitModule, abi: scfLimitModuleAbi, functionName: 'resetUsage', args: [identity, period] })
         break
       }
       default:
@@ -183,6 +183,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const status = Number(await publicClient.readContract({ address: dist, abi: sukukDistributorAbi, functionName: 'status' }))
+    if (proposals.length) {
+      res.status(202).json({ action, status, steps, proposals })
+      return
+    }
     res.status(200).json({ action, status, steps })
   } catch (err) {
     res.status(500).json({ error: readableError(err, 'SCF action failed'), steps })

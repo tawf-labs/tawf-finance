@@ -2,12 +2,12 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getAddress, isAddress, verifyMessage, type Address, type Hex } from 'viem'
 import {
   publicClient,
-  walletClient,
   addresses,
   isScfConfigured,
   methodGuard,
   readableError,
 } from '../_lib/operator.js'
+import { submitAdminTx } from '../_lib/safe.js'
 import { identityRegistryAbi, scfLimitModuleAbi } from '../_lib/abis.js'
 import { ensureVerified } from '../_lib/identity.js'
 
@@ -124,14 +124,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const limit = (limitIdr * 100n * 1_000_000n) / rate
     const bracket = ex !== 'none' ? 3 : pct === 5n ? 1 : 2
 
-    const hash = await walletClient().writeContract({
+    // Compliance duty: the Compliance Safe sets the profile when it is configured.
+    const sent = await submitAdminTx({
+      duty: 'compliance',
       address: addresses.scfLimitModule,
       abi: scfLimitModuleAbi,
       functionName: 'setProfile',
       args: [identity, limit, bracket, EXEMPTIONS[ex]],
+      description: `Set SCF investor limit for ${user}, bracket ${bracket}`,
     })
-    await publicClient.waitForTransactionReceipt({ hash, timeout: 30_000 })
-    steps.push({ label: 'SCF investor limit recorded', txHash: hash })
+    if (sent.proposed) {
+      res.status(202).json({ ...sent, wallet: user, bracket, limitIdr: limitIdr.toString(), limit: limit.toString(), exemption: ex, steps })
+      return
+    }
+    steps.push({ label: 'SCF investor limit recorded', txHash: sent.txHash })
 
     res.status(200).json({
       wallet: user,

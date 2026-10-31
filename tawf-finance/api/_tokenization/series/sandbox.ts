@@ -2,13 +2,13 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { encodeFunctionData, type Address, type Hex } from 'viem'
 import {
   publicClient,
-  walletClient,
   isConfigured,
   methodGuard,
   requirePasscode,
   readableError,
   seriesTarget,
 } from '../_lib/operator.js'
+import { submitAdminTx } from '../_lib/safe.js'
 import { sandboxModuleAbi, modularComplianceAbi, trexComplianceAbi } from '../_lib/abis.js'
 
 const MODES: Record<string, number> = { PILOT_ONLY: 0, SCREENED_GROUP: 1, SANDBOX_ADMITTED: 2 }
@@ -64,14 +64,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       functionName: 'compliance',
     })) as Address
 
-    const wc = walletClient()
-    const txHash = (await wc.writeContract({
+    // Governance duty: sandbox mode, caps and series end are changed by the Governance Safe.
+    const sent = await submitAdminTx({
+      duty: 'governance',
       address: compliance,
       abi: modularComplianceAbi,
       functionName: 'callModuleFunction',
       args: [data, target.sandbox],
-    })) as Hex
-    await publicClient.waitForTransactionReceipt({ hash: txHash })
+      description: `Sandbox ${action} change`,
+    })
+    if (sent.proposed) {
+      res.status(202).json({ ...sent, action })
+      return
+    }
+    const txHash = sent.txHash
 
     res.status(200).json({ txHash, action })
   } catch (err) {
