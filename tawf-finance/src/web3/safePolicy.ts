@@ -4,7 +4,7 @@
  * Safe it was proposed on. The API checks this when proposing and the admin panel checks it again before it
  * offers Approve, so a proposal slipped into the store for another target or another duty shows red.
  */
-import { decodeAbiParameters, getAddress, isAddress, maxUint256, parseAbi, type Address, type Hex } from 'viem';
+import { decodeAbiParameters, encodeAbiParameters, getAddress, isAddress, maxUint256, parseAbi, type Address, type Hex } from 'viem';
 import type { DecodedCall } from './safeDecode';
 import type { Duty } from './safeDuty';
 
@@ -137,6 +137,9 @@ const ARG_ABI = parseAbi([
 
 /** Claim topics of the token ONCHAINIDs: 10 ORIGINATOR, 11 PLATFORM, 12 TOKENIZATION_PARTNER, 13 OFFERING_DOCS. */
 const TOKEN_CLAIM_TOPICS = [10n, 11n, 12n, 13n];
+/** Claim limits: the uri in characters, the data in bytes. */
+export const MAX_CLAIM_URI = 512;
+export const MAX_CLAIM_DATA = 2048;
 const CLAIM_SHAPES: Record<string, { type: string }[]> = {
   '10': [{ type: 'string' }, { type: 'string' }, { type: 'string' }, { type: 'address' }],
   '11': [{ type: 'string' }, { type: 'string' }, { type: 'address' }],
@@ -217,10 +220,17 @@ export async function checkArguments(to: Address, c: DecodedCall, set: DeployedS
     return TOKEN_CLAIM_TOPICS.includes(topic) ? ok : no('removeClaim may only remove a token claim of topics 10 to 13 that exists.');
   }
   if (fn === 'addClaim') {
-    const [topic, , issuer, signature, data] = a as readonly [bigint, bigint, Address, Hex, Hex];
+    const [topic, scheme, issuer, signature, data, uri] = a as readonly [bigint, bigint, Address, Hex, Hex, string];
     if (!TOKEN_CLAIM_TOPICS.includes(topic)) return no('addClaim is limited to the token claim topics 10 to 13.');
+    if (scheme !== 1n) return no('addClaim must use scheme 1 (ECDSA).');
+    if (typeof uri !== 'string' || uri.length > MAX_CLAIM_URI) return no(`The claim uri may be at most ${MAX_CLAIM_URI} characters.`);
+    if ((data.length - 2) / 2 > MAX_CLAIM_DATA) return no(`The claim data may be at most ${MAX_CLAIM_DATA} bytes.`);
     try {
-      decodeAbiParameters(CLAIM_SHAPES[topic.toString()] as never, data);
+      const fields = decodeAbiParameters(CLAIM_SHAPES[topic.toString()] as never, data);
+      // The data must be exactly what the shape encodes: no trailing bytes, no alternative encodings.
+      if (encodeAbiParameters(CLAIM_SHAPES[topic.toString()] as never, fields as never).toLowerCase() !== data.toLowerCase()) {
+        return no('The claim data is not canonically encoded (it has extra bytes).');
+      }
     } catch {
       return no(`The claim data does not decode as a topic ${topic} claim.`);
     }

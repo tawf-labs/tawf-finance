@@ -545,6 +545,17 @@ const mint = (i: number, description = `mint ${i}`) => ({
   await bad('topic 3', check('compliance', IDENT, 'addClaim', [3n, 1n, ISSUER, '0x1234', good, '']), /topics 10 to 13/)
   await bad('data does not decode', check('compliance', IDENT, 'addClaim', [13n, 1n, ISSUER, '0x1234', '0xdeadbeef', '']), /does not decode/)
   await bad('untrusted issuer', check('compliance', IDENT, 'addClaim', [13n, 1n, FOREIGN_ISSUER, '0x1234', good, '']), /not a trusted issuer/)
+  // CS1: canonical data, scheme 1, size limits
+  validFor.add(`${ISSUER}:13`.toLowerCase())
+  await bad('trailing bytes in the data', check('compliance', IDENT, 'addClaim', [13n, 1n, ISSUER, '0x1234', (good + 'deadbeef') as Hex, '']), /extra bytes|does not decode/)
+  await bad('scheme 2', check('compliance', IDENT, 'addClaim', [13n, 2n, ISSUER, '0x1234', good, '']), /scheme 1/)
+  await bad('scheme 0', check('compliance', IDENT, 'addClaim', [13n, 0n, ISSUER, '0x1234', good, '']), /scheme 1/)
+  await bad('uri too long', check('compliance', IDENT, 'addClaim', [13n, 1n, ISSUER, '0x1234', good, 'x'.repeat(513)]), /at most 512/)
+  const okUri = await check('compliance', IDENT, 'addClaim', [13n, 1n, ISSUER, '0x1234', good, 'x'.repeat(512)])
+  if (!okUri.ok) throw new Error('a 512 character uri is allowed: ' + okUri.reason)
+  const bigData = encodeAbiParameters([{ type: 'bytes32' }, { type: 'string' }], [('0x' + '11'.repeat(32)) as Hex, 'y'.repeat(2100)])
+  await bad('data over 2 KB', check('compliance', IDENT, 'addClaim', [13n, 1n, ISSUER, '0x1234', bigData, '']), /at most 2048 bytes/)
+  validFor.clear()
   validFor.clear()
   await bad('signature does not verify', check('compliance', IDENT, 'addClaim', [13n, 1n, ISSUER, '0x1234', good, '']), /signature does not verify/)
   // removeClaim: only an existing claim of topics 10 to 13
