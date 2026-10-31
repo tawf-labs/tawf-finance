@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import type { Hex } from 'viem'
 import {
   publicClient,
   walletClient,
@@ -12,6 +11,7 @@ import {
 } from '../_lib/operator.js'
 import { tawfSeriesAbi } from '../_lib/abis.js'
 import { fundTreasuryForSen } from './distribute-profit.js'
+import { submitAdminTx } from '../_lib/safe.js'
 
 /**
  * Settle the series at maturity. The bank returned principal; the connector
@@ -68,13 +68,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await fundTreasuryForSen(principalSen, wc)
     }
 
-    const txHash = (await wc.writeContract({
+    const sent = await submitAdminTx({
+      duty: 'treasury',
       address: addresses.tawfSeries,
       abi: tawfSeriesAbi,
       functionName: 'settleMaturity',
       args: [at, finalPeriod, principalSen, BigInt(proof.epoch), proof.proof],
-    })) as Hex
-    await publicClient.waitForTransactionReceipt({ hash: txHash })
+      description: `Settle maturity, ${finalPeriod} profit period(s) distributed`,
+    })
+    if (sent.proposed) {
+      res.status(202).json({ ...sent, at: at.toString(), finalPeriod, principalSen: principalSen.toString(), epoch: proof.epoch })
+      return
+    }
+    const txHash = sent.txHash
 
     res.status(200).json({ txHash, at: at.toString(), finalPeriod, principalSen: principalSen.toString(), epoch: proof.epoch })
   } catch (err) {

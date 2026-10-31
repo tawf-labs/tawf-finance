@@ -26,13 +26,15 @@ import h35 from './_tokenization/cron/post-rates.js'
 import h36 from './_tokenization/qn/stream.js'
 import h37 from './_tokenization/qn/alert.js'
 import h28 from './_tokenization/series/add-stablecoin.js'
-import h29 from './_tokenization/admin/handover-operator.js'
 import h30 from './_tokenization/scf/profile.js'
 import h31 from './_tokenization/scf/status.js'
 import h32 from './_tokenization/scf/admin.js'
 import h33 from './_tokenization/pool/admin.js'
 import h34 from './_tokenization/activity.js'
 import h40 from './_tokenization/token-identity.js'
+import h38 from './_tokenization/safe/pending.js'
+import h39 from './_tokenization/safe/reject.js'
+import { requestContext, contextKeyFor } from './_tokenization/_lib/safe.js'
 
 type Handler = (req: VercelRequest, res: VercelResponse) => unknown
 
@@ -56,13 +58,14 @@ const routes: Record<string, Handler> = {
   'series/status': h24,
   'tawf-share': h27,
   'series/add-stablecoin': h28,
-  'admin/handover-operator': h29,
   'scf/profile': h30,
   'scf/status': h31,
   'scf/admin': h32,
   'pool/admin': h33,
   'activity': h34,
   'token-identity': h40,
+  'safe/pending': h38,
+  'safe/reject': h39,
   'qn/stream': h36,
   'qn/alert': h37,
   'cron/post-rates': h35,
@@ -81,5 +84,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(404).json({ error: `Unknown tokenization endpoint: ${route || '(none)'}` })
     return
   }
-  return target(req, res)
+  // The proposal rate limit is per passcode: hand the router's request context to safe.ts.
+  return requestContext.run({ key: contextKeyFor(req.headers['x-demo-passcode']) }, () => target(req, res))
 }

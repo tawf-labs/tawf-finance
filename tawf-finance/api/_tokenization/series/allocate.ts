@@ -1,8 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { isAddress, getAddress, type Address, type Hex } from 'viem'
+import { isAddress, getAddress, type Address } from 'viem'
 import {
   publicClient,
-  walletClient,
   ledgerClient,
   reserveLedgerAddress,
   account,
@@ -14,6 +13,7 @@ import {
   readableError,
 } from '../_lib/operator.js'
 import { tawfSeriesAbi, reserveLedgerAbi } from '../_lib/abis.js'
+import { submitAdminTx } from '../_lib/safe.js'
 
 /**
  * Allocate pending subscriptions against the latest anchored account balance.
@@ -74,14 +74,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       functionName: 'allocate',
       args,
     })
-    const wc = walletClient()
-    const txHash = (await wc.writeContract({
+    // Minting duty: queued on the Minting Safe when it is configured, else the operator sends it.
+    const sent = await submitAdminTx({
+      duty: 'minting',
       address: addresses.tawfSeries,
       abi: tawfSeriesAbi,
       functionName: 'allocate',
       args,
-    })) as Hex
-    await publicClient.waitForTransactionReceipt({ hash: txHash })
+      description: `Allocate ${investors.length} subscription(s), mints the series token`,
+    })
+    if (sent.proposed) {
+      res.status(202).json({ ...sent, investors, epoch: proof.epoch, snapshotAt: Number(snap.snapshotAt), balance: snap.amount.toString() })
+      return
+    }
+    const txHash = sent.txHash
 
     res.status(200).json({ txHash, investors, epoch: proof.epoch, snapshotAt: Number(snap.snapshotAt), balance: snap.amount.toString() })
   } catch (err) {

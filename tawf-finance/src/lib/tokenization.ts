@@ -285,3 +285,65 @@ export interface TawfAccountStatus {
     reserveSen: string;
   };
 }
+
+// --- Safe approvals -----------------------------------------------------------
+
+export type SafeDuty = 'governance' | 'treasury' | 'minting' | 'compliance' | 'guardian';
+
+/** Returned (HTTP 202) by an admin endpoint when the action was queued on the duty's Safe. */
+export interface SafeProposal {
+  proposed: true;
+  duty: SafeDuty;
+  safe: `0x${string}`;
+  safeTxHash: `0x${string}`;
+  nonce: string;
+  description: string;
+}
+
+export type SafeProposalStatus = 'pending' | 'ready';
+
+export interface PendingSafeTx {
+  duty: SafeDuty;
+  safe: `0x${string}`;
+  safeTxHash: `0x${string}`;
+  nonce: number;
+  to: `0x${string}`;
+  data: `0x${string}`;
+  value: string;
+  method: string | null;
+  description: string;
+  createdAt: number;
+  approvedBy: `0x${string}`[];
+  required: number;
+  owners: `0x${string}`[];
+  safeNonce: number;
+  status: SafeProposalStatus;
+  competing: number;
+  signatures: `0x${string}`;
+}
+
+export interface PendingApprovalsResponse {
+  safes: Record<SafeDuty, { env: string; address: `0x${string}` | null }>;
+  pending: PendingSafeTx[];
+  /** What the panel's argument checks compare against. */
+  policy: { feeRecipient: `0x${string}` | null; identityRegistry: `0x${string}` | null };
+}
+
+export function getPendingApprovals(passcode: string, duty?: SafeDuty): Promise<PendingApprovalsResponse> {
+  return getJson<PendingApprovalsResponse>(`safe/pending${duty ? `?duty=${duty}` : ''}`, passcode);
+}
+
+/** Turn the proposals in an admin response into steps the existing step lists can show. */
+export function proposalSteps(out: unknown): TxStep[] {
+  const o = out as { proposed?: boolean; proposals?: SafeProposal[] } & Partial<SafeProposal>;
+  const list: SafeProposal[] = o?.proposals ?? (o?.proposed ? [o as SafeProposal] : []);
+  return list.map((p) => ({
+    label: `Proposed to the ${p.duty} Safe, needs approval: ${p.description}`,
+    note: `Safe tx ${p.safeTxHash.slice(0, 10)}..., nonce ${p.nonce}. Owners approve in Pending approvals on the admin pages.`,
+  }));
+}
+
+/** Propose the Safe rejection for `nonce`, so owners can burn it and unjam the queue. */
+export function rejectSafeNonce(duty: SafeDuty, nonce: number, passcode: string): Promise<SafeProposal> {
+  return postAdmin<SafeProposal>('safe/reject', { duty, nonce }, passcode);
+}

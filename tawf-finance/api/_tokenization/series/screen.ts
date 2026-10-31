@@ -15,7 +15,7 @@ import { issueScreeningClaim, isBlockedWallet, BLOCKED_WALLET_MESSAGE } from '..
  * management key) signs and adds the claim to the wallet's ONCHAINID.
  *
  * topic 2 = TAWF_SCREENED (Tawf in-person screening, the default here)
- * topic 3 = OJK_SANDBOX_PARTICIPANT
+ * topic 3 = OJK_SANDBOX_PARTICIPANT (refused here, Compliance Safe only)
  *
  * The required free-text note ("verified in person by ... on ...") is stored
  * off chain only: it is echoed in the response and the server logs, never
@@ -45,7 +45,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(400).json({ error: BLOCKED_WALLET_MESSAGE })
       return
     }
-    const topicNum = topic === 3 || topic === '3' ? 3n : addresses.tawfScreenedTopic
+    // Only the testnet issuer may self-serve topics 1 and 2 (here: 2). Topic 3 (OJK sandbox participant) is
+    // a Compliance decision signed by the real ClaimIssuer's key, which this API never holds.
+    if (topic === 3 || topic === '3') {
+      res.status(403).json({
+        error: 'Topic 3 (OJK sandbox participant) claims are issued by the Compliance Safe process, not by this API.',
+      })
+      return
+    }
+    const topicNum = addresses.tawfScreenedTopic
     const user = getAddress(wallet) as Address
 
     // Off-chain audit trail only.

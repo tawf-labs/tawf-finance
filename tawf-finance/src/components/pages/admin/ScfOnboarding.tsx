@@ -3,7 +3,8 @@ import { ExternalLink, KeyRound, RefreshCw, Scale, Store, Search } from 'lucide-
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { loadPasscode, savePasscode, postAdmin, type TxStep } from '@/lib/tokenization';
+import { loadPasscode, savePasscode, postAdmin, proposalSteps, type TxStep } from '@/lib/tokenization';
+import { PendingApprovals } from '@/components/pages/admin/PendingApprovals';
 import { getScfStatus, SCF_EXEMPTION_BY_CODE, SCF_EXEMPTION_LABEL, type ScfStatus } from '@/lib/scf';
 import { SCF_PLATFORM, SCF_OFFERING, ISSUER_TYPE_LABEL } from '@/data/issuers';
 import { isScfConfigured, SCF_SYMBOL } from '@/web3/tokenization';
@@ -46,7 +47,8 @@ export function AdminScfOnboarding() {
     setBusy(label);
     try {
       const out = await postAdmin<{ steps?: TxStep[] }>('scf/admin', body, passcode);
-      if (out.steps) setSteps(out.steps);
+      const proposed = proposalSteps(out);
+      if (out.steps || proposed.length) setSteps([...(out.steps ?? []), ...proposed]);
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : `${label} failed`);
@@ -88,6 +90,8 @@ export function AdminScfOnboarding() {
           <p className="text-sm text-amber-700">The SCF offering is not deployed. Run contracts/script/DeployScf.s.sol first.</p>
         </div>
       )}
+
+      <PendingApprovals duties={['treasury', 'compliance']} passcode={passcode} />
 
       <div className="grid md:grid-cols-2 gap-6 [&>*]:min-w-0 [&_p]:break-words [&_h3]:break-words">
         <Card className="p-6">

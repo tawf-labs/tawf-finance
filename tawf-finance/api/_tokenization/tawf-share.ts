@@ -2,7 +2,6 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { getAddress, isAddress, type Address, type Hex } from 'viem'
 import {
   publicClient,
-  walletClient,
   addresses,
   isConfigured,
   requirePasscode,
@@ -10,6 +9,7 @@ import {
   pool,
   isPoolConfigured,
 } from './_lib/operator.js'
+import { submitAdminTx } from './_lib/safe.js'
 import { tawfSeriesAbi } from './_lib/abis.js'
 
 /**
@@ -64,7 +64,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!requirePasscode(req, res)) return
 
     const action = String(req.body?.action ?? '')
-    const wc = walletClient()
     let txHash: Hex
 
     if (action === 'set') {
@@ -79,20 +78,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return
       }
       const recipient = (percent > 0 ? getAddress(raw) : '0x0000000000000000000000000000000000000000') as Address
-      txHash = (await wc.writeContract({
+      // Governance duty: the share and the fee wallet are a setting. Paying the share out is Treasury (below).
+      const sent = await submitAdminTx({
+        duty: 'governance',
         address: target,
         abi,
         functionName: 'setTawfShare',
         args: [Math.round(percent * 100), recipient],
-      })) as Hex
+        description: `Set the Tawf profit share to ${percent}% (fee wallet ${recipient})`,
+      })
+      if (sent.proposed) {
+        res.status(202).json({ ...sent, action, product })
+        return
+      }
+      txHash = sent.txHash
     } else if (action === 'claim') {
       const coin = String(req.body?.coin ?? 'usdc') === 'usdt' ? addresses.mockUsdt : addresses.mockUsdc
-      txHash = (await wc.writeContract({ address: target, abi, functionName: 'claimTawfShare', args: [coin] })) as Hex
+      const sent = await submitAdminTx({
+        duty: 'treasury',
+        address: target,
+        abi,
+        functionName: 'claimTawfShare',
+        args: [coin],
+        description: 'Pay out the accrued Tawf profit share to the fee wallet',
+      })
+      if (sent.proposed) {
+        res.status(202).json({ ...sent, action, product })
+        return
+      }
+      txHash = sent.txHash
     } else {
       res.status(400).json({ error: 'action must be "set", or "claim" for the series.' })
       return
     }
-    await publicClient.waitForTransactionReceipt({ hash: txHash })
     res.status(200).json({ txHash, action, product })
   } catch (err) {
     res.status(500).json({ error: readableError(err) })

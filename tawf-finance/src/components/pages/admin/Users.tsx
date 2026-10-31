@@ -4,7 +4,8 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { useVerifiedWallets, useWalletDetails, screenWallet, type VerifiedWallet } from '@/components/pages/admin/useVerifiedWallets';
-import { loadPasscode } from '@/lib/tokenization';
+import { loadPasscode, proposalSteps } from '@/lib/tokenization';
+import { PendingApprovals } from '@/components/pages/admin/PendingApprovals';
 import { timeAgo } from '@/lib/activity';
 import { formatIdr, formatUsdc } from '@/web3/format';
 import { explorerTxUrl } from '@/web3/constants';
@@ -22,8 +23,9 @@ function WalletRow({ w }: { w: VerifiedWallet }) {
     setBusy(true);
     setMsg(null);
     try {
-      await screenWallet(w.wallet, note.trim());
-      setMsg({ ok: true, text: 'Screening claim issued.' });
+      const out = await screenWallet(w.wallet, note.trim());
+      const queued = proposalSteps(out);
+      setMsg({ ok: true, text: queued.length ? 'Proposed to the Compliance Safe, waiting for approval.' : 'Screening claim issued.' });
       setScreening(false);
       setNote('');
       d.refetch();
@@ -109,6 +111,8 @@ export function AdminUsers() {
           <RefreshCw className={cn('w-4 h-4 mr-1', loading && 'animate-spin')} /> Refresh
         </Button>
       </div>
+
+      <PendingApprovals duties={['compliance']} />
 
       <div className="grid grid-cols-2 gap-4 max-w-md">
         <Card className="p-4 text-center">

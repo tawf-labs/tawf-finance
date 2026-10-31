@@ -17,12 +17,17 @@ import {
   type Address,
   type Hex,
 } from 'viem'
+import { nonceManager } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+import { arbitrumSepolia } from 'viem/chains'
 import {
   publicClient,
   walletClient,
+  walletClientFor,
   account,
   addresses,
 } from './operator.js'
+import { assertLiveChain, safesRequired } from './safe.js'
 import { identityAbi, identityRegistryAbi, identityProxyAbi, claimIssuerAbi } from './abis.js'
 
 const COUNTRY_ID = 360 // Indonesia
@@ -46,17 +51,75 @@ export interface IdentityStep {
 }
 
 /**
+ * Who issues the self-service (faucet and screening) claims.
+ *
+ * Testnet only. On Arbitrum Sepolia a separate TEST ClaimIssuer signs them: an EOA key
+ * (TEST_CLAIM_ISSUER_KEY) that is a claim-signing key of the `testClaimIssuer` contract, which is a
+ * trusted issuer for the KYC and TAWF_SCREENED topics only. The real ClaimIssuer (`claimIssuer`) is
+ * managed by the Compliance Safe and never signs through this API.
+ *
+ * Fails closed: off chain 421614 it always throws. On 421614 with no `testClaimIssuer` deployed yet
+ * (the pre-Safe stack) it falls back to the operator key and the old `claimIssuer`.
+ */
+export function selfServiceIssuer(chainId: number = Number(addresses.chainId)): {
+  address: Address
+  sign: (message: Hex) => Promise<Hex>
+} {
+  if (chainId !== arbitrumSepolia.id) {
+    throw new Error('Self-service claims are testnet only: this chain has no test ClaimIssuer.')
+  }
+  if (addresses.testClaimIssuer === ZERO) {
+    if (safesRequired(chainId)) throw new Error('testClaimIssuer is not deployed and SAFES_REQUIRED is on')
+    return { address: addresses.claimIssuer, sign: (m) => account().signMessage({ message: { raw: toBytes(m) } }) }
+  }
+  const k = process.env.TEST_CLAIM_ISSUER_KEY
+  if (!k) throw new Error('TEST_CLAIM_ISSUER_KEY is not set')
+  const signer = privateKeyToAccount((k.startsWith('0x') ? k : `0x${k}`) as Hex)
+  return { address: addresses.testClaimIssuer, sign: (m) => signer.signMessage({ message: { raw: toBytes(m) } }) }
+}
+
+/**
+ * Who registers identities for the self-service faucet.
+ *
+ * Testnet only, same pattern as the test ClaimIssuer. On Arbitrum Sepolia a separate EOA
+ * (TEST_REGISTRY_AGENT_KEY, deployments key `testRegistryAgent`) holds the IdentityRegistry agent
+ * role, is the management key of the identities it creates, and registers them. The operator holds no
+ * registry role. Fails closed: off chain 421614 it always throws. On 421614 with no `testRegistryAgent`
+ * deployed yet (the pre-Safe stack) it falls back to the operator, which still holds the role there.
+ */
+export function selfServiceAgent(chainId: number = Number(addresses.chainId)): {
+  address: Address
+  wc: ReturnType<typeof walletClient>
+} {
+  if (chainId !== arbitrumSepolia.id) {
+    throw new Error('The self-service registry agent is testnet only: this chain has none.')
+  }
+  if (addresses.testRegistryAgent === ZERO) {
+    if (safesRequired(chainId)) throw new Error('testRegistryAgent is not deployed and SAFES_REQUIRED is on')
+    return { address: account().address, wc: walletClient() }
+  }
+  const k = process.env.TEST_REGISTRY_AGENT_KEY
+  if (!k) throw new Error('TEST_REGISTRY_AGENT_KEY is not set')
+  const agent = privateKeyToAccount((k.startsWith('0x') ? k : `0x${k}`) as Hex, { nonceManager })
+  if (agent.address.toLowerCase() !== addresses.testRegistryAgent.toLowerCase()) {
+    throw new Error('TEST_REGISTRY_AGENT_KEY does not match deployments testRegistryAgent')
+  }
+  return { address: agent.address, wc: walletClientFor(agent as ReturnType<typeof account>) }
+}
+
+/**
  * Build the eth-signed KYC claim exactly as ClaimIssuer.isClaimValid expects:
  * dataHash = keccak256(abi.encode(identity, topic, data)); signed as a message.
  */
 async function signKycClaim(identity: Address, topic: bigint, data: Hex): Promise<Hex> {
+  // The signature must come from a claim key of the issuer that is named in addClaim (selfServiceIssuer).
   const dataHash = keccak256(
     encodeAbiParameters(
       [{ type: 'address' }, { type: 'uint256' }, { type: 'bytes' }],
       [identity, topic, data],
     ),
   )
-  return account().signMessage({ message: { raw: toBytes(dataHash) } })
+  return selfServiceIssuer().sign(dataHash)
 }
 
 /**
@@ -65,8 +128,9 @@ async function signKycClaim(identity: Address, topic: bigint, data: Hex): Promis
  */
 export async function ensureVerified(user: Address): Promise<{ steps: IdentityStep[]; isVerified: boolean }> {
   assertNotBlocked(user)
+  await assertLiveChain()
   const steps: IdentityStep[] = []
-  const wc = walletClient()
+  const { wc, address: agentAddress } = selfServiceAgent()
 
   const alreadyVerified = await publicClient.readContract({
     address: addresses.identityRegistry,
@@ -93,7 +157,7 @@ export async function ensureVerified(user: Address): Promise<{ steps: IdentitySt
     const deployHash = await wc.deployContract({
       abi: identityProxyAbi,
       bytecode: addresses.identityProxyBytecode,
-      args: [addresses.implementationAuthority, account().address],
+      args: [addresses.implementationAuthority, agentAddress],
     })
     const receipt = await publicClient.waitForTransactionReceipt({ hash: deployHash })
     if (!receipt.contractAddress) throw new Error('Identity proxy deployment did not return an address')
@@ -110,7 +174,7 @@ export async function ensureVerified(user: Address): Promise<{ steps: IdentitySt
     address: identity,
     abi: identityAbi,
     functionName: 'addClaim',
-    args: [addresses.kycClaimTopic, 1n, addresses.claimIssuer, sig, claimData, ''],
+    args: [addresses.kycClaimTopic, 1n, selfServiceIssuer().address, sig, claimData, ''],
   })
   await publicClient.waitForTransactionReceipt({ hash: addClaimHash })
   steps.push({ label: 'Added KYC claim signed by the trusted ClaimIssuer', txHash: addClaimHash })
@@ -152,8 +216,9 @@ export async function issueScreeningClaim(
   note?: string,
 ): Promise<{ steps: IdentityStep[]; identity: Address }> {
   assertNotBlocked(user)
+  await assertLiveChain()
   const steps: IdentityStep[] = []
-  const wc = walletClient()
+  const { wc } = selfServiceAgent()
 
   const identity = (await publicClient.readContract({
     address: addresses.identityRegistry,
@@ -172,7 +237,7 @@ export async function issueScreeningClaim(
     address: identity,
     abi: identityAbi,
     functionName: 'addClaim',
-    args: [topic, 1n, addresses.claimIssuer, sig, claimData, ''],
+    args: [topic, 1n, selfServiceIssuer().address, sig, claimData, ''],
   })
   await publicClient.waitForTransactionReceipt({ hash: addClaimHash })
   steps.push({
@@ -194,7 +259,7 @@ export async function hasValidScreeningClaim(user: Address, topic: bigint): Prom
   })) as Address
   if (identity === ZERO) return false
   const claimId = keccak256(
-    encodeAbiParameters([{ type: 'address' }, { type: 'uint256' }], [addresses.claimIssuer, topic]),
+    encodeAbiParameters([{ type: 'address' }, { type: 'uint256' }], [selfServiceIssuer().address, topic]),
   )
   try {
     const [, , issuer, signature, data] = (await publicClient.readContract({
@@ -205,7 +270,7 @@ export async function hasValidScreeningClaim(user: Address, topic: bigint): Prom
     })) as readonly [bigint, bigint, Address, Hex, Hex, string]
     if (issuer === ZERO) return false
     return (await publicClient.readContract({
-      address: addresses.claimIssuer,
+      address: selfServiceIssuer().address,
       abi: claimIssuerAbi,
       functionName: 'isClaimValid',
       args: [identity, topic, signature, data],
