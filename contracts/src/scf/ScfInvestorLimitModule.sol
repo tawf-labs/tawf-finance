@@ -98,9 +98,9 @@ contract ScfInvestorLimitModule is ModuleAdmin {
     event Invested(address indexed onchainId, uint256 indexed period, address indexed compliance, uint256 amount);
 
     /// @dev Implementation only: the logic contract is never initialised
-    ///      directly. State lives in the ModuleProxy; upgrades go through the
-    ///      proxy owner (the timelock) via `upgradeTo`. New state variables
-    ///      must be appended below the existing ones.
+    ///      directly. State lives in the BeaconProxy; upgrades go through the
+    ///      module's UpgradeableBeacon (owned by the Governance Safe). New state
+    ///      variables must be appended below the existing ones.
     constructor() {
         _disableInitializers();
     }

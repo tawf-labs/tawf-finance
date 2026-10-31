@@ -45,9 +45,9 @@ contract DistributionCheckpointModule is ModuleAdmin {
     event HookSet(address indexed compliance, address indexed hook);
 
     /// @dev Implementation only: the logic contract is never initialised
-    ///      directly. State lives in the ModuleProxy; upgrades go through the
-    ///      proxy owner (the timelock) via `upgradeTo`. New state variables
-    ///      must be appended below the existing ones.
+    ///      directly. State lives in the BeaconProxy; upgrades go through the
+    ///      module's UpgradeableBeacon (owned by the Governance Safe). New state
+    ///      variables must be appended below the existing ones.
     constructor() {
         _disableInitializers();
     }

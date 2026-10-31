@@ -1,26 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.17;
 
-import { AbstractModuleUpgradeable } from
-    "@erc3643org/erc-3643/contracts/compliance/modular/modules/AbstractModuleUpgradeable.sol";
+import { IModule } from "@erc3643org/erc-3643/contracts/compliance/modular/modules/IModule.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
  * @title ModuleAdmin
- * @notice Admin model shared by the Tawf compliance modules behind ModuleProxy.
+ * @notice Base for the Tawf compliance modules behind a beacon proxy.
  *
- *         - `owner()` only upgrades the module and appoints the configurer.
- *           After the deploy it is the timelock.
- *         - `configurer` does the day-to-day configuration (hooks, offerings,
- *           agents, series config). It is the operator, so config needs no
- *           timelock delay.
- *         - Ownership moves in two steps (`transferOwnership`, then
- *           `acceptOwnership` by the new owner), so a transfer to a wrong
- *           address can be corrected. `renounceOwnership` is disabled.
+ *         Why not the T-REX AbstractModuleUpgradeable: it inherits UUPSUpgradeable, but these modules
+ *         are upgraded through their UpgradeableBeacon (owned by the Governance Safe), so the
+ *         implementation carries no upgrade code. This base keeps the same IModule binding logic as the
+ *         T-REX AbstractModule, with initializer-based ownership.
  *
- *         Storage: plain variables plus a gap, appended after the T-REX base
- *         storage. Pinned to 0.8.17 with the T-REX code.
+ *         - The beacon owner (Governance Safe) upgrades the module for every instance at once.
+ *         - `owner()` is the module's own admin: it only appoints the configurer and moves ownership.
+ *         - `configurer` runs the day-to-day configuration calls (hooks, offerings, agents, series config).
+ *         - Ownership moves in two steps (`transferOwnership`, then `acceptOwnership` by the new owner).
+ *           `renounceOwnership` is disabled.
+ *
+ *         Storage: plain variables plus a gap. Pinned to 0.8.17 with the T-REX code.
  */
-abstract contract ModuleAdmin is AbstractModuleUpgradeable {
+abstract contract ModuleAdmin is IModule, Initializable, OwnableUpgradeable {
+    /// @dev Bound compliance contracts (same semantics as the T-REX AbstractModule).
+    mapping(address => bool) private _complianceBound;
+
     /// @notice Address allowed to run the module's configuration calls.
     address public configurer;
     /// @notice Owner candidate set by `transferOwnership`, not yet accepted.
@@ -39,9 +44,38 @@ abstract contract ModuleAdmin is AbstractModuleUpgradeable {
         _;
     }
 
+    modifier onlyBoundCompliance(address _compliance) {
+        require(_complianceBound[_compliance], "compliance not bound");
+        _;
+    }
+
+    modifier onlyComplianceCall() {
+        require(_complianceBound[msg.sender], "only bound compliance can call");
+        _;
+    }
+
+    function bindCompliance(address _compliance) external override {
+        require(_compliance != address(0), "invalid argument - zero address");
+        require(!_complianceBound[_compliance], "compliance already bound");
+        require(msg.sender == _compliance, "only compliance contract can call");
+        _complianceBound[_compliance] = true;
+        emit ComplianceBound(_compliance);
+    }
+
+    function unbindCompliance(address _compliance) external override onlyComplianceCall {
+        require(_compliance != address(0), "invalid argument - zero address");
+        require(msg.sender == _compliance, "only compliance contract can call");
+        _complianceBound[_compliance] = false;
+        emit ComplianceUnbound(_compliance);
+    }
+
+    function isComplianceBound(address _compliance) external view override returns (bool) {
+        return _complianceBound[_compliance];
+    }
+
     /// @dev Caller becomes owner and configurer.
     function __ModuleAdmin_init() internal onlyInitializing {
-        __AbstractModule_init();
+        __Ownable_init();
         configurer = msg.sender;
         emit ConfigurerSet(msg.sender);
     }
@@ -70,5 +104,5 @@ abstract contract ModuleAdmin is AbstractModuleUpgradeable {
         revert RenounceDisabled();
     }
 
-    uint256[48] private __gap;
+    uint256[47] private __gap;
 }

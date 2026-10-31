@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.17;
 
-// Upgrade tests for the three T-REX compliance modules behind ModuleProxy: state survives an
-// upgrade, only the owner can upgrade (the timelock after the hand-over), the implementation
-// cannot be initialised directly and initialize cannot run twice.
+// Upgrade tests for the three T-REX compliance modules behind beacon proxies: one beacon upgrade moves
+// every instance, state survives, only the beacon owner (the Governance Safe) can upgrade, the
+// implementation cannot be initialised directly and initialize cannot run twice.
 
 import "forge-std/Test.sol";
-import { ModuleProxy } from "@erc3643org/erc-3643/contracts/compliance/modular/modules/ModuleProxy.sol";
+import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import { ModuleAdmin } from "../src/proxy/ModuleAdmin.sol";
 import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
 import { SandboxModule } from "../src/deposito/SandboxModule.sol";
@@ -43,7 +44,7 @@ contract ScfModuleV2 is ScfInvestorLimitModule {
 
 contract ModuleUpgradeTest is Test {
     address internal operator = makeAddr("operator");
-    address internal timelock = makeAddr("timelock");
+    address internal timelock = makeAddr("governanceSafe");
     address internal stranger = makeAddr("stranger");
     address internal compliance = makeAddr("compliance");
     address internal treasury = makeAddr("treasury");
@@ -57,33 +58,50 @@ contract ModuleUpgradeTest is Test {
         SandboxModule(module).acceptOwnership();
     }
 
-    // -------------------------------------------------------------- Sandbox
-    function test_sandbox_upgradeKeepsState() public {
-        vm.startPrank(operator);
-        SandboxModule m = ModuleProxies.sandbox();
-        m.initConfig(compliance, SandboxModule.Mode.PILOT_ONLY, treasury, address(0), 0, 0, 0, uint64(block.timestamp + 90 days));
-        vm.stopPrank();
-        (, address t,,,,,,) = m.configOf(compliance);
-        assertEq(t, treasury);
-        _handOver(address(m));
+    function _toGovernance(UpgradeableBeacon b) internal {
+        vm.prank(operator);
+        b.transferOwnership(timelock);
+    }
 
-        address impl2 = address(new SandboxModuleV2());
+    function _assertOnlyGovernanceUpgrades(UpgradeableBeacon b, address impl2) internal {
         vm.prank(operator);
         vm.expectRevert("Ownable: caller is not the owner");
-        m.upgradeTo(impl2);
+        b.upgradeTo(impl2);
         vm.prank(stranger);
         vm.expectRevert("Ownable: caller is not the owner");
-        m.upgradeTo(impl2);
-
+        b.upgradeTo(impl2);
         vm.prank(timelock);
-        m.upgradeTo(impl2);
+        b.upgradeTo(impl2);
+    }
+
+    // -------------------------------------------------------------- Sandbox
+    function test_sandbox_beaconUpgradeMovesAllInstancesAndKeepsState() public {
+        vm.startPrank(operator);
+        UpgradeableBeacon b = ModuleProxies.sandboxBeacon();
+        SandboxModule m = ModuleProxies.sandboxProxy(address(b));
+        SandboxModule n = ModuleProxies.sandboxProxy(address(b));
+        uint64 end = uint64(block.timestamp + 90 days);
+        m.initConfig(compliance, SandboxModule.Mode.PILOT_ONLY, treasury, address(0), 0, 0, 0, end);
+        n.initConfig(makeAddr("c2"), SandboxModule.Mode.PILOT_ONLY, stranger, address(0), 0, 0, 0, end);
+        vm.stopPrank();
+        _toGovernance(b);
+        _handOver(address(m));
+
+        _assertOnlyGovernanceUpgrades(b, address(new SandboxModuleV2()));
         SandboxModuleV2 m2 = SandboxModuleV2(address(m));
-        (, address t2,,,,,,) = m2.configOf(compliance);
-        assertEq(t2, treasury);
+        SandboxModuleV2 n2 = SandboxModuleV2(address(n));
+        (, address t,,,,,,) = m2.configOf(compliance);
+        assertEq(t, treasury);
+        (, address t2,,,,,,) = n2.configOf(makeAddr("c2"));
+        assertEq(t2, stranger);
         assertEq(m2.owner(), timelock);
+        assertEq(n2.owner(), operator);
         assertEq(m2.version(), 2);
+        assertEq(n2.version(), 2);
+        vm.prank(operator);
         m2.setNewField(7);
         assertEq(m2.newField(), 7);
+        assertEq(n2.newField(), 0);
     }
 
     function test_sandbox_initGuards() public {
@@ -95,27 +113,31 @@ contract ModuleUpgradeTest is Test {
         impl.initialize();
     }
 
+    function test_noUpgradeCodeInModule() public {
+        SandboxModule m = ModuleProxies.sandbox();
+        (bool ok,) = address(m).call(abi.encodeWithSignature("upgradeTo(address)", address(1)));
+        assertFalse(ok);
+        (ok,) = address(m).call(abi.encodeWithSignature("upgradeToAndCall(address,bytes)", address(1), ""));
+        assertFalse(ok);
+    }
+
     // ----------------------------------------------------------- Checkpoint
-    function test_checkpoint_upgradeKeepsState() public {
+    function test_checkpoint_beaconUpgradeKeepsState() public {
         vm.startPrank(operator);
-        DistributionCheckpointModule m = ModuleProxies.checkpoint();
+        UpgradeableBeacon b = ModuleProxies.checkpointBeacon();
+        DistributionCheckpointModule m = ModuleProxies.checkpointProxy(address(b));
         m.setHook(compliance, IBalanceCheckpoint(treasury));
         vm.stopPrank();
+        _toGovernance(b);
         _handOver(address(m));
 
-        address impl2 = address(new CheckpointModuleV2());
-        vm.prank(stranger);
-        vm.expectRevert("Ownable: caller is not the owner");
-        m.upgradeTo(impl2);
-        vm.prank(timelock);
-        m.upgradeTo(impl2);
-
+        _assertOnlyGovernanceUpgrades(b, address(new CheckpointModuleV2()));
         CheckpointModuleV2 m2 = CheckpointModuleV2(address(m));
         assertEq(address(m2.hookOf(compliance)), treasury);
         assertEq(m2.owner(), timelock);
         m2.setNewField(3);
         assertEq(m2.newField(), 3);
-        // The timelock (owner) does not configure, the operator (configurer) still does.
+        // The Governance Safe (owner) does not configure, the operator (configurer) still does.
         vm.prank(timelock);
         vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
         m2.setHook(compliance, IBalanceCheckpoint(stranger));
@@ -134,23 +156,19 @@ contract ModuleUpgradeTest is Test {
     }
 
     // ------------------------------------------------------------------ SCF
-    function test_scf_upgradeKeepsState() public {
+    function test_scf_beaconUpgradeKeepsState() public {
         vm.startPrank(operator);
-        ScfInvestorLimitModule m = ModuleProxies.scfLimit(ir);
+        UpgradeableBeacon b = ModuleProxies.scfLimitBeacon();
+        ScfInvestorLimitModule m = ModuleProxies.scfLimitProxy(address(b), ir);
         m.setAgent(stranger, true);
         m.initOffering(compliance, treasury, 1000e6);
         vm.stopPrank();
         uint64 start = m.periodStart();
+        _toGovernance(b);
         _handOver(address(m));
 
         vm.warp(block.timestamp + 30 days);
-        address impl2 = address(new ScfModuleV2());
-        vm.prank(stranger);
-        vm.expectRevert("Ownable: caller is not the owner");
-        m.upgradeTo(impl2);
-        vm.prank(timelock);
-        m.upgradeTo(impl2);
-
+        _assertOnlyGovernanceUpgrades(b, address(new ScfModuleV2()));
         ScfModuleV2 m2 = ScfModuleV2(address(m));
         assertEq(m2.identityRegistry(), ir);
         assertEq(m2.periodStart(), start);
@@ -174,24 +192,24 @@ contract ModuleUpgradeTest is Test {
     }
 
     function test_scf_zeroRegistryReverts() public {
-        ScfInvestorLimitModule impl = new ScfInvestorLimitModule();
+        address beacon = address(ModuleProxies.scfLimitBeacon());
         vm.expectRevert();
-        new ModuleProxy(address(impl), abi.encodeCall(ScfInvestorLimitModule.initialize, (address(0))));
+        new BeaconProxy(beacon, abi.encodeCall(ScfInvestorLimitModule.initialize, (address(0))));
     }
 
-    function test_upgradeToNonUupsReverts() public {
-        vm.startPrank(operator);
-        SandboxModule m = ModuleProxies.sandbox();
-        vm.expectRevert();
-        m.upgradeTo(address(0xdead));
-        vm.stopPrank();
+    function test_beaconToNonContractReverts() public {
+        UpgradeableBeacon b = ModuleProxies.sandboxBeacon();
+        vm.expectRevert("UpgradeableBeacon: implementation is not a contract");
+        b.upgradeTo(address(0xdead));
     }
 
     // ------------------------------------------------------- admin split
     function test_ownerCannotConfigureAndConfigurerCannotUpgrade() public {
         vm.startPrank(operator);
-        ScfInvestorLimitModule m = ModuleProxies.scfLimit(ir);
+        UpgradeableBeacon b = ModuleProxies.scfLimitBeacon();
+        ScfInvestorLimitModule m = ModuleProxies.scfLimitProxy(address(b), ir);
         vm.stopPrank();
+        _toGovernance(b);
         _handOver(address(m));
         address impl2 = address(new ScfModuleV2());
         // Operator keeps config.
@@ -206,7 +224,7 @@ contract ModuleUpgradeTest is Test {
         // Operator (configurer) cannot upgrade or move the configurer role.
         vm.startPrank(operator);
         vm.expectRevert("Ownable: caller is not the owner");
-        m.upgradeTo(impl2);
+        b.upgradeTo(impl2);
         vm.expectRevert("Ownable: caller is not the owner");
         m.setConfigurer(stranger);
         vm.stopPrank();
