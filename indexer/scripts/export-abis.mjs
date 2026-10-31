@@ -20,7 +20,7 @@ const targets = [
   ],
   ['ScfInvestorLimitModule', 'ScfInvestorLimitModule', ['ProfileSet']],
   ['IdentityRegistry', 'IdentityRegistry', ['IdentityRegistered', 'IdentityRemoved']],
-  ['Token', 'Token', ['Transfer', 'Paused', 'Unpaused', 'AddressFrozen', 'TokensFrozen', 'TokensUnfrozen']],
+  ['Token', 'Token', ['Transfer', 'Paused', 'Unpaused', 'AddressFrozen', 'TokensFrozen', 'TokensUnfrozen', 'UpdatedTokenInformation']],
 ]
 
 for (const [artifact, name, keep] of targets) {

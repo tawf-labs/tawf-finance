@@ -1,7 +1,8 @@
 // Beacon upgrades, Safe executions, owner and threshold changes, token pause and freeze events, and token identity claims.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ponder } from 'ponder:registry'
-import { governanceEvent, tokenClaim, tokenControl, tokenTransferCount } from 'ponder:schema'
+import { governanceEvent, tokenClaim, tokenControl, tokenIdentityLink, tokenTransferCount } from 'ponder:schema'
+import { eq } from 'ponder'
 import config from '../ponder.config'
 import { ts } from './lib/db'
 import { bySuffix, addr } from './lib/deployments'
@@ -32,32 +33,46 @@ if (has('Beacon')) {
   on('Beacon:OwnershipTransferred', async ({ event, context }) => gov(context, event, 'beacon', 'OwnershipTransferred', { subject: event.args.newOwner }))
 }
 
-// Token ONCHAINID claims: which token an identity belongs to comes from the deployments keys (<token key>Identity).
+// Token ONCHAINID claims (history only). The token an identity belongs to comes from the live link table, which
+// Token.UpdatedTokenInformation keeps current (a setOnchainID swap re-maps it), with the deployments keys
+// (<token key>Identity) as the starting point and fallback.
+const ZERO = '0x0000000000000000000000000000000000000000'
+const MAX_CLAIM_DATA_HEX = 2 + 2048 * 2 // 2 KB of data
+const MAX_CLAIM_URI = 512
+
 if (has('TokenIdentity')) {
   const tokenOf = new Map<string, string>()
   for (const [key, identity] of Object.entries(bySuffix('TokenIdentity'))) {
     const token = addr(key.slice(0, -'Identity'.length))
     if (token) tokenOf.set(identity.toLowerCase(), token)
   }
-  const claim = async (context: any, event: any, kind: 'ClaimAdded' | 'ClaimChanged' | 'ClaimRemoved') =>
-    context.db
+  const claim = async (context: any, event: any, kind: 'ClaimAdded' | 'ClaimChanged' | 'ClaimRemoved') => {
+    const identity = String(event.log.address).toLowerCase() as `0x${string}`
+    const link = await context.db.find(tokenIdentityLink, { id: identity })
+    const token = (link?.token ?? tokenOf.get(identity) ?? event.log.address) as `0x${string}`
+    const data = String(event.args.data)
+    const uri = String(event.args.uri)
+    const truncated = data.length > MAX_CLAIM_DATA_HEX || uri.length > MAX_CLAIM_URI
+    await context.db
       .insert(tokenClaim)
       .values({
         id: `${event.transaction.hash}:${event.log.logIndex}`,
-        token: (tokenOf.get(String(event.log.address).toLowerCase()) ?? event.log.address) as `0x${string}`,
+        token,
         identity: event.log.address,
         kind,
         topic: event.args.topic,
         claimId: event.args.claimId,
         issuer: event.args.issuer,
         scheme: event.args.scheme,
-        data: event.args.data,
-        uri: event.args.uri,
+        data: (truncated && data.length > MAX_CLAIM_DATA_HEX ? data.slice(0, MAX_CLAIM_DATA_HEX) : data) as `0x${string}`,
+        uri: uri.slice(0, MAX_CLAIM_URI),
+        truncated,
         blockNumber: event.block.number,
         txHash: event.transaction.hash,
         timestamp: ts(event),
       })
       .onConflictDoNothing()
+  }
   on('TokenIdentity:ClaimAdded', async ({ event, context }) => claim(context, event, 'ClaimAdded'))
   on('TokenIdentity:ClaimChanged', async ({ event, context }) => claim(context, event, 'ClaimChanged'))
   on('TokenIdentity:ClaimRemoved', async ({ event, context }) => claim(context, event, 'ClaimRemoved'))
@@ -82,6 +97,20 @@ if (has('Token')) {
       .insert(tokenTransferCount)
       .values({ token: event.log.address, transfers: 1n, lastBlock: event.block.number })
       .onConflictDoUpdate((row: any) => ({ transfers: row.transfers + 1n, lastBlock: event.block.number }))
+  })
+  // setOnchainID emits UpdatedTokenInformation with the new ONCHAINID: record the link and retire the old one.
+  on('Token:UpdatedTokenInformation', async ({ event, context }) => {
+    const token = event.log.address
+    const identity = String(event.args._newOnchainID).toLowerCase() as `0x${string}`
+    const previous = await context.db.sql.select().from(tokenIdentityLink).where(eq(tokenIdentityLink.token, token))
+    for (const row of previous as any[]) {
+      if (row.active && row.id !== identity) await context.db.update(tokenIdentityLink, { id: row.id }).set({ active: false })
+    }
+    if (identity === ZERO) return
+    await context.db
+      .insert(tokenIdentityLink)
+      .values({ id: identity, token, active: true, blockNumber: event.block.number, txHash: event.transaction.hash })
+      .onConflictDoUpdate({ token, active: true, blockNumber: event.block.number, txHash: event.transaction.hash })
   })
   on('Token:Paused', async ({ event, context }) => control(context, event, 'Paused', { account: event.args._userAddress }))
   on('Token:Unpaused', async ({ event, context }) => control(context, event, 'Unpaused', { account: event.args._userAddress }))

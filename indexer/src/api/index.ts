@@ -116,19 +116,27 @@ app.get('/governance', async (c) => {
   return json(c, { beacons, safes, events: rows })
 })
 
-/** Claims added, changed and removed on the token ONCHAINIDs (topics 10 to 13), newest first. ?token= and ?topic= narrow it. */
+/**
+ * Claim events on the token ONCHAINIDs (topics 10 to 13), newest first. HISTORY ONLY: this says when claims changed, never
+ * that a claim is valid or trusted. Verify through /api/tokenization/token-identity, which checks the issuer signature and
+ * the TrustedIssuersRegistry live. ?token= and ?topic= narrow it. A bad topic or limit is a 400.
+ */
 app.get('/token-claims', async (c) => {
   const t = tables.tokenClaim
   const token = c.req.query('token')
   const topic = c.req.query('topic')
-  const filters = [token ? eq(t.token, token.toLowerCase() as `0x${string}`) : undefined, topic && /^\d+$/.test(topic) ? eq(t.topic, BigInt(topic)) : undefined].filter((f) => f !== undefined)
+  const limit = c.req.query('limit')
+  if (token !== undefined && !isAddress(token)) return c.json({ error: 'token must be a valid address.' }, 400)
+  if (topic !== undefined && !/^\d{1,3}$/.test(topic)) return c.json({ error: 'topic must be a small integer.' }, 400)
+  if (limit !== undefined && !/^\d{1,3}$/.test(limit)) return c.json({ error: 'limit must be a small integer.' }, 400)
+  const filters = [token ? eq(t.token, token.toLowerCase() as `0x${string}`) : undefined, topic ? eq(t.topic, BigInt(topic)) : undefined].filter((f) => f !== undefined)
   const rows = await db
     .select()
     .from(t)
     .where(filters.length ? and(...filters) : undefined)
     .orderBy(desc(t.blockNumber), desc(t.id))
-    .limit(limitOf(c.req.query('limit'), 100, 500))
-  return json(c, { events: rows })
+    .limit(limitOf(limit, 100, 500))
+  return json(c, { note: 'History only. Verify a claim with the token-identity API before relying on it.', events: rows })
 })
 
 // Coins are labelled by address from the deployments file, never by an on-chain symbol (a mock can report another one).

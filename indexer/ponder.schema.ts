@@ -194,7 +194,9 @@ export const fxRate = onchainTable('fx_rate', (t) => ({
   timestamp: t.integer().notNull(),
 }))
 
-// Claims added, changed and removed on a token's ONCHAINID: when the originator, platform, partner or document data changed.
+// HISTORY ONLY. Claims added, changed and removed on a token's ONCHAINID: when the originator, platform, partner or
+// document data changed. Nothing here says a claim is valid or trusted: the app never shows this table as verified,
+// it checks every claim live through the token-identity API (signature, trusted issuer, trusted for the topic).
 export const tokenClaim = onchainTable(
   'token_claim',
   (t) => ({
@@ -207,10 +209,25 @@ export const tokenClaim = onchainTable(
     issuer: t.hex().notNull(),
     scheme: t.bigint().notNull(),
     data: t.hex().notNull(), // abi-encoded fields, decoded by the app
-    uri: t.text().notNull(),
+    uri: t.text().notNull(), // capped at 512 characters
+    truncated: t.boolean().notNull(), // data or uri were cut to the stored size caps
     blockNumber: t.bigint().notNull(),
     txHash: t.hex().notNull(),
     timestamp: t.integer().notNull(),
   }),
   (t) => ({ tokenIdx: index().on(t.token), identityIdx: index().on(t.identity), topicIdx: index().on(t.topic) }),
+)
+
+// Which token an ONCHAINID belongs to, kept current from Token.UpdatedTokenInformation (emitted by setOnchainID).
+// A setOnchainID swap marks the token's previous identity inactive, so claims map to the token they belong to now.
+export const tokenIdentityLink = onchainTable(
+  'token_identity_link',
+  (t) => ({
+    id: t.hex().primaryKey(), // the ONCHAINID address
+    token: t.hex().notNull(),
+    active: t.boolean().notNull(),
+    blockNumber: t.bigint().notNull(),
+    txHash: t.hex().notNull(),
+  }),
+  (t) => ({ tokenIdx: index().on(t.token) }),
 )
