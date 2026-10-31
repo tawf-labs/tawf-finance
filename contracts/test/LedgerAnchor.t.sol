@@ -5,18 +5,19 @@ import { Test } from "forge-std/Test.sol";
 import { LedgerAnchor } from "../src/LedgerAnchor.sol";
 import { Proxies } from "../src/proxy/Proxies.sol";
 import { Initializable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
-import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
-import { ERC1967Proxy } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { ERC1967Utils } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
+import { BeaconProxy } from "openzeppelin-contracts/contracts/proxy/beacon/BeaconProxy.sol";
+import { UpgradeableBeacon } from "openzeppelin-contracts/contracts/proxy/beacon/UpgradeableBeacon.sol";
 
 contract LedgerAnchorTest is Test {
     LedgerAnchor internal anchor;
+    UpgradeableBeacon internal beacon;
     address internal operator = makeAddr("operator");
     address internal stranger = makeAddr("stranger");
-    address internal timelock = makeAddr("timelock");
+    address internal governance = makeAddr("governance");
 
     function setUp() public {
-        anchor = Proxies.ledgerAnchor(46630, operator, timelock);
+        beacon = Proxies.beacon(address(new LedgerAnchor()), governance);
+        anchor = Proxies.ledgerAnchorOn(address(beacon), 46630, operator);
     }
 
     function _pair(bytes32 a, bytes32 b) internal pure returns (bytes32) {
@@ -59,54 +60,44 @@ contract LedgerAnchorTest is Test {
         assertEq(anchor.epochs(), 1);
     }
 
-    function test_constructor_rejectsZeroOperator() public {
-        address impl = address(new LedgerAnchor());
+    function test_initialize_rejectsZeroOperator() public {
         vm.expectRevert(LedgerAnchor.ZeroAddress.selector);
-        new ERC1967Proxy(impl, abi.encodeCall(LedgerAnchor.initialize, (1, address(0), timelock)));
+        new BeaconProxy(address(beacon), abi.encodeCall(LedgerAnchor.initialize, (1, address(0))));
     }
 
-    function test_constructor_rejectsZeroUpgrader() public {
-        address impl = address(new LedgerAnchor());
-        vm.expectRevert(LedgerAnchor.ZeroAddress.selector);
-        new ERC1967Proxy(impl, abi.encodeCall(LedgerAnchor.initialize, (1, operator, address(0))));
-    }
-
-    // ---- upgrade controls ----
+    // ---- beacon controls ----
 
     function test_initialize_cannotRunTwice() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        anchor.initialize(1, operator, timelock);
+        anchor.initialize(1, operator);
     }
 
     function test_implementation_isLocked() public {
-        address impl = address(uint160(uint256(vm.load(address(anchor), ERC1967Utils.IMPLEMENTATION_SLOT))));
+        address impl = beacon.implementation();
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        LedgerAnchor(impl).initialize(1, operator, timelock);
+        LedgerAnchor(impl).initialize(1, operator);
     }
 
-    function test_onlyTimelockUpgrades_andStateIsKept() public {
+    function test_onlyBeaconOwnerUpgrades_everyInstanceFollows_stateIsKept() public {
+        LedgerAnchor second = Proxies.ledgerAnchorOn(address(beacon), 7, stranger);
         vm.prank(operator);
         anchor.push(bytes32(uint256(7)));
         LedgerAnchorV2 v2 = new LedgerAnchorV2();
-        vm.prank(operator); // the operator is not an upgrader
+        vm.prank(operator); // the data-post operator is not the beacon owner
         vm.expectRevert();
-        anchor.upgradeToAndCall(address(v2), "");
-        vm.prank(timelock);
-        anchor.upgradeToAndCall(address(v2), "");
+        beacon.upgradeTo(address(v2));
+        vm.prank(governance);
+        beacon.upgradeTo(address(v2));
         assertEq(LedgerAnchorV2(address(anchor)).version(), 2);
+        assertEq(LedgerAnchorV2(address(second)).version(), 2); // one upgrade covers both
         assertEq(anchor.epochs(), 1);
         assertEq(anchor.operator(), operator);
         assertEq(anchor.ledgerChainId(), 46630);
+        assertEq(second.ledgerChainId(), 7);
     }
 
-    function test_upgraderRole_onlyUpgraderCanGrantIt() public {
-        bytes32 role = anchor.UPGRADER_ROLE();
-        vm.prank(operator);
-        vm.expectRevert();
-        anchor.grantRole(role, operator);
-        vm.prank(timelock);
-        anchor.grantRole(role, stranger);
-        assertTrue(anchor.hasRole(role, stranger));
+    function test_beaconOwnerIsGovernance() public view {
+        assertEq(beacon.owner(), governance);
     }
 }
 

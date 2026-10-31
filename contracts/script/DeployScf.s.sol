@@ -53,6 +53,7 @@ contract DeployScf is DeployExtra {
     }
 
     function runScf() external {
+        _initBeaconOwner();
         uint256 key = vm.envUint("PRIVATE_KEY");
         address operator = vm.addr(key);
         _loadShared();
@@ -103,11 +104,10 @@ contract DeployScf is DeployExtra {
 
         s.anchor = _deployProxy(
             "LedgerAnchor.sol:LedgerAnchor",
-            abi.encodeWithSignature("initialize(uint256,address,address)", ledgerChainId, operator, _upgrader(operator))
+            abi.encodeWithSignature("initialize(uint256,address)", ledgerChainId, operator)
         );
 
         ScfInvestorLimitModule limit = ModuleProxies.scfLimit(_sharedIdentityRegistry);
-        limit.setAgent(operator, true);
         s.limitModule = address(limit);
 
         ModularCompliance mc = TrexProxies.modularCompliance(_authority());
@@ -140,8 +140,7 @@ contract DeployScf is DeployExtra {
                     vm.envOr("SCF_MIN_SUBSCRIPTION", uint256(10e6)),
                     uint40(vm.envOr("SCF_SUBSCRIPTION_PERIOD", uint256(30 days))),
                     operator,
-                    operator,
-                    _upgrader(operator)
+                    operator
                 )
             )
         );

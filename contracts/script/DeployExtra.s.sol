@@ -34,6 +34,7 @@ contract DeployExtra is DeployTokenization {
     }
 
     function runSeries() external {
+        _initBeaconOwner();
         uint256 key = vm.envUint("PRIVATE_KEY");
         address operator = vm.addr(key);
         address anchor = vm.envAddress("LEDGER_ANCHOR");
@@ -53,6 +54,7 @@ contract DeployExtra is DeployTokenization {
     }
 
     function runSukuk() external {
+        _initBeaconOwner();
         uint256 key = vm.envUint("PRIVATE_KEY");
         address operator = vm.addr(key);
         address anchor = vm.envAddress("LEDGER_ANCHOR");

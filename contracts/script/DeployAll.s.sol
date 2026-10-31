@@ -1,60 +1,44 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.17;
 
-// One script for the whole fresh Sepolia stack, every contract behind a proxy and governed by the
-// TawfTimelock. DRY RUN FIRST:
+// One script for the whole fresh Sepolia stack. Every contract that is ours is a BeaconProxy (one
+// UpgradeableBeacon per type, owned by the Governance Safe), the T-REX suite sits behind its
+// TREXImplementationAuthority, and every duty has its own Gnosis Safe. DRY RUN FIRST:
 //
 //   PRIVATE_KEY=.. LEDGER_CHAIN_ID=.. DEPLOYMENTS_PATH=/tmp/deployments.dryrun.json \
-//   [SAFE_ADDRESS=0x..] [TIMELOCK_DELAY=3600] [LEDGER_ANCHOR=0x.. to reuse an existing anchor] \
-//   [SUKUK_MATURITY=..] [FEE_RECIPIENT=.. TAWF_NISBAH_BPS=..] \
-//     forge script script/DeployAll.s.sol:DeployAll --sig "runAll()" --rpc-url arbitrum_sepolia   (no --broadcast: simulation)
+//   GOV_SAFE=0x.. TREASURY_SAFE=0x.. MINTING_SAFE=0x.. COMPLIANCE_SAFE=0x.. GUARDIAN_SAFE=0x.. \
+//   [ALLOW_EOA_SAFES=true for a dry run with placeholder addresses] \
+//   [LEDGER_ANCHOR=0x.. to reuse an existing anchor] [SUKUK_MATURITY=..] [FEE_RECIPIENT=.. TAWF_NISBAH_BPS=..] \
+//     forge script script/DeployAll.s.sol:DeployAll --sig "runAll()" --rpc-url arbitrum_sepolia    (no --broadcast)
 //
-// Add --broadcast --slow only when the lead says deploy. DEPLOYMENTS_PATH keeps the dry run away from the
-// app's tokenization.deployments.json. Without a RPC the same command simulates in memory.
+// Add --broadcast --slow only when the lead says deploy. The Safes come from script/DeploySafes.s.sol or
+// are existing Safes. This script never generates or holds Safe signer keys.
 //
-// What it does, in one broadcast:
-//   1. TawfTimelock (no admin, proposer = Safe or the operator on testnet, open executors).
-//   2. LedgerAnchor proxy (or LEDGER_ANCHOR), shared T-REX identity suite behind T-REX proxies with one
-//      TREXImplementationAuthority, mock settlement coins (USDC, USDT, USDG), the legacy series, sukuk and
-//      per-deal pool, the Jawa Barat Deposito Pool (ledger, series), and the multi-coin SCF offering.
-//   3. Hand-over to the timelock: UPGRADER_ROLE on every UUPS contract, ownership of the T-REX authority
-//      (through the AuthorityGuard), the registries, the tokens, the compliance modules, the ONCHAINID
-//      authority and factory, and the sandbox compliances (through a ComplianceGuard each). Two-step
-//      owners are queued as one scheduled timelock batch (acceptOwnership), see the console output.
-//   4. The previous addresses are copied to *V1 keys, then the new ones are written to the deployments JSON.
+// In one broadcast it deploys the shared T-REX suite, mock settlement coins, the legacy series, sukuk and
+// per-deal pool, the Jawa Barat Deposito Pool and the multi-coin SCF offering, then the hand-over (owners
+// to the Governance Safe, every ModularCompliance included), then a readback that reverts the
+// whole deploy if anything is not where the role table says. The previous addresses are copied to *V1 keys.
 
 import { DeployScf } from "./DeployScf.s.sol";
 import { DeployDepositoPool } from "./DeployDepositoPool.s.sol";
 import { ITawfShare } from "./DeployExtra.s.sol";
 
 contract DeployAll is DeployScf, DeployDepositoPool {
-    address internal _timelock;
-
-    /// @dev Every proxied contract is initialised with the timelock as its upgrader.
-    function _upgrader(address) internal view override returns (address) {
-        return _timelock;
-    }
-
     function runAll() external {
         uint256 key = vm.envUint("PRIVATE_KEY");
         address operator = vm.addr(key);
+        require(operator == vm.envOr("OPERATOR_ADDRESS", operator), "PRIVATE_KEY is not OPERATOR_ADDRESS");
         string memory old = vm.exists(PATH) ? vm.readFile(PATH) : "";
         uint256 ledgerChainId = vm.envOr("LEDGER_CHAIN_ID", _oldLedgerChainId(old));
         require(ledgerChainId != 0, "set LEDGER_CHAIN_ID");
+        _loadSafes();
 
         vm.startBroadcast(key);
+        uint256 govStart = _arbBlock();
 
-        // 1. Governance first, so every contract is born with the timelock as upgrader.
-        address safe;
-        (_timelock, safe) = _deployTimelock(operator);
-
-        // 2. Ledger anchor, shared suite and the products.
         address anchor = vm.envOr("LEDGER_ANCHOR", address(0));
         if (anchor == address(0)) {
-            anchor = _deployProxy(
-                "LedgerAnchor.sol:LedgerAnchor",
-                abi.encodeWithSignature("initialize(uint256,address,address)", ledgerChainId, operator, _timelock)
-            );
+            anchor = _deployProxy("LedgerAnchor.sol:LedgerAnchor", abi.encodeWithSignature("initialize(uint256,address)", ledgerChainId, operator));
         }
         _loadSukukTerms();
         Deployment memory d = _deployAll(operator, anchor, ledgerChainId);
@@ -70,13 +54,13 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         _setShareInBroadcast(d.series);
         _setShareInBroadcast(pSeries);
 
-        // 3. Hand everything over to the timelock. Last, after every owner-only setup call above.
-        _handoverToTimelock(operator, _timelock, safe);
+        // Hand everything over, last, after every owner-only setup call above.
+        _handoverToSafes(operator);
+        _verifyOwnership(_allBeacons);
 
         vm.stopBroadcast();
 
-        // 4. Record. Old addresses go to *V1 keys first, because _writeDeployments rewrites the file.
-        _writeAll(old, d, usdg, pLedger, pToken, pSeries, pSandbox, scf, safe);
+        _writeAll(old, d, usdg, pLedger, pToken, pSeries, pSandbox, scf, govStart);
     }
 
     function _oldLedgerChainId(string memory old) internal view returns (uint256) {
@@ -100,7 +84,7 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         address pSeries,
         address pSandbox,
         Scf memory scf,
-        address safe
+        uint256 govStart
     ) internal {
         string[28] memory addrKeys = [
             "anchor", "identityRegistry", "identityRegistryStorage", "trustedIssuersRegistry", "claimTopicsRegistry",
@@ -115,15 +99,17 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         vm.writeJson(vm.toString(usdg), PATH, ".mockUsdg");
         _writePool(pLedger, pToken, pSeries, pSandbox);
         _writeScf(scf);
-        vm.writeJson(vm.toString(scf.distributor), PATH, ".scfDistributor");
 
-        // Governance addresses the app, the API and the upgrade scripts need.
-        vm.writeJson(vm.toString(_timelock), PATH, ".timelock");
-        vm.writeJson(vm.toString(safe), PATH, ".safe");
+        // Governance addresses and the beacons. Naming: Safes end in Safe, beacons in Beacon, and no timelock.
+        vm.writeJson(vm.toString(_safes.governance), PATH, ".govSafe");
+        vm.writeJson(vm.toString(_safes.treasury), PATH, ".treasurySafe");
+        vm.writeJson(vm.toString(_safes.minting), PATH, ".mintingSafe");
+        vm.writeJson(vm.toString(_safes.compliance), PATH, ".complianceSafe");
+        vm.writeJson(vm.toString(_safes.guardian), PATH, ".guardianSafe");
+        vm.writeJson(vm.toString(govStart), PATH, ".governanceStartBlock");
         vm.writeJson(vm.toString(_trexAuthority), PATH, ".trexImplementationAuthority");
-        vm.writeJson(vm.toString(address(_authorityGuard)), PATH, ".trexAuthorityGuard");
-        for (uint256 i; i < _sandboxGuards.length; i++) {
-            vm.writeJson(vm.toString(_sandboxGuards[i]), PATH, string.concat(".sandboxComplianceGuard", vm.toString(i)));
+        for (uint256 i; i < _allBeacons.length; i++) {
+            vm.writeJson(vm.toString(_allBeacons[i]), PATH, string.concat(".", _beaconKey(_beaconArtifacts[i])));
         }
 
         // Previous generation under the V1 keys (an existing V1 key is kept, so history never shrinks).
@@ -145,5 +131,26 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         string memory value =
             isBytes32 ? vm.toString(vm.parseJsonBytes32(old, use)) : vm.toString(vm.parseJsonAddress(old, use));
         vm.writeJson(value, PATH, v1);
+    }
+
+    /// @dev Key for a beacon in the deployments JSON: <type>Beacon.
+    function _beaconKey(string memory artifact) internal pure returns (string memory) {
+        bytes32 h = keccak256(bytes(artifact));
+        if (h == keccak256("LedgerAnchor.sol:LedgerAnchor")) return "ledgerAnchorBeacon";
+        if (h == keccak256("DepositoPoolLedger.sol:DepositoPoolLedger")) return "depositoPoolLedgerBeacon";
+        if (h == keccak256("TawfDepositoSeries.sol:TawfDepositoSeries")) return "depositoSeriesBeacon";
+        if (h == keccak256("SukukDistributor.sol:SukukDistributor")) return "sukukDistributorBeacon";
+        if (h == keccak256("DealRegistry.sol:DealRegistry")) return "dealRegistryBeacon";
+        if (h == keccak256("BondReceiptNFT.sol:BondReceiptNFT")) return "bondReceiptNftBeacon";
+        if (h == keccak256("RedemptionVault.sol:RedemptionVault")) return "redemptionVaultBeacon";
+        if (h == keccak256("PooledFinancingVault.sol:PooledFinancingVault")) return "pooledFinancingVaultBeacon";
+        revert("no beacon key for this artifact");
+    }
+
+    /// @dev First Arbitrum block of this deploy (block.number on Arbitrum is the L1 number). Falls back to
+    ///      block.number off Arbitrum, for a local dry run.
+    function _arbBlock() internal view returns (uint256) {
+        (bool ok, bytes memory ret) = address(100).staticcall(abi.encodeWithSignature("arbBlockNumber()"));
+        return ok && ret.length == 32 ? abi.decode(ret, (uint256)) : block.number;
     }
 }

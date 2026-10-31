@@ -27,8 +27,6 @@ pragma solidity 0.8.17;
 
 import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
 import { TrexProxies } from "../src/proxy/TrexProxies.sol";
-import { AuthorityGuard } from "../src/governance/AuthorityGuard.sol";
-import { ComplianceGuard } from "../src/governance/ComplianceGuard.sol";
 import { TREXImplementationAuthority } from "@erc3643org/erc-3643/contracts/proxy/authority/TREXImplementationAuthority.sol";
 import "forge-std/Script.sol";
 import {ProxyDeployer} from "./lib/ProxyDeployer.sol";
@@ -56,158 +54,127 @@ import {SandboxModule} from "../src/deposito/SandboxModule.sol";
 contract DeployTokenization is Script, ProxyDeployer {
     /// @dev Holder of UPGRADER_ROLE on the proxied contracts: the TimelockController from the
     ///      UPGRADER env var. Falls back to the operator only for local and early testnet runs.
-    bytes4 internal constant DIST_INIT = bytes4(keccak256("initialize(address[],address,address,address,address,(bytes32,uint256,uint40,uint256,uint256,uint40,address),address,address)"));
-    bytes4 internal constant SERIES_INIT = bytes4(keccak256("initialize(address,address,address,address,address,(bytes32,uint8,uint16),address,address,address,uint64,address)"));
+    bytes4 internal constant DIST_INIT = bytes4(keccak256("initialize(address[],address,address,address,address,(bytes32,uint256,uint40,uint256,uint256,uint40,address),address)"));
+    bytes4 internal constant SERIES_INIT = bytes4(keccak256("initialize(address,address,address,address,address,(bytes32,uint8,uint16),address,address,address,uint64)"));
 
-    /// @dev One TREXImplementationAuthority per deploy, shared by every T-REX proxy. The deployer owns it
-    ///      until the governance hand-over moves it to the timelock. TREX_AUTHORITY reuses an existing one.
-    address internal _trexAuthority;
-    AuthorityGuard internal _authorityGuard;
+    // ---------------------------------------------------------------------------------------------
+    // Governance: Gnosis Safes, one per duty. No custom multisig and no timelock of our own.
+    //   Governance Safe: owns every beacon (upgrades), the T-REX and ONCHAINID authorities, the T-REX
+    //                    owners and the compliance modules, and is the role admin everywhere.
+    //   Treasury Safe:   money out (FUNDER_ROLE and the raise and sweep paths).
+    //   Minting Safe:    MINTER_ROLE (series allocate).
+    //   Compliance Safe: identity registry agent, claim issuer management, limit profiles, freezes, and the
+    //                    (sandbox mode, caps and series end go through the Governance Safe, which owns every ModularCompliance).
+    //   Guardian Safe:   pause only.
+    //   operator EOA:    data posts only (FX rates, bank ledger snapshots and profit, ledger roots).
+    // Safe addresses come from env. Signer keys are never generated here.
+    // ---------------------------------------------------------------------------------------------
 
-    /// @dev Contracts whose `owner` moves to the timelock in the governance hand-over (T-REX owners,
-    ///      compliance modules, the ONCHAINID authority and factory). Filled as they are deployed.
+    struct Safes {
+        address governance;
+        address treasury;
+        address minting;
+        address compliance;
+        address guardian;
+    }
+
+    Safes internal _safes;
+
+    /// @dev GOV_SAFE, TREASURY_SAFE, MINTING_SAFE, COMPLIANCE_SAFE and GUARDIAN_SAFE. They must be
+    ///      non-zero and pairwise distinct (one Safe per duty), and be contracts (real Safes), unless
+    ///      ALLOW_EOA_SAFES=true, which a dry run or a local test may set. Sets the beacon owner.
+    function _loadSafes() internal {
+        _safes = Safes({
+            governance: vm.envAddress("GOV_SAFE"),
+            treasury: vm.envAddress("TREASURY_SAFE"),
+            minting: vm.envAddress("MINTING_SAFE"),
+            compliance: vm.envAddress("COMPLIANCE_SAFE"),
+            guardian: vm.envAddress("GUARDIAN_SAFE")
+        });
+        address[5] memory all = [_safes.governance, _safes.treasury, _safes.minting, _safes.compliance, _safes.guardian];
+        bool allowEoa = vm.envOr("ALLOW_EOA_SAFES", false);
+        for (uint256 i; i < 5; i++) {
+            require(all[i] != address(0), "a Safe address is unset");
+            require(allowEoa || all[i].code.length > 0, "a Safe address has no code (set ALLOW_EOA_SAFES=true for a dry run)");
+            for (uint256 j = i + 1; j < 5; j++) require(all[i] != all[j], "one Safe per duty: two duties share a Safe");
+        }
+        beaconOwner = _safes.governance; // every beacon is created owned by the Governance Safe
+    }
+
+    /// @dev Contracts whose single-step `owner` moves to the Governance Safe (T-REX owners, tokens, the
+    ///      TREXImplementationAuthority, SCF and sukuk compliances, the ONCHAINID authority and factory).
     address[] internal _owned;
+    /// @dev Compliance modules: two-step ownership. The Governance Safe must accept (a Safe transaction).
+    address[] internal _modules;
+    address[] internal _tokens;
+    address internal _trexAuthority;
 
     function _own(address c) internal {
         _owned.push(c);
     }
 
-    struct SandboxPair {
-        address compliance;
-        address sandbox;
-    }
-
-    /// @dev Compliances that have a SandboxModule. The operator runs mode, caps and series end through the
-    ///      admin screens, which needs the compliance owner. So the owner is a ComplianceGuard: the timelock
-    ///      owns the guard and can forward any owner call, and the operator can only forward those three
-    ///      sandbox settings. The guards are created in the hand-over.
-    SandboxPair[] internal _sandboxPairs;
-    address[] internal _sandboxGuards;
-
-    function _ownCompliance(address mc, bool sandboxed) internal {
-        require(!sandboxed, "use _sandboxPairs for sandboxed compliances");
-        _own(mc);
-    }
-
-
-    /// @dev Deploys the TawfTimelock. Delay: TIMELOCK_DELAY seconds (default 1 hour, use 2 to 7 days on
-    ///      mainnet). Proposer and canceller: SAFE_ADDRESS, or the operator on testnet until a Safe exists.
-    ///      Executors are open (anyone may execute a ready operation) unless EXECUTOR_OPEN=false, in which
-    ///      case only the proposer executes. There is no admin: the timelock administers itself.
-    function _deployTimelock(address operator) internal returns (address timelock, address safe) {
-        safe = vm.envOr("SAFE_ADDRESS", address(0));
-        uint256 delay = vm.envOr("TIMELOCK_DELAY", uint256(1 hours));
-        address proposer = safe != address(0) ? safe : operator;
-        address[] memory proposers = new address[](1);
-        proposers[0] = proposer;
-        address[] memory executors = new address[](1);
-        executors[0] = vm.envOr("EXECUTOR_OPEN", true) ? address(0) : proposer;
-        timelock = vm.deployCode("TawfTimelock.sol:TawfTimelock", abi.encode(delay, proposers, executors));
-    }
-
-    /// @dev Compliance modules: two-step ownership (transferOwnership, then acceptOwnership by the new
-    ///      owner), no renounce. The timelock has to accept, so that is a timelock operation, see
-    ///      _handoverToTimelock. The operator stays the configurer for setHook, initOffering, setAgent
-    ///      and the other module settings, so day-to-day configuration is unaffected.
-    address[] internal _modules;
-
     function _ownModule(address m) internal {
         _modules.push(m);
     }
-
-    address[] internal _tokens;
-    /// @dev UUPS contracts that gave UPGRADER_ROLE to the operator at initialize (the pool contracts).
-    address[] internal _operatorUups;
 
     function _ownToken(address t) internal {
         _own(t);
         _tokens.push(t);
     }
 
-    /// @dev Governance hand-over, run last and with the same broadcaster that deployed everything:
-    ///      1. The Safe becomes a guardian (agent) on every token, so it can pause in an emergency.
-    ///      2. Every registered owner (T-REX authority, registries, tokens, compliance modules, ONCHAINID
-    ///         authority and factory) moves to the timelock.
-    ///      3. UPGRADER_ROLE on the operator-initialised UUPS contracts moves to the timelock.
-    ///      The operator keeps its agent and day-to-day roles. After this only the timelock can upgrade.
-    function _handoverToTimelock(address operator, address timelock, address safe) internal {
-        bytes32 upgrader = keccak256("UPGRADER_ROLE");
-        if (safe != address(0)) {
-            for (uint256 i; i < _tokens.length; i++) IAgentLike(_tokens[i]).addAgent(safe);
+    function _ownCompliance(address mc, bool sandboxed) internal {
+        sandboxed; // every compliance, sandboxed or not, is owned by the Governance Safe
+        _own(mc);
+    }
+
+    /// @dev Hand-over, run last by the broadcaster that deployed everything:
+    ///      1. Guardian Safe and Compliance Safe become agents on every token (pause, freeze).
+    ///      2. Every registered owner moves to the Governance Safe (single step).
+    ///      3. Modules start their two-step transfer to the Governance Safe.
+    ///      The Governance Safe then accepts the two-step ones with one Safe transaction (logged).
+    function _handoverToSafes(address operator) internal {
+        // Every compliance module's configurer becomes the Compliance Safe (setHook, initOffering, setOfferingCap,
+        // initConfig, agents). The operator keeps no module role. Owner-only, so it runs before the owner moves.
+        for (uint256 i; i < _modules.length; i++) IConfigurerLike(_modules[i]).setConfigurer(_safes.compliance);
+        for (uint256 i; i < _tokens.length; i++) {
+            IAgentLike(_tokens[i]).addAgent(_safes.guardian);
+            IAgentLike(_tokens[i]).addAgent(_safes.compliance);
         }
-        for (uint256 i; i < _owned.length; i++) IOwnableLike(_owned[i]).transferOwnership(timelock);
-        _handoverModules(operator, timelock, safe);
-        for (uint256 i; i < _operatorUups.length; i++) {
-            IUupsRoleLike(_operatorUups[i]).grantRole(upgrader, timelock);
-            IUupsRoleLike(_operatorUups[i]).renounceRole(upgrader, operator);
+        for (uint256 i; i < _owned.length; i++) IOwnableLike(_owned[i]).transferOwnership(_safes.governance);
+        for (uint256 i; i < _modules.length; i++) IOwnableLike(_modules[i]).transferOwnership(_safes.governance);
+        operator; // the operator keeps only the data roles, see _wireRoles in DeployAll
+        console.log("The Governance Safe must accept ownership (acceptOwnership) on these two-step contracts:");
+        for (uint256 i; i < _modules.length; i++) console.log(_modules[i]);
+    }
+
+    /// @dev Readback. Reverts unless every single-step owner IS the Governance Safe, every two-step owner has
+    ///      it as pending owner, each sandbox compliance is owned by its guard, and every beacon is owned by it.
+    function _verifyOwnership(address[] memory beacons) internal view {
+        address gov = _safes.governance;
+        for (uint256 i; i < _owned.length; i++) {
+            require(IOwnableLike(_owned[i]).owner() == gov, "hand-over: an owner is not the Governance Safe");
+        }
+        for (uint256 i; i < _modules.length; i++) {
+            require(IPendingOwnerLike(_modules[i]).pendingOwner() == gov, "hand-over: a module is not pending the Governance Safe");
+        }
+        for (uint256 i; i < beacons.length; i++) {
+            require(IOwnableLike(beacons[i]).owner() == gov, "hand-over: a beacon is not owned by the Governance Safe");
         }
     }
 
-    /// @dev Start the two-step transfer on every module, then queue the timelock's acceptance. With no Safe
-    ///      the operator is the proposer, so the batch is scheduled here and anyone can execute it after the
-    ///      delay (open executors). With a Safe, the Safe must schedule the same batch, so the call data is
-    ///      logged.
-    function _handoverModules(address operator, address timelock, address safe) internal {
-        // The AuthorityGuard is two-step too, so the timelock accepts it in the same batch as the modules.
-        bool guarded = address(_authorityGuard) != address(0);
-        uint256 nGuards = _sandboxPairs.length;
-        uint256 n = _modules.length + (guarded ? 1 : 0) + nGuards;
-        if (n == 0) return;
-        address[] memory targets = new address[](n);
-        uint256[] memory values = new uint256[](n);
-        bytes[] memory datas = new bytes[](n);
-        for (uint256 i; i < _modules.length; i++) {
-            IOwnableLike(_modules[i]).transferOwnership(timelock);
-            targets[i] = _modules[i];
-            datas[i] = abi.encodeWithSignature("acceptOwnership()");
-        }
-        uint256 k = _modules.length;
-        if (guarded) {
-            _authorityGuard.transferOwnership(timelock);
-            targets[k] = address(_authorityGuard);
-            datas[k++] = abi.encodeWithSignature("acceptOwnership()");
-        }
-        for (uint256 i; i < nGuards; i++) {
-            ComplianceGuard g = new ComplianceGuard(
-                ModularCompliance(_sandboxPairs[i].compliance), _sandboxPairs[i].sandbox, operator
-            );
-            ModularCompliance(_sandboxPairs[i].compliance).transferOwnership(address(g));
-            g.transferOwnership(timelock);
-            _sandboxGuards.push(address(g));
-            targets[k] = address(g);
-            datas[k++] = abi.encodeWithSignature("acceptOwnership()");
-        }
-        bytes32 salt = keccak256("tawf.accept-module-ownership");
-        if (safe == address(0)) {
-            ITimelockBatch(timelock).scheduleBatch(
-                targets, values, datas, bytes32(0), salt, ITimelockBatch(timelock).getMinDelay()
-            );
-            console.log("Module acceptOwnership batch scheduled. Execute after the delay, salt keccak256('tawf.accept-module-ownership').");
-        } else {
-            console.log("The Safe must schedule acceptOwnership() on each module as one batch (salt below):");
-            console.logBytes32(salt);
-            for (uint256 i; i < n; i++) console.log(targets[i]);
-        }
+    /// @dev Standalone entry points (run, runSeries, runSukuk, runPool, runScf) deploy beacon proxies, so they
+    ///      need the Governance Safe as beacon owner. DeployAll loads all five Safes instead.
+    function _initBeaconOwner() internal {
+        if (beaconOwner == address(0)) beaconOwner = vm.envAddress("GOV_SAFE");
     }
 
     function _authority() internal returns (address) {
         if (_trexAuthority == address(0)) {
             address existing = vm.envOr("TREX_AUTHORITY", address(0));
-            if (existing != address(0)) {
-                _trexAuthority = existing;
-            } else {
-                // The authority is owned by an AuthorityGuard (two-step, no renounce) which the timelock owns.
-                address ia = address(TrexProxies.authority());
-                _authorityGuard = new AuthorityGuard(TREXImplementationAuthority(ia));
-                TREXImplementationAuthority(ia).transferOwnership(address(_authorityGuard));
-                _trexAuthority = ia;
-            }
+            _trexAuthority = existing != address(0) ? existing : address(TrexProxies.authority());
+            if (existing == address(0)) _own(_trexAuthority); // the authority goes to the Governance Safe
         }
         return _trexAuthority;
-    }
-
-    function _upgrader(address operator) internal view virtual returns (address) {
-        return vm.envOr("UPGRADER", operator);
     }
 
     uint256 internal constant KYC_TOPIC = 1;
@@ -263,6 +230,7 @@ contract DeployTokenization is Script, ProxyDeployer {
     }
 
     function run() external {
+        _initBeaconOwner();
         uint256 operatorKey = vm.envUint("PRIVATE_KEY");
         address operator = vm.addr(operatorKey);
         address anchor = vm.envAddress("LEDGER_ANCHOR");
@@ -386,7 +354,7 @@ contract DeployTokenization is Script, ProxyDeployer {
         DistributionCheckpointModule checkpoint = ModuleProxies.checkpoint();
         SandboxModule sandbox = ModuleProxies.sandbox();
         _ownToken(address(token));
-        _sandboxPairs.push(SandboxPair(address(mc), address(sandbox)));
+        _own(address(mc)); // series compliance: the Governance Safe owns it directly
         _ownModule(address(checkpoint));
         _ownModule(address(sandbox));
 
@@ -407,8 +375,8 @@ contract DeployTokenization is Script, ProxyDeployer {
                 operator, // treasury (demo: the operator wallet is the Tawf treasury)
                 operator, // admin
                 operator, // operator
-                uint64(1 days), // maxRateAge
-                _upgrader(operator)))
+                uint64(1 days) // maxRateAge
+            ))
         );
 
         // Configure and bind the SandboxModule first: mode PILOT_ONLY, treasury = operator,
@@ -482,8 +450,7 @@ contract DeployTokenization is Script, ProxyDeployer {
                 _sukukMinSubscription,
                 _sukukSubscriptionPeriod,
                 operator,
-                operator,
-                    _upgrader(operator)))
+                operator))
             );
 
         module.setHook(address(mc), IBalanceCheckpoint(distributor));
@@ -511,12 +478,10 @@ contract DeployTokenization is Script, ProxyDeployer {
         internal
         returns (address dealRegistry, address bondReceiptNft, address redemptionVault)
     {
-        bondReceiptNft = _deployProxy("BondReceiptNFT.sol:BondReceiptNFT", operator);
-        dealRegistry = _deployProxy("DealRegistry.sol:DealRegistry", operator);
-        redemptionVault = _deployProxy("RedemptionVault.sol:RedemptionVault", operator);
-        _operatorUups.push(bondReceiptNft);
-        _operatorUups.push(dealRegistry);
-        _operatorUups.push(redemptionVault);
+        bytes memory initOperator = abi.encodeWithSignature("initialize(address)", operator);
+        bondReceiptNft = _deployProxy("BondReceiptNFT.sol:BondReceiptNFT", initOperator);
+        dealRegistry = _deployProxy("DealRegistry.sol:DealRegistry", initOperator);
+        redemptionVault = _deployProxy("RedemptionVault.sol:RedemptionVault", initOperator);
 
         IDealRegistry(dealRegistry).setVault(redemptionVault);
         IBondReceiptNFT(bondReceiptNft).setVault(redemptionVault);
@@ -529,15 +494,6 @@ contract DeployTokenization is Script, ProxyDeployer {
         IDealRegistry(dealRegistry).grantRole(keccak256("SHARIAH_ROLE"), operator);
         IDealRegistry(dealRegistry).grantRole(keccak256("OPS_ROLE"), operator);
         IRedemptionVault(redemptionVault).grantRole(keccak256("OPS_ROLE"), operator);
-    }
-
-    /// @dev The pool contracts are UUPS-upgradeable: deploy the implementation, then an ERC1967 proxy
-    ///      that calls `initialize(operator)`. Callers use the returned proxy address everywhere.
-    function _deployProxy(string memory artifact, address admin) internal returns (address proxy) {
-        address impl = deployCode(artifact);
-        proxy = deployCode(
-            "ERC1967Proxy.sol:ERC1967Proxy", abi.encode(impl, abi.encodeWithSignature("initialize(address)", admin))
-        );
     }
 
     // --- transient operator-scoped wiring values ---------------------------------
@@ -662,6 +618,19 @@ interface IRedemptionVault {
 
 interface IOwnableLike {
     function transferOwnership(address newOwner) external;
+    function owner() external view returns (address);
+}
+
+interface IPendingOwnerLike {
+    function pendingOwner() external view returns (address);
+}
+
+interface IHasRoleLike {
+    function hasRole(bytes32 role, address account) external view returns (bool);
+}
+
+interface IConfigurerLike {
+    function setConfigurer(address configurer) external;
 }
 
 interface IAgentLike {

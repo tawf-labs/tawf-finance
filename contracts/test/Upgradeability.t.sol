@@ -4,37 +4,30 @@ pragma solidity ^0.8.20;
 import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { Initializable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
-import { ERC1967Utils } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
+import { UpgradeableBeacon } from "openzeppelin-contracts/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { BaseSetup } from "./Base.t.sol";
 import { DealRegistry } from "../src/DealRegistry.sol";
 import { BondReceiptNFT } from "../src/BondReceiptNFT.sol";
 import { RedemptionVault } from "../src/RedemptionVault.sol";
 import { PooledFinancingVault } from "../src/PooledFinancingVault.sol";
-
-/// @dev Stand-in for a future vault release: same storage, one new function.
-contract RedemptionVaultV2 is RedemptionVault {
-    function version() external pure returns (uint256) {
-        return 2;
-    }
-}
-
-contract DealRegistryV2 is DealRegistry {
-    function version() external pure returns (uint256) {
-        return 2;
-    }
-}
+import { RedemptionVaultV2, DealRegistryV2 } from "../src/mocks/UpgradeV2Mocks.sol";
 
 interface IVersioned {
     function version() external pure returns (uint256);
 }
 
-/// @notice UUPS behaviour of the pool contracts: initialise once, locked
-///         implementations, upgrades gated by UPGRADER_ROLE, state kept across an upgrade.
+/// @notice Beacon behaviour of the pool contracts: initialise once, locked implementations, the
+///         beacon owner is the only upgrader, state kept across an upgrade.
 contract UpgradeabilityTest is BaseSetup {
-    bytes32 internal constant IMPL_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+    // EIP-1967 beacon slot.
+    bytes32 internal constant BEACON_SLOT = 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50;
+
+    function _beacon(address proxy) internal view returns (UpgradeableBeacon) {
+        return UpgradeableBeacon(address(uint160(uint256(vm.load(proxy, BEACON_SLOT)))));
+    }
 
     function _impl(address proxy) internal view returns (address) {
-        return address(uint160(uint256(vm.load(proxy, IMPL_SLOT))));
+        return _beacon(proxy).implementation();
     }
 
     // ------------------------------------------------------------------
@@ -42,12 +35,8 @@ contract UpgradeabilityTest is BaseSetup {
     // ------------------------------------------------------------------
 
     function test_Initialize_setsRolesAndDefaults() public view {
-        assertTrue(vault.hasRole(vault.UPGRADER_ROLE(), owner));
         assertTrue(vault.hasRole(vault.ADMIN_ROLE(), owner));
         assertTrue(vault.hasRole(vault.DEFAULT_ADMIN_ROLE(), owner));
-        assertTrue(registry.hasRole(registry.UPGRADER_ROLE(), owner));
-        assertTrue(nft.hasRole(nft.UPGRADER_ROLE(), owner));
-        assertTrue(pooledVault.hasRole(pooledVault.UPGRADER_ROLE(), owner));
         // Values that used to be set at declaration must be set by initialize.
         assertEq(vault.swapFee(), 3000);
         assertEq(vault.slippageBps(), 50);
@@ -69,63 +58,40 @@ contract UpgradeabilityTest is BaseSetup {
     }
 
     function test_Implementation_isLocked() public {
+        address vImpl = _impl(address(vault));
+        address rImpl = _impl(address(registry));
+        address nImpl = _impl(address(nft));
+        address pImpl = _impl(address(pooledVault));
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        RedemptionVault(_impl(address(vault))).initialize(stranger);
+        RedemptionVault(vImpl).initialize(stranger);
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        DealRegistry(_impl(address(registry))).initialize(stranger);
+        DealRegistry(rImpl).initialize(stranger);
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        BondReceiptNFT(_impl(address(nft))).initialize(stranger);
+        BondReceiptNFT(nImpl).initialize(stranger);
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        PooledFinancingVault(_impl(address(pooledVault))).initialize(IERC20(address(usdc)), stranger);
+        PooledFinancingVault(pImpl).initialize(IERC20(address(usdc)), stranger);
     }
 
     // ------------------------------------------------------------------
     // Upgrade authorisation
     // ------------------------------------------------------------------
 
-    function test_Upgrade_byStranger_reverts() public {
+    function test_Upgrade_onlyBeaconOwner() public {
         address v2 = address(new RedemptionVaultV2());
-        bytes32 role = vault.UPGRADER_ROLE();
-        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, stranger, role));
+        UpgradeableBeacon b = _beacon(address(vault));
+        assertEq(b.owner(), owner);
         vm.prank(stranger);
-        vault.upgradeToAndCall(v2, "");
-    }
-
-    function test_Upgrade_byAdminWithoutUpgraderRole_reverts() public {
-        // ADMIN_ROLE alone (ops configuration) must not be enough to swap the code.
-        address admin2 = makeAddr("admin2");
-        bytes32 adminRole = vault.ADMIN_ROLE();
-        bytes32 role = vault.UPGRADER_ROLE();
+        vm.expectRevert();
+        b.upgradeTo(v2);
         vm.prank(owner);
-        vault.grantRole(adminRole, admin2);
-        address v2 = address(new RedemptionVaultV2());
-        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, admin2, role));
-        vm.prank(admin2);
-        vault.upgradeToAndCall(v2, "");
-    }
-
-    function test_Upgrade_toNonUupsContract_reverts() public {
-        vm.expectRevert(abi.encodeWithSelector(ERC1967Utils.ERC1967InvalidImplementation.selector, address(usdc)));
-        vm.prank(owner);
-        vault.upgradeToAndCall(address(usdc), "");
-    }
-
-    function test_UpgraderRole_canMoveToMultisig() public {
-        address safe = makeAddr("safe");
-        bytes32 role = vault.UPGRADER_ROLE();
-        vm.startPrank(owner);
-        vault.grantRole(role, safe);
-        vault.revokeRole(role, owner);
-        vm.stopPrank();
-
-        address v2 = address(new RedemptionVaultV2());
-        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, owner, role));
-        vm.prank(owner);
-        vault.upgradeToAndCall(v2, "");
-
-        vm.prank(safe);
-        vault.upgradeToAndCall(v2, "");
+        b.upgradeTo(v2);
         assertEq(IVersioned(address(vault)).version(), 2);
+    }
+
+    function test_Upgrade_toNonContract_reverts() public {
+        vm.prank(owner);
+        vm.expectRevert();
+        _beacon(address(vault)).upgradeTo(address(0xdead));
     }
 
     // ------------------------------------------------------------------
@@ -141,8 +107,8 @@ contract UpgradeabilityTest is BaseSetup {
 
         address oldVaultImpl = _impl(address(vault));
         vm.startPrank(owner);
-        vault.upgradeToAndCall(address(new RedemptionVaultV2()), "");
-        registry.upgradeToAndCall(address(new DealRegistryV2()), "");
+        _beacon(address(vault)).upgradeTo(address(new RedemptionVaultV2()));
+        _beacon(address(registry)).upgradeTo(address(new DealRegistryV2()));
         vm.stopPrank();
 
         assertTrue(_impl(address(vault)) != oldVaultImpl);

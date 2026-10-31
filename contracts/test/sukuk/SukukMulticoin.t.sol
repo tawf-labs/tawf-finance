@@ -95,8 +95,7 @@ contract SukukMulticoinTest is TrexFixture {
                 abi.encodePacked(DIST_INIT, abi.encode(
                 list, anchor, address(ir), address(token), address(module),
                 SUKUK, FACE, maturity, MIN_RAISE, MIN_SUB, WINDOW, treasury,
-                deployer,
-                    timelock))
+                deployer))
             );
     }
 
@@ -187,17 +186,17 @@ contract SukukMulticoinTest is TrexFixture {
 
     /// @dev Deploys with CREATE and returns the revert data, which deployCode would swallow.
     function _tryDeploy(address[] memory list, address tokenAddr) internal returns (address created, bytes memory err) {
-        address impl = vm.deployCode("SukukDistributor.sol:SukukDistributor");
+        address beacon = _beaconFor("SukukDistributor.sol:SukukDistributor");
         bytes memory code = abi.encodePacked(
-            vm.getCode("ERC1967Proxy.sol:ERC1967Proxy"),
+            vm.getCode(BEACON_PROXY),
             abi.encode(
-                impl,
+                beacon,
                 abi.encodePacked(
                     DIST_INIT,
                     abi.encode(
                         list, anchor, address(ir), tokenAddr, address(module),
                         SUKUK, FACE, maturity, MIN_RAISE, MIN_SUB, WINDOW, treasury,
-                        deployer, timelock
+                        deployer
                     )
                 )
             )

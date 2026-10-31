@@ -74,6 +74,7 @@ contract DeployTokenizationTest is Test, DeployTokenization {
         vm.setEnv("SUKUK_FACE", vm.toString(uint256(500_000e6)));
         vm.setEnv("SUKUK_MATURITY", vm.toString(uint256(block.timestamp + 365 days)));
 
+        beaconOwner = address(0x6075); // stand-in for the Governance Safe that owns every beacon
         vm.startPrank(operator);
         d = _deployAll(operator, anchor, 1);
         vm.stopPrank();

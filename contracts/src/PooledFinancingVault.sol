@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import { Initializable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
-import { UUPSUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import { ERC4626Upgradeable } from "openzeppelin-contracts-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { ERC20Upgradeable } from "openzeppelin-contracts-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
@@ -49,13 +48,11 @@ contract PooledFinancingVault is
     Initializable,
     ERC4626Upgradeable,
     AccessControlUpgradeable,
-    ReentrancyGuard,
-    UUPSUpgradeable
+    ReentrancyGuard
 {
     using SafeERC20 for IERC20;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant OPS_ROLE = keccak256("OPS_ROLE");
 
     /// @notice Per-vault transfer policy. Soulbound (default) blocks every
@@ -91,8 +88,7 @@ contract PooledFinancingVault is
     }
 
     /// @notice One-time proxy setup. `admin` receives DEFAULT_ADMIN_ROLE,
-    ///         ADMIN_ROLE and UPGRADER_ROLE. Move UPGRADER_ROLE to a Safe or
-    ///         timelock later with grantRole / revokeRole, no redeploy needed.
+    ///         ADMIN_ROLE. Upgrades go through the beacon, owned by the Governance Safe.
     function initialize(IERC20 asset_, address admin) public initializer {
         if (address(asset_) == address(0) || admin == address(0)) revert InvalidAddress();
         __ERC20_init("Tawf Pooled Financing Shares", "tPFS");
@@ -100,11 +96,7 @@ contract PooledFinancingVault is
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
-        _grantRole(UPGRADER_ROLE, admin);
     }
-
-    /// @dev UUPS: only UPGRADER_ROLE may point the proxy at a new implementation.
-    function _authorizeUpgrade(address) internal override onlyRole(UPGRADER_ROLE) {}
 
     // ---------------------------------------------------------------------
     // Admin configuration

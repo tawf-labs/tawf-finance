@@ -27,6 +27,7 @@ contract DeployDepositoPool is DeployExtra {
     uint256 internal constant OPEN_CRB = 15_000_000_000;
 
     function runPool() external {
+        _initBeaconOwner();
         uint256 key = vm.envUint("PRIVATE_KEY");
         address operator = vm.addr(key);
         (address usdc, address usdt) = _loadShared();
@@ -51,7 +52,7 @@ contract DeployDepositoPool is DeployExtra {
         ledger = _deployProxy(
             "DepositoPoolLedger.sol:DepositoPoolLedger",
             abi.encodeWithSignature(
-                "initialize(uint256,bytes32,address,address)", ledgerChainId, POOL_SERIES_ID, operator, _upgrader(operator)
+                "initialize(uint256,bytes32,address)", ledgerChainId, POOL_SERIES_ID, operator
             )
         );
         bytes32[] memory ids = new bytes32[](3);

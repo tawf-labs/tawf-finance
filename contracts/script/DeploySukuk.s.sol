@@ -42,14 +42,11 @@ import {IBalanceCheckpoint} from "../src/sukuk/IBalanceCheckpoint.sol";
  *      the module is bound to the token's compliance with the distributor as its hook.
  */
 contract DeploySukuk is Script, ProxyDeployer {
-    bytes4 internal constant DIST_INIT = bytes4(keccak256("initialize(address[],address,address,address,address,(bytes32,uint256,uint40,uint256,uint256,uint40,address),address,address)"));
+    bytes4 internal constant DIST_INIT = bytes4(keccak256("initialize(address[],address,address,address,address,(bytes32,uint256,uint40,uint256,uint256,uint40,address),address)"));
 
-    /// @dev UPGRADER_ROLE holder: the timelock from the UPGRADER env var, else the operator (local runs).
-    function _upgrader(address operator) internal view returns (address) {
-        return vm.envOr("UPGRADER", operator);
-    }
 
     function run() external {
+        beaconOwner = vm.envAddress("GOV_SAFE"); // the distributor beacon belongs to the Governance Safe
         address usdc = vm.envAddress("USDC");
         address anchor = vm.envAddress("LEDGER_ANCHOR");
         address identityRegistry = vm.envAddress("IDENTITY_REGISTRY");
@@ -89,8 +86,7 @@ contract DeploySukuk is Script, ProxyDeployer {
                     vm.envUint("MIN_SUBSCRIPTION"),
                     uint40(vm.envUint("SUBSCRIPTION_PERIOD")),
                     vm.envAddress("ISSUER_TREASURY"),
-                    operator,
-                    _upgrader(operator)
+                    operator
                 )
             )
         );

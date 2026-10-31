@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
-import { ERC1967Proxy } from "openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { BeaconProxy } from "openzeppelin-contracts/contracts/proxy/beacon/BeaconProxy.sol";
+import { UpgradeableBeacon } from "openzeppelin-contracts/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { DealRegistry } from "../DealRegistry.sol";
 import { BondReceiptNFT } from "../BondReceiptNFT.sol";
@@ -11,38 +12,65 @@ import { LedgerAnchor } from "../LedgerAnchor.sol";
 
 /**
  * @title Proxies
- * @notice Deploys each upgradeable pool contract as an implementation behind
- *         an ERC1967 (UUPS) proxy and initialises it in the same transaction.
+ * @notice Deploys each upgradeable contract as an implementation behind an
+ *         UpgradeableBeacon plus a BeaconProxy, initialised in the same transaction. The plain
+ *         functions create a fresh beacon owned by `admin` (tests and one-off scripts). The `*On`
+ *         functions reuse a beacon, so every instance of a type shares one and a single beacon
+ *         upgrade covers them all.
  *         Internal functions only, so this library adds no deployed bytecode.
  *         Used by the deploy scripts and the tests so both exercise the same path.
  */
 library Proxies {
+    function beacon(address impl, address owner) internal returns (UpgradeableBeacon) {
+        return new UpgradeableBeacon(impl, owner);
+    }
+
+    function _proxy(address beacon_, bytes memory data) private returns (address) {
+        return address(new BeaconProxy(beacon_, data));
+    }
+
+    // ---- DealRegistry ----
     function dealRegistry(address admin) internal returns (DealRegistry) {
-        address impl = address(new DealRegistry());
-        return DealRegistry(address(new ERC1967Proxy(impl, abi.encodeCall(DealRegistry.initialize, (admin)))));
+        return dealRegistryOn(address(beacon(address(new DealRegistry()), admin)), admin);
     }
 
+    function dealRegistryOn(address beacon_, address admin) internal returns (DealRegistry) {
+        return DealRegistry(_proxy(beacon_, abi.encodeCall(DealRegistry.initialize, (admin))));
+    }
+
+    // ---- BondReceiptNFT ----
     function nft(address admin) internal returns (BondReceiptNFT) {
-        address impl = address(new BondReceiptNFT());
-        return BondReceiptNFT(address(new ERC1967Proxy(impl, abi.encodeCall(BondReceiptNFT.initialize, (admin)))));
+        return nftOn(address(beacon(address(new BondReceiptNFT()), admin)), admin);
     }
 
+    function nftOn(address beacon_, address admin) internal returns (BondReceiptNFT) {
+        return BondReceiptNFT(_proxy(beacon_, abi.encodeCall(BondReceiptNFT.initialize, (admin))));
+    }
+
+    // ---- RedemptionVault ----
     function vault(address admin) internal returns (RedemptionVault) {
-        address impl = address(new RedemptionVault());
-        return RedemptionVault(address(new ERC1967Proxy(impl, abi.encodeCall(RedemptionVault.initialize, (admin)))));
+        return vaultOn(address(beacon(address(new RedemptionVault()), admin)), admin);
     }
 
+    function vaultOn(address beacon_, address admin) internal returns (RedemptionVault) {
+        return RedemptionVault(_proxy(beacon_, abi.encodeCall(RedemptionVault.initialize, (admin))));
+    }
+
+    // ---- PooledFinancingVault ----
     function pooledVault(IERC20 asset, address admin) internal returns (PooledFinancingVault) {
-        address impl = address(new PooledFinancingVault());
-        return PooledFinancingVault(
-            address(new ERC1967Proxy(impl, abi.encodeCall(PooledFinancingVault.initialize, (asset, admin))))
-        );
+        return pooledVaultOn(address(beacon(address(new PooledFinancingVault()), admin)), asset, admin);
     }
 
-    function ledgerAnchor(uint256 ledgerChainId, address operator, address upgrader) internal returns (LedgerAnchor) {
-        address impl = address(new LedgerAnchor());
-        return LedgerAnchor(
-            address(new ERC1967Proxy(impl, abi.encodeCall(LedgerAnchor.initialize, (ledgerChainId, operator, upgrader))))
-        );
+    function pooledVaultOn(address beacon_, IERC20 asset, address admin) internal returns (PooledFinancingVault) {
+        return PooledFinancingVault(_proxy(beacon_, abi.encodeCall(PooledFinancingVault.initialize, (asset, admin))));
+    }
+
+    // ---- LedgerAnchor ----
+    function ledgerAnchor(uint256 ledgerChainId, address operator, address beaconOwner) internal returns (LedgerAnchor) {
+        return ledgerAnchorOn(address(beacon(address(new LedgerAnchor()), beaconOwner)), ledgerChainId, operator);
+    }
+
+    function ledgerAnchorOn(address beacon_, uint256 ledgerChainId, address operator) internal returns (LedgerAnchor) {
+        return LedgerAnchor(_proxy(beacon_, abi.encodeCall(LedgerAnchor.initialize, (ledgerChainId, operator))));
     }
 }

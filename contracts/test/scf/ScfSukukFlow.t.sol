@@ -51,7 +51,7 @@ contract ScfSukukFlowTest is TrexFixture {
         maturity = uint40(block.timestamp + 365 days);
         _setUpTrex();
         usdc = deployCode("MockUSDC.sol:MockUSDC");
-        anchor = _deployProxy("LedgerAnchor.sol:LedgerAnchor", abi.encodeWithSignature("initialize(uint256,address,address)", LEDGER_CHAIN_ID, deployer, timelock));
+        anchor = _deployProxy("LedgerAnchor.sol:LedgerAnchor", abi.encodeWithSignature("initialize(uint256,address)", LEDGER_CHAIN_ID, deployer));
 
         DistributionCheckpointModule module;
         (token, mc, module) = _deployTrexToken("Sukuk Mudharabah UMKM SCF Demo 2026", "tSCF-UMKM-2026", 6);
@@ -61,8 +61,7 @@ contract ScfSukukFlowTest is TrexFixture {
                 abi.encodePacked(DIST_INIT, abi.encode(
                     _coins1(usdc), anchor, address(ir), address(token), address(module),
                     SCF_ID, FACE, maturity, MIN_RAISE, uint256(10e6), WINDOW, issuer,
-                    deployer,
-                    timelock))
+                    deployer))
             )
         );
 

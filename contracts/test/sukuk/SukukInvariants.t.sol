@@ -114,8 +114,7 @@ contract SukukInvariantTest is TrexFixture {
                 abi.encodePacked(DIST_INIT, abi.encode(
                     list, anchor, address(ir), address(token), address(module),
                     SUKUK, FACE, maturity, MIN_RAISE, MIN_SUB, WINDOW, treasury,
-                    deployer,
-                    timelock))
+                    deployer))
             )
         );
         _wireDistributor(token, mc, module, address(dist));

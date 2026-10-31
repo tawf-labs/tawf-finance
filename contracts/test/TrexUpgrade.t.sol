@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 // Upgrade tests for the T-REX suite behind the T-REX proxies: one version switch on the
 // TREXImplementationAuthority upgrades every proxy, state is kept, and only the authority owner
-// (the timelock after hand-over) can add or switch versions.
+// (the governance after hand-over) can add or switch versions.
 
 import { TrexFixture } from "./trex/TrexFixture.sol";
 import { TrexProxies } from "../src/proxy/TrexProxies.sol";
@@ -43,9 +43,9 @@ contract TrexUpgradeTest is TrexFixture {
     function setUp() public {
         _setUpTrex();
         (token, mc,) = _deployTrexToken("Upgrade Token", "tUPG", 6);
-        // Hand the authority to the timelock, as the deploy script does.
+        // Hand the authority to the governance, as the deploy script does.
         vm.prank(deployer);
-        trexIA.transferOwnership(timelock);
+        trexIA.transferOwnership(governance);
     }
 
     function _v2() internal returns (ITREXImplementationAuthority.TREXContracts memory c) {
@@ -64,7 +64,7 @@ contract TrexUpgradeTest is TrexFixture {
         assertEq(ctr.getClaimTopics().length, 1);
 
         ITREXImplementationAuthority.TREXContracts memory c = _v2();
-        vm.prank(timelock);
+        vm.prank(governance);
         trexIA.addAndUseTREXVersion(_v(1), c);
 
         // Every proxy now runs the new logic, with the old state.
@@ -95,7 +95,7 @@ contract TrexUpgradeTest is TrexFixture {
 
     function test_rollbackToPreviousVersion() public {
         ITREXImplementationAuthority.TREXContracts memory c = _v2();
-        vm.startPrank(timelock);
+        vm.startPrank(governance);
         trexIA.addAndUseTREXVersion(_v(1), c);
         trexIA.useTREXVersion(_v(0));
         vm.stopPrank();
@@ -112,7 +112,7 @@ contract TrexUpgradeTest is TrexFixture {
     }
 
     function test_unknownVersionReverts() public {
-        vm.prank(timelock);
+        vm.prank(governance);
         vm.expectRevert("invalid argument - non existing version");
         trexIA.useTREXVersion(_v(9));
     }

@@ -46,8 +46,7 @@ contract SukukReentrancyModesTest is TrexFixture {
                 abi.encodePacked(DIST_INIT, abi.encode(
                     list, anchor, address(ir), address(token), address(module),
                     keccak256("S"), uint256(100e6), maturity, uint256(10e6), uint256(1e6), uint40(1 days), deployer,
-                    deployer,
-                    timelock))
+                    deployer))
             )
         );
         _wireDistributor(token, mc, module, address(dist));

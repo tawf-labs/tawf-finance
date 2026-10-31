@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import { Initializable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
-import { UUPSUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import { AccessControlUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 
 /**
@@ -36,12 +35,11 @@ import { AccessControlUpgradeable } from "openzeppelin-contracts-upgradeable/con
  *      regulated issuer once that licence exists; this role split is the
  *      step before it, not a replacement for it.
  */
-contract DealRegistry is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
+contract DealRegistry is Initializable, AccessControlUpgradeable {
     bytes32 public constant ORIGINATOR_ROLE = keccak256("ORIGINATOR_ROLE");
     bytes32 public constant SHARIAH_ROLE = keccak256("SHARIAH_ROLE");
     bytes32 public constant OPS_ROLE = keccak256("OPS_ROLE");
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     enum DealStatus {
         Submitted,    // 0 — pool submitted by a BPRS originator
         BmtApproved,  // 1 — originator/DPS approved (akad reviewed)
@@ -116,18 +114,13 @@ contract DealRegistry is Initializable, AccessControlUpgradeable, UUPSUpgradeabl
     }
 
     /// @notice One-time proxy setup. `admin` receives DEFAULT_ADMIN_ROLE,
-    ///         ADMIN_ROLE and UPGRADER_ROLE. Move UPGRADER_ROLE to a Safe or
-    ///         timelock later with grantRole / revokeRole, no redeploy needed.
+    ///         ADMIN_ROLE. Upgrades go through the beacon, owned by the Governance Safe.
     function initialize(address admin) public initializer {
         __AccessControl_init();
         _nextId = 1;
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
-        _grantRole(UPGRADER_ROLE, admin);
     }
-
-    /// @dev UUPS: only UPGRADER_ROLE may point the proxy at a new implementation.
-    function _authorizeUpgrade(address) internal override onlyRole(UPGRADER_ROLE) {}
 
     // ---------------------------------------------------------------------
     // Admin configuration

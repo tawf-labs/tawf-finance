@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import { Initializable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
-import { UUPSUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import { AccessControlUpgradeable } from "openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -58,15 +57,13 @@ interface ISandboxEligibility {
  *
  *      Checks-effects-interactions and ReentrancyGuard guard every cash move.
  */
-contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, ReentrancyGuard, UUPSUpgradeable, IBalanceCheckpoint {
+contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, ReentrancyGuard, IBalanceCheckpoint {
     using SafeERC20 for IERC20;
     using ProfitAccumulator for ProfitAccumulator.State;
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant FX_ROLE = keccak256("FX_ROLE");
-    /// @notice Held by the timelock only. Its role admin is itself, so nobody else can grant it.
-    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
     uint256 private constant PRECISION = 1e18;
     /// @dev Stablecoin base units per whole token (all settlement coins are 6 decimals).
@@ -211,7 +208,6 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
     /// @param admin DEFAULT_ADMIN_ROLE + ADMIN_ROLE holder.
     /// @param operator OPERATOR_ROLE holder (Tawf ops).
     /// @param maxRateAge_ Maximum age of an FX rate for rate-using actions.
-    /// @param upgrader_ UPGRADER_ROLE holder (the timelock).
     function initialize(
         ILedgerAnchor anchor_,
         ITrexToken token_,
@@ -222,13 +218,12 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
         address treasury_,
         address admin,
         address operator,
-        uint64 maxRateAge_,
-        address upgrader_
+        uint64 maxRateAge_
     ) public initializer {
         if (
             address(anchor_) == address(0) || address(token_) == address(0) || module_ == address(0)
                 || address(sandbox_) == address(0) || compliance_ == address(0) || treasury_ == address(0)
-                || admin == address(0) || operator == address(0) || upgrader_ == address(0)
+                || admin == address(0) || operator == address(0)
         ) revert InvalidAddress();
         __AccessControl_init();
         if (terms_.seriesId == bytes32(0) || terms_.nisbahBps > 10_000) revert InvalidTerms();
@@ -246,12 +241,7 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Reentran
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ADMIN_ROLE, admin);
         _grantRole(OPERATOR_ROLE, operator);
-        _setRoleAdmin(UPGRADER_ROLE, UPGRADER_ROLE);
-        _grantRole(UPGRADER_ROLE, upgrader_);
     }
-
-    /// @dev UUPS: only UPGRADER_ROLE may point the proxy at a new implementation.
-    function _authorizeUpgrade(address) internal override onlyRole(UPGRADER_ROLE) {}
 
     // ---------------------------------------------------------------
     // Settlement stablecoin allowlist

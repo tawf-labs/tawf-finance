@@ -111,8 +111,7 @@ contract TawfDepositoSeriesTest is TrexFixture {
             "TawfDepositoSeries.sol:TawfDepositoSeries",
             abi.encodePacked(SERIES_INIT, abi.encode(
                 anchor, address(token), address(checkpoint), address(sandbox), address(mc),
-                SERIES_ID, uint8(3), uint16(6000), operator, operator, operator, uint64(1 days),
-                timelock))
+                SERIES_ID, uint8(3), uint16(6000), operator, operator, operator, uint64(1 days)))
         );
 
         // SCREENED_GROUP so investors with a screening claim can subscribe.
