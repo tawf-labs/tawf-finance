@@ -1,4 +1,4 @@
-// Beacon upgrades, Safe executions, owner and threshold changes, timelock calls, and token pause and freeze events.
+// Beacon upgrades, Safe executions, owner and threshold changes, and token pause and freeze events.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ponder } from 'ponder:registry'
 import { governanceEvent, tokenControl, tokenTransferCount } from 'ponder:schema'
@@ -8,7 +8,7 @@ import { ts } from './lib/db'
 const on = (name: string, fn: (a: { event: any; context: any }) => Promise<void>) => (ponder as any).on(name, fn)
 const has = (n: string) => n in config.contracts
 
-async function gov(context: any, event: any, source: 'beacon' | 'safe' | 'timelock', kind: string, f: { subject?: string | null; value?: bigint | null; ref?: string | null } = {}) {
+async function gov(context: any, event: any, source: 'beacon' | 'safe', kind: string, f: { subject?: string | null; value?: bigint | null; ref?: string | null } = {}) {
   await context.db
     .insert(governanceEvent)
     .values({
@@ -37,12 +37,6 @@ if (has('Safe')) {
   on('Safe:AddedOwner', async ({ event, context }) => gov(context, event, 'safe', 'AddedOwner', { subject: event.args.owner }))
   on('Safe:RemovedOwner', async ({ event, context }) => gov(context, event, 'safe', 'RemovedOwner', { subject: event.args.owner }))
   on('Safe:ChangedThreshold', async ({ event, context }) => gov(context, event, 'safe', 'ChangedThreshold', { value: event.args.threshold }))
-}
-
-if (has('Timelock')) {
-  on('Timelock:CallScheduled', async ({ event, context }) => gov(context, event, 'timelock', 'CallScheduled', { subject: event.args.target, ref: event.args.id, value: event.args.delay }))
-  on('Timelock:CallExecuted', async ({ event, context }) => gov(context, event, 'timelock', 'CallExecuted', { subject: event.args.target, ref: event.args.id, value: event.args.value }))
-  on('Timelock:Cancelled', async ({ event, context }) => gov(context, event, 'timelock', 'Cancelled', { ref: event.args.id }))
 }
 
 if (has('Token')) {

@@ -1,0 +1,60 @@
+# Postgres 16, the Ponder indexer and a Caddy reverse proxy with automatic TLS.
+# Run from the repo root or from indexer/:  docker compose -f indexer/docker-compose.yml --env-file indexer/.env.local up -d --build
+# Secrets live in .env.local on the VPS and are never committed. See indexer/README.md.
+name: tawf-indexer
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ponder
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.local}
+      POSTGRES_DB: ponder
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ponder -d ponder']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Not published to the host: only the indexer reaches it.
+
+  indexer:
+    build:
+      context: ..
+      dockerfile: indexer/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://ponder:${POSTGRES_PASSWORD}@postgres:5432/ponder
+      DATABASE_SCHEMA: ${DATABASE_SCHEMA:-tawf_v1}
+      DATABASE_VIEWS_SCHEMA: ${DATABASE_VIEWS_SCHEMA:-tawf}
+      QUICKNODE_ARB_SEPOLIA_URL: ${QUICKNODE_ARB_SEPOLIA_URL:-}
+      PUBLIC_RPC_URL: ${PUBLIC_RPC_URL:-https://sepolia-rollup.arbitrum.io/rpc}
+      PONDER_API_TOKEN: ${PONDER_API_TOKEN:?set PONDER_API_TOKEN in .env.local}
+    expose:
+      - '42069'
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - indexer
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      INDEXER_DOMAIN: ${INDEXER_DOMAIN:?set INDEXER_DOMAIN in .env.local, for example indexer.tawf.finance}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

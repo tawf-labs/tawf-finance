@@ -49,10 +49,16 @@ app.get('/activity', async (c) => {
   if (from !== undefined && !/^\d+$/.test(from)) return c.json({ error: 'from must be a non-negative integer block number.' }, 400)
   const a = tables.activity
   const wallet = q ? (q.toLowerCase() as `0x${string}`) : null
+  // The app's products are pool, series1, scf, ledger and identity. Series 2 is a separate contract the app does not show, so it is left out unless ?include=series2.
+  const withSeries2 = c.req.query('include') === 'series2'
+  const shown = withSeries2 ? ['pool', 'series1', 'series2', 'scf', 'ledger', 'identity'] : ['pool', 'series1', 'scf', 'ledger', 'identity']
+  const where = wallet
+    ? or(and(eq(a.investor, wallet), inArray(a.product, ['pool', 'series1', 'series2', 'scf'].filter((p) => shown.includes(p)))), and(isNull(a.investor), inArray(a.kind, GLOBAL_KINDS), inArray(a.product, shown)))
+    : inArray(a.product, shown)
   const rows = await db
     .select()
     .from(a)
-    .where(wallet ? or(and(eq(a.investor, wallet), inArray(a.product, ['pool', 'series1', 'series2', 'scf'])), and(isNull(a.investor), inArray(a.kind, GLOBAL_KINDS))) : undefined)
+    .where(where)
     .orderBy(desc(a.blockNumber), desc(a.id))
     .limit(300)
   const events = rows
@@ -76,7 +82,7 @@ app.get('/activity', async (c) => {
   return c.json({ toBlock, partial: false, source: 'ponder', wallet: wallet ? getAddress(wallet) : null, events })
 })
 
-/** Beacon upgrades, Safe executions, owner and threshold changes, timelock calls. Newest first. */
+/** Beacon upgrades, Safe executions, owner and threshold changes. Newest first. */
 app.get('/governance', async (c) => {
   const g = tables.governanceEvent
   const source = c.req.query('source')

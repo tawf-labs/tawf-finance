@@ -1,0 +1,20 @@
+# TLS is automatic once the DNS record for $INDEXER_DOMAIN points at this VPS.
+# /health and /ready are open. Query endpoints are token-protected by the indexer itself (PONDER_API_TOKEN).
+# /metrics and /status are internal: blocked here so only the VPS can read them (docker compose exec indexer ...).
+{$INDEXER_DOMAIN} {
+	encode zstd gzip
+
+	@internal path /metrics /metrics/* /status /status/*
+	respond @internal 404
+
+	reverse_proxy indexer:42069 {
+		health_uri /health
+		health_interval 30s
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		-Server
+	}
+}

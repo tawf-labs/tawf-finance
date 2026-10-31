@@ -1,5 +1,5 @@
 import { createConfig } from 'ponder'
-import { BeaconAbi, SafeAbi, TimelockAbi } from './abis/Governance'
+import { BeaconAbi, SafeAbi } from './abis/Governance'
 import { DepositoPoolLedgerAbi } from './abis/DepositoPoolLedger'
 import { IdentityRegistryAbi } from './abis/IdentityRegistry'
 import { ScfInvestorLimitModuleAbi } from './abis/ScfInvestorLimitModule'
@@ -10,13 +10,15 @@ import { TokenAbi } from './abis/Token'
 import { addr, block, bySuffix } from './src/lib/deployments'
 import { splitTransport } from './src/lib/transport'
 
-// Arbitrum Sepolia only. Addresses and start blocks come from tokenization.deployments.json, V1 keys included.
+// Arbitrum Sepolia only. Governance is beacons and Safes, there is no timelock. Addresses and start blocks come from tokenization.deployments.json, V1 keys included.
 // A contract whose key is missing or zero is left out, so the config follows the file after a redeploy.
 const seriesFrom = block('tawfSeriesBlock')
 const poolFrom = block('depositoPoolBlock', seriesFrom)
 const scfFrom = block('scfBlock', seriesFrom)
 const scfV1From = block('scfBlockV1', seriesFrom)
-const govFrom = Number(process.env.GOVERNANCE_START_BLOCK ?? block('governanceBlock', seriesFrom))
+// Beacon keys end in Beacon (any), Safe keys are govSafe, treasurySafe, mintingSafe, complianceSafe and guardianSafe,
+// and governanceStartBlock is a top-level key in the deployments file.
+const govFrom = block('governanceStartBlock', seriesFrom)
 
 const A = 'arbitrumSepolia' as const
 const one = <T extends object>(address: string | null, startBlock: number, extra: T) =>
@@ -30,7 +32,6 @@ const tokens = ['tawfSeriesToken', 'tawfSeries2Token', 'depositoPoolToken', 'scf
 
 const beacons = Object.values(bySuffix('Beacon'))
 const safes = Object.values(bySuffix('Safe'))
-const timelocks = Object.values(bySuffix('Timelock'))
 
 const candidates = {
   DepositoLedger: one(addr('depositoPoolLedger'), poolFrom, { abi: DepositoPoolLedgerAbi }),
@@ -45,7 +46,6 @@ const candidates = {
   Token: many(tokens, seriesFrom, { abi: TokenAbi }),
   Beacon: many(beacons, govFrom, { abi: BeaconAbi }),
   Safe: many(safes, govFrom, { abi: SafeAbi }),
-  Timelock: many(timelocks, govFrom, { abi: TimelockAbi }),
 }
 
 const contracts = Object.fromEntries(Object.entries(candidates).filter(([, v]) => v !== null)) as {

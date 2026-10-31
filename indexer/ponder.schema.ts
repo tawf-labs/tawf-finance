@@ -143,17 +143,17 @@ export const identity = onchainTable('identity', (t) => ({
   removed: t.boolean().notNull(),
 }))
 
-// Beacon upgrades, Safe executions, owner and threshold changes, timelock calls.
+// Beacon upgrades, Safe executions, owner and threshold changes.
 export const governanceEvent = onchainTable(
   'governance_event',
   (t) => ({
     id: t.text().primaryKey(), // txHash:logIndex
-    source: t.text().notNull(), // beacon | safe | timelock
+    source: t.text().notNull(), // beacon | safe
     kind: t.text().notNull(),
     contract: t.hex().notNull(),
-    subject: t.hex(), // new implementation, owner, or call target
-    value: t.bigint(), // threshold, payment, or delay
-    ref: t.hex(), // Safe tx hash or timelock operation id
+    subject: t.hex(), // new implementation, owner, 
+    value: t.bigint(), // threshold or payment
+    ref: t.hex(), // Safe tx hash
     blockNumber: t.bigint().notNull(),
     txHash: t.hex().notNull(),
     timestamp: t.integer().notNull(),
