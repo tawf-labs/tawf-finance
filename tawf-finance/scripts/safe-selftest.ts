@@ -1,52 +1,65 @@
 /**
- * Offline check of the Safe transaction hash used by api/_tokenization/_lib/safe.ts.
+ * Offline checks for the Safe flow (api/_tokenization/_lib/safe.ts, src/web3/safe.ts).
  * Run: DEMO_OPERATOR_KEY=0x01 npx tsx scripts/safe-selftest.ts
- * Recomputes the hash by hand (SafeTx typehash, domain separator, 0x1901 prefix) and compares it
- * with the viem EIP-712 hash, and checks the SafeTx typehash against the constant in GnosisSafe.sol.
+ * The Safe contract and the key-value store are stubbed here. The real Safe contract is exercised by
+ * contracts/test/SafeApproveFlow.t.sol on a fork of Arbitrum Sepolia.
  */
 import { concat, encodeAbiParameters, keccak256, toHex, type Address, type Hex } from 'viem'
-import { safeTxHash, type SafeTxMessage } from '../api/_tokenization/_lib/safe.js'
+import { arbitrumSepolia } from 'viem/chains'
+import { safeTxHash, packApprovedHashSignatures, type SafeTxMessage } from '../src/web3/safe.js'
+import {
+  submitAdminTx, proposeToSafe, listPending, safesRequired, assertLiveChain, assertOperatorFallbackAllowed,
+} from '../api/_tokenization/_lib/safe.js'
+import { selfServiceIssuer, selfServiceAgent } from '../api/_tokenization/_lib/identity.js'
+import { publicClient } from '../api/_tokenization/_lib/operator.js'
 
-const SAFE_TX_TYPEHASH = keccak256(
-  toHex('SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)'),
-)
-const DOMAIN_TYPEHASH = keccak256(toHex('EIP712Domain(uint256 chainId,address verifyingContract)'))
-const KNOWN_SAFE_TX_TYPEHASH = '0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8'
-
-const safe = '0x1111111111111111111111111111111111111111' as Address
-const tx: SafeTxMessage = {
-  to: '0x2222222222222222222222222222222222222222',
-  value: 0n,
-  data: '0xdeadbeef',
-  operation: 0,
-  safeTxGas: 0n,
-  baseGas: 0n,
-  gasPrice: 0n,
-  gasToken: '0x0000000000000000000000000000000000000000',
-  refundReceiver: '0x0000000000000000000000000000000000000000',
-  nonce: 7n,
+const ok = (m: string) => console.log(`safe-selftest ${m} ok`)
+async function rejects(label: string, run: () => Promise<unknown> | unknown, match: RegExp) {
+  try {
+    await run()
+  } catch (e) {
+    if (!match.test((e as Error).message)) throw new Error(`${label}: wrong error: ${(e as Error).message}`)
+    return
+  }
+  throw new Error(`${label}: expected a rejection`)
 }
-const chainId = 421614
 
-if (SAFE_TX_TYPEHASH !== KNOWN_SAFE_TX_TYPEHASH) throw new Error(`SafeTx typehash mismatch: ${SAFE_TX_TYPEHASH}`)
-
-const domainSeparator = keccak256(
-  encodeAbiParameters([{ type: 'bytes32' }, { type: 'uint256' }, { type: 'address' }], [DOMAIN_TYPEHASH, BigInt(chainId), safe]),
-)
-const structHash = keccak256(
-  encodeAbiParameters(
+// ---- 1. SafeTx hash matches a hand-built EIP-712 hash and the GnosisSafe typehash -----------------
+const SAFE_TX_TYPEHASH = keccak256(toHex('SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)'))
+const DOMAIN_TYPEHASH = keccak256(toHex('EIP712Domain(uint256 chainId,address verifyingContract)'))
+if (SAFE_TX_TYPEHASH !== '0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8') throw new Error('SafeTx typehash mismatch')
+{
+  const safe = '0x1111111111111111111111111111111111111111' as Address
+  const tx: SafeTxMessage = {
+    to: '0x2222222222222222222222222222222222222222', value: 0n, data: '0xdeadbeef', operation: 0,
+    safeTxGas: 0n, baseGas: 0n, gasPrice: 0n,
+    gasToken: '0x0000000000000000000000000000000000000000', refundReceiver: '0x0000000000000000000000000000000000000000', nonce: 7n,
+  }
+  const domainSeparator = keccak256(encodeAbiParameters([{ type: 'bytes32' }, { type: 'uint256' }, { type: 'address' }], [DOMAIN_TYPEHASH, 421614n, safe]))
+  const structHash = keccak256(encodeAbiParameters(
     [{ type: 'bytes32' }, { type: 'address' }, { type: 'uint256' }, { type: 'bytes32' }, { type: 'uint8' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'address' }, { type: 'address' }, { type: 'uint256' }],
     [SAFE_TX_TYPEHASH, tx.to, tx.value, keccak256(tx.data), tx.operation, tx.safeTxGas, tx.baseGas, tx.gasPrice, tx.gasToken, tx.refundReceiver, tx.nonce],
-  ),
-)
-const manual: Hex = keccak256(concat(['0x1901', domainSeparator, structHash]))
-const lib = safeTxHash(safe, tx, chainId)
-if (manual !== lib) throw new Error(`hash mismatch: manual ${manual} lib ${lib}`)
-console.log('safe-selftest ok', lib)
+  ))
+  if (keccak256(concat(['0x1901', domainSeparator, structHash])) !== safeTxHash(safe, tx, 421614)) throw new Error('hash mismatch')
+  ok('safeTxHash')
+}
 
-// ---- Fail-closed rules for submitAdminTx --------------------------------------------------
-import { submitAdminTx } from '../api/_tokenization/_lib/safe.js'
+// ---- 2. Approved-hash signatures are sorted by owner and 65 bytes each ------------------------------
+{
+  const a = '0xaAaAaAaaAaAaAaaAaaAAAAAAAAaaaAaAaaAaaAaa' as Address
+  const b = '0x1111111111111111111111111111111111111111' as Address
+  const c = '0x9999999999999999999999999999999999999999' as Address
+  const sig = packApprovedHashSignatures([a, c, b])
+  if ((sig.length - 2) / 2 !== 65 * 3) throw new Error('signature length')
+  const parts = [0, 1, 2].map((i) => sig.slice(2 + i * 130, 2 + (i + 1) * 130))
+  const owners = parts.map((p) => ('0x' + p.slice(24, 64)).toLowerCase())
+  if (owners.join() !== [b, c, a].map((x) => x.toLowerCase()).join()) throw new Error(`not sorted: ${owners}`)
+  for (const p of parts) if (!p.endsWith('0'.repeat(64) + '01')) throw new Error('s must be 0 and v must be 1')
+  ok('approved-hash signatures')
+}
 
+// ---- 3. Fail closed ---------------------------------------------------------------------------------
+process.env.SAFE_SLOT_RECHECK_MS = '5'
 const call = {
   duty: 'minting' as const,
   address: '0x2222222222222222222222222222222222222222' as Address,
@@ -54,161 +67,131 @@ const call = {
   functionName: 'ping',
   description: 'selftest',
 }
-async function rejects(label: string, run: () => Promise<unknown>, match: RegExp) {
-  try {
-    await run()
-  } catch (e) {
-    const msg = (e as Error).message
-    if (!match.test(msg)) throw new Error(`${label}: wrong error: ${msg}`)
-    return
-  }
-  throw new Error(`${label}: expected a rejection`)
-}
-
-process.env.SAFE_TX_SERVICE_URL = 'http://safe.test/tx-service'
 const realFetch = globalThis.fetch
 delete process.env.DEMO_OPERATOR_KEY // a direct operator send would die with "DEMO_OPERATOR_KEY is not set"
 process.env.MINTING_SAFE = '0x3333333333333333333333333333333333333333'
-// 1. Safe set, Transaction Service down: error from the service, never an operator send.
-globalThis.fetch = (async () => { throw new Error('service down') }) as typeof fetch
-await rejects('service down', () => submitAdminTx(call, 421614), /service down|Safe Transaction Service/)
-// 2. Safe set, Transaction Service answers 500.
-globalThis.fetch = (async () => new Response('boom', { status: 500 })) as typeof fetch
-await rejects('service 500', () => submitAdminTx(call, 421614), /Safe Transaction Service 500/)
-// 3. Safe env set to garbage: error, no fallback.
+delete process.env.QUICKNODE_API_KEY
+await rejects('no store', () => submitAdminTx(call, 421614), /key-value store/)
+process.env.QUICKNODE_API_KEY = 'k'
+globalThis.fetch = (async () => { throw new Error('store down') }) as typeof fetch
+const chainRead = publicClient as unknown as { readContract: unknown; multicall: unknown; getChainId: unknown }
+const realRead = chainRead.readContract
+chainRead.readContract = async () => 0n
+await rejects('store down', () => submitAdminTx(call, 421614), /unreachable|store down/)
 process.env.MINTING_SAFE = 'not-an-address'
 await rejects('bad env', () => submitAdminTx(call, 421614), /not a valid address/)
-// 4. No Safe on another chain: fail closed.
 delete process.env.MINTING_SAFE
-await rejects('mainnet no safe', () => submitAdminTx(call, 42161), /never sends minting actions directly/)
-// 5. No Safe on Arbitrum Sepolia and SAFES_REQUIRED on (the default): error, no operator send.
 delete process.env.SAFES_REQUIRED
-await rejects('required on, no safe', () => submitAdminTx(call, 421614), /SAFES_REQUIRED is on/)
-process.env.MINTING_SAFE = '   ' // blank is the same as missing
-await rejects('required on, blank safe', () => submitAdminTx(call, 421614), /SAFES_REQUIRED is on/)
+await rejects('required, no safe', () => submitAdminTx(call, 421614), /SAFES_REQUIRED is on/)
+process.env.MINTING_SAFE = '   '
+await rejects('required, blank safe', () => submitAdminTx(call, 421614), /SAFES_REQUIRED is on/)
 delete process.env.MINTING_SAFE
-// 6. Explicitly off on Arbitrum Sepolia only: the operator path is attempted (fails here only for the missing key).
+await rejects('42161 no safe', () => submitAdminTx(call, 42161), /never sends minting actions directly/)
 process.env.SAFES_REQUIRED = 'false'
-await rejects('explicit off on sepolia', () => submitAdminTx(call, 421614), /DEMO_OPERATOR_KEY is not set/)
-// 7. The switch cannot be turned off anywhere else.
-await rejects('off does not help on 42161', () => submitAdminTx(call, 42161), /never sends minting actions directly/)
+await rejects('explicit off, sepolia', () => submitAdminTx(call, 421614), /DEMO_OPERATOR_KEY is not set/)
+await rejects('explicit off, other chain', () => submitAdminTx(call, 42161), /never sends minting actions directly/)
+if (safesRequired(42161) !== true) throw new Error('off must not work elsewhere')
 delete process.env.SAFES_REQUIRED
-globalThis.fetch = realFetch
-console.log('safe-selftest fail-closed ok')
+if (!safesRequired(421614)) throw new Error('SAFES_REQUIRED must be on by default')
+void assertOperatorFallbackAllowed
+ok('fail closed')
 
-// ---- Test ClaimIssuer is testnet only ---------------------------------------------------
-import { selfServiceIssuer } from '../api/_tokenization/_lib/identity.js'
-try {
-  selfServiceIssuer(42161)
-  throw new Error('selfServiceIssuer must refuse a non-Sepolia chain')
-} catch (e) {
-  if (!/testnet only/.test((e as Error).message)) throw e
-}
-console.log('safe-selftest test-issuer chain guard ok')
-
-// ---- Test registry agent is testnet only ------------------------------------------------
-import { selfServiceAgent } from '../api/_tokenization/_lib/identity.js'
-try {
-  selfServiceAgent(42161)
-  throw new Error('selfServiceAgent must refuse a non-Sepolia chain')
-} catch (e) {
-  if (!/testnet only/.test((e as Error).message)) throw e
-}
-console.log('safe-selftest test-registry-agent chain guard ok')
-
-// ---- SAFES_REQUIRED for the test issuer / agent, live chain check --------------------------
-import { safesRequired, assertLiveChain } from '../api/_tokenization/_lib/safe.js'
-import { publicClient } from '../api/_tokenization/_lib/operator.js'
-delete process.env.SAFES_REQUIRED
-if (!safesRequired(421614) || !safesRequired(42161)) throw new Error('SAFES_REQUIRED must be on by default')
+// ---- 4. Test issuer / agent, chain guards, live chain ----------------------------------------------
+await rejects('issuer 42161', () => selfServiceIssuer(42161), /testnet only/)
+await rejects('agent 42161', () => selfServiceAgent(42161), /testnet only/)
+await rejects('issuer required', () => selfServiceIssuer(421614), /SAFES_REQUIRED is on/)
+await rejects('agent required', () => selfServiceAgent(421614), /SAFES_REQUIRED is on/)
 process.env.SAFES_REQUIRED = 'false'
-if (safesRequired(421614) !== false) throw new Error('explicit false must switch it off on 421614')
-if (safesRequired(42161) !== true) throw new Error('explicit false must not switch it off elsewhere')
-delete process.env.SAFES_REQUIRED
-// no testClaimIssuer / testRegistryAgent in deployments yet -> error while required
-for (const [name, fn] of [['issuer', () => selfServiceIssuer(421614)], ['agent', () => selfServiceAgent(421614)]] as const) {
-  try {
-    fn()
-    throw new Error(`${name}: expected an error with SAFES_REQUIRED on`)
-  } catch (e) {
-    if (!/SAFES_REQUIRED is on/.test((e as Error).message)) throw e
-  }
-}
-process.env.SAFES_REQUIRED = 'false'
-selfServiceIssuer(421614)
 process.env.DEMO_OPERATOR_KEY = '0x0000000000000000000000000000000000000000000000000000000000000001'
-selfServiceAgent(421614) // legacy operator fallback allowed when explicitly off on Sepolia
+selfServiceIssuer(421614)
+selfServiceAgent(421614)
 delete process.env.SAFES_REQUIRED
-// live RPC chain id differing from deployments.json is an error
-;(publicClient as unknown as { getChainId: () => Promise<number> }).getChainId = async () => 1
+chainRead.getChainId = async () => 1
 await rejects('live chain mismatch', () => assertLiveChain(), /differs from deployments\.json/)
-console.log('safe-selftest SAFES_REQUIRED + live chain ok')
+ok('issuer, agent and live chain')
 
-// ---- Concurrent proposals get distinct nonces ---------------------------------------------
-import { proposeToSafe, listPending } from '../api/_tokenization/_lib/safe.js'
-const SAFE = '0x4444444444444444444444444444444444444444'
+// ---- 5. Proposals, nonces, approvals, stale ----------------------------------------------------------
+const SAFE = '0x4444444444444444444444444444444444444444' as Address
 process.env.MINTING_SAFE = SAFE
-process.env.TREASURY_SAFE = '0x5555555555555555555555555555555555555555'
-interface FakeTx { nonce: number; safeTxHash: string; origin: unknown }
-function fakeService(opts: { foreignOnce?: boolean } = {}) {
-  const txs: FakeTx[] = []
-  let injected = false
+const OWNERS = ['0xA000000000000000000000000000000000000001', '0xA000000000000000000000000000000000000002', '0xA000000000000000000000000000000000000003'] as Address[]
+let safeNonce = 0n
+const approved = new Set<string>() // owner:hash
+chainRead.readContract = async (a: { functionName: string; args?: unknown[] }) => {
+  if (a.functionName === 'nonce') return safeNonce
+  if (a.functionName === 'getThreshold') return 2n
+  if (a.functionName === 'getOwners') return OWNERS
+  if (a.functionName === 'getTransactionHash') {
+    const x = a.args as [Address, bigint, Hex, number, bigint, bigint, bigint, Address, Address, bigint]
+    return safeTxHash(SAFE, { to: x[0], value: x[1], data: x[2], operation: 0, safeTxGas: x[4], baseGas: x[5], gasPrice: x[6], gasToken: x[7], refundReceiver: x[8], nonce: x[9] }, 421614)
+  }
+  throw new Error('unexpected read ' + a.functionName)
+}
+chainRead.multicall = async (a: { contracts: { args: [Address, Hex] }[] }) =>
+  a.contracts.map((c) => (approved.has(`${c.args[0]}:${c.args[1]}`) ? 1n : 0n))
+
+function fakeKv() {
+  const lists = new Map<string, string[]>()
+  const sets = new Map<string, string>()
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
   const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status })
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input))
-    const path = url.pathname.replace('/tx-service', '')
-    await sleep(Math.random() * 15) // let requests interleave
     const method = init?.method ?? 'GET'
-    if (method === 'GET' && /\/api\/v1\/safes\/0x[0-9a-fA-F]{40}\/$/.test(path)) return json({ nonce: 0 })
-    if (method === 'GET' && path.endsWith('/multisig-transactions/')) {
-      const q = url.searchParams
-      if (q.get('nonce') !== null) return json({ results: txs.filter((t) => t.nonce === Number(q.get('nonce'))) })
-      if (q.get('ordering') === '-nonce') return json({ results: [...txs].sort((a, b) => b.nonce - a.nonce).slice(0, 1) })
-      return json({ results: txs })
+    await sleep(Math.random() * 10)
+    const m = url.pathname.match(/\/kv\/rest\/v1\/(sets|lists)(?:\/([^/]+))?(\/items)?$/)
+    if (!m) return new Response('?', { status: 404 })
+    const [, kind, rawKey, items] = m
+    const key = rawKey ? decodeURIComponent(rawKey) : ''
+    if (kind === 'sets') {
+      if (method === 'POST') { const b = JSON.parse(String(init?.body)); sets.set(b.key, b.value); return json({}) }
+      return sets.has(key) ? json({ data: { value: sets.get(key) } }) : new Response('', { status: 404 })
     }
-    if (method === 'POST' && path.endsWith('/multisig-transactions/')) {
-      const b = JSON.parse(String(init?.body))
-      txs.push({ nonce: Number(b.nonce), safeTxHash: b.contractTransactionHash, origin: b.origin })
-      if (opts.foreignOnce && !injected) {
-        injected = true // another instance wins the same nonce right after us
-        txs.push({ nonce: Number(b.nonce), safeTxHash: '0x' + 'ab'.repeat(32), origin: '{}' })
-      }
-      return json({})
+    if (method === 'POST' && items) {
+      const l = lists.get(key); if (!l) return new Response('', { status: 404 })
+      const { item } = JSON.parse(String(init?.body)); if (!l.includes(item)) l.push(item); return json({})
     }
-    if (method === 'DELETE') {
-      const hash = path.split('/').filter(Boolean).pop()!
-      const i = txs.findIndex((t) => t.safeTxHash === hash)
-      if (i >= 0) txs.splice(i, 1)
-      return json({})
-    }
-    return new Response('unexpected ' + method + ' ' + path, { status: 404 })
+    if (method === 'POST') { const b = JSON.parse(String(init?.body)); if (lists.has(b.key)) return new Response('', { status: 409 }); lists.set(b.key, [...b.items]); return json({}) }
+    return lists.has(key) ? json({ data: { items: lists.get(key) } }) : new Response('', { status: 404 })
   }) as typeof fetch
-  return txs
+  return { lists, sets }
 }
-process.env.DEMO_OPERATOR_KEY = '0x0000000000000000000000000000000000000000000000000000000000000001'
 {
-  const txs = fakeService()
+  fakeKv()
   const out = await Promise.all(Array.from({ length: 5 }, (_, i) => proposeToSafe({ ...call, description: `p${i}` })))
   const nonces = out.map((o) => Number(o.nonce)).sort((a, b) => a - b)
   if (nonces.join() !== '0,1,2,3,4') throw new Error(`parallel nonces not distinct: ${nonces.join()}`)
-  if (txs.length !== 5) throw new Error('expected 5 queued txs')
-  console.log('safe-selftest 5 parallel proposals ok', nonces.join())
+  ok('5 parallel proposals ' + nonces.join())
+
+  // first proposal targets the current Safe nonce, the rest queue behind it
+  let rows = await listPending(['minting'])
+  if (rows.length !== 5 || rows.some((r) => r.status === 'superseded')) throw new Error('expected 5 live proposals: ' + JSON.stringify(rows.map((r) => [r.nonce, r.status])))
+  // approvals: 1 of 2 -> pending, 2 of 2 on the next nonce -> ready, on a later nonce -> pending
+  const h0 = rows[0].safeTxHash, h1 = rows[1].safeTxHash
+  approved.add(`${OWNERS[0]}:${h0}`)
+  rows = await listPending(['minting'])
+  if (rows[0].status !== 'pending' || rows[0].approvedBy.length !== 1) throw new Error('1 of 2 must stay pending')
+  approved.add(`${OWNERS[2]}:${h0}`)
+  approved.add(`${OWNERS[0]}:${h1}`)
+  approved.add(`${OWNERS[1]}:${h1}`)
+  rows = await listPending(['minting'])
+  if (rows[0].status !== 'ready') throw new Error('threshold met on the next nonce must be ready')
+  if (rows[1].status !== 'pending') throw new Error('a later nonce must wait even with the threshold met')
+  if (rows[0].signatures !== packApprovedHashSignatures([OWNERS[0], OWNERS[2]])) throw new Error('signatures must be the approvers, sorted')
+  // the Safe executes nonce 0: it is stale now and nonce 1 becomes ready
+  safeNonce = 1n
+  rows = await listPending(['minting'])
+  if (rows.some((r) => r.nonce === 0)) throw new Error('stale proposals are hidden by default')
+  if (rows[0].nonce !== 1 || rows[0].status !== 'ready') throw new Error('nonce 1 must be ready next')
+  const all = await listPending(['minting'], true)
+  if (all.find((r) => r.nonce === 0)?.status !== 'stale') throw new Error('nonce below the Safe nonce is stale')
+  ok('pending, approvals, ready and stale')
+
+  // a new proposal after the nonce moved targets the first free nonce at or above the Safe nonce
+  const next = await proposeToSafe({ ...call, description: 'after' })
+  if (Number(next.nonce) !== 5) throw new Error(`expected nonce 5, got ${next.nonce}`)
+  ok('next nonce')
 }
-{
-  const txs = fakeService({ foreignOnce: true }) // cross-instance clash on the first nonce
-  const out = await proposeToSafe(call)
-  if (Number(out.nonce) !== 1) throw new Error(`expected a retry on nonce 1, got ${out.nonce}`)
-  if (new Set(txs.map((t) => t.nonce)).size !== txs.length) throw new Error('a nonce is shared after the retry')
-  console.log('safe-selftest conflict retry ok')
-}
-{
-  // The pending note may be a string, a JSON string, an object or junk: always a string or null.
-  const txs = fakeService()
-  txs.push({ nonce: 0, safeTxHash: '0x' + '01'.repeat(32), origin: { note: { deep: 1 } } })
-  txs.push({ nonce: 1, safeTxHash: '0x' + '02'.repeat(32), origin: JSON.stringify({ note: 'ok' }) })
-  txs.push({ nonce: 2, safeTxHash: '0x' + '03'.repeat(32), origin: 42 })
-  const rows = await listPending(['minting'])
-  for (const r of rows) if (r.note !== null && typeof r.note !== 'string') throw new Error('note must be a string')
-  console.log('safe-selftest pending note strings ok')
-}
+globalThis.fetch = realFetch
+void arbitrumSepolia
+void realRead
+console.log('safe-selftest all ok')

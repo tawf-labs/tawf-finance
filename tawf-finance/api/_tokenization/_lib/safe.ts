@@ -1,35 +1,39 @@
 /**
- * Propose admin actions to the Gnosis Safe that owns the duty, instead of signing them with the
- * operator key.
+ * Admin actions that need people: queue them on the duty's Gnosis Safe instead of signing with the operator.
  *
- * One Safe per duty (the canonical Safe contracts on Arbitrum Sepolia, no custom multisig):
+ * One Safe per duty (canonical Safe contracts, no custom multisig):
  *   governance  GOV_SAFE        beacons, authorities, role admin, offerings, hooks, series config
- *   treasury    TREASURY_SAFE   money out: distribute, settle, closeSubscription, releaseHeldProfit
+ *   treasury    TREASURY_SAFE   money out: distribute, settle, closeSubscription, releaseHeldProfit, Tawf share
  *   minting     MINTING_SAFE    series allocate (mints), token mint and burn
  *   compliance  COMPLIANCE_SAFE claims, identities, SCF profiles and usage resets
  *   guardian    GUARDIAN_SAFE   pause only
- * Data posts (FX, ledger snapshots, profit records, anchor roots) stay on the operator key.
+ * Data posts (FX, ledger snapshots, profit records, anchor roots) stay on the operator key and never use this.
  *
- * `submitAdminTx` proposes to the Safe Transaction Service when the duty's Safe is configured and
- * falls back to the operator signing only when it is not (the pre-Safe testnet stack). The operator
- * EOA is only a PROPOSER: the Safe owners add it as a delegate (Safe{Wallet}, Settings), so it can
- * queue a transaction but never confirm or execute one. Owners approve in Safe{Wallet}.
+ * No hosted Safe service exists for Arbitrum Sepolia, so the flow is on chain:
+ *   1. propose: the API reads the Safe nonce, picks a free nonce, computes the SafeTx hash with
+ *      Safe.getTransactionHash and stores the proposal in the key-value store (append-only, one key per
+ *      proposal, no read-modify-write).
+ *   2. approve: each owner calls Safe.approveHash(hash) from the admin UI with their own wallet.
+ *   3. execute: once `threshold` owners approved and the nonce is next, anyone calls Safe.execTransaction
+ *      with the approved-hash signatures (`packApprovedHashSignatures`).
+ * The API holds no Safe signer key and cannot approve or execute anything.
  *
  * Env: GOV_SAFE, TREASURY_SAFE, MINTING_SAFE, COMPLIANCE_SAFE, GUARDIAN_SAFE (addresses),
- * SAFE_TX_SERVICE_URL (default https://api.safe.global/tx-service/arb-sepolia), SAFE_API_KEY
- * (Bearer key from the Safe developer dashboard, needed above the anonymous rate limit).
+ * SAFES_REQUIRED ("false" only on Arbitrum Sepolia switches the operator fallback back on), and the
+ * key-value store key (QUICKNODE_API_KEY) that already backs the activity index.
  */
 import {
   encodeFunctionData,
   getAddress,
-  hashTypedData,
   isAddress,
   type Abi,
   type Address,
   type Hex,
 } from 'viem'
 import { arbitrumSepolia } from 'viem/chains'
-import { account, addresses, fetchWithTimeout, walletClient, publicClient } from './operator.js'
+import { addresses, walletClient, publicClient } from './operator.js'
+import { kvEnabled, kvGetJson, kvListAdd, kvListGet, kvPool, kvSetJson } from './qn-kv.js'
+import { safeAbi, ZERO_ADDRESS, packApprovedHashSignatures } from '../../../src/web3/safe.js'
 
 export type Duty = 'governance' | 'treasury' | 'minting' | 'compliance' | 'guardian'
 
@@ -42,22 +46,6 @@ export const DUTY_ENV: Record<Duty, string> = {
 }
 
 export const DUTIES = Object.keys(DUTY_ENV) as Duty[]
-
-/**
- * Safe Transaction Service base URL per chain, pinned here. Arbitrum Sepolia (421614) has NO hosted service
- * in Safe's own network list (safe-core-sdk api-kit config, checked Oct 2026), so it is null and
- * SAFE_TX_SERVICE_URL (a self-hosted service) must be set there. Arbitrum One uses the hosted one.
- */
-export const SAFE_SERVICE_BY_CHAIN: Record<number, string | null> = {
-  421614: null,
-  42161: 'https://api.safe.global/tx-service/arb1',
-}
-
-const SERVICE_URL = (chainId: number = Number(addresses.chainId)) => {
-  const url = process.env.SAFE_TX_SERVICE_URL ?? SAFE_SERVICE_BY_CHAIN[chainId] ?? ''
-  if (!url) throw new Error(`No Safe Transaction Service for chain ${chainId}: set SAFE_TX_SERVICE_URL`)
-  return url.replace(/\/$/, '')
-}
 
 /**
  * Whether Safes are mandatory. ON unless SAFES_REQUIRED is explicitly "false" AND the chain is Arbitrum
@@ -96,92 +84,6 @@ export function safeFor(duty: Duty): Address | null {
   return getAddress(v.trim()) as Address
 }
 
-/** The operator may send a Safe-duty action itself only on Arbitrum Sepolia, and only with no Safe set. */
-export function assertOperatorFallbackAllowed(duty: Duty, chainId: number): void {
-  if (chainId !== arbitrumSepolia.id) {
-    throw new Error(`${DUTY_ENV[duty]} is not set: off Arbitrum Sepolia the operator never sends ${duty} actions directly`)
-  }
-  if (safesRequired(chainId)) {
-    throw new Error(`${DUTY_ENV[duty]} is not set and SAFES_REQUIRED is on: the operator does not send ${duty} actions directly`)
-  }
-}
-
-function headers(): Record<string, string> {
-  const h: Record<string, string> = { 'content-type': 'application/json' }
-  if (process.env.SAFE_API_KEY) h.authorization = `Bearer ${process.env.SAFE_API_KEY}`
-  return h
-}
-
-const SAFE_TX_TYPES = {
-  SafeTx: [
-    { name: 'to', type: 'address' },
-    { name: 'value', type: 'uint256' },
-    { name: 'data', type: 'bytes' },
-    { name: 'operation', type: 'uint8' },
-    { name: 'safeTxGas', type: 'uint256' },
-    { name: 'baseGas', type: 'uint256' },
-    { name: 'gasPrice', type: 'uint256' },
-    { name: 'gasToken', type: 'address' },
-    { name: 'refundReceiver', type: 'address' },
-    { name: 'nonce', type: 'uint256' },
-  ],
-} as const
-
-const ZERO = '0x0000000000000000000000000000000000000000' as Address
-
-export interface SafeTxMessage {
-  to: Address
-  value: bigint
-  data: Hex
-  operation: 0 | 1
-  safeTxGas: bigint
-  baseGas: bigint
-  gasPrice: bigint
-  gasToken: Address
-  refundReceiver: Address
-  nonce: bigint
-}
-
-/** EIP-712 hash the Safe owners sign (identical to GnosisSafe.getTransactionHash). */
-export function safeTxHash(safe: Address, tx: SafeTxMessage, chainId: number = arbitrumSepolia.id): Hex {
-  return hashTypedData({
-    domain: { chainId, verifyingContract: safe },
-    types: SAFE_TX_TYPES,
-    primaryType: 'SafeTx',
-    message: tx,
-  })
-}
-
-async function svc<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetchWithTimeout(`${SERVICE_URL()}${path}`, { ...init, headers: { ...headers(), ...(init?.headers ?? {}) } }, 15_000)
-  const text = await res.text()
-  if (!res.ok) throw new Error(`Safe Transaction Service ${res.status}: ${text.slice(0, 300)}`)
-  return (text ? JSON.parse(text) : {}) as T
-}
-
-/** Next free nonce: the Safe's on-chain nonce, or one past the highest nonce in its pending queue. */
-export async function nextNonce(safe: Address): Promise<bigint> {
-  const info = await svc<{ nonce: number | string }>(`/api/v1/safes/${safe}/`)
-  let next = BigInt(info.nonce)
-  const queued = await svc<{ results: { nonce: number | string }[] }>(
-    `/api/v1/safes/${safe}/multisig-transactions/?executed=false&ordering=-nonce&limit=1`,
-  )
-  const top = queued.results?.[0]
-  if (top && BigInt(top.nonce) + 1n > next) next = BigInt(top.nonce) + 1n
-  return next
-}
-
-// One proposal at a time per Safe inside this process, so parallel requests do not read the same nonce.
-const safeLocks = new Map<string, Promise<unknown>>()
-function withSafeLock<T>(safe: Address, fn: () => Promise<T>): Promise<T> {
-  const prev = safeLocks.get(safe) ?? Promise.resolve()
-  const run = prev.catch(() => undefined).then(fn)
-  safeLocks.set(safe, run.catch(() => undefined))
-  return run
-}
-
-const MAX_NONCE_ATTEMPTS = 5
-
 export interface Proposal {
   proposed: true
   duty: Duty
@@ -189,8 +91,6 @@ export interface Proposal {
   safeTxHash: Hex
   nonce: string
   description: string
-  /** Where the owners approve. */
-  safeUrl: string
 }
 
 export interface DirectSend {
@@ -204,87 +104,80 @@ export interface AdminCall {
   abi: Abi | readonly unknown[]
   functionName: string
   args?: readonly unknown[]
-  /** Short text shown in Safe{Wallet} and in the admin UI. */
+  /** Short text shown in the admin UI. */
   description: string
 }
 
-export function safeAppUrl(safe: Address): string {
-  return `https://app.safe.global/transactions/queue?safe=arb-sepolia:${safe}`
+/** What is stored per proposal (one key each, written once). */
+interface StoredProposal {
+  id: string
+  duty: Duty
+  safe: Address
+  to: Address
+  data: Hex
+  nonce: string
+  hash: Hex
+  description: string
+  createdAt: number
 }
 
-/** Queue `call` on the duty's Safe. The operator signs the hash as a delegate (proposer only). */
+const listKey = (safe: Address) => `tawf:safe:list:${safe.toLowerCase()}`
+const slotKey = (safe: Address, nonce: bigint) => `tawf:safe:slot:${safe.toLowerCase()}:${nonce}`
+const propKey = (safe: Address, hash: Hex) => `tawf:safe:prop:${safe.toLowerCase()}:${hash}`
+
+const MAX_SLOT_ATTEMPTS = 25
+const slotRecheckMs = () => Number(process.env.SAFE_SLOT_RECHECK_MS ?? 250)
+
+/**
+ * Queue `call` on the duty's Safe. Picks the next free nonce at or above the Safe's current nonce
+ * (the first proposal targets the current nonce, later ones queue with nonce + 1), computes the hash with
+ * Safe.getTransactionHash and stores the proposal. Slots are claimed with an append-only list per nonce:
+ * the first item the store returns wins, so a clash between two API instances resolves the same way for everyone and the
+ * loser moves on to the next nonce (a late loser shows as superseded in the panel).
+ */
 export async function proposeToSafe(call: AdminCall): Promise<Proposal> {
   const safe = safeFor(call.duty)
   if (!safe) throw new Error(`${DUTY_ENV[call.duty]} is not set`)
+  if (!kvEnabled()) throw new Error('Safe proposals need the key-value store (QUICKNODE_API_KEY is not set)')
   const data = encodeFunctionData({ abi: call.abi as Abi, functionName: call.functionName, args: call.args as never })
-  return withSafeLock(safe, async () => {
-    for (let attempt = 1; ; attempt++) {
-      const nonce = await nextNonce(safe)
-      const acct = account()
-      const tx: SafeTxMessage = {
-        to: call.address,
-        value: 0n,
-        data,
-        operation: 0,
-        safeTxGas: 0n,
-        baseGas: 0n,
-        gasPrice: 0n,
-        gasToken: ZERO,
-        refundReceiver: ZERO,
-        nonce,
-      }
-      const hash = safeTxHash(safe, tx)
-      const signature = await acct.signTypedData({
-        domain: { chainId: arbitrumSepolia.id, verifyingContract: safe },
-        types: SAFE_TX_TYPES,
-        primaryType: 'SafeTx',
-        message: tx,
-      })
-      await svc(`/api/v1/safes/${safe}/multisig-transactions/`, {
-        method: 'POST',
-        body: JSON.stringify({
-          to: tx.to,
-          value: '0',
-          data: tx.data,
-          operation: 0,
-          safeTxGas: '0',
-          baseGas: '0',
-          gasPrice: '0',
-          gasToken: ZERO,
-          refundReceiver: ZERO,
-          nonce: nonce.toString(),
-          contractTransactionHash: hash,
-          sender: acct.address,
-          signature,
-          origin: JSON.stringify({ name: 'Tawf admin', url: 'https://tawf.finance', note: call.description }),
-        }),
-      })
-      // Another instance may have queued a different transaction on the same nonce meanwhile (the service
-      // accepts both). If so, withdraw ours and try the next free nonce.
-      const same = await svc<{ results: { safeTxHash: string }[] }>(
-        `/api/v1/safes/${safe}/multisig-transactions/?executed=false&nonce=${nonce}`,
-      )
-      const clash = (same.results ?? []).some((t) => t.safeTxHash.toLowerCase() !== hash.toLowerCase())
-      if (!clash) {
-        return { proposed: true, duty: call.duty, safe, safeTxHash: hash, nonce: nonce.toString(), description: call.description, safeUrl: safeAppUrl(safe) } as Proposal
-      }
-      await withdraw(safe, hash)
-      if (attempt >= MAX_NONCE_ATTEMPTS) throw new Error(`Could not get a free Safe nonce after ${attempt} attempts`)
-    }
-  })
+  const safeNonce = (await publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'nonce' })) as bigint
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('')
+  const item = `${Date.now().toString().padStart(15, '0')}-${id}`
+
+  let nonce = safeNonce
+  for (let attempt = 0; ; attempt++, nonce++) {
+    if (attempt >= MAX_SLOT_ATTEMPTS) throw new Error('No free Safe nonce: too many proposals are waiting')
+    await kvListAdd(slotKey(safe, nonce), item)
+    // The first item the store returns owns the slot. Look again after a short pause so a claim that was
+    // still in flight is seen before we decide (a late loser also shows as superseded in the panel).
+    if ((await kvListGet(slotKey(safe, nonce)))[0] !== item) continue
+    await new Promise((r) => setTimeout(r, slotRecheckMs()))
+    if ((await kvListGet(slotKey(safe, nonce)))[0] === item) break
+  }
+
+  const hash = (await publicClient.readContract({
+    address: safe,
+    abi: safeAbi,
+    functionName: 'getTransactionHash',
+    args: [call.address, 0n, data, 0, 0n, 0n, 0n, ZERO_ADDRESS, ZERO_ADDRESS, nonce],
+  })) as Hex
+  const stored: StoredProposal = {
+    id, duty: call.duty, safe, to: call.address, data, nonce: nonce.toString(), hash,
+    description: call.description, createdAt: Date.now(),
+  }
+  await kvSetJson(propKey(safe, hash), stored)
+  await kvListAdd(listKey(safe), hash)
+  return { proposed: true, duty: call.duty, safe, safeTxHash: hash, nonce: nonce.toString(), description: call.description }
 }
 
-/** Remove our own queued transaction (the service lets its proposer delete it with a signed request). */
-async function withdraw(safe: Address, safeTxHash: Hex): Promise<void> {
-  const acct = account()
-  const totp = BigInt(Math.floor(Date.now() / 1000 / 3600))
-  const signature = await acct.signTypedData({
-    domain: { name: 'Safe Transaction Service', version: '1.0', chainId: arbitrumSepolia.id, verifyingContract: safe },
-    types: { DeleteRequest: [{ name: 'safeTxHash', type: 'bytes32' }, { name: 'totp', type: 'uint256' }] },
-    primaryType: 'DeleteRequest',
-    message: { safeTxHash, totp },
-  })
-  await svc(`/api/v1/multisig-transactions/${safeTxHash}/`, { method: 'DELETE', body: JSON.stringify({ signature }) })
+/** The operator may send a Safe-duty action itself only on Arbitrum Sepolia, and only with no Safe set. */
+export function assertOperatorFallbackAllowed(duty: Duty, chainId: number): void {
+  if (chainId !== arbitrumSepolia.id) {
+    throw new Error(`${DUTY_ENV[duty]} is not set: off Arbitrum Sepolia the operator never sends ${duty} actions directly`)
+  }
+  if (safesRequired(chainId)) {
+    throw new Error(`${DUTY_ENV[duty]} is not set and SAFES_REQUIRED is on: the operator does not send ${duty} actions directly`)
+  }
 }
 
 /**
@@ -309,54 +202,80 @@ export async function submitAdminTx(call: AdminCall, chainId?: number): Promise<
   return { proposed: false, txHash }
 }
 
+
+export type ProposalStatus = 'pending' | 'ready' | 'stale' | 'superseded'
+
 export interface PendingTx {
   duty: Duty
   safe: Address
   safeTxHash: Hex
   nonce: number
   to: Address
+  data: Hex
   method: string | null
-  confirmations: number
+  description: string
+  createdAt: number
+  /** Owners that approved this hash on chain. */
+  approvedBy: Address[]
   required: number
-  submittedAt: string
-  note: string | null
-  safeUrl: string
+  owners: Address[]
+  safeNonce: number
+  /** pending: waiting for approvals or an earlier nonce. ready: threshold met and it is the next nonce.
+   *  stale: the Safe nonce moved past it (executed or replaced). superseded: another proposal won its nonce. */
+  status: ProposalStatus
+  /** Packed approved-hash signatures to pass to execTransaction (approvals so far, sorted by owner). */
+  signatures: Hex
 }
 
-/** Queued (not executed) transactions of every configured Safe, for the Pending approvals panels. */
-export async function listPending(only?: Duty[]): Promise<PendingTx[]> {
+/** The first four bytes of the call data are the selector, shown when nothing better is known. */
+function methodOf(data: Hex): string | null {
+  return data.length >= 10 ? data.slice(0, 10) : null
+}
+
+/** Proposals of every configured Safe with their on-chain approvals, for the Pending approvals panels. */
+export async function listPending(only?: Duty[], includeStale = false): Promise<PendingTx[]> {
+  if (!kvEnabled()) return []
   const out: PendingTx[] = []
   for (const duty of only ?? DUTIES) {
     const safe = safeFor(duty)
     if (!safe) continue
-    const r = await svc<{ results: Record<string, unknown>[] }>(
-      `/api/v1/safes/${safe}/multisig-transactions/?executed=false&ordering=nonce&limit=50`,
+    const hashes = [...new Set(await kvListGet(listKey(safe)))] as Hex[]
+    if (hashes.length === 0) continue
+    const [safeNonce, threshold, owners] = (await Promise.all([
+      publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'nonce' }),
+      publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'getThreshold' }),
+      publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'getOwners' }),
+    ])) as [bigint, bigint, Address[]]
+    const props = (await kvPool(hashes, 6, (h) => kvGetJson<StoredProposal | null>(propKey(safe, h), null))).filter(
+      (p): p is StoredProposal => p !== null,
     )
-    for (const t of r.results ?? []) {
-      // origin is free text from any client: a JSON string, an already parsed object, or something else.
-      let note: string | null = null
-      try {
-        const o = typeof t.origin === 'string' ? (JSON.parse(t.origin) as unknown) : t.origin
-        const n = o && typeof o === 'object' ? (o as { note?: unknown }).note : undefined
-        note = typeof n === 'string' ? n : n == null ? null : JSON.stringify(n).slice(0, 200)
-      } catch {
-        note = typeof t.origin === 'string' && t.origin.length < 200 ? t.origin : null
-      }
-      const dd = t.dataDecoded as { method?: string } | null | undefined
+    // The proposal whose claim comes first owns its nonce; later claimants are superseded.
+    const winners = new Map<string, string>()
+    await kvPool([...new Set(props.map((p) => p.nonce))], 6, async (n) => {
+      const claims = await kvListGet(slotKey(safe, BigInt(n)))
+      winners.set(n, claims[0]?.split('-').slice(1).join('-') ?? '')
+    })
+    for (const p of props) {
+      const nonce = BigInt(p.nonce)
+      const stale = nonce < safeNonce
+      if (stale && !includeStale) continue
+      const superseded = !stale && winners.get(p.nonce) !== p.id
+      const approvals = stale
+        ? []
+        : await publicClient.multicall({
+            allowFailure: false,
+            contracts: owners.map((o) => ({ address: safe, abi: safeAbi, functionName: 'approvedHashes', args: [o, p.hash] }) as const),
+          })
+      const approvedBy = owners.filter((_, i) => (approvals as readonly bigint[])[i] === 1n)
+      const met = BigInt(approvedBy.length) >= threshold
       out.push({
-        duty,
-        safe,
-        safeTxHash: t.safeTxHash as Hex,
-        nonce: Number(t.nonce),
-        to: t.to as Address,
-        method: dd?.method ?? null,
-        confirmations: Array.isArray(t.confirmations) ? t.confirmations.length : 0,
-        required: Number(t.confirmationsRequired ?? 0),
-        submittedAt: String(t.submissionDate ?? ''),
-        note,
-        safeUrl: safeAppUrl(safe),
+        duty, safe, safeTxHash: p.hash, nonce: Number(p.nonce), to: p.to, data: p.data, method: methodOf(p.data),
+        description: p.description, createdAt: p.createdAt, approvedBy, required: Number(threshold),
+        owners, safeNonce: Number(safeNonce),
+        status: stale ? 'stale' : superseded ? 'superseded' : met && nonce === safeNonce ? 'ready' : 'pending',
+        signatures: packApprovedHashSignatures(approvedBy),
       })
     }
   }
-  return out
+  return out.sort((a, b) => a.nonce - b.nonce || a.createdAt - b.createdAt)
 }

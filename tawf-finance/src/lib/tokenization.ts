@@ -298,8 +298,9 @@ export interface SafeProposal {
   safeTxHash: `0x${string}`;
   nonce: string;
   description: string;
-  safeUrl: string;
 }
+
+export type SafeProposalStatus = 'pending' | 'ready' | 'stale' | 'superseded';
 
 export interface PendingSafeTx {
   duty: SafeDuty;
@@ -307,12 +308,16 @@ export interface PendingSafeTx {
   safeTxHash: `0x${string}`;
   nonce: number;
   to: `0x${string}`;
+  data: `0x${string}`;
   method: string | null;
-  confirmations: number;
+  description: string;
+  createdAt: number;
+  approvedBy: `0x${string}`[];
   required: number;
-  submittedAt: string;
-  note: string | null;
-  safeUrl: string;
+  owners: `0x${string}`[];
+  safeNonce: number;
+  status: SafeProposalStatus;
+  signatures: `0x${string}`;
 }
 
 export interface PendingApprovalsResponse {
@@ -330,6 +335,6 @@ export function proposalSteps(out: unknown): TxStep[] {
   const list: SafeProposal[] = o?.proposals ?? (o?.proposed ? [o as SafeProposal] : []);
   return list.map((p) => ({
     label: `Proposed to the ${p.duty} Safe, needs approval: ${p.description}`,
-    note: `Safe tx ${p.safeTxHash.slice(0, 10)}... nonce ${p.nonce}. Approve in Safe{Wallet}: ${p.safeUrl}`,
+    note: `Safe tx ${p.safeTxHash.slice(0, 10)}..., nonce ${p.nonce}. Owners approve in Pending approvals on the admin pages.`,
   }));
 }
