@@ -118,8 +118,15 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         vm.writeJson(vm.toString(address(_moduleBeacons.scfLimit)), PATH, ".scfLimitModuleBeacon");
         vm.writeJson(vm.toString(_trexAuthority), PATH, ".trexImplementationAuthority");
         for (uint256 i; i < _allBeacons.length; i++) {
-            vm.writeJson(vm.toString(_allBeacons[i]), PATH, string.concat(".", _beaconKey(_beaconArtifacts[i])));
+            string memory bk = _beaconKey(_beaconArtifacts[i]);
+            vm.writeJson(vm.toString(_allBeacons[i]), PATH, string.concat(".", bk));
+            // <type>Instances next to <type>Beacon: every proxy made on that beacon. The upgrade batch is built from
+            // these lists and checked against the deploy logs.
+            _writeList(string.concat(".", _instancesKey(bk)), _instances[keccak256(bytes(_beaconArtifacts[i]))]);
         }
+        _writeList(".sandboxModuleInstances", _sandboxInstances);
+        _writeList(".distributionCheckpointInstances", _checkpointInstances);
+        _writeList(".scfLimitModuleInstances", _scfLimitInstances);
 
         // Previous generation under the V1 keys (an existing V1 key is kept, so history never shrinks).
         if (bytes(old).length != 0) {
@@ -277,6 +284,24 @@ contract DeployAll is DeployScf, DeployDepositoPool {
     }
 
     bytes32 internal constant DEFAULT_ADMIN = 0x00;
+
+    /// @dev "ledgerAnchorBeacon" -> "ledgerAnchorInstances".
+    function _instancesKey(string memory beaconKey) internal pure returns (string memory) {
+        bytes memory b = bytes(beaconKey);
+        bytes memory out = new bytes(b.length - 6 + 9); // "Beacon" (6) becomes "Instances" (9)
+        for (uint256 i; i < b.length - 6; i++) out[i] = b[i];
+        bytes memory suffix = bytes("Instances");
+        for (uint256 i; i < 9; i++) out[b.length - 6 + i] = suffix[i];
+        return string(out);
+    }
+
+    function _writeList(string memory key, address[] memory list) internal {
+        string memory arr = "[";
+        for (uint256 i; i < list.length; i++) {
+            arr = string.concat(arr, i == 0 ? "" : ",", '"', vm.toString(list[i]), '"');
+        }
+        vm.writeJson(string.concat(arr, "]"), PATH, key);
+    }
 }
 
 interface IRoles {

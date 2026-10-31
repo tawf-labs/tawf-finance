@@ -26,9 +26,11 @@ interface ISafeProxyFactory {
 /// be at least 2, which DeployAll also requires. The printed addresses go into DeployAll as GOV_SAFE, TREASURY_SAFE,
 /// MINTING_SAFE, COMPLIANCE_SAFE and GUARDIAN_SAFE.
 contract DeploySafes is Script {
-    // Canonical Safe v1.4.1 deployments on Arbitrum Sepolia (chain 421614), from the official safe-deployments.
+    // Canonical Safe v1.4.1 deployments on Arbitrum Sepolia (chain 421614), from the official safe-deployments, checked on chain.
+    // The L2 singleton is used (not the L1 Safe) because SafeL2 emits SafeMultiSigTransaction events, which the indexer and
+    // the audit page read.
     address internal constant SAFE_PROXY_FACTORY = 0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67;
-    address internal constant SAFE_SINGLETON = 0x41675C099F32341bf84BFc5382aF534df5C7461a;
+    address internal constant SAFE_SINGLETON = 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762; // SafeL2
     address internal constant FALLBACK_HANDLER = 0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99;
 
     function run() external {

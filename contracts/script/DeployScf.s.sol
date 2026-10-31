@@ -55,7 +55,7 @@ contract DeployScf is DeployExtra {
             abi.encodeWithSignature("initialize(uint256,address,address)", ledgerChainId, operator, operator)
         );
 
-        ScfInvestorLimitModule limit = ModuleProxies.scfLimitProxy(address(_mb().scfLimit), _sharedIdentityRegistry);
+        ScfInvestorLimitModule limit = _newScfLimit(_sharedIdentityRegistry);
         s.limitModule = address(limit);
 
         ModularCompliance mc = TrexProxies.modularCompliance(_authority());
@@ -68,7 +68,7 @@ contract DeployScf is DeployExtra {
         s.token = address(token);
         s.compliance = address(mc);
 
-        DistributionCheckpointModule checkpoint = ModuleProxies.checkpointProxy(address(_mb().checkpoint));
+        DistributionCheckpointModule checkpoint = _newCheckpoint();
         _ownModule(address(checkpoint));
         s.distributor = _deployProxy(
             "SukukDistributor.sol:SukukDistributor",

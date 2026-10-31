@@ -27,6 +27,7 @@ pragma solidity 0.8.17;
 // claims itself off each holder's ONCHAINID, so the gate is per-series, not registry-wide.
 
 import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
+import { ScfInvestorLimitModule } from "../src/scf/ScfInvestorLimitModule.sol";
 import { TrexProxies } from "../src/proxy/TrexProxies.sol";
 import { TREXImplementationAuthority } from "@erc3643org/erc-3643/contracts/proxy/authority/TREXImplementationAuthority.sol";
 import "forge-std/Script.sol";
@@ -131,6 +132,25 @@ contract DeployTokenization is Script, ProxyDeployer {
             _moduleBeaconsSet = true;
         }
         return _moduleBeacons;
+    }
+
+    address[] internal _sandboxInstances;
+    address[] internal _checkpointInstances;
+    address[] internal _scfLimitInstances;
+
+    function _newSandbox() internal returns (SandboxModule m) {
+        m = ModuleProxies.sandboxProxy(address(_mb().sandbox));
+        _sandboxInstances.push(address(m));
+    }
+
+    function _newCheckpoint() internal returns (DistributionCheckpointModule m) {
+        m = ModuleProxies.checkpointProxy(address(_mb().checkpoint));
+        _checkpointInstances.push(address(m));
+    }
+
+    function _newScfLimit(address identityRegistry) internal returns (ScfInvestorLimitModule m) {
+        m = ModuleProxies.scfLimitProxy(address(_mb().scfLimit), identityRegistry);
+        _scfLimitInstances.push(address(m));
     }
 
     function _own(address c) internal {
@@ -381,8 +401,8 @@ contract DeployTokenization is Script, ProxyDeployer {
         ModularCompliance mc = TrexProxies.modularCompliance(_authority());
         Token token = TrexProxies.token(_authority(), _sharedIdentityRegistry, address(mc), name_, symbol_, 2, address(0));
 
-        DistributionCheckpointModule checkpoint = ModuleProxies.checkpointProxy(address(_mb().checkpoint));
-        SandboxModule sandbox = ModuleProxies.sandboxProxy(address(_mb().sandbox));
+        DistributionCheckpointModule checkpoint = _newCheckpoint();
+        SandboxModule sandbox = _newSandbox();
         _ownToken(address(token));
         _own(address(mc)); // series compliance: the Governance Safe owns it directly
         _ownModule(address(checkpoint));
@@ -462,7 +482,7 @@ contract DeployTokenization is Script, ProxyDeployer {
             _authority(), _sharedIdentityRegistry, address(mc), "Tawf Sukuk BPRS Demo 2026", "tSUKUK-DEMO-2026", 6, address(0)
         );
 
-        DistributionCheckpointModule module = ModuleProxies.checkpointProxy(address(_mb().checkpoint));
+        DistributionCheckpointModule module = _newCheckpoint();
         _ownToken(address(token));
         _ownCompliance(address(mc), false);
         _ownModule(address(module));

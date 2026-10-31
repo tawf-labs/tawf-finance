@@ -18,6 +18,8 @@ abstract contract ProxyDeployer is CommonBase {
     mapping(bytes32 => address) internal _beaconOf;
     address[] internal _allBeacons;
     string[] internal _beaconArtifacts;
+    /// @dev Every instance made per artifact, so the deploy can record <type>Instances next to <type>Beacon.
+    mapping(bytes32 => address[]) internal _instances;
 
     /// @param artifact e.g. "DepositoPoolLedger.sol:DepositoPoolLedger"
     function _beaconFor(string memory artifact) internal returns (address b) {
@@ -37,5 +39,6 @@ abstract contract ProxyDeployer is CommonBase {
     /// @param initData abi.encodeWithSignature("initialize(...)", ...)
     function _deployProxy(string memory artifact, bytes memory initData) internal returns (address proxy) {
         proxy = vm.deployCode(BEACON_PROXY, abi.encode(_beaconFor(artifact), initData));
+        _instances[keccak256(bytes(artifact))].push(proxy);
     }
 }
