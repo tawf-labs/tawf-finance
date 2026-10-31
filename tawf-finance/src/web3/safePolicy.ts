@@ -134,8 +134,8 @@ export const MAX_APPROVE = 100_000n * 10n ** 6n;
 export const MAX_ALLOCATE_INVESTORS = 50;
 const READ_BATCH = 10;
 
-/** Sandbox bounds (sen, 2 decimals): Rp10 billion per investor, Rp1 trillion per series, 1000 investors, 10 years. */
-export const SANDBOX_BOUNDS = { maxInvestors: 1000n, maxBalancePerInvestor: 10n ** 12n, seriesCap: 10n ** 14n, maxModeIndex: 2n, maxYears: 10 };
+/** Sandbox bounds (sen, 2 decimals): Rp10 billion per investor, Rp1 trillion per series, 1000 investors, series end 1 hour to 10 years ahead. */
+export const SANDBOX_BOUNDS = { maxInvestors: 1000n, maxBalancePerInvestor: 10n ** 12n, seriesCap: 10n ** 14n, maxModeIndex: 2n, maxYears: 10, minSeriesEndMargin: 3600 };
 
 export interface Reader {
   readContract(args: { address: Address; abi: unknown; functionName: string; args?: readonly unknown[] }): Promise<unknown>;
@@ -184,7 +184,10 @@ export async function checkArguments(to: Address, c: DecodedCall, set: DeployedS
     }
     if (c.inner.functionName === 'setSeriesEnd') {
       const end = Number(ia[0] as bigint);
-      const limit = Math.floor(Date.now() / 1000) + b.maxYears * 365 * 24 * 3600;
+      const now = Math.floor(Date.now() / 1000);
+      // A zero or past end freezes every holder transfer, so the end must be in the future by a margin.
+      if (end <= now + b.minSeriesEndMargin) return no('setSeriesEnd: the end must be at least an hour in the future.');
+      const limit = now + b.maxYears * 365 * 24 * 3600;
       if (end > limit) return no(`setSeriesEnd: the end may be at most ${b.maxYears} years away.`);
     }
     return ok;
