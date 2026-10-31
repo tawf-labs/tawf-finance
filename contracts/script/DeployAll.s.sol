@@ -8,7 +8,7 @@ pragma solidity 0.8.17;
 //   PRIVATE_KEY=.. LEDGER_CHAIN_ID=.. DEPLOYMENTS_PATH=/tmp/deployments.dryrun.json \
 //   GOV_SAFE=0x.. TREASURY_SAFE=0x.. MINTING_SAFE=0x.. COMPLIANCE_SAFE=0x.. GUARDIAN_SAFE=0x.. \
 //   [ALLOW_EOA_SAFES=true for a dry run with placeholder addresses] \
-//   [LEDGER_ANCHOR=0x.. to reuse an existing anchor] [SUKUK_MATURITY=..] [FEE_RECIPIENT=.. TAWF_NISBAH_BPS=..] \
+//   [SUKUK_MATURITY=..] [FEE_RECIPIENT=.. TAWF_NISBAH_BPS=..] \
 //     forge script script/DeployAll.s.sol:DeployAll --sig "runAll()" --rpc-url arbitrum_sepolia    (no --broadcast)
 //
 // Add --broadcast --slow only when the lead says deploy. The Safes come from script/DeploySafes.s.sol or
@@ -36,10 +36,9 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         vm.startBroadcast(key);
         uint256 govStart = _arbBlock();
 
-        address anchor = vm.envOr("LEDGER_ANCHOR", address(0));
-        if (anchor == address(0)) {
-            anchor = _deployProxy("LedgerAnchor.sol:LedgerAnchor", abi.encodeWithSignature("initialize(uint256,address,address)", ledgerChainId, operator, operator));
-        }
+        // The anchor is always ours, behind its beacon. An external anchor (not upgradeable by us, not Safe governed) is not supported.
+        address anchor =
+            _deployProxy("LedgerAnchor.sol:LedgerAnchor", abi.encodeWithSignature("initialize(uint256,address,address)", ledgerChainId, operator, operator));
         _loadSukukTerms();
         Deployment memory d = _deployAll(operator, anchor, ledgerChainId);
         address usdg = deployCode("MockUSDC.sol:MockUSDC");
@@ -216,7 +215,6 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         led.renounceRole(DEFAULT_ADMIN, operator);
         address[2] memory anchors = [anchor, scf.anchor];
         for (uint256 i; i < 2; i++) {
-            if (anchors[i] == address(0) || (i == 0 && vm.envOr("LEDGER_ANCHOR", address(0)) != address(0))) continue;
             IRoles(anchors[i]).grantRole(DEFAULT_ADMIN, _safes.governance);
             IRoles(anchors[i]).renounceRole(DEFAULT_ADMIN, operator);
         }
@@ -269,9 +267,7 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         }
         require(!IRoles(pLedger).hasRole(DEFAULT_ADMIN, operator) && IRoles(pLedger).hasRole(DEFAULT_ADMIN, _safes.governance), "roles: ledger admin");
         require(!IRoles(scf.anchor).hasRole(DEFAULT_ADMIN, operator) && IRoles(scf.anchor).hasRole(DEFAULT_ADMIN, _safes.governance), "roles: scf anchor admin");
-        if (vm.envOr("LEDGER_ANCHOR", address(0)) == address(0)) {
-            require(!IRoles(anchor).hasRole(DEFAULT_ADMIN, operator) && IRoles(anchor).hasRole(DEFAULT_ADMIN, _safes.governance), "roles: anchor admin");
-        }
+        require(!IRoles(anchor).hasRole(DEFAULT_ADMIN, operator) && IRoles(anchor).hasRole(DEFAULT_ADMIN, _safes.governance), "roles: anchor admin");
         address[3] memory pool = [d.dealRegistry, d.bondReceiptNft, d.redemptionVault];
         for (uint256 i; i < 3; i++) {
             require(!IRoles(pool[i]).hasRole(DEFAULT_ADMIN, operator) && !IRoles(pool[i]).hasRole(R_ADMIN, operator), "roles: pool admin");

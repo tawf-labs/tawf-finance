@@ -5,19 +5,8 @@ import { DeployExtra } from "./DeployExtra.s.sol";
 import { SandboxModule } from "../src/deposito/SandboxModule.sol";
 
 /**
- * @notice Deploy a regional Tawf Deposito Pool next to the live demo: one series token backed by
- *         the deposito Tawf holds at several BPRS in one region. Reuses the shared identity
- *         registry, claim issuer and settlement coins in tokenization.deployments.json.
- *
- * @dev Deploys a DepositoPoolLedger (the pool's anchor) with three fictional BPRS in Jawa Barat,
- *      then an unmodified TawfDepositoSeries on it ("Tawf Deposito Pool: Jawa Barat",
- *      tDEP-JABAR-1), allowlists mUSDC, mUSDT and mUSDG with their demo rates, sets the sandbox
- *      to SCREENED_GROUP like series 1 with a Rp1bn series cap, and posts an opening reserve per bank. Writes the
- *      depositoPool* keys and leaves every other key.
- *
- *      PRIVATE_KEY=.. forge script script/DeployDepositoPool.s.sol:DeployDepositoPool \
- *          --sig "runPool()" --rpc-url arbitrum_sepolia --broadcast
- *      Optional: FEE_RECIPIENT + TAWF_NISBAH_BPS (Tawf's nisbah, set before the sale opens).
+ * @notice The regional Tawf Deposito Pool (DepositoPoolLedger with three demo BPRS in Jawa Barat, series token).
+ *         Internal building block of script/DeployAll.s.sol, the only supported deploy. No standalone entry point.
  */
 contract DeployDepositoPool is DeployExtra {
     bytes32 internal constant POOL_SERIES_ID = keccak256("tawf.pool.jabar.1");
@@ -26,23 +15,7 @@ contract DeployDepositoPool is DeployExtra {
     uint256 internal constant OPEN_BGR = 15_000_000_000;
     uint256 internal constant OPEN_CRB = 15_000_000_000;
 
-    function runPool() external {
-        _initBeaconOwner();
-        uint256 key = vm.envUint("PRIVATE_KEY");
-        address operator = vm.addr(key);
-        (address usdc, address usdt) = _loadShared();
-        string memory json = vm.readFile(PATH);
-        uint256 ledgerChainId = vm.parseJsonUint(json, ".ledgerChainId");
-        address usdg = vm.parseJsonAddress(json, ".mockUsdg");
 
-        vm.startBroadcast(key);
-        (address ledger, address token, address series, address sandbox) =
-            _deployPool(operator, usdc, usdt, usdg, ledgerChainId);
-        vm.stopBroadcast();
-
-        _setShare(key, series);
-        _writePool(ledger, token, series, sandbox);
-    }
 
     /// @dev The pool deploy itself, without its own broadcast, so a single-broadcast orchestrator can run it.
     function _deployPool(address operator, address usdc, address usdt, address usdg, uint256 ledgerChainId)

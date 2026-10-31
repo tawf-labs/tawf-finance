@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { Script, console } from "forge-std/Script.sol";
-import { DisbursementVerifier } from "../../src/prototype/DisbursementVerifier.sol";
+import { DisbursementVerifier } from "../../prototype/DisbursementVerifier.sol";
 
 /**
  * @title DeployVerifier (LOCAL ANVIL PROTOTYPE DEPLOY — NOT PRODUCTION)

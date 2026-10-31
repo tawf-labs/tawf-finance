@@ -8,11 +8,12 @@ pragma solidity 0.8.17;
 // those sources. The DistributionCheckpointModule and SandboxModule are themselves 0.8.17 so they
 // are imported directly.
 //
-// Purpose: a single-operator demo deployment for Arbitrum Sepolia (chainId 421614). ONE env var
-// PRIVATE_KEY controls everything; the derived operator address holds every role. The shared
-// T-REX identity suite is deployed once and reused across the Tawf deposito series token and the
-// sukuk series token. LedgerAnchor is supplied via env (LEDGER_ANCHOR, LEDGER_CHAIN_ID) because
-// the ledger lives in tawf-network.
+// DEPLOYMENT NOTE: this file is an internal building block of script/DeployAll.s.sol, which is the ONLY
+// supported deploy. It has no standalone entry point. Every Tawf contract goes behind a beacon owned by the
+// Governance Safe, every duty has its own Safe, and the operator EOA ends with FX and data posts only.
+//
+// The deploy functions here are inherited by DeployAll, which runs them in one broadcast. The shared T-REX
+// identity suite is deployed once behind T-REX proxies and reused across the series tokens.
 //
 // Model B (wrapped Tawf deposit): instead of four per-tenor deposito tokens, there is ONE Tawf
 // deposito series token (tDEP-TAWF-S1, 2 decimals, sen) backed by Tawf's single dedicated account
@@ -93,6 +94,13 @@ contract DeployTokenization is Script, ProxyDeployer {
         });
         address[5] memory all = [_safes.governance, _safes.treasury, _safes.minting, _safes.compliance, _safes.guardian];
         bool allowEoa = vm.envOr("ALLOW_EOA_SAFES", false);
+        if (allowEoa) {
+            // Simulation only (refused below when broadcasting): give the placeholders Safe-like code.
+            bytes memory safeCode = vm.getDeployedCode("MockSafe.sol:MockSafe");
+            for (uint256 i; i < 5; i++) vm.etch(i == 0 ? _safes.governance : i == 1 ? _safes.treasury : i == 2 ? _safes.minting : i == 3 ? _safes.compliance : _safes.guardian, safeCode);
+        }
+        // A real broadcast always needs real Safes: placeholder addresses are for a simulation only.
+        require(!(allowEoa && vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)), "ALLOW_EOA_SAFES is refused when broadcasting");
         for (uint256 i; i < 5; i++) {
             require(all[i] != address(0), "a Safe address is unset");
             require(allowEoa || all[i].code.length > 0, "a Safe address has no code (set ALLOW_EOA_SAFES=true for a dry run)");
@@ -100,7 +108,7 @@ contract DeployTokenization is Script, ProxyDeployer {
         }
         // The Governance Safe is the upgrade key for everything, so it must really be a multisig: at least 2 owners
         // and a threshold of at least 2 (the same check the module hand-over uses).
-        if (!allowEoa) ModuleProxies.requireMultisig(_safes.governance);
+        ModuleProxies.requireMultisig(_safes.governance); // every path, dry run included (the placeholder carries Safe-like code)
         beaconOwner = _safes.governance; // every beacon is created owned by the Governance Safe
     }
 
@@ -152,6 +160,12 @@ contract DeployTokenization is Script, ProxyDeployer {
         // Every compliance module's configurer becomes the Compliance Safe (setHook, initOffering, setOfferingCap,
         // initConfig, agents). The operator keeps no module role. Owner-only, so it runs before the owner moves.
         for (uint256 i; i < _modules.length; i++) IConfigurerLike(_modules[i]).setConfigurer(_safes.compliance);
+        // ClaimIssuer: KYC and screening claims are issued by whoever holds its management key. That moves to the
+        // Compliance Safe and the operator's key is removed.
+        if (_sharedClaimIssuer != address(0)) {
+            IKeyLike(_sharedClaimIssuer).addKey(keccak256(abi.encode(_safes.compliance)), 1, 1);
+            IKeyLike(_sharedClaimIssuer).removeKey(keccak256(abi.encode(operator)), 1);
+        }
         // Token agents can mint, burn, force transfers, freeze and recover. So the Guardian Safe and the operator are NOT
         // agents. Only the Minting Safe is a token agent (the series and distributor contracts that mint keep their own
         // agent role), and the Compliance Safe becomes the identity registry agent below. Pausing the system is done
@@ -182,6 +196,9 @@ contract DeployTokenization is Script, ProxyDeployer {
         for (uint256 i; i < _modules.length; i++) {
             require(IPendingOwnerLike(_modules[i]).pendingOwner() == gov, "hand-over: a module is not pending the Governance Safe");
         }
+        if (_sharedClaimIssuer != address(0)) {
+            require(IKeyLike(_sharedClaimIssuer).keyHasPurpose(keccak256(abi.encode(_safes.compliance)), 1), "hand-over: the Compliance Safe is not a ClaimIssuer manager");
+        }
         for (uint256 i; i < beacons.length; i++) {
             require(IOwnableLike(beacons[i]).owner() == gov, "hand-over: a beacon is not owned by the Governance Safe");
         }
@@ -193,15 +210,12 @@ contract DeployTokenization is Script, ProxyDeployer {
         return _safes.treasury != address(0) ? _safes.treasury : operator;
     }
 
-    function _initBeaconOwner() internal {
-        if (beaconOwner == address(0)) beaconOwner = vm.envAddress("GOV_SAFE");
-    }
+
 
     function _authority() internal returns (address) {
         if (_trexAuthority == address(0)) {
-            address existing = vm.envOr("TREX_AUTHORITY", address(0));
-            _trexAuthority = existing != address(0) ? existing : address(TrexProxies.authority());
-            if (existing == address(0)) _own(_trexAuthority); // the authority goes to the Governance Safe
+            _trexAuthority = address(TrexProxies.authority());
+            _own(_trexAuthority); // the authority goes to the Governance Safe
         }
         return _trexAuthority;
     }
@@ -258,20 +272,7 @@ contract DeployTokenization is Script, ProxyDeployer {
         uint256 deployBlock;
     }
 
-    function run() external {
-        _initBeaconOwner();
-        uint256 operatorKey = vm.envUint("PRIVATE_KEY");
-        address operator = vm.addr(operatorKey);
-        address anchor = vm.envAddress("LEDGER_ANCHOR");
-        uint256 ledgerChainId = vm.envUint("LEDGER_CHAIN_ID");
 
-        vm.startBroadcast(operatorKey);
-        Deployment memory d = _deployAll(operator, anchor, ledgerChainId);
-        vm.stopBroadcast();
-
-        _writeDeployments(d);
-        _log(d);
-    }
 
     /// @dev Deploys and wires the whole suite with `operator` holding every role. Assumes the
     ///      caller context is already broadcasting/pranking as `operator`.
@@ -659,6 +660,12 @@ interface IPendingOwnerLike {
 
 interface IHasRoleLike {
     function hasRole(bytes32 role, address account) external view returns (bool);
+}
+
+interface IKeyLike {
+    function addKey(bytes32 key, uint256 purpose, uint256 keyType) external returns (bool);
+    function removeKey(bytes32 key, uint256 purpose) external returns (bool);
+    function keyHasPurpose(bytes32 key, uint256 purpose) external view returns (bool);
 }
 
 interface IConfigurerLike {

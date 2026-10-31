@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import { Test } from "forge-std/Test.sol";
 import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessControl.sol";
 import { MessageHashUtils } from "openzeppelin-contracts/contracts/utils/cryptography/MessageHashUtils.sol";
-import { DisbursementVerifier } from "../../src/prototype/DisbursementVerifier.sol";
+import { DisbursementVerifier } from "../../prototype/DisbursementVerifier.sol";
 
 /**
  * @notice Tests for the local-prototype DisbursementVerifier. Mirrors the

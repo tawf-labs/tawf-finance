@@ -12,32 +12,9 @@ import { ScfInvestorLimitModule } from "../src/scf/ScfInvestorLimitModule.sol";
 import { LedgerLeaf } from "../src/lib/LedgerLeaf.sol";
 
 /**
- * @notice Deploy one securities crowdfunding (SCF, "Layanan Urun Dana") sharia sukuk offering
- *         next to the live demo, reusing the shared identity registry and mUSDC recorded in
- *         tokenization.deployments.json.
- *
- * @dev What it deploys and wires, all owned by the broadcaster (the operator):
- *        - an operator-gated LedgerAnchor for this offering's facts (single-leaf roots, so every
- *          proof is empty)
- *        - the ScfInvestorLimitModule (POJK 57/2020 investor limit and offering cap)
- *        - a T-REX token with its own compliance, a DistributionCheckpointModule and a
- *          SukukDistributor (issuer treasury = operator, standing in for the SME issuer)
- *      It then anchors the approval and reserve facts and opens the subscription, so the offering
- *      is live straight after the deploy. Writes the scf* keys and leaves every other key.
- *
- *      The distributor accepts mUSDC, mUSDT and mUSDG (all listed in the deployments file), and
- *      the operator, who is its admin, also holds FUNDER_ROLE so it can fund distributions and
- *      maturity in any of the three. The previous offering's addresses are kept under the
- *      scf*V1 keys (only the first time, so a re-run never overwrites them) so the activity
- *      history still reads them.
- *
- *      scfBlock (the deploy block, an L2 block number) is not written here, because block.number in a
- *      script is the L1 block on Arbitrum. Set it from the broadcast receipt after the deploy.
- *
- *      PRIVATE_KEY=.. forge script script/DeployScf.s.sol:DeployScf --sig "runScf()" \
- *          --rpc-url arbitrum_sepolia --broadcast
- *      Optional: SCF_FACE (default 50,000 USDC), SCF_MATURITY (default now + 365 days),
- *      SCF_MIN_RAISE (500 USDC), SCF_MIN_SUBSCRIPTION (10 USDC), SCF_SUBSCRIPTION_PERIOD (30 days).
+ * @notice The multi-coin SCF offering (anchor, limit module, token with its compliance, checkpoint module,
+ *         SukukDistributor) and opening it. Internal building block of script/DeployAll.s.sol, the only supported
+ *         deploy. No standalone entry point.
  */
 contract DeployScf is DeployExtra {
     bytes32 internal constant SCF_ID = keccak256("tawf.scf.umkm.1");
@@ -52,26 +29,7 @@ contract DeployScf is DeployExtra {
         uint256 face;
     }
 
-    function runScf() external {
-        _initBeaconOwner();
-        uint256 key = vm.envUint("PRIVATE_KEY");
-        address operator = vm.addr(key);
-        _loadShared();
-        string memory json = vm.readFile(PATH);
-        uint256 ledgerChainId = vm.parseJsonUint(json, ".ledgerChainId");
-        _coinList = new address[](3);
-        _coinList[0] = vm.parseJsonAddress(json, ".mockUsdc");
-        _coinList[1] = vm.parseJsonAddress(json, ".mockUsdt");
-        _coinList[2] = vm.parseJsonAddress(json, ".mockUsdg");
 
-        vm.startBroadcast(key);
-        Scf memory s = _deployScf(operator, ledgerChainId);
-        _open(s, ledgerChainId);
-        vm.stopBroadcast();
-
-        _keepV1(json);
-        _writeScf(s);
-    }
 
     function _writeScf(Scf memory s) internal {
         vm.writeJson(vm.toString(s.anchor), PATH, ".scfAnchor");
@@ -86,17 +44,7 @@ contract DeployScf is DeployExtra {
     address[] internal _coinList;
 
     /// @dev Keep the previous offering under the V1 keys, once.
-    function _keepV1(string memory json) internal {
-        if (vm.keyExists(json, ".scfDistributorV1")) return;
-        vm.writeJson(vm.toString(vm.parseJsonAddress(json, ".scfAnchor")), PATH, ".scfAnchorV1");
-        vm.writeJson(vm.toString(vm.parseJsonAddress(json, ".scfLimitModule")), PATH, ".scfLimitModuleV1");
-        vm.writeJson(vm.toString(vm.parseJsonAddress(json, ".scfToken")), PATH, ".scfTokenV1");
-        vm.writeJson(vm.toString(vm.parseJsonAddress(json, ".scfCompliance")), PATH, ".scfComplianceV1");
-        vm.writeJson(vm.toString(vm.parseJsonAddress(json, ".scfDistributor")), PATH, ".scfDistributorV1");
-        vm.writeJson(vm.toString(vm.parseJsonBytes32(json, ".scfId")), PATH, ".scfIdV1");
-        vm.writeJson(vm.toString(vm.parseJsonUint(json, ".scfMaturity")), PATH, ".scfMaturityV1");
-        vm.writeJson(vm.toString(vm.parseJsonUint(json, ".scfBlock")), PATH, ".scfBlockV1");
-    }
+
 
     function _deployScf(address operator, uint256 ledgerChainId) internal returns (Scf memory s) {
         s.face = vm.envOr("SCF_FACE", uint256(50_000e6));
