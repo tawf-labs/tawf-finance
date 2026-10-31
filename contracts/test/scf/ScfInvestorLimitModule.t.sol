@@ -80,10 +80,56 @@ contract ScfInvestorLimitModuleTest is TrexFixture {
         mcC.addModule(address(scf));
     }
 
+    // Duty split: the owner (Governance Safe) opens offerings, the configurer (Compliance Safe)
+    // appoints agents and sets profiles. Neither can do the other's job, and the operator EOA
+    // (an unrelated address once wired) can do neither.
     function test_initOffering_onlyOwner() public {
         vm.prank(platform);
-        vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
+        vm.expectRevert("Ownable: caller is not the owner");
         scf.initOffering(address(0xC0), treasury, CAP);
+    }
+
+    function test_dutySplit_complianceVsGovernance() public {
+        address governance = makeAddr("governanceSafe");
+        address compliance = makeAddr("complianceSafe");
+        address operatorEoa = makeAddr("operatorEoa");
+        vm.startPrank(deployer);
+        scf.setConfigurer(compliance);
+        scf.transferOwnership(governance);
+        vm.stopPrank();
+        vm.prank(governance);
+        scf.acceptOwnership();
+
+        // Compliance Safe: agents and profiles yes, offerings no.
+        vm.startPrank(compliance);
+        scf.setAgent(platform, true);
+        scf.setProfile(address(aliceId), LIMIT, 1, ScfInvestorLimitModule.Exemption.NONE);
+        vm.expectRevert("Ownable: caller is not the owner");
+        scf.initOffering(address(0xC1), treasury, CAP);
+        vm.stopPrank();
+
+        // Governance Safe: offerings yes, profiles and agents no.
+        vm.startPrank(governance);
+        scf.initOffering(address(0xC1), treasury, CAP);
+        vm.expectRevert(ScfInvestorLimitModule.OnlyAgent.selector);
+        scf.setProfile(address(aliceId), 1, 1, ScfInvestorLimitModule.Exemption.NONE);
+        vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
+        scf.setAgent(operatorEoa, true);
+        vm.stopPrank();
+
+        // Operator EOA: nothing. It cannot set a profile, reset usage, appoint an agent or open an offering.
+        vm.startPrank(operatorEoa);
+        vm.expectRevert(ScfInvestorLimitModule.OnlyAgent.selector);
+        scf.setProfile(address(aliceId), type(uint128).max, 1, ScfInvestorLimitModule.Exemption.LEGAL_ENTITY);
+        vm.expectRevert(ScfInvestorLimitModule.OnlyAgent.selector);
+        scf.resetUsage(address(aliceId), 0);
+        vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
+        scf.setAgent(operatorEoa, true);
+        vm.expectRevert("Ownable: caller is not the owner");
+        scf.initOffering(address(0xC2), treasury, CAP);
+        vm.expectRevert("Ownable: caller is not the owner");
+        scf.setConfigurer(operatorEoa);
+        vm.stopPrank();
     }
 
     function test_initOffering_cannotRewriteBoundOffering() public {
@@ -127,7 +173,7 @@ contract ScfInvestorLimitModuleTest is TrexFixture {
         scf.setProfile(address(aliceId), LIMIT, 1, ScfInvestorLimitModule.Exemption.NONE);
     }
 
-    function test_setAgent_onlyOwner() public {
+    function test_setAgent_onlyConfigurer() public {
         vm.prank(platform);
         vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
         scf.setAgent(stranger, true);

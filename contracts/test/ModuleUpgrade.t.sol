@@ -137,11 +137,11 @@ contract ModuleUpgradeTest is Test {
         assertEq(m2.owner(), timelock);
         m2.setNewField(3);
         assertEq(m2.newField(), 3);
-        // The Governance Safe (owner) does not configure, the operator (configurer) still does.
-        vm.prank(timelock);
-        vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
-        m2.setHook(compliance, IBalanceCheckpoint(stranger));
+        // Wiring a hook is Governance (the owner). The operator keeps no say after the hand-over.
         vm.prank(operator);
+        vm.expectRevert("Ownable: caller is not the owner");
+        m2.setHook(compliance, IBalanceCheckpoint(stranger));
+        vm.prank(timelock);
         m2.setHook(compliance, IBalanceCheckpoint(stranger));
         assertEq(address(m2.hookOf(compliance)), stranger);
     }
@@ -204,56 +204,47 @@ contract ModuleUpgradeTest is Test {
     }
 
     // ------------------------------------------------------- admin split
-    function test_ownerCannotConfigureAndConfigurerCannotUpgrade() public {
+    function test_scf_operatorKeepsNothingAfterHandOver() public {
         vm.startPrank(operator);
         UpgradeableBeacon b = ModuleProxies.scfLimitBeacon();
         ScfInvestorLimitModule m = ModuleProxies.scfLimitProxy(address(b), ir);
+        m.setConfigurer(stranger); // stranger plays the Compliance Safe here
         vm.stopPrank();
         _toGovernance(b);
         _handOver(address(m));
         address impl2 = address(new ScfModuleV2());
-        // Operator keeps config.
-        vm.prank(operator);
-        m.initOffering(compliance, treasury, 1e6);
-        vm.prank(operator);
-        m.setAgent(stranger, true);
-        // Timelock cannot configure.
-        vm.prank(timelock);
-        vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
-        m.initOffering(makeAddr("c2"), treasury, 1e6);
-        // Operator (configurer) cannot upgrade or move the configurer role.
         vm.startPrank(operator);
         vm.expectRevert("Ownable: caller is not the owner");
         b.upgradeTo(impl2);
         vm.expectRevert("Ownable: caller is not the owner");
-        m.setConfigurer(stranger);
-        vm.stopPrank();
-        // Timelock appoints a new configurer.
-        vm.prank(timelock);
-        m.setConfigurer(stranger);
-        vm.prank(operator);
+        m.setConfigurer(operator);
+        vm.expectRevert("Ownable: caller is not the owner");
+        m.initOffering(compliance, treasury, 1e6);
         vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
         m.setAgent(operator, true);
+        vm.stopPrank();
         vm.prank(timelock);
         vm.expectRevert(ModuleAdmin.ZeroAddress.selector);
         m.setConfigurer(address(0));
     }
 
-    function test_sandboxAndCheckpointConfigAreConfigurerOnly() public {
+    function test_sandboxAndCheckpointConfigAreGovernanceOnly() public {
         vm.startPrank(operator);
         SandboxModule sb = ModuleProxies.sandbox();
         DistributionCheckpointModule ck = ModuleProxies.checkpoint();
         vm.stopPrank();
         _handOver(address(sb));
         _handOver(address(ck));
-        vm.prank(timelock);
-        vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
-        sb.initConfig(compliance, SandboxModule.Mode.PILOT_ONLY, treasury, address(0), 0, 0, 0, 1);
-        vm.prank(timelock);
-        vm.expectRevert(ModuleAdmin.NotConfigurer.selector);
-        ck.setHook(compliance, IBalanceCheckpoint(treasury));
         vm.prank(operator);
+        vm.expectRevert("Ownable: caller is not the owner");
         sb.initConfig(compliance, SandboxModule.Mode.PILOT_ONLY, treasury, address(0), 0, 0, 0, 1);
+        vm.prank(operator);
+        vm.expectRevert("Ownable: caller is not the owner");
+        ck.setHook(compliance, IBalanceCheckpoint(treasury));
+        vm.prank(timelock);
+        sb.initConfig(compliance, SandboxModule.Mode.PILOT_ONLY, treasury, address(0), 0, 0, 0, 1);
+        vm.prank(timelock);
+        ck.setHook(compliance, IBalanceCheckpoint(treasury));
     }
 
     function test_twoStepOwnership() public {

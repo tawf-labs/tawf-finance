@@ -63,7 +63,7 @@ contract DistributionCheckpointModule is ModuleAdmin {
     /// @dev Restricted to the deployer. Reconfiguring a hook after wiring is
     ///      a deliberate operator action, not a public one.
     function setHook(address compliance, IBalanceCheckpoint hook) external {
-        if (msg.sender != configurer) revert NotConfigurer();
+        _checkOwner();
         if (address(hook) == address(0)) revert ZeroHook();
         hookOf[compliance] = hook;
         emit HookSet(compliance, address(hook));

@@ -135,7 +135,7 @@ contract ScfInvestorLimitModule is ModuleAdmin {
     ///         live its treasury (exempt from the limit) and cap cannot be
     ///         rewritten here. A live cap changes through setOfferingCap.
     function initOffering(address compliance, address treasury, uint256 offeringCap) external {
-        if (msg.sender != configurer) revert NotConfigurer();
+        _checkOwner();
         if (compliance == address(0) || treasury == address(0)) revert ZeroAddress();
         if (this.isComplianceBound(compliance)) revert AlreadyBound();
         if (offeringCap == 0) revert ZeroCap();

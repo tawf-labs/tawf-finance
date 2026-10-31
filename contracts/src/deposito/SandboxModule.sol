@@ -166,7 +166,7 @@ contract SandboxModule is ModuleAdmin {
         uint256 seriesCap,
         uint64 seriesEnd
     ) external {
-        if (msg.sender != configurer) revert NotConfigurer();
+        _checkOwner();
         if (treasury == address(0)) revert ZeroTreasury();
         Config storage c = configOf[compliance];
         c.mode = mode;
