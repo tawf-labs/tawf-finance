@@ -8,6 +8,7 @@ pragma solidity 0.8.17;
 import "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import { ModuleBatchFromDeployments } from "../script/lib/ModuleBatchFromDeployments.sol";
 import { ModuleUpgradeBatch } from "../src/proxy/ModuleUpgradeBatch.sol";
 import { ModuleAdmin } from "../src/proxy/ModuleAdmin.sol";
 import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
@@ -473,5 +474,85 @@ contract ModuleBeaconHandOverTest is Test {
 
     function callBuildChecked(UpgradeableBeacon beacon, address[] memory all, address gov) external view {
         ModuleUpgradeBatch.buildChecked(beacon, address(1), all, "", gov);
+    }
+}
+
+contract ModuleBatchFromDeploymentsTest is ModuleBatchFromDeployments {
+    address internal ir = makeAddr("identityRegistry");
+
+    function _json(address[] memory a) internal pure returns (string memory) {
+        string memory list = "";
+        for (uint256 i; i < a.length; i++) {
+            list = string.concat(list, i == 0 ? "" : ",", '"', vm.toString(a[i]), '"');
+        }
+        return string.concat('{"scfLimitModuleInstances":[', list, "]}");
+    }
+
+    function callRequireMatchesLogs(Vm.Log[] memory logs, address beacon, address[] memory inst) external pure {
+        requireMatchesLogs(logs, beacon, inst);
+    }
+
+    function test_batchNamesEveryInstanceFromDeploymentsJson() public {
+        UpgradeableBeacon beacon = ModuleProxies.scfLimitBeacon();
+        vm.recordLogs();
+        ScfInvestorLimitModule a = ModuleProxies.scfLimitProxy(address(beacon), ir);
+        ScfInvestorLimitModule b = ModuleProxies.scfLimitProxy(address(beacon), ir);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        address[] memory all = new address[](2);
+        all[0] = address(a);
+        all[1] = address(b);
+        requireMatchesLogs(logs, address(beacon), all); // the file matches the chain events
+
+        address gov = address(new MockSafe(3, 2));
+        ModuleProxies.handOver(beacon, gov);
+        a.transferOwnership(gov);
+        b.transferOwnership(gov);
+        vm.startPrank(gov);
+        a.acceptOwnership();
+        b.acceptOwnership();
+        vm.stopPrank();
+
+        bytes memory batch = batchFromJson(
+            _json(all), ".scfLimitModuleInstances", beacon, address(new ScfModuleV2Init()),
+            abi.encodeCall(ScfModuleV2Init.initializeV2, (1)), gov
+        );
+        assertGt(batch.length, 0);
+    }
+
+    function test_fileMissingAnInstanceFailsAgainstTheLogs() public {
+        UpgradeableBeacon beacon = ModuleProxies.scfLimitBeacon();
+        vm.recordLogs();
+        ScfInvestorLimitModule a = ModuleProxies.scfLimitProxy(address(beacon), ir);
+        ModuleProxies.scfLimitProxy(address(beacon), ir); // created but left out of the file
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        address[] memory left = new address[](1);
+        left[0] = address(a);
+        vm.expectRevert("instance created on chain but missing from deployments.json");
+        this.callRequireMatchesLogs(logs, address(beacon), left);
+    }
+
+    function test_fileNamingAnUnknownInstanceFailsAgainstTheLogs() public {
+        UpgradeableBeacon beacon = ModuleProxies.scfLimitBeacon();
+        vm.recordLogs();
+        ScfInvestorLimitModule a = ModuleProxies.scfLimitProxy(address(beacon), ir);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        address[] memory extra = new address[](2);
+        extra[0] = address(a);
+        extra[1] = makeAddr("ghost");
+        vm.expectRevert("deployments.json names an instance that was not created");
+        this.callRequireMatchesLogs(logs, address(beacon), extra);
+    }
+
+    function test_otherBeaconsInstancesAreNotCounted() public {
+        UpgradeableBeacon b1 = ModuleProxies.scfLimitBeacon();
+        UpgradeableBeacon b2 = ModuleProxies.scfLimitBeacon();
+        vm.recordLogs();
+        ScfInvestorLimitModule a = ModuleProxies.scfLimitProxy(address(b1), ir);
+        ModuleProxies.scfLimitProxy(address(b2), ir);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        address[] memory only = new address[](1);
+        only[0] = address(a);
+        requireMatchesLogs(logs, address(b1), only);
     }
 }

@@ -25,6 +25,10 @@ interface ISafeLike {
  *         `x()` makes a private beacon per call: tests and throwaway deploys only, never a script. Pinned to 0.8.17 like the modules. Internal functions only.
  */
 library ModuleProxies {
+    /// @notice Emitted for every module instance a deploy makes, so the instance list of a beacon can be
+    ///         rebuilt from logs and compared with the one the deploy script records in deployments.json.
+    event InstanceCreated(address indexed beacon, address indexed instance);
+
     /// @dev One beacon per module type for a whole deployment.
     struct Beacons {
         UpgradeableBeacon sandbox;
@@ -43,6 +47,8 @@ library ModuleProxies {
     ///         moves in one step and can renounce, so a wrong address would be permanent: refuse the
     ///         zero address, anything that is not a deployed contract and anything that does not look like a
     ///         multisig Safe (see `requireMultisig`), then require the stored owner to equal `governance`.
+    ///         NOTE: this cannot tell the Governance Safe from any other Safe. The deploy script must pass the
+    ///         address of the GOV_SAFE env var and must fail when it differs.
     function handOver(UpgradeableBeacon beacon, address governance) internal {
         require(governance != address(0), "governance is zero");
         require(governance.code.length > 0, "governance is not a contract");
@@ -78,7 +84,9 @@ library ModuleProxies {
     }
 
     function sandboxProxy(address beacon) internal returns (SandboxModule) {
-        return SandboxModule(address(new BeaconProxy(beacon, abi.encodeCall(SandboxModule.initialize, ()))));
+        SandboxModule m = SandboxModule(address(new BeaconProxy(beacon, abi.encodeCall(SandboxModule.initialize, ()))));
+        emit InstanceCreated(beacon, address(m));
+        return m;
     }
 
     function sandbox() internal returns (SandboxModule) {
@@ -90,9 +98,11 @@ library ModuleProxies {
     }
 
     function checkpointProxy(address beacon) internal returns (DistributionCheckpointModule) {
-        return DistributionCheckpointModule(
+        DistributionCheckpointModule m = DistributionCheckpointModule(
             address(new BeaconProxy(beacon, abi.encodeCall(DistributionCheckpointModule.initialize, ())))
         );
+        emit InstanceCreated(beacon, address(m));
+        return m;
     }
 
     function checkpoint() internal returns (DistributionCheckpointModule) {
@@ -104,9 +114,11 @@ library ModuleProxies {
     }
 
     function scfLimitProxy(address beacon, address identityRegistry) internal returns (ScfInvestorLimitModule) {
-        return ScfInvestorLimitModule(
+        ScfInvestorLimitModule m = ScfInvestorLimitModule(
             address(new BeaconProxy(beacon, abi.encodeCall(ScfInvestorLimitModule.initialize, (identityRegistry))))
         );
+        emit InstanceCreated(beacon, address(m));
+        return m;
     }
 
     function scfLimit(address identityRegistry) internal returns (ScfInvestorLimitModule) {
