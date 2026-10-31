@@ -51,7 +51,7 @@ export function About() {
         eyebrow="About Tawf"
         title="Shariah deposito and crowdfunding,"
         accent="on chain"
-        lead="Tawf Finance is the tokenization and verification partner of licensed asset originators. It tokenizes Shariah deposito placed at licensed Islamic rural banks (BPRS), with rupiah deposits opening soon, and sharia securities crowdfunding (urun dana) offerings run by licensed platforms for Indonesian SMEs. The originators keep the assets and the customer relationship. The pilot runs on the Arbitrum Sepolia testnet."
+        lead="Tawf tokenizes and verifies assets from licensed Shariah originators, who keep the assets and the customer relationship. The pilot runs on the Arbitrum Sepolia testnet."
       />
 
       <Chapter tint="paper" from="stone" eyebrow="Mission" title="A wider funding channel for SMEs">

@@ -290,10 +290,8 @@ export function ProofOfReserve() {
         lead={
           <>
             <p>
-              For the Tawf Deposito Pool we show the receipts outstanding against the customer deposito at each licensed BPRS, bank by bank.
-              For each SCF offering we show the sukuk tokens outstanding against the reserve figure the contract verifies, the amount raised
-              against the offering size, and the profit periods paid. A token can only be minted against a reserve fact that verifies under
-              an anchored root, so what you see is verified against the ledger, not asserted.
+              Receipts and tokens outstanding, checked against the deposito at each licensed BPRS and the reserve of each SCF offering.
+              Verified against the ledger, not asserted.
             </p>
             {data?.lastSyncAt && (
               <p className="mt-3 text-sm text-ink/60">Last BPRS sync: {new Date(data.lastSyncAt).toLocaleString('en-SG')}</p>

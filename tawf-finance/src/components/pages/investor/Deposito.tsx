@@ -182,10 +182,10 @@ export function InvestorDeposito() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">Tawf Deposito Pool</h1>
-          <p className="mb-2 text-sm text-amber-800">Legacy testnet demo of the earlier stablecoin model. The live Deposito model is rupiah paid into a virtual account in the customer&apos;s name, with the deposito placed in the customer&apos;s name at each BPRS.</p>
+          <p className="mb-2 text-sm text-amber-800">Legacy testnet demo of the earlier stablecoin model. The live model is rupiah paid into a virtual account in your name.</p>
           <p className="text-tawf-muted">
-            Mudharabah deposito at licensed Islamic rural banks (BPRS), wrapped into one token.
-            1 token = IDR 1, backed by the deposito recorded at the banks. Settle in {coinNames}.
+            Mudharabah deposito at licensed BPRS, wrapped into one token.
+            1 token = IDR 1, settled in {coinNames}.
           </p>
         </div>
         <ConnectButton variant="primary" size="md" />

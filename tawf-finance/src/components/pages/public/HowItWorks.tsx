@@ -131,7 +131,7 @@ export function HowItWorks() {
         eyebrow="How it works"
         title="Simple, ethical,"
         accent="and checkable."
-        lead="Two products with the same standard of proof. The Tawf Deposito Pool is mudharabah deposito in your own name at licensed BPRS, with the total at every bank on chain (rupiah deposits opening soon). Urun Dana backs Indonesian SMEs through sharia securities crowdfunding, with the investor limit and the reserve enforced in the token."
+        lead="Two products, one standard of proof. Deposito in your name at licensed BPRS opens soon, and Urun Dana backs Indonesian SMEs, with limits and reserves enforced on chain."
         actions={
           <>
             <a href="https://app.tawf.finance/login" className={solid}>Open the investor app</a>

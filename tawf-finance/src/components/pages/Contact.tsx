@@ -58,7 +58,7 @@ export function Contact() {
         eyebrow="Contact"
         title="Partner"
         accent="with us"
-        lead="We are the tokenization and verification partner of licensed Shariah asset originators. Talk to us if you originate or distribute Shariah assets, or want to invest through them. The pilot is on testnet."
+        lead="Tawf tokenizes and verifies assets from licensed Shariah originators. Talk to us if you originate or distribute Shariah assets, or want to invest. The pilot is on testnet."
       />
 
       <Chapter tint="paper" from="stone" eyebrow="Partnerships" title="Partnership" accent="opportunities">
