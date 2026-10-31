@@ -55,3 +55,32 @@ jobs:
 
       - name: Typecheck & build
         run: npm run build
+
+  indexer:
+    name: Indexer (Ponder)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: indexer
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: indexer/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Codegen
+        run: npx ponder codegen
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Validate compose file
+        run: POSTGRES_PASSWORD=x PONDER_API_TOKEN=x INDEXER_DOMAIN=example.test docker compose -f docker-compose.yml config -q

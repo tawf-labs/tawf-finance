@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "paths": { "ponder:registry": ["./node_modules/ponder/virtual.d.ts"], "ponder:schema": ["./ponder.schema.ts"], "ponder:api": ["./node_modules/ponder/virtual.d.ts"] }
+  },
+  "include": ["./**/*.ts"],
+  "exclude": ["node_modules"]
+}
