@@ -24,8 +24,8 @@ interface IClaimSignerVm {
  *         requirements). A claim id is keccak256(issuer, topic), so one issuer holds one claim per topic.
  *
  *         Deploy order (script, before the hand-over): `link` the token, `addClaim` the four claims, then
- *         `handOver` the identity to the Governance Safe. After that the Safe holds the management key (adds and
- *         removes claims) and, as token owner, is the only one that can call `Token.setOnchainID`.
+ *         `handOver` the identity to the Compliance Safe, which then adds and removes the claims. The Governance Safe,
+ *         as token owner, is the only one that can call `Token.setOnchainID`.
  *         No new contract is deployed by this library. Internal functions only.
  */
 library TokenIdentitySetup {
@@ -34,7 +34,7 @@ library TokenIdentitySetup {
     uint256 internal constant TOKENIZATION_PARTNER = 12;
     uint256 internal constant OFFERING_DOCS = 13;
     uint256 internal constant MANAGEMENT = 1;
-    uint256 internal constant CLAIM_SIGNER = 3;
+    uint256 internal constant CLAIM_SIGNER = 3; // implied by MANAGEMENT in keyHasPurpose
     uint256 internal constant ECDSA = 1;
 
     IClaimSignerVm private constant VM = IClaimSignerVm(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -70,8 +70,6 @@ library TokenIdentitySetup {
     function link(IdFactory factory, Token token, string memory salt, address deployer) internal returns (Identity id) {
         id = Identity(factory.createTokenIdentity(address(token), deployer, salt));
         require(address(id) != address(0), "token identity not created");
-        // This OnchainID version only lets a CLAIM key add claims (a management key alone cannot).
-        id.addKey(keccak256(abi.encode(deployer)), CLAIM_SIGNER, ECDSA);
         token.setOnchainID(address(id));
         require(address(token.onchainID()) == address(id), "token onchainID read-back mismatch");
         require(factory.getIdentity(address(token)) == address(id), "factory does not link the token");
@@ -98,16 +96,22 @@ library TokenIdentitySetup {
         require(claimId == keccak256(abi.encode(issuer, topic)), "unexpected claim id");
     }
 
-    /// @notice Move the identity to the Governance Safe: it gets the management and claim keys, `deployer` loses both.
-    function handOver(Identity id, address governance, address deployer) internal {
-        require(governance != address(0) && governance != deployer, "bad governance");
-        bytes32 govKey = keccak256(abi.encode(governance));
+    /// @notice Give the identity to the Compliance Safe and take it away from the deployer.
+    ///
+    ///         In this OnchainID version `keyHasPurpose` is true for ANY purpose when the key holds MANAGEMENT
+    ///         (purpose 1), so a management key can always add and remove claims too. The duties therefore cannot be
+    ///         split between a management key and a claim key. Claims are a Compliance duty, so the Compliance Safe
+    ///         holds the management key (and with it the claim and key rights) and the Governance Safe holds NO key on
+    ///         the token identity. Governance keeps its own lever: as token owner it alone can call
+    ///         `Token.setOnchainID` to point the token at a different identity.
+    function handOver(Identity id, address compliance, address deployer) internal {
+        require(compliance != address(0), "zero compliance safe");
+        require(compliance != deployer, "the Safe cannot be the deployer");
+        bytes32 complianceKey = keccak256(abi.encode(compliance));
         bytes32 deployerKey = keccak256(abi.encode(deployer));
-        id.addKey(govKey, MANAGEMENT, ECDSA);
-        id.addKey(govKey, CLAIM_SIGNER, ECDSA);
-        id.removeKey(deployerKey, CLAIM_SIGNER);
-        id.removeKey(deployerKey, MANAGEMENT); // last: the deployer needs management to remove its own keys
-        require(id.keyHasPurpose(govKey, MANAGEMENT) && id.keyHasPurpose(govKey, CLAIM_SIGNER), "governance keys missing");
+        id.addKey(complianceKey, MANAGEMENT, ECDSA);
+        id.removeKey(deployerKey, MANAGEMENT);
+        require(id.keyHasPurpose(complianceKey, MANAGEMENT), "compliance has no management key");
         require(!id.keyHasPurpose(deployerKey, MANAGEMENT) && !id.keyHasPurpose(deployerKey, CLAIM_SIGNER), "deployer still has a key");
     }
 }

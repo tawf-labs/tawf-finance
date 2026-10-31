@@ -31,6 +31,8 @@ contract TokenIdentityTest is Test {
     ClaimTopicsRegistry internal ctr;
     ClaimIssuer internal issuer;
     address internal gov = makeAddr("governanceSafe");
+    address internal compliance = makeAddr("complianceSafe");
+    address internal operator = makeAddr("operator");
     address internal stranger = makeAddr("stranger");
 
     function setUp() public {
@@ -124,38 +126,60 @@ contract TokenIdentityTest is Test {
         assertEq(required[0], 1);
     }
 
-    function test_governanceOwnsTheIdentityAfterHandOver() public {
+    function test_complianceHoldsTheIdentityGovernanceHoldsNoKey() public {
         Identity id = _linked();
         _claims(id);
-        TokenIdentitySetup.handOver(id, gov, address(this));
-        assertTrue(id.keyHasPurpose(keccak256(abi.encode(gov)), 1));
-        assertTrue(id.keyHasPurpose(keccak256(abi.encode(gov)), 3));
-        assertFalse(id.keyHasPurpose(keccak256(abi.encode(address(this))), 1));
-        assertFalse(id.keyHasPurpose(keccak256(abi.encode(address(this))), 3));
+        TokenIdentitySetup.handOver(id, compliance, address(this));
+        for (uint256 p = 1; p <= 3; p += 2) {
+            assertTrue(id.keyHasPurpose(keccak256(abi.encode(compliance)), p));
+            assertFalse(id.keyHasPurpose(keccak256(abi.encode(gov)), p), "governance holds no key on the identity");
+            assertFalse(id.keyHasPurpose(keccak256(abi.encode(address(this))), p), "deployer holds nothing");
+            assertFalse(id.keyHasPurpose(keccak256(abi.encode(operator)), p), "operator holds nothing");
+        }
 
-        // the old deployer can no longer add or remove claims
         bytes memory data = TokenIdentitySetup.encodeDocs(keccak256("akad v2"), "ipfs://v2");
         bytes memory sig = TokenIdentitySetup.signClaim(address(id), 13, data, ISSUER_KEY);
-        vm.expectRevert();
-        id.addClaim(13, 1, address(issuer), sig, data, "");
         bytes32 docsId = keccak256(abi.encode(address(issuer), uint256(13)));
-        vm.expectRevert();
-        id.removeClaim(docsId);
 
-        // the Governance Safe can: it updates the document claim, then removes one
-        vm.startPrank(gov);
+        // governance, the old deployer and the operator cannot add or remove claims, nor change keys
+        address[3] memory no = [gov, address(this), operator];
+        for (uint256 i; i < 3; i++) {
+            vm.startPrank(no[i]);
+            vm.expectRevert(bytes("Permissions: Sender does not have claim signer key"));
+            id.addClaim(13, 1, address(issuer), sig, data, "");
+            vm.expectRevert(bytes("Permissions: Sender does not have claim signer key"));
+            id.removeClaim(docsId);
+            vm.expectRevert();
+            id.addKey(keccak256(abi.encode(no[i])), 1, 1);
+            vm.stopPrank();
+        }
+
+        // the Compliance Safe updates the document claim, removes one, and rotates its own key
+        vm.startPrank(compliance);
         id.addClaim(13, 1, address(issuer), sig, data, "");
         (,,,, bytes memory stored,) = id.getClaim(docsId);
         (bytes32 h,) = abi.decode(stored, (bytes32, string));
         assertEq(h, keccak256("akad v2"));
         id.removeClaim(docsId);
+        address newCompliance = makeAddr("newComplianceSafe");
+        id.addKey(keccak256(abi.encode(newCompliance)), 1, 1);
+        id.removeKey(keccak256(abi.encode(compliance)), 1);
         vm.stopPrank();
         assertEq(id.getClaimIdsByTopic(13).length, 0);
+        assertTrue(id.keyHasPurpose(keccak256(abi.encode(newCompliance)), 1));
+        assertFalse(id.keyHasPurpose(keccak256(abi.encode(compliance)), 1));
+    }
 
-        // a stranger cannot
-        vm.prank(stranger);
-        vm.expectRevert();
-        id.removeClaim(keccak256(abi.encode(address(issuer), uint256(10))));
+    function test_handOverRefusesBadSafes() public {
+        Identity id = _linked();
+        vm.expectRevert(bytes("the Safe cannot be the deployer"));
+        this.callHandOver(id, address(this));
+        vm.expectRevert(bytes("zero compliance safe"));
+        this.callHandOver(id, address(0));
+    }
+
+    function callHandOver(Identity id, address c) external {
+        TokenIdentitySetup.handOver(id, c, address(this));
     }
 
     function test_onlyTheTokenOwnerChangesTheOnchainId() public {
