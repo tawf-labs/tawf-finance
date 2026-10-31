@@ -56,7 +56,7 @@ export function About() {
 
       <Chapter tint="paper" from="stone" eyebrow="Mission" title="A wider funding channel for SMEs">
         <Reveal className="max-w-3xl text-[1.1rem] leading-relaxed text-ink/75">
-          Indonesian SMEs often find bank funding out of reach. Licensed crowdfunding platforms give them a channel, and licensed rural banks and deposito aggregators bring funding from outside the district. Tawf is not the originator. It is the partner that tokenizes each position and verifies it, so investors get Shariah-aligned exposure with the limit, the identity check and the reserve enforced on chain.
+          Indonesian SMEs often find bank funding out of reach. Licensed crowdfunding platforms give them a channel, and licensed rural banks and OJK-registered deposito aggregators bring funding from outside the district. Tawf is not the originator. It is the partner that tokenizes each position and verifies it, so investors get Shariah-aligned exposure with the limit, the identity check and the reserve enforced on chain.
         </Reveal>
         <Reveal className="mt-12 grid gap-4 sm:grid-cols-3">
           <Tile>

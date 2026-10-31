@@ -7,7 +7,7 @@ const partnershipTypes = [
   {
     icon: Building2,
     title: 'Asset originator partnership',
-    description: 'Licensed crowdfunding (urun dana) platforms, Shariah deposito aggregators and BPRS that want Tawf as their tokenization and verification partner. You keep the assets and the customer relationship',
+    description: 'Licensed crowdfunding (urun dana) platforms, OJK-registered Shariah deposito aggregators and licensed BPRS that want Tawf as their tokenization and verification partner. You keep the assets and the customer relationship',
   },
   {
     icon: Users,

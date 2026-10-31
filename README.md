@@ -1,7 +1,7 @@
 # tawf.finance
 
 > **The tokenization and verification partner of licensed Shariah asset originators, built on Arbitrum.**
-> Tawf is the tokenization and verification partner of licensed asset originators: Shariah deposito aggregators and BPRS for the Deposito Pool, and licensed sharia crowdfunding platforms for SCF. Originators keep the assets and the customer relationship. Tawf makes each position verifiable on chain. Tawf does not originate, underwrite, place or hold assets.
+> Tawf is the tokenization and verification partner of licensed asset originators: licensed BPRS and OJK-registered Shariah deposito aggregators for the Deposito Pool, and licensed sharia crowdfunding platforms for SCF. Originators keep the assets and the customer relationship. Tawf makes each position verifiable on chain. Tawf does not originate, underwrite, place or hold assets.
 
 Built by [Tawf Labs](https://tawflabs.com) · Shariah-Aligned · Arbitrum (EVM / Solidity)
 
@@ -36,7 +36,7 @@ Built by [Tawf Labs](https://tawflabs.com) · Shariah-Aligned · Arbitrum (EVM /
 
 ### Our Solution
 
-Tawf is not an asset originator. Licensed originators (BPRS, Shariah deposito aggregators, and licensed sharia crowdfunding platforms) keep the assets, the licence and the customer relationship. Tawf is their tokenization and verification partner: it records each position as a token or receipt on chain and publishes a proof of reserve that anyone can check. For a BPRS this is also a wider funding channel, priced outside its local deposit market.
+Tawf is not an asset originator. Originators (licensed BPRS, OJK-registered Shariah deposito aggregators, and licensed sharia crowdfunding platforms) keep the assets, the licence or registration and the customer relationship. Tawf is their tokenization and verification partner: it records each position as a token or receipt on chain and publishes a proof of reserve that anyone can check. For a BPRS this is also a wider funding channel, priced outside its local deposit market.
 
 - **From $10**: anyone can take exposure to real serviced financing
 - **Returns from serviced financing**, not speculative yield
@@ -52,7 +52,7 @@ Tawf is not an asset originator. Licensed originators (BPRS, Shariah deposito ag
 
 Infrastructure connecting everyday investors with licensed Indonesian Islamic rural banks (BPRS) and sharia crowdfunding. The pilot product is the **Tawf Deposito Pool**: investors subscribe in stablecoins, Tawf converts to IDR and places mudharabah deposito at several BPRS in one region, and one ERC-3643 token (a claim on Tawf) is backed by the total, with each bank's balance in the proof of reserve. A BPRS cannot issue sukuk without IDR 80bn core capital, so no BPRS product is called a sukuk. The financing sell-down pool is built and tested but switched off for the pilot (`VITE_FEATURE_FINANCING_POOL`).
 
-**Originator types.** Tawf partners with two kinds of licensed originator: Indonesian Islamic rural banks (BPRS) and Shariah deposito aggregators, whose deposito Tawf wraps into regional Deposito Pools as a receipt and a proof of reserve, and OJK-licensed securities crowdfunding platforms ("Layanan Urun Dana"), whose SME sukuk and sharia shares Tawf tokenizes with the investor limit enforced on chain. The originators keep the assets and the customer relationship. The demo uses fictional names for both.
+**Originator types.** Tawf is designed to partner with originators of two kinds: licensed Indonesian Islamic rural banks (BPRS) and OJK-registered Shariah deposito aggregators, whose deposito Tawf wraps into regional Deposito Pools as a receipt and a proof of reserve, and OJK-licensed securities crowdfunding platforms ("Layanan Urun Dana"), whose SME sukuk and sharia shares Tawf tokenizes with the investor limit enforced on chain. The originators keep the assets and the customer relationship. No originator is onboarded yet. The testnet pilot uses fictional demo names for both.
 
 ### Instrument coverage
 
