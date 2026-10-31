@@ -94,3 +94,13 @@ try {
   if (!/testnet only/.test((e as Error).message)) throw e
 }
 console.log('safe-selftest test-issuer chain guard ok')
+
+// ---- Test registry agent is testnet only ------------------------------------------------
+import { selfServiceAgent } from '../api/_tokenization/_lib/identity.js'
+try {
+  selfServiceAgent(42161)
+  throw new Error('selfServiceAgent must refuse a non-Sepolia chain')
+} catch (e) {
+  if (!/testnet only/.test((e as Error).message)) throw e
+}
+console.log('safe-selftest test-registry-agent chain guard ok')

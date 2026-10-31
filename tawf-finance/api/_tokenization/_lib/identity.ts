@@ -17,11 +17,13 @@ import {
   type Address,
   type Hex,
 } from 'viem'
+import { nonceManager } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { arbitrumSepolia } from 'viem/chains'
 import {
   publicClient,
   walletClient,
+  walletClientFor,
   account,
   addresses,
 } from './operator.js'
@@ -75,6 +77,32 @@ export function selfServiceIssuer(chainId: number = Number(addresses.chainId)): 
 }
 
 /**
+ * Who registers identities for the self-service faucet.
+ *
+ * Testnet only, same pattern as the test ClaimIssuer. On Arbitrum Sepolia a separate EOA
+ * (TEST_REGISTRY_AGENT_KEY, deployments key `testRegistryAgent`) holds the IdentityRegistry agent
+ * role, is the management key of the identities it creates, and registers them. The operator holds no
+ * registry role. Fails closed: off chain 421614 it always throws. On 421614 with no `testRegistryAgent`
+ * deployed yet (the pre-Safe stack) it falls back to the operator, which still holds the role there.
+ */
+export function selfServiceAgent(chainId: number = Number(addresses.chainId)): {
+  address: Address
+  wc: ReturnType<typeof walletClient>
+} {
+  if (chainId !== arbitrumSepolia.id) {
+    throw new Error('The self-service registry agent is testnet only: this chain has none.')
+  }
+  if (addresses.testRegistryAgent === ZERO) return { address: account().address, wc: walletClient() }
+  const k = process.env.TEST_REGISTRY_AGENT_KEY
+  if (!k) throw new Error('TEST_REGISTRY_AGENT_KEY is not set')
+  const agent = privateKeyToAccount((k.startsWith('0x') ? k : `0x${k}`) as Hex, { nonceManager })
+  if (agent.address.toLowerCase() !== addresses.testRegistryAgent.toLowerCase()) {
+    throw new Error('TEST_REGISTRY_AGENT_KEY does not match deployments testRegistryAgent')
+  }
+  return { address: agent.address, wc: walletClientFor(agent as ReturnType<typeof account>) }
+}
+
+/**
  * Build the eth-signed KYC claim exactly as ClaimIssuer.isClaimValid expects:
  * dataHash = keccak256(abi.encode(identity, topic, data)); signed as a message.
  */
@@ -96,7 +124,7 @@ async function signKycClaim(identity: Address, topic: bigint, data: Hex): Promis
 export async function ensureVerified(user: Address): Promise<{ steps: IdentityStep[]; isVerified: boolean }> {
   assertNotBlocked(user)
   const steps: IdentityStep[] = []
-  const wc = walletClient()
+  const { wc, address: agentAddress } = selfServiceAgent()
 
   const alreadyVerified = await publicClient.readContract({
     address: addresses.identityRegistry,
@@ -123,7 +151,7 @@ export async function ensureVerified(user: Address): Promise<{ steps: IdentitySt
     const deployHash = await wc.deployContract({
       abi: identityProxyAbi,
       bytecode: addresses.identityProxyBytecode,
-      args: [addresses.implementationAuthority, account().address],
+      args: [addresses.implementationAuthority, agentAddress],
     })
     const receipt = await publicClient.waitForTransactionReceipt({ hash: deployHash })
     if (!receipt.contractAddress) throw new Error('Identity proxy deployment did not return an address')
@@ -183,7 +211,7 @@ export async function issueScreeningClaim(
 ): Promise<{ steps: IdentityStep[]; identity: Address }> {
   assertNotBlocked(user)
   const steps: IdentityStep[] = []
-  const wc = walletClient()
+  const { wc } = selfServiceAgent()
 
   const identity = (await publicClient.readContract({
     address: addresses.identityRegistry,

@@ -3,12 +3,13 @@ pragma solidity 0.8.17;
 
 import { TrustedIssuersRegistry } from
     "@erc3643org/erc-3643/contracts/registry/implementation/TrustedIssuersRegistry.sol";
+import { IdentityRegistry } from "@erc3643org/erc-3643/contracts/registry/implementation/IdentityRegistry.sol";
 import { ClaimIssuer } from "@onchain-id/solidity/contracts/ClaimIssuer.sol";
 import { IClaimIssuer } from "@onchain-id/solidity/contracts/interface/IClaimIssuer.sol";
 
 /**
  * @title TestClaimIssuerSetup
- * @notice Testnet-only wiring of the faucet's TEST ClaimIssuer. It is a ClaimIssuer contract whose only
+ * @notice Testnet-only wiring of the faucet's TEST ClaimIssuer and TEST registry agent. It is a ClaimIssuer contract whose only
  *         claim-signing key is an EOA held by the API, and it is trusted for the KYC and TAWF_SCREENED
  *         topics only (never OJK_SANDBOX_PARTICIPANT or anything else). It exists so the self-service
  *         faucet need not wait for the Compliance Safe. The real ClaimIssuer stays with the Compliance Safe.
@@ -22,6 +23,13 @@ library TestClaimIssuerSetup {
     uint256 internal constant TAWF_SCREENED_TOPIC = 2;
 
     error TestIssuerTestnetOnly(uint256 chainId);
+
+    /// @notice Grant the faucet's TEST registry agent (an EOA the API holds) the IdentityRegistry agent role.
+    ///         The operator never holds that role. The caller must own `ir`. Arbitrum Sepolia only.
+    function addRegistryAgent(IdentityRegistry ir, address agent) internal {
+        if (block.chainid != ARBITRUM_SEPOLIA) revert TestIssuerTestnetOnly(block.chainid);
+        ir.addAgent(agent);
+    }
 
     /// @notice Deploy the test issuer (the caller is its management key), add `signer` as a claim key,
     ///         and list it as a trusted issuer for KYC and TAWF_SCREENED only. The caller must own `tir`.

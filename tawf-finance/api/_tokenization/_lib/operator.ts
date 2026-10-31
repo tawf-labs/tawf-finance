@@ -100,8 +100,10 @@ function withNonceRetry<F extends (...args: never[]) => Promise<unknown>>(fn: F,
  * nonce are retried (up to twice, with a short backoff) after the nonce cache
  * is reset, so a lagging public RPC does not fail a multi-step route.
  */
-export const walletClient = () => {
-  const acct = account()
+export const walletClient = () => walletClientFor(account())
+
+/** Same client, for another local account that was created with the nonce manager. */
+export function walletClientFor(acct: ReturnType<typeof account>) {
   const wc = createWalletClient({
     account: acct,
     chain: arbitrumSepolia,
@@ -185,6 +187,8 @@ export const addresses = {
   mockUsdg: ((deployments as Record<string, unknown>).mockUsdg ?? ZERO) as Address,
   identityRegistry: deployments.identityRegistry as Address,
   claimIssuer: deployments.claimIssuer as Address,
+  // Testnet-only IdentityRegistry agent the faucet registers identities with (the operator holds no registry role).
+  testRegistryAgent: ((deployments as Record<string, unknown>).testRegistryAgent ?? ZERO) as Address,
   // Testnet-only ClaimIssuer for the faucet and screening (KYC and TAWF_SCREENED topics only).
   testClaimIssuer: ((deployments as Record<string, unknown>).testClaimIssuer ?? ZERO) as Address,
   implementationAuthority: deployments.implementationAuthority as Address,

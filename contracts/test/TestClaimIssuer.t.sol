@@ -9,12 +9,17 @@ import { TrexProxies } from "../src/proxy/TrexProxies.sol";
 import { TestClaimIssuerSetup } from "../script/lib/TestClaimIssuerSetup.sol";
 import { TrustedIssuersRegistry } from
     "@erc3643org/erc-3643/contracts/registry/implementation/TrustedIssuersRegistry.sol";
+import { IdentityRegistry } from "@erc3643org/erc-3643/contracts/registry/implementation/IdentityRegistry.sol";
 import { ClaimIssuer } from "@onchain-id/solidity/contracts/ClaimIssuer.sol";
 import { IClaimIssuer } from "@onchain-id/solidity/contracts/interface/IClaimIssuer.sol";
 
 contract TestClaimIssuerHarness {
     function run(TrustedIssuersRegistry tir, address signer) external returns (ClaimIssuer) {
         return TestClaimIssuerSetup.deploy(tir, signer);
+    }
+
+    function runAgent(IdentityRegistry ir, address agent) external {
+        TestClaimIssuerSetup.addRegistryAgent(ir, agent);
     }
 }
 
@@ -47,5 +52,25 @@ contract TestClaimIssuerTest is Test {
         assertFalse(tir.hasClaimTopic(address(ci), 3), "no sandbox participant topic");
         assertFalse(tir.hasClaimTopic(address(ci), 4));
         assertTrue(ci.keyHasPurpose(keccak256(abi.encode(signer)), 3));
+    }
+
+    function test_registryAgent_testnetOnly_operatorHoldsNoRole() public {
+        address ia = address(TrexProxies.authority());
+        address ctr = address(TrexProxies.claimTopicsRegistry(ia));
+        address irs = address(TrexProxies.identityRegistryStorage(ia));
+        IdentityRegistry ir = TrexProxies.identityRegistry(ia, address(tir), ctr, irs);
+        ir.transferOwnership(address(harness));
+        address agent = makeAddr("testRegistryAgent");
+        address operator = makeAddr("operator");
+
+        vm.chainId(42161);
+        vm.expectRevert(abi.encodeWithSelector(TestClaimIssuerSetup.TestIssuerTestnetOnly.selector, uint256(42161)));
+        harness.runAgent(ir, agent);
+        assertFalse(ir.isAgent(agent));
+
+        vm.chainId(421614);
+        harness.runAgent(ir, agent);
+        assertTrue(ir.isAgent(agent));
+        assertFalse(ir.isAgent(operator), "the operator holds no registry agent role");
     }
 }
