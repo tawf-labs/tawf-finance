@@ -211,6 +211,7 @@ export const tokenClaim = onchainTable(
     data: t.hex().notNull(), // abi-encoded fields, decoded by the app
     uri: t.text().notNull(), // capped at 512 characters
     truncated: t.boolean().notNull(), // data or uri were cut to the stored size caps
+    identityActive: t.boolean().notNull(), // the identity was the token's current one when this event was indexed
     blockNumber: t.bigint().notNull(),
     txHash: t.hex().notNull(),
     timestamp: t.integer().notNull(),

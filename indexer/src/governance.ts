@@ -40,7 +40,7 @@ const ZERO = '0x0000000000000000000000000000000000000000'
 const MAX_CLAIM_DATA_HEX = 2 + 2048 * 2 // 2 KB of data
 const MAX_CLAIM_URI = 512
 
-if (has('TokenIdentity')) {
+if (has('TokenIdentity') || has('TokenIdentityLinked')) {
   const tokenOf = new Map<string, string>()
   for (const [key, identity] of Object.entries(bySuffix('TokenIdentity'))) {
     const token = addr(key.slice(0, -'Identity'.length))
@@ -50,6 +50,8 @@ if (has('TokenIdentity')) {
     const identity = String(event.log.address).toLowerCase() as `0x${string}`
     const link = await context.db.find(tokenIdentityLink, { id: identity })
     const token = (link?.token ?? tokenOf.get(identity) ?? event.log.address) as `0x${string}`
+    // A claim on an identity the token no longer points at is history of the old link, not the token's current identity.
+    const identityActive = link ? Boolean(link.active) : tokenOf.has(identity)
     const data = String(event.args.data)
     const uri = String(event.args.uri)
     const truncated = data.length > MAX_CLAIM_DATA_HEX || uri.length > MAX_CLAIM_URI
@@ -67,15 +69,19 @@ if (has('TokenIdentity')) {
         data: (truncated && data.length > MAX_CLAIM_DATA_HEX ? data.slice(0, MAX_CLAIM_DATA_HEX) : data) as `0x${string}`,
         uri: uri.slice(0, MAX_CLAIM_URI),
         truncated,
+        identityActive,
         blockNumber: event.block.number,
         txHash: event.transaction.hash,
         timestamp: ts(event),
       })
       .onConflictDoNothing()
   }
-  on('TokenIdentity:ClaimAdded', async ({ event, context }) => claim(context, event, 'ClaimAdded'))
-  on('TokenIdentity:ClaimChanged', async ({ event, context }) => claim(context, event, 'ClaimChanged'))
-  on('TokenIdentity:ClaimRemoved', async ({ event, context }) => claim(context, event, 'ClaimRemoved'))
+  for (const source of ['TokenIdentity', 'TokenIdentityLinked']) {
+    if (!has(source)) continue
+    on(`${source}:ClaimAdded`, async ({ event, context }) => claim(context, event, 'ClaimAdded'))
+    on(`${source}:ClaimChanged`, async ({ event, context }) => claim(context, event, 'ClaimChanged'))
+    on(`${source}:ClaimRemoved`, async ({ event, context }) => claim(context, event, 'ClaimRemoved'))
+  }
 }
 
 if (has('Safe')) {

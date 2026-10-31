@@ -136,7 +136,11 @@ app.get('/token-claims', async (c) => {
     .where(filters.length ? and(...filters) : undefined)
     .orderBy(desc(t.blockNumber), desc(t.id))
     .limit(limitOf(limit, 100, 500))
-  return json(c, { note: 'History only. Verify a claim with the token-identity API before relying on it.', events: rows })
+  // Whether each identity is the token's current one RIGHT NOW (a later setOnchainID swap retires it).
+  const links = await db.select().from(tables.tokenIdentityLink)
+  const currentOf = new Map<string, boolean>(links.map((l: any) => [String(l.id).toLowerCase(), Boolean(l.active)]))
+  const events = rows.map((r: any) => ({ ...r, identityCurrent: currentOf.get(String(r.identity).toLowerCase()) ?? r.identityActive }))
+  return json(c, { note: 'History only. Verify a claim with the token-identity API before relying on it. identityActive is the link when the event was indexed, identityCurrent is the link now.', events })
 })
 
 // Coins are labelled by address from the deployments file, never by an on-chain symbol (a mock can report another one).

@@ -10,7 +10,7 @@ A [Ponder](https://ponder.sh) indexer for Tawf on Arbitrum Sepolia (chain 421614
 | SCF | `SukukDistributor` (multi-coin, including `PayoutPart`), the V1 distributor, `ScfInvestorLimitModule` | `activity`, `scf_offering`, `scf_coin_flow`, `scf_limit_profile` |
 | Identity | `IdentityRegistry` | `identity` |
 | T-REX tokens | `Transfer`, `Paused`, `Unpaused`, freeze events | `token_transfer_count`, `token_control` |
-| Token identity | `ClaimAdded`, `ClaimChanged`, `ClaimRemoved` on each token ONCHAINID (the originator, platform, tokenization partner and offering document claims, topics 10 to 13), history only, plus `Token.UpdatedTokenInformation` so a setOnchainID swap re-maps identity to token | `token_claim`, `token_identity_link` |
+| Token identity | `ClaimAdded`, `ClaimChanged`, `ClaimRemoved` on each token ONCHAINID (the originator, platform, tokenization partner and offering document claims, topics 10 to 13), history only, plus `Token.UpdatedTokenInformation` so a setOnchainID swap re-maps identity to token. Identities are followed with Ponder's factory pattern (every ONCHAINID a token is pointed at starts being indexed without a restart), and each claim row records `identityActive` | `token_claim`, `token_identity_link` |
 | Governance | every `UpgradeableBeacon` (`Upgraded`), every Safe (`ExecutionSuccess`, `ExecutionFailure`, owners, threshold) | `governance_event` |
 
 Addresses and start blocks are read from `tawf-finance/src/web3/tokenization.deployments.json`, V1 keys included, so there is one source of truth. After a redeploy only that file changes. Key conventions for governance sources:

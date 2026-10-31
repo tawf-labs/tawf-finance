@@ -1,4 +1,5 @@
-import { createConfig } from 'ponder'
+import { createConfig, factory } from 'ponder'
+import { parseAbiItem } from 'viem'
 import { BeaconAbi, SafeAbi } from './abis/Governance'
 import { DepositoPoolLedgerAbi } from './abis/DepositoPoolLedger'
 import { IdentityRegistryAbi } from './abis/IdentityRegistry'
@@ -27,6 +28,12 @@ const one = <T extends object>(address: string | null, startBlock: number, extra
 const many = <T extends object>(addresses: string[], startBlock: number, extra: T) =>
   addresses.length ? { ...extra, chain: { [A]: { address: addresses as `0x${string}`[], startBlock } } } : null
 
+// A setOnchainID swap emits UpdatedTokenInformation on the token with the new ONCHAINID. Ponder's factory pattern turns
+// that event into a new contract to index, so a swapped-in identity is followed with no config change or restart.
+const updatedTokenInfo = parseAbiItem(
+  'event UpdatedTokenInformation(string indexed _newName, string indexed _newSymbol, uint8 _newDecimals, string _newVersion, address indexed _newOnchainID)',
+)
+
 const tokens = ['tawfSeriesToken', 'tawfSeries2Token', 'depositoPoolToken', 'scfToken', 'scfTokenV1', 'sukukToken', 'sukuk2Token']
   .map(addr)
   .filter((a): a is `0x${string}` => a !== null)
@@ -47,7 +54,11 @@ const candidates = {
   ScfLimitV1: one(addr('scfLimitModuleV1'), scfV1From, { abi: ScfInvestorLimitModuleAbi }),
   IdentityRegistry: one(addr('identityRegistry'), seriesFrom, { abi: IdentityRegistryAbi }),
   Token: many(tokens, seriesFrom, { abi: TokenAbi }),
+  // The identities recorded at deploy (<token key>Identity), and every identity a token is later pointed at.
   TokenIdentity: many(tokenIdentities, govFrom, { abi: TokenIdentityAbi }),
+  TokenIdentityLinked: tokens.length
+    ? { abi: TokenIdentityAbi, chain: { [A]: { address: factory({ address: tokens, event: updatedTokenInfo, parameter: '_newOnchainID' }), startBlock: seriesFrom } } }
+    : null,
   Beacon: many(beacons, govFrom, { abi: BeaconAbi }),
   Safe: many(safes, govFrom, { abi: SafeAbi }),
 }
