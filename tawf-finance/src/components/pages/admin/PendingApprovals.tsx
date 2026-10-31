@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { getPendingApprovals, loadPasscode, rejectSafeNonce, type PendingApprovalsResponse, type PendingSafeTx, type SafeDuty } from '@/lib/tokenization';
 import { decodeProposal, summarize, type DecodedCall } from '@/web3/safeDecode';
-import { checkPolicy, deployedSet, seriesTokens, type DeployedSet } from '@/web3/safePolicy';
+import { checkProposal, deployedSet, seriesTokens, type DeployedSet, type Reader } from '@/web3/safePolicy';
 import { TrexComplianceAbi } from '@/web3/tokenizationAbis';
 import deployments from '@/web3/tokenization.deployments.json';
 import { useContractWrite } from '@/web3/hooks';
@@ -89,7 +89,11 @@ export function PendingApprovals({ duties, passcode }: { duties: SafeDuty[]; pas
       }
       for (const p of data.pending) {
         const decoded = decodeProposal(p.to, p.data, p.safe);
-        const policy = checkPolicy(p.duty, p.safe, p.to, decoded, set);
+        const policy = await checkProposal(p.duty, p.safe, p.to, decoded, set, {
+          chain: publicClient as unknown as Reader,
+          feeRecipient: data.policy.feeRecipient,
+          identityRegistry: data.policy.identityRegistry,
+        });
         let recomputed: `0x${string}` | null = null;
         if (decoded.reencoded) {
           try {

@@ -69,6 +69,16 @@ const policyCall = {
   args: [['0xA000000000000000000000000000000000000001'], 1n, 1n, 1n, []] as const,
   description: 'selftest',
 }
+// Reads the argument checks make: the accepted coins, who is verified, pending escrow.
+const COINS = [(depJson as Record<string, string>).mockUsdc, (depJson as Record<string, string>).mockUsdt, (depJson as Record<string, string>).mockUsdg] as Address[]
+const verifiedSet = new Set<string>()
+const pendingMap = new Map<string, bigint>()
+const argReads = (a: { functionName: string; args?: unknown[] }): unknown => {
+  if (a.functionName === 'coins' || a.functionName === 'allowedStablecoins') return COINS
+  if (a.functionName === 'isVerified') return verifiedSet.has(String(a.args?.[0]).toLowerCase())
+  if (a.functionName === 'pendingOf') return pendingMap.get(`${String(a.args?.[0]).toLowerCase()}`) ?? 0n
+  return undefined
+}
 const realFetch = globalThis.fetch
 delete process.env.DEMO_OPERATOR_KEY // a direct operator send would die with "DEMO_OPERATOR_KEY is not set"
 process.env.MINTING_SAFE = '0x3333333333333333333333333333333333333333'
@@ -78,7 +88,13 @@ process.env.QUICKNODE_API_KEY = 'k'
 globalThis.fetch = (async () => { throw new Error('store down') }) as typeof fetch
 const chainRead = publicClient as unknown as { readContract: unknown; multicall: unknown; getChainId: unknown }
 const realRead = chainRead.readContract
-chainRead.readContract = async (x: { functionName: string }) => (x.functionName === 'compliance' ? '0x7777777777777777777777777777777777777777' : 0n)
+chainRead.readContract = async (x: { functionName: string; args?: unknown[] }) => {
+  if (x.functionName === 'compliance') return '0x7777777777777777777777777777777777777777'
+  const r = argReads(x)
+  return r === undefined ? 0n : r
+}
+verifiedSet.add('0xa000000000000000000000000000000000000001')
+pendingMap.set('0xa000000000000000000000000000000000000001', 5n)
 await rejects('store down', () => submitAdminTx(policyCall, 421614), /unreachable|store down/)
 process.env.MINTING_SAFE = 'not-an-address'
 await rejects('bad env', () => submitAdminTx(policyCall, 421614), /not a valid address/)
@@ -133,6 +149,8 @@ chainRead.readContract = async (a: { functionName: string; args?: unknown[] }) =
   if (a.functionName === 'getThreshold') return 2n
   if (a.functionName === 'getOwners') return OWNERS
   if (a.functionName === 'compliance') return COMPLIANCE
+  const arg = argReads(a)
+  if (arg !== undefined) return arg
   if (a.functionName === 'getTransactionHash') {
     const x = a.args as [Address, bigint, Hex, number, bigint, bigint, bigint, Address, Address, bigint]
     return safeTxHash(SAFE, { to: x[0], value: x[1], data: x[2], operation: 0, safeTxGas: x[4], baseGas: x[5], gasPrice: x[6], gasToken: x[7], refundReceiver: x[8], nonce: x[9] }, 421614)
@@ -240,8 +258,15 @@ const mint = (i: number, description = `mint ${i}`) => ({
   safeNonce = 0n
   fakeKv()
   const hashes: Hex[] = []
-  for (let i = 0; i <= 20; i++) hashes.push((await proposeToSafe(mint(1000 + i))).safeTxHash)
-  await rejects('queue full', () => proposeToSafe(mint(2000)), /queue is full/)
+  // 21 proposals fill the window; each duty may hold 10, so spread them over three duties on one Safe
+  process.env.TREASURY_SAFE = SAFE
+  process.env.COMPLIANCE_SAFE = SAFE
+  const distAbi2 = parseAbi(['function distribute(uint16 period, address coin, uint256 amount, uint256 epoch, bytes32[] proof)'])
+  const limitAbi = parseAbi(['function resetUsage(address onchainId, uint256 period)'])
+  for (let i = 0; i < 10; i++) hashes.push((await proposeToSafe(mint(1000 + i))).safeTxHash)
+  for (let i = 0; i < 10; i++) hashes.push((await proposeToSafe({ duty: 'treasury', address: DISTRIBUTOR, abi: distAbi2, functionName: 'distribute', args: [i + 1, USDC, 1n, 1n, []], description: `d${i}` })).safeTxHash)
+  hashes.push((await proposeToSafe({ duty: 'compliance', address: dep.scfLimitModule as Address, abi: limitAbi, functionName: 'resetUsage', args: [OWNERS[0], 1n], description: 'r' })).safeTxHash)
+  await rejects('queue full', () => proposeToSafe({ duty: 'compliance', address: dep.scfLimitModule as Address, abi: limitAbi, functionName: 'resetUsage', args: [OWNERS[0], 2n], description: 'r2' }), /queue is full/)
   await rejects('pinned beyond window', () => proposeToSafe(mint(2001), { nonce: 21n }), /queue is full/)
   const rows = await listPending(['minting'])
   if (rows.length !== 21) throw new Error(`expected 21 listed, got ${rows.length}`)
@@ -256,7 +281,7 @@ const mint = (i: number, description = `mint ${i}`) => ({
   safeNonce = 5n
   const slid = await listPending(['minting'])
   if (slid.some((r) => r.nonce < 5)) throw new Error('nonces below the Safe nonce must be gone')
-  const again = await proposeToSafe(mint(3000))
+  const again = await proposeToSafe({ duty: 'compliance', address: dep.scfLimitModule as Address, abi: limitAbi, functionName: 'resetUsage', args: [OWNERS[0], 3n], description: 'after slide' })
   if (again.nonce !== '21') throw new Error(`window slid, next free nonce is 21, got ${again.nonce}`)
   ok('nonce window and live index')
 }
@@ -310,6 +335,7 @@ const mint = (i: number, description = `mint ${i}`) => ({
   await proposeToSafe({ duty: 'minting', address: TOKEN, abi: pausable, functionName: 'unpause', description: 'unpause the token' })
   await refuse('minting cannot pause a series', { duty: 'minting', address: SERIES, abi: pausable, functionName: 'pause', description: 'x' })
   // the fee setting is Governance, paying the share out stays Treasury
+  process.env.FEE_RECIPIENT = OWNERS[0]
   await refuse('treasury cannot set the fee', { duty: 'treasury', address: SERIES, abi: pausable, functionName: 'setTawfShare', args: [1000, OWNERS[0]], description: 'x' })
   await proposeToSafe({ duty: 'governance', address: SERIES, abi: pausable, functionName: 'setTawfShare', args: [1000, OWNERS[0]], description: 'set the fee' })
   await proposeToSafe({ duty: 'treasury', address: SERIES, abi: parseAbi(['function claimTawfShare(address token)']), functionName: 'claimTawfShare', args: [USDC], description: 'pay the share' })
@@ -343,6 +369,88 @@ const mint = (i: number, description = `mint ${i}`) => ({
   if (!checkPolicy('guardian', SAFE, SAFE, rejection, set).ok) throw new Error('a rejection is allowed for any duty')
   if (checkPolicy('treasury', SAFE, target, rejection, set).ok) throw new Error('a rejection to another address is refused')
   ok('decoder, mismatch guard and policy verdict')
+}
+// ---- 9. AF1b arguments, AF2b parallel lock, AF5 caps and rate limit -------------------------------------------
+{
+  fakeKv()
+  safeNonce = 0n
+  const erc20 = parseAbi(['function approve(address spender, uint256 amount)', 'function approve2(uint256 x)'])
+  const shareAbi = parseAbi(['function setTawfShare(uint16 nisbahBps, address recipient)', 'function claimTawfShare(address token)', 'function addStablecoin(address token)'])
+  const distAbi = parseAbi(['function distribute(uint16 period, address coin, uint256 amount, uint256 epoch, bytes32[] proof)', 'function settleMaturity(address coin, uint256 amount, uint256 epoch, bytes32[] proof)'])
+  const refuse = (label: string, c: Parameters<typeof proposeToSafe>[0], m = /Refused/) => rejects(label, () => proposeToSafe(c), m)
+  const FOREIGN = '0x9999999999999999999999999999999999999999'
+  const FEE = '0xfee0000000000000000000000000000000000001'
+  process.env.FEE_RECIPIENT = FEE
+  process.env.GOV_SAFE = SAFE
+  // setTawfShare: the recipient must be the configured fee wallet (zero only for a zero share)
+  await refuse('fee to a stranger', { duty: 'governance', address: SERIES, abi: shareAbi, functionName: 'setTawfShare', args: [1000, FOREIGN], description: 'x' }, /fee recipient/)
+  await proposeToSafe({ duty: 'governance', address: SERIES, abi: shareAbi, functionName: 'setTawfShare', args: [1000, FEE], description: 'ok' })
+  await proposeToSafe({ duty: 'governance', address: SERIES, abi: shareAbi, functionName: 'setTawfShare', args: [0, '0x0000000000000000000000000000000000000000'], description: 'zero' })
+  await refuse('zero share with a recipient', { duty: 'governance', address: SERIES, abi: shareAbi, functionName: 'setTawfShare', args: [0, FEE], description: 'x' })
+  delete process.env.FEE_RECIPIENT
+  await refuse('no fee wallet configured', { duty: 'governance', address: SERIES, abi: shareAbi, functionName: 'setTawfShare', args: [1000, FEE], description: 'x' }, /No fee recipient/)
+  // addStablecoin: only the known coins
+  await refuse('unknown coin', { duty: 'governance', address: SERIES, abi: shareAbi, functionName: 'addStablecoin', args: [FOREIGN], description: 'x' }, /known settlement coins/)
+  await proposeToSafe({ duty: 'governance', address: SERIES, abi: shareAbi, functionName: 'addStablecoin', args: [USDC], description: 'ok' })
+  // coins of distribute / settle / claim: from the target's accepted list read on chain
+  await refuse('distribute with a foreign coin', { duty: 'treasury', address: DISTRIBUTOR, abi: distAbi, functionName: 'distribute', args: [1, FOREIGN, 1n, 1n, []], description: 'x' }, /accepts/)
+  await refuse('settle with a foreign coin', { duty: 'treasury', address: DISTRIBUTOR, abi: distAbi, functionName: 'settleMaturity', args: [FOREIGN, 1n, 1n, []], description: 'x' }, /accepts/)
+  await refuse('claim with a foreign coin', { duty: 'treasury', address: SERIES, abi: shareAbi, functionName: 'claimTawfShare', args: [FOREIGN], description: 'x' }, /accepts/)
+  await proposeToSafe({ duty: 'treasury', address: DISTRIBUTOR, abi: distAbi, functionName: 'distribute', args: [1, USDC, 1n, 1n, []], description: 'ok' })
+  await proposeToSafe({ duty: 'treasury', address: SERIES, abi: shareAbi, functionName: 'claimTawfShare', args: [USDC], description: 'ok' })
+  // approve: never the maximum, never above the cap
+  await refuse('approve max uint', { duty: 'treasury', address: USDC, abi: erc20, functionName: 'approve', args: [DISTRIBUTOR, 2n ** 256n - 1n], description: 'x' }, /maximum/)
+  await refuse('approve above the cap', { duty: 'treasury', address: USDC, abi: erc20, functionName: 'approve', args: [DISTRIBUTOR, 10n ** 13n + 1n], description: 'x' }, /exceed/)
+  await proposeToSafe({ duty: 'treasury', address: USDC, abi: erc20, functionName: 'approve', args: [DISTRIBUTOR, 10n ** 13n], description: 'at the cap' })
+  // allocate: verified in the IdentityRegistry and pending escrow on chain
+  const stranger = '0xb000000000000000000000000000000000000009' as Address
+  await refuse('allocate to an unverified wallet', { ...mint(7), args: [[stranger], 7n, 1n, 1n, []] as const }, /not verified/)
+  verifiedSet.add(stranger.toLowerCase())
+  await refuse('allocate with no pending escrow', { ...mint(8), args: [[stranger], 8n, 1n, 1n, []] as const }, /no pending escrow/)
+  pendingMap.set(stranger.toLowerCase(), 1n)
+  await proposeToSafe({ ...mint(9), args: [[stranger], 9n, 1n, 1n, []] as const })
+  await refuse('allocate nobody', { ...mint(10), args: [[], 10n, 1n, 1n, []] as const }, /at least one investor/)
+  ok('argument checks')
+}
+{
+  // AF2b: truly parallel identical proposals leave ONE visible proposal
+  fakeKv()
+  safeNonce = 0n
+  const outs = await Promise.all(Array.from({ length: 6 }, () => proposeToSafe(mint(4242, 'double click'))))
+  const rows = await listPending(['minting'])
+  const same4242 = rows.filter((r) => r.description === 'double click')
+  if (same4242.length !== 1) throw new Error(`parallel double clicks must collapse to one, got ${same4242.length}`)
+  if (new Set(outs.map((o) => o.safeTxHash)).size > 2) throw new Error('parallel callers should mostly agree on one proposal')
+  ok('parallel dedupe')
+}
+{
+  // AF5: at most 10 live proposals per duty (rejections exempt), and proposing is rate limited per passcode
+  fakeKv()
+  safeNonce = 0n
+  for (let i = 0; i < 10; i++) await proposeToSafe(mint(5000 + i))
+  await rejects('duty cap', () => proposeToSafe(mint(5100)), /already has 10 proposals/)
+  await rejectNonce('minting', 3n) // still possible
+  const { requestContext, contextKeyFor } = await import('../api/_tokenization/_lib/safe.js')
+  fakeKv()
+  const key = contextKeyFor('passcode-a')
+  let refused = 0
+  await requestContext.run({ key }, async () => {
+    for (let i = 0; i < 30; i++) {
+      try {
+        await proposeToSafe({ ...mint(6000 + i), duty: 'minting' })
+      } catch (e) {
+        if (/Too many proposals/.test((e as Error).message)) refused++
+        else if (!/already has 10|queue is full/.test((e as Error).message)) throw e
+      }
+    }
+  })
+  if (refused === 0) throw new Error('proposing must be rate limited per passcode')
+  // another passcode is not affected
+  await requestContext.run({ key: contextKeyFor('passcode-b') }, async () => {
+    fakeKv()
+    await proposeToSafe(mint(7000))
+  })
+  ok('duty cap and rate limit')
 }
 globalThis.fetch = realFetch
 void arbitrumSepolia

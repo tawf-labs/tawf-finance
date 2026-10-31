@@ -33,6 +33,7 @@ import h33 from './_tokenization/pool/admin.js'
 import h34 from './_tokenization/activity.js'
 import h38 from './_tokenization/safe/pending.js'
 import h39 from './_tokenization/safe/reject.js'
+import { requestContext, contextKeyFor } from './_tokenization/_lib/safe.js'
 
 type Handler = (req: VercelRequest, res: VercelResponse) => unknown
 
@@ -81,5 +82,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(404).json({ error: `Unknown tokenization endpoint: ${route || '(none)'}` })
     return
   }
-  return target(req, res)
+  // The proposal rate limit is per passcode: hand the router's request context to safe.ts.
+  return requestContext.run({ key: contextKeyFor(req.headers['x-demo-passcode']) }, () => target(req, res))
 }

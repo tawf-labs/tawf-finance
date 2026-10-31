@@ -325,6 +325,8 @@ export interface PendingSafeTx {
 export interface PendingApprovalsResponse {
   safes: Record<SafeDuty, { env: string; address: `0x${string}` | null }>;
   pending: PendingSafeTx[];
+  /** What the panel's argument checks compare against. */
+  policy: { feeRecipient: `0x${string}` | null; identityRegistry: `0x${string}` | null };
 }
 
 export function getPendingApprovals(passcode: string, duty?: SafeDuty): Promise<PendingApprovalsResponse> {

@@ -35,7 +35,10 @@ import { addresses, walletClient, publicClient } from './operator.js'
 import { kvEnabled, kvGetJson, kvListAdd, kvListGet, kvPool, kvSetJson } from './qn-kv.js'
 import { safeAbi, ZERO_ADDRESS, packApprovedHashSignatures } from '../../../src/web3/safe.js'
 import { decodeProposal } from '../../../src/web3/safeDecode.js'
-import { checkPolicy, deployedSet, seriesTokens, type DeployedSet } from '../../../src/web3/safePolicy.js'
+import { checkProposal, deployedSet, seriesTokens, type DeployedSet, type PolicyEnv } from '../../../src/web3/safePolicy.js'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { createHash } from 'node:crypto'
+import { SlidingWindow } from './rate-limit.js'
 import { trexComplianceAbi } from './abis.js'
 import deployments from '../../../src/web3/tokenization.deployments.json' with { type: 'json' }
 
@@ -104,6 +107,25 @@ export function loadDeployedSet(): Promise<DeployedSet> {
   return deployedCache
 }
 
+/** What the argument checks need: the chain, the configured fee wallet and the IdentityRegistry. */
+export function policyEnv(): PolicyEnv {
+  const raw = deployments as Record<string, unknown>
+  const fee = process.env.FEE_RECIPIENT ?? (typeof raw.feeRecipient === 'string' ? raw.feeRecipient : '')
+  const ir = typeof raw.identityRegistry === 'string' ? raw.identityRegistry : ''
+  return {
+    chain: publicClient as unknown as PolicyEnv['chain'],
+    feeRecipient: fee && isAddress(fee) ? (getAddress(fee) as Address) : null,
+    identityRegistry: ir && isAddress(ir) ? (getAddress(ir) as Address) : null,
+  }
+}
+
+/** Per-request context set by the router, so proposing can be rate limited per passcode. */
+export const requestContext = new AsyncLocalStorage<{ key: string }>()
+export const contextKeyFor = (passcode: unknown) => createHash('sha256').update(String(passcode ?? '')).digest('hex').slice(0, 16)
+const proposalRate = new SlidingWindow(20, 60_000)
+/** Live proposals one duty may have waiting. Rejections are exempt so the queue can always be unjammed. */
+export const MAX_LIVE_PER_DUTY = 10
+
 export interface Proposal {
   proposed: true
   duty: Duty
@@ -131,7 +153,7 @@ export interface AdminCall {
 }
 
 /** What is stored per proposal (one key each, written once). */
-interface StoredProposal {
+export interface StoredProposal {
   duty: Duty
   safe: Address
   to: Address
@@ -147,9 +169,31 @@ const propKey = (safe: Address, hash: Hex) => `tawf:safe:prop:${safe.toLowerCase
 // Live index: one append-only list of proposal hashes PER NONCE. The panel reads the lists for nonces in
 // [Safe.nonce, Safe.nonce + NONCE_WINDOW], so every proposal that can still run stays visible however old it is,
 // and the lists of nonces the Safe has passed are simply never read again (that is the pruning).
+const lockKey = (safe: Address, duty: Duty, to: Address, data: Hex) =>
+  `tawf:safe:lock:${safe.toLowerCase()}:${Math.floor(Date.now() / 10_000)}:${createHash('sha256').update(`${duty}|${to.toLowerCase()}|${data}`).digest('hex').slice(0, 24)}`
 const nonceKey = (safe: Address, nonce: bigint) => `tawf:safe:n:${safe.toLowerCase()}:${nonce}`
 /** Proposals are accepted and shown only up to Safe.nonce + NONCE_WINDOW. */
 export const NONCE_WINDOW = 20n
+
+/**
+ * Identical live proposals (same duty, target and data) collapse to the one with the lowest nonce, then the
+ * smallest hash, so two truly parallel double clicks that both got through leave one visible proposal.
+ * Rejections are exempt: the same empty call at different nonces are different rejections.
+ */
+export function collapseTwins(list: StoredProposal[]): StoredProposal[] {
+  const best = new Map<string, StoredProposal>()
+  const rest: StoredProposal[] = []
+  for (const p of list) {
+    if (p.data === '0x') {
+      rest.push(p)
+      continue
+    }
+    const k = `${p.duty}|${p.to.toLowerCase()}|${p.data}`
+    const cur = best.get(k)
+    if (!cur || BigInt(p.nonce) < BigInt(cur.nonce) || (p.nonce === cur.nonce && p.hash < cur.hash)) best.set(k, p)
+  }
+  return [...best.values(), ...rest]
+}
 
 async function readStored(safe: Address, safeNonce: bigint): Promise<StoredProposal[]> {
   const nonces = Array.from({ length: Number(NONCE_WINDOW) + 1 }, (_, i) => safeNonce + BigInt(i))
@@ -176,19 +220,42 @@ export async function proposeToSafe(call: AdminCall, opts: { nonce?: bigint } = 
     ? ('0x' as Hex)
     : encodeFunctionData({ abi: call.abi as Abi, functionName: call.functionName, args: call.args as never })
   const to = call.rejection ? safe : call.address
-  const verdict = checkPolicy(call.duty, safe, to, decodeProposal(to, data, safe), await loadDeployedSet())
+  const verdict = await checkProposal(call.duty, safe, to, decodeProposal(to, data, safe), await loadDeployedSet(), policyEnv())
   if (!verdict.ok) throw new Error(`Refused: ${verdict.reason}`)
+  // Rate limit per passcode. Every HTTP request runs inside the router's request context, so this always
+  // applies to the API. Calls outside a request (scripts, tests) have no passcode to limit.
+  const ctx = requestContext.getStore()
+  const wait = ctx ? proposalRate.take(ctx.key) : 0
+  if (wait > 0) throw new Error(`Too many proposals. Try again in ${wait}s.`)
 
   const safeNonce = (await publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'nonce' })) as bigint
-  const live = await readStored(safe, safeNonce)
+  const twinOf = (list: StoredProposal[]) =>
+    data === '0x' ? undefined : collapseTwins(list).find((p) => p.duty === call.duty && p.to.toLowerCase() === to.toLowerCase() && p.data === data)
+  const asProposal = (p: StoredProposal): Proposal => ({ proposed: true, duty: p.duty, safe, safeTxHash: p.hash, nonce: p.nonce, description: p.description })
+  let live = await readStored(safe, safeNonce)
   let nonce = opts.nonce
   if (nonce === undefined) {
-    const twin = live.find((p) => p.duty === call.duty && p.to.toLowerCase() === to.toLowerCase() && p.data === data)
-    if (twin) {
-      return { proposed: true, duty: twin.duty, safe, safeTxHash: twin.hash, nonce: twin.nonce, description: twin.description }
+    const early = twinOf(live)
+    if (early) return asProposal(early)
+    // A short lock per (duty, to, data): parallel double clicks agree on one claimant, the rest wait for its proposal.
+    const lock = lockKey(safe, call.duty, to, data)
+    const token = Math.random().toString(16).slice(2, 12)
+    await kvListAdd(lock, token)
+    const claim = [...(await kvListGet(lock))].sort()[0]
+    if (claim !== token) {
+      for (let i = 0; i < 20; i++) {
+        await new Promise((r) => setTimeout(r, 150))
+        live = await readStored(safe, safeNonce)
+        const winner = twinOf(live)
+        if (winner) return asProposal(winner)
+      }
+    }
+    const cap = collapseTwins(live).filter((p) => p.duty === call.duty && p.data !== '0x').length
+    if (cap >= MAX_LIVE_PER_DUTY) {
+      throw new Error(`The ${call.duty} Safe already has ${cap} proposals waiting. Execute or reject some first.`)
     }
     nonce = safeNonce
-    for (const p of live) if (BigInt(p.nonce) + 1n > nonce) nonce = BigInt(p.nonce) + 1n
+    for (const p of collapseTwins(live)) if (BigInt(p.nonce) + 1n > nonce) nonce = BigInt(p.nonce) + 1n
   } else if (nonce < safeNonce) {
     throw new Error(`Nonce ${nonce} is already used: the Safe is at nonce ${safeNonce}`)
   }
@@ -300,7 +367,7 @@ export async function listPending(only?: Duty[]): Promise<PendingTx[]> {
       publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'getOwners' }),
     ])) as [bigint, bigint, Address[]]
     // Only nonces that can still run, up to the window. Everything the Safe has passed is gone from the index.
-    const props = await readStored(safe, safeNonce)
+    const props = collapseTwins(await readStored(safe, safeNonce))
     if (props.length === 0) continue
     const perNonce = new Map<string, number>()
     for (const p of props) if (BigInt(p.nonce) >= safeNonce) perNonce.set(p.nonce, (perNonce.get(p.nonce) ?? 0) + 1)

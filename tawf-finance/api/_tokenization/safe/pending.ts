@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { methodGuard, requirePasscode, readableError } from '../_lib/operator.js'
-import { DUTIES, DUTY_ENV, listPending, safeFor, type Duty } from '../_lib/safe.js'
+import { DUTIES, DUTY_ENV, listPending, policyEnv, safeFor, type Duty } from '../_lib/safe.js'
 
 /**
  * Pending approvals for the admin pages: the proposals of each configured Safe (key-value store) with the
@@ -17,7 +17,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const only = DUTIES.includes(pick as Duty) ? [pick as Duty] : undefined
     const safes = Object.fromEntries(DUTIES.map((d) => [d, { env: DUTY_ENV[d], address: safeFor(d) }]))
     const pending = await listPending(only)
-    res.status(200).json({ safes, pending })
+    const env = policyEnv()
+    res.status(200).json({ safes, pending, policy: { feeRecipient: env.feeRecipient, identityRegistry: env.identityRegistry } })
   } catch (err) {
     res.status(502).json({ error: readableError(err) })
   }

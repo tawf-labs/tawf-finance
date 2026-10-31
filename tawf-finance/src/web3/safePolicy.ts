@@ -4,7 +4,7 @@
  * Safe it was proposed on. The API checks this when proposing and the admin panel checks it again before it
  * offers Approve, so a proposal slipped into the store for another target or another duty shows red.
  */
-import { getAddress, isAddress, type Address } from 'viem';
+import { getAddress, isAddress, maxUint256, parseAbi, type Address } from 'viem';
 import type { DecodedCall } from './safeDecode';
 import type { Duty } from './safeDuty';
 
@@ -109,4 +109,93 @@ export function checkPolicy(duty: Duty, safe: Address, to: Address, c: DecodedCa
       // Guardian: pause only. Unpausing is Governance.
       return fn === 'pause' && has(pausables(set), to) ? { ok: true, reason: '' } : no('The Guardian Safe may only pause our series, distributors or the pool ledger (or reject a nonce). Unpausing is Governance.');
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Argument checks. The target and function are not enough: a Treasury call to our own distributor could still
+// name the wrong coin, an allocate could mint to an unverified wallet, an approve could hand out everything.
+// These need chain reads, so they take a reader and run in the API (before storing) and in the panel.
+// ---------------------------------------------------------------------------------------------------------
+
+const ARG_ABI = parseAbi([
+  'function coins() view returns (address[])',
+  'function allowedStablecoins() view returns (address[])',
+  'function isVerified(address user) view returns (bool)',
+  'function pendingOf(address investor, address token) view returns (uint256)',
+]);
+
+/** Largest allowance a single approve proposal may grant (settlement coin base units). Never max uint. */
+export const MAX_APPROVE = 10n ** 13n;
+
+export interface Reader {
+  readContract(args: { address: Address; abi: unknown; functionName: string; args?: readonly unknown[] }): Promise<unknown>;
+}
+
+export interface PolicyEnv {
+  chain: Reader;
+  /** The configured fee wallet (deployments or FEE_RECIPIENT). */
+  feeRecipient: Address | null;
+  /** The IdentityRegistry that decides who may be minted to. */
+  identityRegistry: Address | null;
+}
+
+const same = (a: unknown, b: unknown) => typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
+
+async function acceptedCoins(set: DeployedSet, to: Address, env: PolicyEnv): Promise<Address[]> {
+  const fn = has(set.distributors, to) ? 'coins' : 'allowedStablecoins';
+  return (await env.chain.readContract({ address: to, abi: ARG_ABI, functionName: fn })) as Address[];
+}
+
+/** The arguments of a call that already passed `checkPolicy`. */
+export async function checkArguments(to: Address, c: DecodedCall, set: DeployedSet, env: PolicyEnv): Promise<PolicyResult> {
+  const ok: PolicyResult = { ok: true, reason: '' };
+  const no = (reason: string): PolicyResult => ({ ok: false, reason });
+  if (c.rejection || !c.functionName) return ok;
+  const fn = c.functionName;
+  const a = c.args;
+
+  if (fn === 'setTawfShare') {
+    const bps = Number(a[0]);
+    const recipient = a[1];
+    if (bps === 0) return same(recipient, '0x0000000000000000000000000000000000000000') ? ok : no('A zero share must have the zero address as recipient.');
+    if (!env.feeRecipient) return no('No fee recipient is configured (FEE_RECIPIENT or deployments feeRecipient).');
+    return same(recipient, env.feeRecipient) ? ok : no('The fee recipient must be the configured fee wallet.');
+  }
+  if (fn === 'addStablecoin') {
+    return has(set.stablecoins, a[0]) ? ok : no('addStablecoin may only add one of our known settlement coins.');
+  }
+  if (fn === 'distribute' || fn === 'releaseHeldProfit' || fn === 'claimTawfShare' || (fn === 'settleMaturity' && a.length === 4)) {
+    const coin = fn === 'distribute' || fn === 'releaseHeldProfit' ? a[1] : fn === 'claimTawfShare' ? a[0] : a[0];
+    const accepted = await acceptedCoins(set, to, env);
+    return has(accepted, coin) ? ok : no(`${fn} may only use a coin the target accepts (read on chain).`);
+  }
+  if (fn === 'approve') {
+    const amount = a[1] as bigint;
+    if (amount === maxUint256) return no('approve may not grant the maximum allowance.');
+    if (amount > MAX_APPROVE) return no(`approve may not exceed ${MAX_APPROVE} base units in one proposal.`);
+    return ok;
+  }
+  if (fn === 'allocate') {
+    const investors = a[0] as Address[];
+    if (!Array.isArray(investors) || investors.length === 0) return no('allocate needs at least one investor.');
+    if (!env.identityRegistry) return no('The IdentityRegistry is not configured.');
+    const coins = await acceptedCoins(set, to, env);
+    for (const who of investors) {
+      const verified = (await env.chain.readContract({ address: env.identityRegistry, abi: ARG_ABI, functionName: 'isVerified', args: [who] })) as boolean;
+      if (!verified) return no(`${who} is not verified in the IdentityRegistry.`);
+      let pending = 0n;
+      for (const coin of coins) {
+        pending += (await env.chain.readContract({ address: to, abi: ARG_ABI, functionName: 'pendingOf', args: [who, coin] })) as bigint;
+      }
+      if (pending === 0n) return no(`${who} has no pending escrow to allocate.`);
+    }
+    return ok;
+  }
+  return ok;
+}
+
+/** checkPolicy then checkArguments. */
+export async function checkProposal(duty: Duty, safe: Address, to: Address, c: DecodedCall, set: DeployedSet, env: PolicyEnv): Promise<PolicyResult> {
+  const first = checkPolicy(duty, safe, to, c, set);
+  return first.ok ? checkArguments(to, c, set, env) : first;
 }
