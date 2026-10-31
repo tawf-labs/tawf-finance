@@ -396,12 +396,12 @@ const mint = (i: number, description = `mint ${i}`) => ({
   await refuse('distribute with a foreign coin', { duty: 'treasury', address: DISTRIBUTOR, abi: distAbi, functionName: 'distribute', args: [1, FOREIGN, 1n, 1n, []], description: 'x' }, /accepts/)
   await refuse('settle with a foreign coin', { duty: 'treasury', address: DISTRIBUTOR, abi: distAbi, functionName: 'settleMaturity', args: [FOREIGN, 1n, 1n, []], description: 'x' }, /accepts/)
   await refuse('claim with a foreign coin', { duty: 'treasury', address: SERIES, abi: shareAbi, functionName: 'claimTawfShare', args: [FOREIGN], description: 'x' }, /accepts/)
-  await proposeToSafe({ duty: 'treasury', address: DISTRIBUTOR, abi: distAbi, functionName: 'distribute', args: [1, USDC, 1n, 1n, []], description: 'ok' })
   await proposeToSafe({ duty: 'treasury', address: SERIES, abi: shareAbi, functionName: 'claimTawfShare', args: [USDC], description: 'ok' })
   // approve: never the maximum, never above the cap
   await refuse('approve max uint', { duty: 'treasury', address: USDC, abi: erc20, functionName: 'approve', args: [DISTRIBUTOR, 2n ** 256n - 1n], description: 'x' }, /maximum/)
-  await refuse('approve above the cap', { duty: 'treasury', address: USDC, abi: erc20, functionName: 'approve', args: [DISTRIBUTOR, 10n ** 13n + 1n], description: 'x' }, /exceed/)
-  await proposeToSafe({ duty: 'treasury', address: USDC, abi: erc20, functionName: 'approve', args: [DISTRIBUTOR, 10n ** 13n], description: 'at the cap' })
+  await refuse('approve above the cap', { duty: 'treasury', address: USDC, abi: erc20, functionName: 'approve', args: [DISTRIBUTOR, 100_000n * 10n ** 6n + 1n], description: 'x' }, /exceed/)
+  await proposeToSafe({ duty: 'treasury', address: USDC, abi: erc20, functionName: 'approve', args: [DISTRIBUTOR, 100_000n * 10n ** 6n], description: 'at the cap' })
+  await proposeToSafe({ duty: 'treasury', address: DISTRIBUTOR, abi: distAbi, functionName: 'distribute', args: [1, USDC, 1n, 1n, []], description: 'ok' })
   // allocate: verified in the IdentityRegistry and pending escrow on chain
   const stranger = '0xb000000000000000000000000000000000000009' as Address
   await refuse('allocate to an unverified wallet', { ...mint(7), args: [[stranger], 7n, 1n, 1n, []] as const }, /not verified/)
@@ -451,6 +451,54 @@ const mint = (i: number, description = `mint ${i}`) => ({
     await proposeToSafe(mint(7000))
   })
   ok('duty cap and rate limit')
+}
+
+// ---- 10. PA1 allocate list, PA2 paired approve and sandbox bounds -----------------------------------------------
+{
+  fakeKv()
+  safeNonce = 0n
+  process.env.GOV_SAFE = SAFE
+  process.env.TREASURY_SAFE = SAFE
+  const refuse = (label: string, c: Parameters<typeof proposeToSafe>[0], m: RegExp) => rejects(label, () => proposeToSafe(c), m)
+  // PA1: at most 50 investors, no duplicates
+  const many = Array.from({ length: 51 }, (_, i) => `0x${(0xc000 + i).toString(16).padStart(40, '0')}` as Address)
+  for (const w of many) { verifiedSet.add(w.toLowerCase()); pendingMap.set(w.toLowerCase(), 1n) }
+  await refuse('51 investors', { ...mint(1), args: [many, 1n, 1n, 1n, []] as const }, /limited to 50/)
+  await refuse('duplicate investor', { ...mint(2), args: [[many[0], many[1], many[0]], 2n, 1n, 1n, []] as const }, /twice/)
+  await proposeToSafe({ ...mint(3), args: [many.slice(0, 50), 3n, 1n, 1n, []] as const })
+  // reads run in parallel batches: 50 investors need far fewer sequential rounds than 50 reads
+  let inFlight = 0, peak = 0
+  const prevRead = chainRead.readContract as (a: { functionName: string; args?: unknown[] }) => Promise<unknown>
+  chainRead.readContract = async (a: { functionName: string; args?: unknown[] }) => {
+    inFlight++; peak = Math.max(peak, inFlight)
+    await new Promise((r) => setTimeout(r, 2))
+    try { return await prevRead(a) } finally { inFlight-- }
+  }
+  await proposeToSafe({ ...mint(4), args: [many.slice(0, 40), 4n, 1n, 1n, []] as const })
+  chainRead.readContract = prevRead
+  if (peak < 5) throw new Error(`investor reads must run in parallel, peak ${peak}`)
+
+  // PA2: approve is capped by the paired amount when one is waiting, else 100,000 units
+  const erc20 = parseAbi(['function approve(address spender, uint256 amount)'])
+  const dist = parseAbi(['function distribute(uint16 period, address coin, uint256 amount, uint256 epoch, bytes32[] proof)'])
+  await proposeToSafe({ duty: 'treasury', address: DISTRIBUTOR, abi: dist, functionName: 'distribute', args: [9, USDC, 40_000n * 10n ** 6n, 1n, []], description: 'pay 40k' })
+  await refuse('approve above the paired amount', { duty: 'treasury', address: USDC, abi: erc20, functionName: 'approve', args: [DISTRIBUTOR, 40_000n * 10n ** 6n + 1n], description: 'x' }, /paired proposal/)
+  await proposeToSafe({ duty: 'treasury', address: USDC, abi: erc20, functionName: 'approve', args: [DISTRIBUTOR, 40_000n * 10n ** 6n], description: 'exact' })
+
+  // PA2: the inner sandbox call has sane values
+  const compl = parseAbi(['function callModuleFunction(bytes callData, address _module)'])
+  const sandbox = parseAbi(['function setMode(uint8 mode)', 'function setCaps(uint256 maxInvestors, uint256 maxBalancePerInvestor, uint256 seriesCap)', 'function setSeriesEnd(uint64 seriesEnd)'])
+  const inner = (fn: 'setMode' | 'setCaps' | 'setSeriesEnd', args: readonly unknown[]) => ({ duty: 'governance' as const, address: COMPLIANCE, abi: compl, functionName: 'callModuleFunction', args: [encodeFunctionData({ abi: sandbox, functionName: fn, args: args as never } as never), dep.sandboxModule as Address] as const, description: fn })
+  await refuse('mode 3', inner('setMode', [3]), /mode must be/)
+  await refuse('too many investors', inner('setCaps', [1001n, 1n, 1n]), /at most 1000 investors/)
+  await refuse('balance cap', inner('setCaps', [50n, 10n ** 12n + 1n, 1n]), /per investor/)
+  await refuse('series cap', inner('setCaps', [50n, 1n, 10n ** 14n + 1n]), /for the series/)
+  const farFuture = BigInt(Math.floor(Date.now() / 1000) + 11 * 365 * 24 * 3600)
+  await refuse('series end too far', inner('setSeriesEnd', [farFuture]), /years away/)
+  await proposeToSafe(inner('setMode', [2]))
+  await proposeToSafe(inner('setCaps', [50n, 10n ** 9n, 5n * 10n ** 10n]))
+  await proposeToSafe(inner('setSeriesEnd', [BigInt(Math.floor(Date.now() / 1000) + 90 * 24 * 3600)]))
+  ok('allocate list and paired approve and sandbox bounds')
 }
 globalThis.fetch = realFetch
 void arbitrumSepolia

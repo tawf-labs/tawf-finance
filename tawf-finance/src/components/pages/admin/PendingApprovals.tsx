@@ -93,6 +93,17 @@ export function PendingApprovals({ duties, passcode }: { duties: SafeDuty[]; pas
           chain: publicClient as unknown as Reader,
           feeRecipient: data.policy.feeRecipient,
           identityRegistry: data.policy.identityRegistry,
+          pairedAmount: (spender) => {
+            let best: bigint | null = null;
+            for (const q of data.pending) {
+              if (q.to.toLowerCase() !== spender.toLowerCase()) continue;
+              const dq = decodeProposal(q.to, q.data, q.safe);
+              if (!dq.known || !dq.functionName) continue;
+              const amount = dq.functionName === 'distribute' || dq.functionName === 'releaseHeldProfit' ? dq.args[2] : dq.functionName === 'settleMaturity' && dq.args.length === 4 ? dq.args[1] : null;
+              if (typeof amount === 'bigint' && (best === null || amount > best)) best = amount;
+            }
+            return best;
+          },
         });
         let recomputed: `0x${string}` | null = null;
         if (decoded.reencoded) {

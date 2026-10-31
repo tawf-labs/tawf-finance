@@ -35,8 +35,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return
     }
     const token = getAddress(rawToken) as Address
-    // A finite allowance (base units of the coin), never the maximum. Default: 1,000,000 units at 6 decimals.
-    const amount = BigInt(req.body?.amount ?? 1_000_000_000_000)
+    // A finite allowance (base units of the coin), never the maximum. Default: 100,000 units at 6 decimals.
+    const amount = BigInt(req.body?.amount ?? MAX_APPROVE)
     if (amount <= 0n || amount > MAX_APPROVE) {
       res.status(400).json({ error: `amount must be between 1 and ${MAX_APPROVE} base units.` })
       return

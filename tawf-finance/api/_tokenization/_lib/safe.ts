@@ -108,7 +108,7 @@ export function loadDeployedSet(): Promise<DeployedSet> {
 }
 
 /** What the argument checks need: the chain, the configured fee wallet and the IdentityRegistry. */
-export function policyEnv(): PolicyEnv {
+export function policyEnv(pairedAmount?: PolicyEnv['pairedAmount']): PolicyEnv {
   const raw = deployments as Record<string, unknown>
   const fee = process.env.FEE_RECIPIENT ?? (typeof raw.feeRecipient === 'string' ? raw.feeRecipient : '')
   const ir = typeof raw.identityRegistry === 'string' ? raw.identityRegistry : ''
@@ -116,6 +116,22 @@ export function policyEnv(): PolicyEnv {
     chain: publicClient as unknown as PolicyEnv['chain'],
     feeRecipient: fee && isAddress(fee) ? (getAddress(fee) as Address) : null,
     identityRegistry: ir && isAddress(ir) ? (getAddress(ir) as Address) : null,
+    pairedAmount,
+  }
+}
+
+/** The amount of the largest live distribute, settleMaturity or releaseHeldProfit proposal aimed at `spender`. */
+export function pairedAmountFrom(live: StoredProposal[]): PolicyEnv['pairedAmount'] {
+  return (spender) => {
+    let best: bigint | null = null
+    for (const p of live) {
+      if (p.to.toLowerCase() !== spender.toLowerCase()) continue
+      const d = decodeProposal(p.to, p.data, p.safe)
+      if (!d.known || !d.functionName) continue
+      const amount = d.functionName === 'distribute' || d.functionName === 'releaseHeldProfit' ? d.args[2] : d.functionName === 'settleMaturity' && d.args.length === 4 ? d.args[1] : null
+      if (typeof amount === 'bigint' && (best === null || amount > best)) best = amount
+    }
+    return best
   }
 }
 
@@ -220,7 +236,9 @@ export async function proposeToSafe(call: AdminCall, opts: { nonce?: bigint } = 
     ? ('0x' as Hex)
     : encodeFunctionData({ abi: call.abi as Abi, functionName: call.functionName, args: call.args as never })
   const to = call.rejection ? safe : call.address
-  const verdict = await checkProposal(call.duty, safe, to, decodeProposal(to, data, safe), await loadDeployedSet(), policyEnv())
+  // An approve is capped by the amount of a live distribute, settle or release for the same spender.
+  const liveForPairing = call.functionName === 'approve' ? await readStored(safe, (await publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'nonce' })) as bigint) : []
+  const verdict = await checkProposal(call.duty, safe, to, decodeProposal(to, data, safe), await loadDeployedSet(), policyEnv(pairedAmountFrom(liveForPairing)))
   if (!verdict.ok) throw new Error(`Refused: ${verdict.reason}`)
   // Rate limit per passcode. Every HTTP request runs inside the router's request context, so this always
   // applies to the API. Calls outside a request (scripts, tests) have no passcode to limit.

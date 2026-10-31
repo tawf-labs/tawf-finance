@@ -124,8 +124,18 @@ const ARG_ABI = parseAbi([
   'function pendingOf(address investor, address token) view returns (uint256)',
 ]);
 
-/** Largest allowance a single approve proposal may grant (settlement coin base units). Never max uint. */
-export const MAX_APPROVE = 10n ** 13n;
+/**
+ * Largest allowance an approve proposal may grant when no paired amount is known: 100,000 units of a 6-decimal
+ * settlement coin. When a live distribute, settle or release for the same spender is waiting, its amount is the cap.
+ */
+export const MAX_APPROVE = 100_000n * 10n ** 6n;
+
+/** allocate: investors per proposal, and how many chain reads run at once. */
+export const MAX_ALLOCATE_INVESTORS = 50;
+const READ_BATCH = 10;
+
+/** Sandbox bounds (sen, 2 decimals): Rp10 billion per investor, Rp1 trillion per series, 1000 investors, 10 years. */
+export const SANDBOX_BOUNDS = { maxInvestors: 1000n, maxBalancePerInvestor: 10n ** 12n, seriesCap: 10n ** 14n, maxModeIndex: 2n, maxYears: 10 };
 
 export interface Reader {
   readContract(args: { address: Address; abi: unknown; functionName: string; args?: readonly unknown[] }): Promise<unknown>;
@@ -137,6 +147,8 @@ export interface PolicyEnv {
   feeRecipient: Address | null;
   /** The IdentityRegistry that decides who may be minted to. */
   identityRegistry: Address | null;
+  /** The amount of a live distribute, settle or release that names `spender`, when one is waiting. */
+  pairedAmount?: (spender: Address) => bigint | null;
 }
 
 const same = (a: unknown, b: unknown) => typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
@@ -161,6 +173,22 @@ export async function checkArguments(to: Address, c: DecodedCall, set: DeployedS
     if (!env.feeRecipient) return no('No fee recipient is configured (FEE_RECIPIENT or deployments feeRecipient).');
     return same(recipient, env.feeRecipient) ? ok : no('The fee recipient must be the configured fee wallet.');
   }
+  if (fn === 'callModuleFunction' && c.inner?.functionName) {
+    const ia = c.inner.args;
+    const b = SANDBOX_BOUNDS;
+    if (c.inner.functionName === 'setMode' && (ia[0] as bigint) > b.maxModeIndex) return no('setMode: the mode must be 0, 1 or 2.');
+    if (c.inner.functionName === 'setCaps') {
+      if ((ia[0] as bigint) > b.maxInvestors) return no(`setCaps: at most ${b.maxInvestors} investors.`);
+      if ((ia[1] as bigint) > b.maxBalancePerInvestor) return no(`setCaps: at most ${b.maxBalancePerInvestor} sen per investor.`);
+      if ((ia[2] as bigint) > b.seriesCap) return no(`setCaps: at most ${b.seriesCap} sen for the series.`);
+    }
+    if (c.inner.functionName === 'setSeriesEnd') {
+      const end = Number(ia[0] as bigint);
+      const limit = Math.floor(Date.now() / 1000) + b.maxYears * 365 * 24 * 3600;
+      if (end > limit) return no(`setSeriesEnd: the end may be at most ${b.maxYears} years away.`);
+    }
+    return ok;
+  }
   if (fn === 'addStablecoin') {
     return has(set.stablecoins, a[0]) ? ok : no('addStablecoin may only add one of our known settlement coins.');
   }
@@ -172,22 +200,34 @@ export async function checkArguments(to: Address, c: DecodedCall, set: DeployedS
   if (fn === 'approve') {
     const amount = a[1] as bigint;
     if (amount === maxUint256) return no('approve may not grant the maximum allowance.');
-    if (amount > MAX_APPROVE) return no(`approve may not exceed ${MAX_APPROVE} base units in one proposal.`);
+    const paired = env.pairedAmount?.(a[0] as Address) ?? null;
+    const cap = paired !== null && paired < MAX_APPROVE ? paired : MAX_APPROVE;
+    if (amount > cap) return no(`approve may not exceed ${cap} base units${paired !== null ? ' (the amount of the paired proposal)' : ''}.`);
     return ok;
   }
   if (fn === 'allocate') {
     const investors = a[0] as Address[];
     if (!Array.isArray(investors) || investors.length === 0) return no('allocate needs at least one investor.');
+    if (investors.length > MAX_ALLOCATE_INVESTORS) return no(`allocate is limited to ${MAX_ALLOCATE_INVESTORS} investors per proposal.`);
+    if (new Set(investors.map((x) => x.toLowerCase())).size !== investors.length) return no('allocate lists an investor twice.');
     if (!env.identityRegistry) return no('The IdentityRegistry is not configured.');
+    const registry = env.identityRegistry;
     const coins = await acceptedCoins(set, to, env);
-    for (const who of investors) {
-      const verified = (await env.chain.readContract({ address: env.identityRegistry, abi: ARG_ABI, functionName: 'isVerified', args: [who] })) as boolean;
-      if (!verified) return no(`${who} is not verified in the IdentityRegistry.`);
-      let pending = 0n;
-      for (const coin of coins) {
-        pending += (await env.chain.readContract({ address: to, abi: ARG_ABI, functionName: 'pendingOf', args: [who, coin] })) as bigint;
-      }
-      if (pending === 0n) return no(`${who} has no pending escrow to allocate.`);
+    // Read in parallel batches: the first failing investor in list order is reported.
+    for (let i = 0; i < investors.length; i += READ_BATCH) {
+      const batch = investors.slice(i, i + READ_BATCH);
+      const verdicts = await Promise.all(
+        batch.map(async (who) => {
+          const verified = (await env.chain.readContract({ address: registry, abi: ARG_ABI, functionName: 'isVerified', args: [who] })) as boolean;
+          if (!verified) return `${who} is not verified in the IdentityRegistry.`;
+          const pendings = await Promise.all(
+            coins.map((coin) => env.chain.readContract({ address: to, abi: ARG_ABI, functionName: 'pendingOf', args: [who, coin] }) as Promise<bigint>),
+          );
+          return pendings.reduce((x, y) => x + y, 0n) === 0n ? `${who} has no pending escrow to allocate.` : null;
+        }),
+      );
+      const bad = verdicts.find((v) => v !== null);
+      if (bad) return no(bad);
     }
     return ok;
   }
