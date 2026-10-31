@@ -11,7 +11,7 @@ import { MockUSDC } from "../../src/mocks/MockUSDC.sol";
 import { MockSwapRouter } from "../../src/mocks/MockSwapRouter.sol";
 import { Proxies } from "../../src/proxy/Proxies.sol";
 
-/// @notice TEST ONLY. Minimal allow-list stand-in for the T-REX identity registry.
+/// @notice ANVIL ONLY. Refuses to run on Arbitrum Sepolia (421614) or any chain but a local one. TEST ONLY. Minimal allow-list stand-in for the T-REX identity registry.
 contract AllowListRegistry is ITawfIdentityRegistry {
     address public immutable owner;
     mapping(address => bool) private _verified;
@@ -38,6 +38,9 @@ contract AllowListRegistry is ITawfIdentityRegistry {
  */
 contract DeployTestStack is Script {
     function run() external {
+        // ANVIL ONLY: the beacons here are owned by the deployer and the roles are not Safe-governed. Never a real network,
+        // and in particular never Arbitrum Sepolia (421614). The supported deploy is script/DeployAll.s.sol.
+        require(block.chainid == 31337, "DeployTestStack is Anvil only (chain 31337), refused on every other chain");
         address mockUsdc = vm.envAddress("MOCK_USDC");
         address mockUsdt = vm.envAddress("MOCK_USDT");
         address feeRecipient = vm.envAddress("FEE_RECIPIENT");

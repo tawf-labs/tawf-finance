@@ -253,8 +253,9 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Pausable
     }
 
     // ---------------------------------------------------------------
-    // Emergency pause. The Guardian Safe can only pause, Governance (DEFAULT_ADMIN) unpauses. The exits stay
-    // open while paused: investors can always cancel or get their refund.
+    // Emergency pause. The Guardian Safe can only pause, Governance (DEFAULT_ADMIN) unpauses. A pause stops new money and
+    // the minting and funding side (subscribe, allocate, distributeProfit, settleMaturity, claimTawfShare). Investor exits
+    // stay open: cancelSubscription, claim and redeem still work, so one guardian signer can never freeze payouts.
     // ---------------------------------------------------------------
 
     function pause() external onlyRole(GUARDIAN_ROLE) {
@@ -471,7 +472,7 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Pausable
     ///         that coin's current rate and pulled from the treasury (which
     ///         pre-approves this series per coin). The sen entitlement is the
     ///         anchored profit pro rata, so the payout can never exceed it.
-    function claim(address token_) external whenNotPaused nonReentrant {
+    function claim(address token_) external nonReentrant {
         if (!isStablecoin[token_]) revert NotStablecoin(token_);
         _profit.settle(msg.sender, token.balanceOf(msg.sender));
         uint256 sen = _profit.take(msg.sender);
@@ -545,7 +546,7 @@ contract TawfDepositoSeries is Initializable, AccessControlUpgradeable, Pausable
     /// @notice Burn the caller's tokens for their pro-rata share of the funded
     ///         principal plus any unclaimed profit, both converted to `token_`
     ///         at its current rate and pulled from the treasury.
-    function redeem(address token_) external whenNotPaused nonReentrant {
+    function redeem(address token_) external nonReentrant {
         if (!isStablecoin[token_]) revert NotStablecoin(token_);
         if (!redemptionOpen) revert RedemptionNotOpen();
         uint256 units = token.balanceOf(msg.sender);

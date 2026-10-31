@@ -22,8 +22,25 @@ pragma solidity 0.8.17;
 import { DeployScf } from "./DeployScf.s.sol";
 import { DeployDepositoPool } from "./DeployDepositoPool.s.sol";
 import { ITawfShare } from "./DeployExtra.s.sol";
+import { IKeyLike } from "./DeployTokenization.s.sol";
+import { TestClaimIssuerSetup } from "./lib/TestClaimIssuerSetup.sol";
+import { TrustedIssuersRegistry } from "@erc3643org/erc-3643/contracts/registry/implementation/TrustedIssuersRegistry.sol";
+import { IdentityRegistry } from "@erc3643org/erc-3643/contracts/registry/implementation/IdentityRegistry.sol";
 
 contract DeployAll is DeployScf, DeployDepositoPool {
+    struct Out {
+        Deployment d;
+        address usdg;
+        address pLedger;
+        address pToken;
+        address pSeries;
+        address pSandbox;
+        Scf scf;
+        address anchor;
+        address testClaimIssuer;
+        address testRegistryAgent;
+    }
+
     function runAll() external {
         uint256 key = vm.envUint("PRIVATE_KEY");
         address operator = vm.addr(key);
@@ -35,38 +52,56 @@ contract DeployAll is DeployScf, DeployDepositoPool {
 
         vm.startBroadcast(key);
         uint256 govStart = _arbBlock();
+        Out memory o = _runAll(operator, ledgerChainId);
+        vm.stopBroadcast();
 
+        _writeAll(old, o, govStart);
+    }
+
+    /// @dev The whole deploy, hand-over and read-backs, without its own broadcast, so a test can run exactly this.
+    ///      `_loadSafes()` must have run.
+    function _runAll(address operator, uint256 ledgerChainId) internal returns (Out memory o) {
         // The anchor is always ours, behind its beacon. An external anchor (not upgradeable by us, not Safe governed) is not supported.
-        address anchor =
+        o.anchor =
             _deployProxy("LedgerAnchor.sol:LedgerAnchor", abi.encodeWithSignature("initialize(uint256,address,address)", ledgerChainId, operator, operator));
         _loadSukukTerms();
-        Deployment memory d = _deployAll(operator, anchor, ledgerChainId);
-        address usdg = deployCode("MockUSDC.sol:MockUSDC");
-        (address pLedger, address pToken, address pSeries, address pSandbox) =
-            _deployPool(operator, d.mockUsdc, d.mockUsdt, usdg, ledgerChainId);
+        o.d = _deployAll(operator, o.anchor, ledgerChainId);
+        o.usdg = deployCode("MockUSDC.sol:MockUSDC");
+        (o.pLedger, o.pToken, o.pSeries, o.pSandbox) =
+            _deployPool(operator, o.d.mockUsdc, o.d.mockUsdt, o.usdg, ledgerChainId);
         _coinList = new address[](3);
-        _coinList[0] = d.mockUsdc;
-        _coinList[1] = d.mockUsdt;
-        _coinList[2] = usdg;
-        Scf memory scf = _deployScf(operator, ledgerChainId);
-        _open(scf, ledgerChainId);
-        _setShareInBroadcast(d.series);
-        _setShareInBroadcast(pSeries);
+        _coinList[0] = o.d.mockUsdc;
+        _coinList[1] = o.d.mockUsdt;
+        _coinList[2] = o.usdg;
+        o.scf = _deployScf(operator, ledgerChainId);
+        _open(o.scf, ledgerChainId);
+        _setShareInBroadcast(o.d.series);
+        _setShareInBroadcast(o.pSeries);
+
+        // Testnet faucet (Arbitrum Sepolia only, refused elsewhere by the library): a TEST ClaimIssuer whose only claim key is
+        // the API's TEST_CLAIM_SIGNER, trusted for KYC and TAWF_SCREENED only, and a TEST registry agent (TEST_REGISTRY_AGENT).
+        // Both are EOAs the API holds. The operator never holds either role. Without TESTNET_FAUCET=false the faucet works
+        // straight after a fresh deploy.
+        if (block.chainid == 421614 && vm.envOr("TESTNET_FAUCET", true)) {
+            address signer = vm.envAddress("TEST_CLAIM_SIGNER");
+            o.testRegistryAgent = vm.envAddress("TEST_REGISTRY_AGENT");
+            o.testClaimIssuer = address(
+                TestClaimIssuerSetup.deployFor(TrustedIssuersRegistry(o.d.shared.trustedIssuersRegistry), signer, _safes.compliance, operator)
+            );
+            TestClaimIssuerSetup.addRegistryAgent(IdentityRegistry(o.d.shared.identityRegistry), o.testRegistryAgent);
+        }
 
         // Hand everything over, last, after every owner-only setup call above.
-        _wireRoles(operator, d, pLedger, pSeries, scf, anchor);
+        _wireRoles(operator, o.d, o.pLedger, o.pSeries, o.scf, o.anchor);
         _handoverToSafes(operator);
         _verifyOwnership(_allBeacons);
-        _verifyRoles(operator, d, pLedger, pSeries, scf, anchor);
+        _verifyRoles(operator, o.d, o.pLedger, o.pSeries, o.scf, o.anchor);
+        _verifyTrex(operator, o.testRegistryAgent);
         if (_moduleBeaconsSet) {
             require(_moduleBeacons.sandbox.owner() == _safes.governance, "module beacon not owned by GOV_SAFE");
             require(_moduleBeacons.checkpoint.owner() == _safes.governance, "module beacon not owned by GOV_SAFE");
             require(_moduleBeacons.scfLimit.owner() == _safes.governance, "module beacon not owned by GOV_SAFE");
         }
-
-        vm.stopBroadcast();
-
-        _writeAll(old, d, usdg, pLedger, pToken, pSeries, pSandbox, scf, govStart);
     }
 
     function _oldLedgerChainId(string memory old) internal view returns (uint256) {
@@ -81,17 +116,14 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         ITawfShare(product).setTawfShare(uint16(vm.envOr("TAWF_NISBAH_BPS", uint256(1500))), feeRecipient);
     }
 
-    function _writeAll(
-        string memory old,
-        Deployment memory d,
-        address usdg,
-        address pLedger,
-        address pToken,
-        address pSeries,
-        address pSandbox,
-        Scf memory scf,
-        uint256 govStart
-    ) internal {
+    function _writeAll(string memory old, Out memory o, uint256 govStart) internal {
+        Deployment memory d = o.d;
+        address usdg = o.usdg;
+        address pLedger = o.pLedger;
+        address pToken = o.pToken;
+        address pSeries = o.pSeries;
+        address pSandbox = o.pSandbox;
+        Scf memory scf = o.scf;
         string[28] memory addrKeys = [
             "anchor", "identityRegistry", "identityRegistryStorage", "trustedIssuersRegistry", "claimTopicsRegistry",
             "claimIssuer", "idFactory", "implementationAuthority", "tawfSeries", "tawfSeriesToken", "sandboxModule",
@@ -113,6 +145,10 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         vm.writeJson(vm.toString(_safes.compliance), PATH, ".complianceSafe");
         vm.writeJson(vm.toString(_safes.guardian), PATH, ".guardianSafe");
         vm.writeJson(vm.toString(govStart), PATH, ".governanceStartBlock");
+        if (o.testClaimIssuer != address(0)) {
+            vm.writeJson(vm.toString(o.testClaimIssuer), PATH, ".testClaimIssuer");
+            vm.writeJson(vm.toString(o.testRegistryAgent), PATH, ".testRegistryAgent");
+        }
         vm.writeJson(vm.toString(address(_moduleBeacons.sandbox)), PATH, ".sandboxModuleBeacon");
         vm.writeJson(vm.toString(address(_moduleBeacons.checkpoint)), PATH, ".distributionCheckpointBeacon");
         vm.writeJson(vm.toString(address(_moduleBeacons.scfLimit)), PATH, ".scfLimitModuleBeacon");
@@ -280,6 +316,21 @@ contract DeployAll is DeployScf, DeployDepositoPool {
             require(!IRoles(pool[i]).hasRole(DEFAULT_ADMIN, operator) && !IRoles(pool[i]).hasRole(R_ADMIN, operator), "roles: pool admin");
             require(IRoles(pool[i]).hasRole(DEFAULT_ADMIN, _safes.governance), "roles: pool governance");
         }
+        // RS4: the MINTER and FUNDER exclusion is enforced per contract (a contract refuses both on one address). Across
+        // contracts it is this check: no Safe or the operator holds MINTER on any series and FUNDER anywhere, and the
+        // two duties sit on different Safes.
+        require(_safes.minting != _safes.treasury, "roles: minting and treasury are the same Safe");
+        address[3] memory holders = [_safes.governance, _safes.guardian, _safes.compliance];
+        for (uint256 i; i < 3; i++) {
+            for (uint256 k; k < 2; k++) {
+                require(!IRoles(seriesList[k]).hasRole(R_MINTER, holders[i]) && !IRoles(seriesList[k]).hasRole(R_FUNDER, holders[i]), "roles: a non-duty Safe holds mint or fund");
+                require(!IRoles(dists[k]).hasRole(R_FUNDER, holders[i]), "roles: a non-duty Safe holds fund");
+            }
+        }
+        for (uint256 k; k < 2; k++) {
+            require(!IRoles(dists[k]).hasRole(R_FUNDER, _safes.minting), "roles: the minting safe can fund");
+            require(!IRoles(seriesList[k]).hasRole(R_FUNDER, _safes.minting) && !IRoles(seriesList[k]).hasRole(R_MINTER, _safes.treasury), "roles: the duties are mixed");
+        }
         require(!IRoles(d.dealRegistry).hasRole(R_OPS, operator) && !IRoles(d.redemptionVault).hasRole(R_OPS, operator), "roles: operator ops");
     }
 
@@ -302,6 +353,31 @@ contract DeployAll is DeployScf, DeployDepositoPool {
         }
         vm.writeJson(string.concat(arr, "]"), PATH, key);
     }
+
+    /// @dev Read-back of the T-REX side: nobody but the Minting Safe is an agent on any token (the series and
+    ///      distributor contracts keep their own agent role), the operator is no agent on any token or on the
+    ///      identity registry, the Compliance Safe is the registry agent, and the ClaimIssuer's management and claim
+    ///      keys belong to the Compliance Safe, not the operator. The faucet's TEST registry agent, when present, is
+    ///      an agent and nothing else changed.
+    function _verifyTrex(address operator, address testAgent) internal view {
+        for (uint256 i; i < _tokens.length; i++) {
+            require(!IAgentRead(_tokens[i]).isAgent(operator), "trex: the operator is a token agent");
+            require(!IAgentRead(_tokens[i]).isAgent(_safes.guardian), "trex: the guardian is a token agent");
+            require(IAgentRead(_tokens[i]).isAgent(_safes.minting), "trex: the minting safe is not a token agent");
+        }
+        address ir = _sharedIdentityRegistry;
+        require(!IAgentRead(ir).isAgent(operator), "trex: the operator is a registry agent");
+        require(IAgentRead(ir).isAgent(_safes.compliance), "trex: the compliance safe is not a registry agent");
+        if (testAgent != address(0)) require(IAgentRead(ir).isAgent(testAgent), "trex: the test registry agent is missing");
+        bytes32 comp = keccak256(abi.encode(_safes.compliance));
+        bytes32 op = keccak256(abi.encode(operator));
+        require(IKeyLike(_sharedClaimIssuer).keyHasPurpose(comp, 1) && IKeyLike(_sharedClaimIssuer).keyHasPurpose(comp, 3), "trex: claim issuer keys");
+        require(!IKeyLike(_sharedClaimIssuer).keyHasPurpose(op, 1) && !IKeyLike(_sharedClaimIssuer).keyHasPurpose(op, 3), "trex: operator has a claim issuer key");
+    }
+}
+
+interface IAgentRead {
+    function isAgent(address account) external view returns (bool);
 }
 
 interface IRoles {

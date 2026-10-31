@@ -183,8 +183,12 @@ contract DeployTokenization is Script, ProxyDeployer {
         // ClaimIssuer: KYC and screening claims are issued by whoever holds its management key. That moves to the
         // Compliance Safe and the operator's key is removed.
         if (_sharedClaimIssuer != address(0)) {
-            IKeyLike(_sharedClaimIssuer).addKey(keccak256(abi.encode(_safes.compliance)), 1, 1);
-            IKeyLike(_sharedClaimIssuer).removeKey(keccak256(abi.encode(operator)), 1);
+            bytes32 comp = keccak256(abi.encode(_safes.compliance));
+            bytes32 op = keccak256(abi.encode(operator));
+            IKeyLike(_sharedClaimIssuer).addKey(comp, 1, 1); // management
+            IKeyLike(_sharedClaimIssuer).addKey(comp, 3, 1); // claim signing
+            if (IKeyLike(_sharedClaimIssuer).keyHasPurpose(op, 1)) IKeyLike(_sharedClaimIssuer).removeKey(op, 1);
+            if (IKeyLike(_sharedClaimIssuer).keyHasPurpose(op, 3)) IKeyLike(_sharedClaimIssuer).removeKey(op, 3);
         }
         // Token agents can mint, burn, force transfers, freeze and recover. So the Guardian Safe and the operator are NOT
         // agents. Only the Minting Safe is a token agent (the series and distributor contracts that mint keep their own

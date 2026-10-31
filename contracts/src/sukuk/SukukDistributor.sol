@@ -311,8 +311,9 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, PausableUp
     }
 
     // ---------------------------------------------------------------
-    // Emergency pause. The Guardian Safe can only pause, Governance (DEFAULT_ADMIN) unpauses. The exits stay
-    // open while paused: investors can always cancel or get their refund.
+    // Emergency pause. The Guardian Safe can only pause, Governance (DEFAULT_ADMIN) unpauses. A pause stops new money
+    // and the funding side (subscribe, close, distribute, settle, release, sweep, topUp). Investor exits stay open: refund,
+    // claim, redeem and claimProfit still work, so one guardian signer can never freeze payouts.
     // ---------------------------------------------------------------
 
     function pause() external onlyRole(GUARDIAN_ROLE) {
@@ -535,7 +536,7 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, PausableUp
     }
 
     /// @notice Withdraw the caller's distributed profit, paid in `coin`.
-    function claim(address coin) external whenNotPaused nonReentrant {
+    function claim(address coin) external nonReentrant {
         _profit.settle(msg.sender, token.balanceOf(msg.sender));
         uint256 amount = _profit.take(msg.sender);
         if (amount == 0) revert NothingToClaim();
@@ -620,7 +621,7 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, PausableUp
 
     /// @notice Burn the caller's tokens for their share of the redemption (or
     ///         recovery) amount, plus any unclaimed profit, paid in `coin`.
-    function redeem(address coin) external whenNotPaused nonReentrant {
+    function redeem(address coin) external nonReentrant {
         if (status != Status.Matured && status != Status.Defaulted) revert WrongStatus(status);
         uint256 units = token.balanceOf(msg.sender);
         if (units == 0) revert NothingToClaim();
@@ -678,7 +679,7 @@ contract SukukDistributor is Initializable, AccessControlUpgradeable, PausableUp
     }
 
     /// @notice Pull the caller's share of released profit, paid in `coin`.
-    function claimProfit(address coin) external whenNotPaused nonReentrant {
+    function claimProfit(address coin) external nonReentrant {
         if (status != Status.Matured) revert WrongStatus(status);
         uint256 amount = claimableHeldProfit(msg.sender);
         heldProfitPaidPerUnit[msg.sender] = heldProfitPerUnit;
