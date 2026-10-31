@@ -286,19 +286,29 @@ const mint = (i: number, description = `mint ${i}`) => ({
   await refuse('foreign compliance', { duty: 'governance', address: '0x9999999999999999999999999999999999999999', abi: compl, functionName: 'callModuleFunction', args: [inner, dep.sandboxModule], description: 'x' })
   await refuse('unknown inner function', { duty: 'governance', address: COMPLIANCE, abi: compl, functionName: 'callModuleFunction', args: [encodeFunctionData({ abi: sandbox, functionName: 'evil', args: [1n] }), dep.sandboxModule], description: 'x' })
   await proposeToSafe({ duty: 'governance', address: COMPLIANCE, abi: compl, functionName: 'callModuleFunction', args: [inner, dep.sandboxModule], description: 'ok' })
-  // the guardian pauses and rejects, nothing else. Unpausing and the fee setting are Governance.
+  // the guardian pauses our Pausable contracts and rejects, nothing else. Unpausing is Governance. The
+  // T-REX tokens are never the Guardian's (a token agent can mint, burn and force transfers).
   process.env.GUARDIAN_SAFE = SAFE
   const pausable = parseAbi(['function pause()', 'function unpause()', 'function setTawfShare(uint16 nisbahBps, address recipient)'])
   const TOKEN = dep.tawfSeriesToken as Address
+  const LEDGER = dep.depositoPoolLedger as Address
   await refuse('guardian cannot allocate', { duty: 'guardian', address: SERIES, abi: seriesAbi, functionName: 'allocate', args: [[OWNERS[0]], 1n, 1n, 1n, []], description: 'x' })
-  await refuse('guardian cannot unpause', { duty: 'guardian', address: TOKEN, abi: pausable, functionName: 'unpause', description: 'x' })
+  await refuse('guardian cannot unpause', { duty: 'guardian', address: SERIES, abi: pausable, functionName: 'unpause', description: 'x' })
+  await refuse('guardian cannot pause a token', { duty: 'guardian', address: TOKEN, abi: pausable, functionName: 'pause', description: 'x' })
   await refuse('guardian pause on a foreign contract', { duty: 'guardian', address: '0x9999999999999999999999999999999999999999', abi: pausable, functionName: 'pause', description: 'x' })
-  await proposeToSafe({ duty: 'guardian', address: TOKEN, abi: pausable, functionName: 'pause', description: 'pause the token' })
   await proposeToSafe({ duty: 'guardian', address: SERIES, abi: pausable, functionName: 'pause', description: 'pause the series' })
-  await refuse('treasury cannot pause', { duty: 'treasury', address: TOKEN, abi: pausable, functionName: 'pause', description: 'x' })
-  await refuse('minting cannot unpause', { duty: 'minting', address: TOKEN, abi: pausable, functionName: 'unpause', description: 'x' })
-  await proposeToSafe({ duty: 'governance', address: TOKEN, abi: pausable, functionName: 'unpause', description: 'unpause the token' })
+  await proposeToSafe({ duty: 'guardian', address: DISTRIBUTOR, abi: pausable, functionName: 'pause', description: 'pause the distributor' })
+  await proposeToSafe({ duty: 'guardian', address: LEDGER, abi: pausable, functionName: 'pause', description: 'pause the ledger' })
+  await refuse('treasury cannot pause', { duty: 'treasury', address: SERIES, abi: pausable, functionName: 'pause', description: 'x' })
+  // governance unpauses the Pausable contracts, not the tokens
+  await proposeToSafe({ duty: 'governance', address: SERIES, abi: pausable, functionName: 'unpause', description: 'unpause the series' })
+  await proposeToSafe({ duty: 'governance', address: LEDGER, abi: pausable, functionName: 'unpause', description: 'unpause the ledger' })
+  await refuse('governance cannot unpause a token', { duty: 'governance', address: TOKEN, abi: pausable, functionName: 'unpause', description: 'x' })
   await refuse('governance unpause on a foreign contract', { duty: 'governance', address: '0x9999999999999999999999999999999999999999', abi: pausable, functionName: 'unpause', description: 'x' })
+  // the Minting Safe is the token agent: only it pauses and unpauses a token, and only our tokens
+  await proposeToSafe({ duty: 'minting', address: TOKEN, abi: pausable, functionName: 'pause', description: 'pause the token' })
+  await proposeToSafe({ duty: 'minting', address: TOKEN, abi: pausable, functionName: 'unpause', description: 'unpause the token' })
+  await refuse('minting cannot pause a series', { duty: 'minting', address: SERIES, abi: pausable, functionName: 'pause', description: 'x' })
   // the fee setting is Governance, paying the share out stays Treasury
   await refuse('treasury cannot set the fee', { duty: 'treasury', address: SERIES, abi: pausable, functionName: 'setTawfShare', args: [1000, OWNERS[0]], description: 'x' })
   await proposeToSafe({ duty: 'governance', address: SERIES, abi: pausable, functionName: 'setTawfShare', args: [1000, OWNERS[0]], description: 'set the fee' })

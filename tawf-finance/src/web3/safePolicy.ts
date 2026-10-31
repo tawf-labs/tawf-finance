@@ -16,12 +16,15 @@ export interface DeployedSet {
   /** ModularCompliance contracts of our series tokens (read on chain from each token). */
   compliances: Address[];
   stablecoins: Address[];
-  /** Series and sukuk tokens. The T-REX token is the contract that has pause and unpause today. */
+  /** Series and sukuk T-REX tokens. Their pause and unpause are agent-only, held by the Minting Safe. */
   tokens: Address[];
+  /** Pool ledgers, which are Pausable (Guardian pauses, Governance unpauses). */
+  ledgers: Address[];
 }
 
 const SERIES_KEYS = ['tawfSeries', 'tawfSeries2', 'depositoPool'];
 export const SERIES_TOKEN_KEYS = ['tawfSeriesToken', 'tawfSeries2Token', 'depositoPoolToken'];
+const LEDGER_KEYS = ['depositoPoolLedger'];
 const TOKEN_KEYS = [...SERIES_TOKEN_KEYS, 'sukukToken', 'sukuk2Token', 'scfToken'];
 const DISTRIBUTOR_KEYS = ['sukukDistributor', 'sukuk2Distributor', 'scfDistributor'];
 const SCF_LIMIT_KEYS = ['scfLimitModule'];
@@ -48,12 +51,17 @@ export function deployedSet(raw: Record<string, unknown>, complianceOf: Address[
     compliances: [...new Set([...complianceOf, ...pick(raw, ['scfCompliance'])].map((a) => a.toLowerCase()))].map((a) => getAddress(a) as Address),
     stablecoins: pick(raw, STABLE_KEYS),
     tokens: pick(raw, TOKEN_KEYS),
+    ledgers: pick(raw, LEDGER_KEYS),
   };
 }
 
-/** Everything that may expose pause and unpause: our series, distributors and tokens. The ledgers have no pause. */
+/**
+ * Our Pausable contracts: series, distributors and the pool ledger. The T-REX tokens are NOT here: their
+ * pause is agent-only, and a T-REX agent can also mint, burn and force transfers, so the Guardian is never a
+ * token agent. Pausing a token is a Minting Safe action.
+ */
 function pausables(set: DeployedSet): Address[] {
-  return [...set.series, ...set.distributors, ...set.tokens];
+  return [...set.series, ...set.distributors, ...set.ledgers];
 }
 
 const has = (list: Address[], a: unknown) => typeof a === 'string' && list.some((x) => x.toLowerCase() === a.toLowerCase());
@@ -83,11 +91,12 @@ export function checkPolicy(duty: Duty, safe: Address, to: Address, c: DecodedCa
       }
       return no(`${fn} is not a Treasury action.`);
     case 'minting':
+      if (fn === 'pause' || fn === 'unpause') return has(set.tokens, to) ? { ok: true, reason: '' } : no(`${fn} by the Minting Safe is for our tokens only (it is their agent).`);
       return fn === 'allocate' && has(set.series, to) ? { ok: true, reason: '' } : no(`${fn} is not a Minting action on one of our series.`);
     case 'compliance':
       return (fn === 'resetUsage' || fn === 'setProfile') && has(set.scfLimit, to) ? { ok: true, reason: '' } : no(`${fn} is not a Compliance action on our SCF limit module.`);
     case 'governance':
-      if (fn === 'unpause') return has(pausables(set), to) ? { ok: true, reason: '' } : no('unpause must target one of our contracts.');
+      if (fn === 'unpause') return has(pausables(set), to) ? { ok: true, reason: '' } : no('unpause must target one of our series, distributors or the pool ledger.');
       if (fn === 'setTawfShare') return has([...set.series, ...set.distributors], to) ? { ok: true, reason: '' } : no('setTawfShare must target one of our series or distributors.');
       if (fn === 'addStablecoin') return has(set.series, to) ? { ok: true, reason: '' } : no('addStablecoin must target one of our series.');
       if (fn === 'callModuleFunction') {
@@ -98,6 +107,6 @@ export function checkPolicy(duty: Duty, safe: Address, to: Address, c: DecodedCa
       return no(`${fn} is not a Governance action.`);
     default:
       // Guardian: pause only. Unpausing is Governance.
-      return fn === 'pause' && has(pausables(set), to) ? { ok: true, reason: '' } : no('The Guardian Safe may only pause one of our contracts (or reject a nonce). Unpausing is Governance.');
+      return fn === 'pause' && has(pausables(set), to) ? { ok: true, reason: '' } : no('The Guardian Safe may only pause our series, distributors or the pool ledger (or reject a nonce). Unpausing is Governance.');
   }
 }
