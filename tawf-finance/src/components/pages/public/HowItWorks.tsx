@@ -31,8 +31,8 @@ const scfSteps: Step[] = [
 const smeSteps: Step[] = [
   {
     icon: <FileText className="h-6 w-6" />,
-    title: 'Offering on a licensed platform',
-    description: 'An SME raises funds through a licensed crowdfunding (urun dana) partner platform. Tawf provides the token and the rails.',
+    title: 'Offering by a licensed originator',
+    description: 'An SME raises funds through a licensed crowdfunding (urun dana) platform, which is the originator. Tawf is its tokenization partner and provides the token and the rails.',
   },
   {
     icon: <Shield className="h-6 w-6" />,
@@ -157,7 +157,7 @@ export function HowItWorks() {
       <Chapter
         tint="butter"
         from="paper"
-        eyebrow="For partner banks"
+        eyebrow="For BPRS and deposito originators"
         title="Funding from"
         accent="outside your district."
         lead="A funding channel priced outside the local deposit market, with every bank\'s customer deposito proven on chain."
@@ -187,10 +187,10 @@ export function HowItWorks() {
       <Chapter
         tint="stone"
         from="paper"
-        eyebrow="For SMEs and platforms"
+        eyebrow="For SMEs and originator platforms"
         title="A raise that is"
         accent="checkable."
-        lead="Offerings run on a licensed partner platform. Every figure investors see is on chain."
+        lead="Offerings are originated by a licensed platform and tokenized by Tawf. Every figure investors see is on chain."
       >
         <StepGrid steps={smeSteps} tint="white" />
       </Chapter>

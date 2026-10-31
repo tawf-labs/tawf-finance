@@ -1,18 +1,13 @@
 import { useSearchParams } from 'react-router-dom';
-import { Building2, Users, Handshake, Send, Rocket } from 'lucide-react';
+import { Building2, Users, Handshake, Send, Cpu } from 'lucide-react';
 import { PublicPage, PageHero, Chapter, Tile, solid } from '../landing/PublicPage';
 import { Reveal } from '../landing/Reveal';
 
 const partnershipTypes = [
   {
-    icon: Rocket,
-    title: 'SCF Platform Partnership',
-    description: 'Licensed crowdfunding (urun dana) platforms and SME issuers',
-  },
-  {
     icon: Building2,
-    title: 'BPRS Deposito Partnership',
-    description: 'Licensed Shariah rural banks that want to take deposito in each customer\'s name, placed through Tawf, for the Deposito Pool (rupiah deposits opening soon)',
+    title: 'Asset originator partnership',
+    description: 'Licensed crowdfunding (urun dana) platforms, OJK-registered Shariah deposito aggregators and licensed BPRS that want Tawf as their tokenization and verification partner. You keep the assets and the customer relationship',
   },
   {
     icon: Users,
@@ -20,9 +15,14 @@ const partnershipTypes = [
     description: 'Institutional investors and funding partners',
   },
   {
+    icon: Cpu,
+    title: 'Technology Partnership',
+    description: 'Wallet, identity, data and infrastructure partners',
+  },
+  {
     icon: Handshake,
     title: 'Strategic Alliance',
-    description: 'Technology, custody, compliance, and distribution partners',
+    description: 'Custody, compliance, and distribution partners',
   },
 ];
 
@@ -49,7 +49,7 @@ export function Contact() {
       `Name: ${name}\nEmail: ${email}\nOrganization: ${organization}\n\nPartnership Type: ${partnershipType}\n\nMessage:\n${message}`
     );
 
-    window.location.href = `mailto:hello@tawf.finance?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:salam@tawflabs.com?subject=${subject}&body=${body}`;
   };
 
   return (
@@ -58,7 +58,7 @@ export function Contact() {
         eyebrow="Contact"
         title="Partner"
         accent="with us"
-        lead="We are building tokenized sharia crowdfunding for SMEs, and Shariah deposito at licensed BPRS (rupiah deposits opening soon). Talk to us if you run an SME offering, operate a licensed crowdfunding platform, run a BPRS, invest, or build the rails around them. The pilot is on testnet."
+        lead="We are the tokenization and verification partner of licensed Shariah asset originators. Talk to us if you originate or distribute Shariah assets, or want to invest through them. The pilot is on testnet."
       />
 
       <Chapter tint="paper" from="stone" eyebrow="Partnerships" title="Partnership" accent="opportunities">
@@ -102,7 +102,7 @@ export function Contact() {
                 name="organization"
                 required
                 className={field}
-                placeholder="Your BPRS, company, or organization"
+                placeholder="Your platform, bank or company"
               />
             </div>
             <div>
@@ -111,10 +111,10 @@ export function Contact() {
               </label>
               <select id="partnershipType" name="partnershipType" required defaultValue={presetType} className={field}>
                 <option value="">Select partnership type</option>
-                <option value="SCF Platform Partnership">SCF Platform Partnership</option>
-                <option value="BPRS Deposito Partnership">BPRS Deposito Partnership</option>
+                <option value="Asset originator partnership">Asset originator partnership</option>
                 <option value="Investor Partnership">Investor Partnership</option>
                 <option value="Strategic Alliance">Strategic Alliance</option>
+                <option value="Technology Partnership">Technology Partnership</option>
                 <option value="Other">Other</option>
               </select>
             </div>
@@ -139,8 +139,8 @@ export function Contact() {
           </form>
           <p className="mt-8 text-center text-sm text-ink/65">
             Or email us directly at{' '}
-            <a href="mailto:hello@tawf.finance" className="text-jade underline underline-offset-2 hover:text-ink">
-              hello@tawf.finance
+            <a href="mailto:salam@tawflabs.com" className="text-jade underline underline-offset-2 hover:text-ink">
+              salam@tawflabs.com
             </a>
           </p>
         </Reveal>

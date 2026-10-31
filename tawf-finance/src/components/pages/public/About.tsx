@@ -7,7 +7,7 @@ export function About() {
     {
       icon: <Heart className="h-7 w-7" />,
       title: 'Impact-First',
-      description: 'We give SMEs a wider funding channel through sharia crowdfunding, and give investors exposure they can verify.',
+      description: 'Licensed originators give SMEs a wider funding channel through sharia crowdfunding. Tawf gives investors a way to verify what they hold.',
     },
     {
       icon: <Shield className="h-7 w-7" />,
@@ -17,7 +17,7 @@ export function About() {
     {
       icon: <Landmark className="h-7 w-7" />,
       title: 'Platform-Run',
-      description: 'Offerings run on a licensed crowdfunding partner platform. Tawf provides the token, the rails and the verification.',
+      description: 'Offerings run on a licensed crowdfunding platform, the originator. Tawf provides the token, the rails and the verification.',
     },
     {
       icon: <Eye className="h-7 w-7" />,
@@ -32,8 +32,8 @@ export function About() {
       description: 'An ERC-3643 token, an escrow and distribution contract and a ledger on Arbitrum Sepolia. This is a testnet pilot, so nothing here is live money yet.',
     },
     {
-      layer: 'Layer 2: Licensed platform',
-      description: 'A licensed crowdfunding partner platform runs the offering and reports the reserve that backs the token. In the pilot this is a demo feed.',
+      layer: 'Layer 2: Licensed originator',
+      description: 'A licensed crowdfunding platform, the originator, runs the offering and reports the reserve that backs the token. In the pilot this is a demo feed.',
     },
     {
       layer: 'Layer 3: Shariah board',
@@ -51,12 +51,12 @@ export function About() {
         eyebrow="About Tawf"
         title="Shariah deposito and crowdfunding,"
         accent="on chain"
-        lead="Tawf Finance tokenizes Shariah deposito at licensed Islamic rural banks (BPRS), with rupiah deposits opening soon, and sharia securities crowdfunding (urun dana) for Indonesian SMEs through a licensed partner platform. The pilot runs on the Arbitrum Sepolia testnet."
+        lead="Tawf Finance is the tokenization and verification partner of licensed asset originators. It tokenizes Shariah deposito placed at licensed Islamic rural banks (BPRS), with rupiah deposits opening soon, and sharia securities crowdfunding (urun dana) offerings run by licensed platforms for Indonesian SMEs. The originators keep the assets and the customer relationship. The pilot runs on the Arbitrum Sepolia testnet."
       />
 
       <Chapter tint="paper" from="stone" eyebrow="Mission" title="A wider funding channel for SMEs">
         <Reveal className="max-w-3xl text-[1.1rem] leading-relaxed text-ink/75">
-          Indonesian SMEs often find bank funding out of reach. We bring them a crowdfunding channel through a licensed partner platform, and bring licensed rural banks funding from outside their district. Investors get Shariah-aligned exposure with the limit, the identity check and the reserve enforced on chain.
+          Indonesian SMEs often find bank funding out of reach. Licensed crowdfunding platforms give them a channel, and licensed rural banks and OJK-registered deposito aggregators bring funding from outside the district. Tawf is not the originator. It is the partner that tokenizes each position and verifies it, so investors get Shariah-aligned exposure with the limit, the identity check and the reserve enforced on chain.
         </Reveal>
         <Reveal className="mt-12 grid gap-4 sm:grid-cols-3">
           <Tile>
@@ -108,7 +108,7 @@ export function About() {
               <ul className="mt-5 space-y-3 text-ink/80">
                 <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> Sukuk mudharabah profit sharing, terms fixed upfront</li>
                 <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> The POJK 57/2020 investor limit enforced in the token</li>
-                <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> Offerings run on a licensed partner platform</li>
+                <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> Offerings are originated by a licensed platform, Tawf tokenizes and verifies</li>
                 <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> Proof of reserve on chain</li>
                 <li className="flex items-start gap-3"><CheckCircle className="mt-1 h-4 w-4 shrink-0 text-jade" /> One ERC-3643 token with identity checks built in</li>
               </ul>

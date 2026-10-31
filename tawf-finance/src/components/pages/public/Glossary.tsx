@@ -120,7 +120,7 @@ export function Glossary() {
     },
     {
       term: 'Urun dana',
-      definition: 'Sharia securities crowdfunding in Indonesia, where SMEs raise funds from the public through a licensed platform. Tawf connects to it through a licensed partner platform.',
+      definition: 'Sharia securities crowdfunding in Indonesia, where SMEs raise funds from the public through a licensed platform. Tawf is the tokenization and verification partner of the licensed platforms that run it.',
       category: 'Products',
     },
     {
