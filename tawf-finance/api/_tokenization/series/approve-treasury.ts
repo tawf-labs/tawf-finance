@@ -1,8 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getAddress, isAddress, maxUint256, type Address, type Hex } from 'viem'
+import { getAddress, isAddress, maxUint256, type Address } from 'viem'
 import {
-  publicClient,
-  walletClient,
   isConfigured,
   methodGuard,
   requirePasscode,
@@ -10,6 +8,7 @@ import {
   seriesTarget,
 } from '../_lib/operator.js'
 import { mockTokenAbi } from '../_lib/abis.js'
+import { submitAdminTx } from '../_lib/safe.js'
 
 /**
  * Approve the series to pull a settlement stablecoin from the treasury
@@ -35,14 +34,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return
     }
     const token = getAddress(rawToken) as Address
-    const wc = walletClient()
-    const txHash = (await wc.writeContract({
+    const sent = await submitAdminTx({
+      duty: 'treasury',
       address: token,
       abi: mockTokenAbi,
       functionName: 'approve',
       args: [target.series, maxUint256],
-    })) as Hex
-    await publicClient.waitForTransactionReceipt({ hash: txHash })
+      description: 'Approve the series to pull the settlement coin from the treasury',
+    })
+    if (sent.proposed) {
+      res.status(202).json({ ...sent, token, spender: target.series })
+      return
+    }
+    const txHash = sent.txHash
     res.status(200).json({ txHash, token, spender: target.series })
   } catch (err) {
     res.status(500).json({ error: readableError(err) })

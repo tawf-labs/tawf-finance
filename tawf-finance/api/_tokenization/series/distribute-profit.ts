@@ -11,6 +11,7 @@ import {
   readableError,
 } from '../_lib/operator.js'
 import { tawfSeriesAbi, mockTokenAbi } from '../_lib/abis.js'
+import { submitAdminTx } from '../_lib/safe.js'
 
 const COIN_ONE = 1_000_000n
 
@@ -63,13 +64,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await fundTreasuryForSen(profitSen, wc)
     }
 
-    const txHash = (await wc.writeContract({
+    const sent = await submitAdminTx({
+      duty: 'treasury',
       address: addresses.tawfSeries,
       abi: tawfSeriesAbi,
       functionName: 'distributeProfit',
       args: [periodNum, profitSen, BigInt(proof.epoch), proof.proof],
-    })) as Hex
-    await publicClient.waitForTransactionReceipt({ hash: txHash })
+      description: `Distribute profit for period ${periodNum}`,
+    })
+    if (sent.proposed) {
+      res.status(202).json({ ...sent, period: periodNum, profitSen: profitSen.toString(), epoch: proof.epoch })
+      return
+    }
+    const txHash = sent.txHash
 
     res.status(200).json({ txHash, period: periodNum, profitSen: profitSen.toString(), epoch: proof.epoch })
   } catch (err) {
