@@ -21,6 +21,7 @@ import {
   loadPasscode,
   savePasscode,
   postAdmin,
+  proposalSteps,
   getJson,
   type TxStep,
   type SeriesStatus,
@@ -31,6 +32,7 @@ import { isTokenizationConfigured, SETTLEMENT_STABLECOINS, DEPOSITO_POOL } from 
 import { explorerTxUrl } from '@/web3/constants';
 import { formatIdr, formatUsdc } from '@/web3/format';
 import { ComingSoon } from '@/components/ComingSoon';
+import { PendingApprovals } from '@/components/pages/admin/PendingApprovals';
 import { DEPOSITO_STABLECOIN_FLOW_ENABLED, DEPOSITO_OPENING } from '@/config/features';
 
 function StepList({ steps }: { steps: TxStep[] }) {
@@ -128,7 +130,8 @@ function TokenizationOps() {
     try {
       const out = (await fn()) as { txHash?: `0x${string}`; steps?: TxStep[]; sync?: unknown };
       if (out?.txHash) setLastHash(out.txHash);
-      if (out?.steps) setSteps(out.steps);
+      const proposed = proposalSteps(out);
+      if (out?.steps || proposed.length) setSteps([...(out?.steps ?? []), ...proposed]);
       await refreshAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : `${label} failed`);
@@ -194,6 +197,7 @@ function TokenizationOps() {
       </Card>
 
       <ActionFeedback busy={busy} error={error} steps={steps} lastHash={lastHash} />
+      <PendingApprovals duties={['governance', 'treasury', 'minting', 'compliance', 'guardian']} passcode={passcode} />
 
       <Card className="p-6">
         <Tabs tabs={tabs} defaultTab={DEPOSITO_POOL.series ? 'pool' : 'treasury'} variant="pills" />

@@ -285,3 +285,51 @@ export interface TawfAccountStatus {
     reserveSen: string;
   };
 }
+
+// --- Safe approvals -----------------------------------------------------------
+
+export type SafeDuty = 'governance' | 'treasury' | 'minting' | 'compliance' | 'guardian';
+
+/** Returned (HTTP 202) by an admin endpoint when the action was queued on the duty's Safe. */
+export interface SafeProposal {
+  proposed: true;
+  duty: SafeDuty;
+  safe: `0x${string}`;
+  safeTxHash: `0x${string}`;
+  nonce: string;
+  description: string;
+  safeUrl: string;
+}
+
+export interface PendingSafeTx {
+  duty: SafeDuty;
+  safe: `0x${string}`;
+  safeTxHash: `0x${string}`;
+  nonce: number;
+  to: `0x${string}`;
+  method: string | null;
+  confirmations: number;
+  required: number;
+  submittedAt: string;
+  note: string | null;
+  safeUrl: string;
+}
+
+export interface PendingApprovalsResponse {
+  safes: Record<SafeDuty, { env: string; address: `0x${string}` | null }>;
+  pending: PendingSafeTx[];
+}
+
+export function getPendingApprovals(passcode: string, duty?: SafeDuty): Promise<PendingApprovalsResponse> {
+  return getJson<PendingApprovalsResponse>(`safe/pending${duty ? `?duty=${duty}` : ''}`, passcode);
+}
+
+/** Turn the proposals in an admin response into steps the existing step lists can show. */
+export function proposalSteps(out: unknown): TxStep[] {
+  const o = out as { proposed?: boolean; proposals?: SafeProposal[] } & Partial<SafeProposal>;
+  const list: SafeProposal[] = o?.proposals ?? (o?.proposed ? [o as SafeProposal] : []);
+  return list.map((p) => ({
+    label: `Proposed to the ${p.duty} Safe, needs approval: ${p.description}`,
+    note: `Safe tx ${p.safeTxHash.slice(0, 10)}... nonce ${p.nonce}. Approve in Safe{Wallet}: ${p.safeUrl}`,
+  }));
+}
