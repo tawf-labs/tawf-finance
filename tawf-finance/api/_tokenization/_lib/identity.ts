@@ -27,6 +27,7 @@ import {
   account,
   addresses,
 } from './operator.js'
+import { assertLiveChain, safesRequired } from './safe.js'
 import { identityAbi, identityRegistryAbi, identityProxyAbi, claimIssuerAbi } from './abis.js'
 
 const COUNTRY_ID = 360 // Indonesia
@@ -68,6 +69,7 @@ export function selfServiceIssuer(chainId: number = Number(addresses.chainId)): 
     throw new Error('Self-service claims are testnet only: this chain has no test ClaimIssuer.')
   }
   if (addresses.testClaimIssuer === ZERO) {
+    if (safesRequired(chainId)) throw new Error('testClaimIssuer is not deployed and SAFES_REQUIRED is on')
     return { address: addresses.claimIssuer, sign: (m) => account().signMessage({ message: { raw: toBytes(m) } }) }
   }
   const k = process.env.TEST_CLAIM_ISSUER_KEY
@@ -92,7 +94,10 @@ export function selfServiceAgent(chainId: number = Number(addresses.chainId)): {
   if (chainId !== arbitrumSepolia.id) {
     throw new Error('The self-service registry agent is testnet only: this chain has none.')
   }
-  if (addresses.testRegistryAgent === ZERO) return { address: account().address, wc: walletClient() }
+  if (addresses.testRegistryAgent === ZERO) {
+    if (safesRequired(chainId)) throw new Error('testRegistryAgent is not deployed and SAFES_REQUIRED is on')
+    return { address: account().address, wc: walletClient() }
+  }
   const k = process.env.TEST_REGISTRY_AGENT_KEY
   if (!k) throw new Error('TEST_REGISTRY_AGENT_KEY is not set')
   const agent = privateKeyToAccount((k.startsWith('0x') ? k : `0x${k}`) as Hex, { nonceManager })
@@ -123,6 +128,7 @@ async function signKycClaim(identity: Address, topic: bigint, data: Hex): Promis
  */
 export async function ensureVerified(user: Address): Promise<{ steps: IdentityStep[]; isVerified: boolean }> {
   assertNotBlocked(user)
+  await assertLiveChain()
   const steps: IdentityStep[] = []
   const { wc, address: agentAddress } = selfServiceAgent()
 
@@ -210,6 +216,7 @@ export async function issueScreeningClaim(
   note?: string,
 ): Promise<{ steps: IdentityStep[]; identity: Address }> {
   assertNotBlocked(user)
+  await assertLiveChain()
   const steps: IdentityStep[] = []
   const { wc } = selfServiceAgent()
 

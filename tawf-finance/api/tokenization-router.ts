@@ -26,7 +26,6 @@ import h35 from './_tokenization/cron/post-rates.js'
 import h36 from './_tokenization/qn/stream.js'
 import h37 from './_tokenization/qn/alert.js'
 import h28 from './_tokenization/series/add-stablecoin.js'
-import h29 from './_tokenization/admin/handover-operator.js'
 import h30 from './_tokenization/scf/profile.js'
 import h31 from './_tokenization/scf/status.js'
 import h32 from './_tokenization/scf/admin.js'
@@ -56,7 +55,6 @@ const routes: Record<string, Handler> = {
   'series/status': h24,
   'tawf-share': h27,
   'series/add-stablecoin': h28,
-  'admin/handover-operator': h29,
   'scf/profile': h30,
   'scf/status': h31,
   'scf/admin': h32,

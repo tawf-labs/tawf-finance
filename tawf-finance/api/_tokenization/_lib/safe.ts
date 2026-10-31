@@ -43,8 +43,47 @@ export const DUTY_ENV: Record<Duty, string> = {
 
 export const DUTIES = Object.keys(DUTY_ENV) as Duty[]
 
-const SERVICE_URL = () =>
-  (process.env.SAFE_TX_SERVICE_URL ?? 'https://api.safe.global/tx-service/arb-sepolia').replace(/\/$/, '')
+/**
+ * Safe Transaction Service base URL per chain, pinned here. Arbitrum Sepolia (421614) has NO hosted service
+ * in Safe's own network list (safe-core-sdk api-kit config, checked Oct 2026), so it is null and
+ * SAFE_TX_SERVICE_URL (a self-hosted service) must be set there. Arbitrum One uses the hosted one.
+ */
+export const SAFE_SERVICE_BY_CHAIN: Record<number, string | null> = {
+  421614: null,
+  42161: 'https://api.safe.global/tx-service/arb1',
+}
+
+const SERVICE_URL = (chainId: number = Number(addresses.chainId)) => {
+  const url = process.env.SAFE_TX_SERVICE_URL ?? SAFE_SERVICE_BY_CHAIN[chainId] ?? ''
+  if (!url) throw new Error(`No Safe Transaction Service for chain ${chainId}: set SAFE_TX_SERVICE_URL`)
+  return url.replace(/\/$/, '')
+}
+
+/**
+ * Whether Safes are mandatory. ON unless SAFES_REQUIRED is explicitly "false" AND the chain is Arbitrum
+ * Sepolia. When on, a missing or blank Safe env, a missing testClaimIssuer or testRegistryAgent, or a live
+ * RPC chain id that differs from deployments.json is an error and never an operator fallback.
+ */
+export function safesRequired(chainId: number = Number(addresses.chainId)): boolean {
+  return !(process.env.SAFES_REQUIRED === 'false' && chainId === arbitrumSepolia.id)
+}
+
+let liveChain: Promise<number> | null = null
+/** Chain id from the live RPC, compared with deployments.json. Throws on a mismatch. */
+export async function assertLiveChain(): Promise<number> {
+  liveChain ??= publicClient.getChainId()
+  let live: number
+  try {
+    live = await liveChain
+  } catch (e) {
+    liveChain = null
+    throw e
+  }
+  if (live !== Number(addresses.chainId)) {
+    throw new Error(`RPC chain id ${live} differs from deployments.json chain id ${addresses.chainId}`)
+  }
+  return live
+}
 
 /**
  * The Safe for a duty, or null when its env var is unset. A value that is set but not a valid
@@ -61,6 +100,9 @@ export function safeFor(duty: Duty): Address | null {
 export function assertOperatorFallbackAllowed(duty: Duty, chainId: number): void {
   if (chainId !== arbitrumSepolia.id) {
     throw new Error(`${DUTY_ENV[duty]} is not set: off Arbitrum Sepolia the operator never sends ${duty} actions directly`)
+  }
+  if (safesRequired(chainId)) {
+    throw new Error(`${DUTY_ENV[duty]} is not set and SAFES_REQUIRED is on: the operator does not send ${duty} actions directly`)
   }
 }
 
@@ -117,7 +159,7 @@ async function svc<T>(path: string, init?: RequestInit): Promise<T> {
   return (text ? JSON.parse(text) : {}) as T
 }
 
-/** Next free nonce: the Safe's on-chain nonce, or one past its highest queued transaction. */
+/** Next free nonce: the Safe's on-chain nonce, or one past the highest nonce in its pending queue. */
 export async function nextNonce(safe: Address): Promise<bigint> {
   const info = await svc<{ nonce: number | string }>(`/api/v1/safes/${safe}/`)
   let next = BigInt(info.nonce)
@@ -128,6 +170,17 @@ export async function nextNonce(safe: Address): Promise<bigint> {
   if (top && BigInt(top.nonce) + 1n > next) next = BigInt(top.nonce) + 1n
   return next
 }
+
+// One proposal at a time per Safe inside this process, so parallel requests do not read the same nonce.
+const safeLocks = new Map<string, Promise<unknown>>()
+function withSafeLock<T>(safe: Address, fn: () => Promise<T>): Promise<T> {
+  const prev = safeLocks.get(safe) ?? Promise.resolve()
+  const run = prev.catch(() => undefined).then(fn)
+  safeLocks.set(safe, run.catch(() => undefined))
+  return run
+}
+
+const MAX_NONCE_ATTEMPTS = 5
 
 export interface Proposal {
   proposed: true
@@ -164,47 +217,74 @@ export async function proposeToSafe(call: AdminCall): Promise<Proposal> {
   const safe = safeFor(call.duty)
   if (!safe) throw new Error(`${DUTY_ENV[call.duty]} is not set`)
   const data = encodeFunctionData({ abi: call.abi as Abi, functionName: call.functionName, args: call.args as never })
-  const nonce = await nextNonce(safe)
-  const tx: SafeTxMessage = {
-    to: call.address,
-    value: 0n,
-    data,
-    operation: 0,
-    safeTxGas: 0n,
-    baseGas: 0n,
-    gasPrice: 0n,
-    gasToken: ZERO,
-    refundReceiver: ZERO,
-    nonce,
-  }
-  const hash = safeTxHash(safe, tx)
+  return withSafeLock(safe, async () => {
+    for (let attempt = 1; ; attempt++) {
+      const nonce = await nextNonce(safe)
+      const acct = account()
+      const tx: SafeTxMessage = {
+        to: call.address,
+        value: 0n,
+        data,
+        operation: 0,
+        safeTxGas: 0n,
+        baseGas: 0n,
+        gasPrice: 0n,
+        gasToken: ZERO,
+        refundReceiver: ZERO,
+        nonce,
+      }
+      const hash = safeTxHash(safe, tx)
+      const signature = await acct.signTypedData({
+        domain: { chainId: arbitrumSepolia.id, verifyingContract: safe },
+        types: SAFE_TX_TYPES,
+        primaryType: 'SafeTx',
+        message: tx,
+      })
+      await svc(`/api/v1/safes/${safe}/multisig-transactions/`, {
+        method: 'POST',
+        body: JSON.stringify({
+          to: tx.to,
+          value: '0',
+          data: tx.data,
+          operation: 0,
+          safeTxGas: '0',
+          baseGas: '0',
+          gasPrice: '0',
+          gasToken: ZERO,
+          refundReceiver: ZERO,
+          nonce: nonce.toString(),
+          contractTransactionHash: hash,
+          sender: acct.address,
+          signature,
+          origin: JSON.stringify({ name: 'Tawf admin', url: 'https://tawf.finance', note: call.description }),
+        }),
+      })
+      // Another instance may have queued a different transaction on the same nonce meanwhile (the service
+      // accepts both). If so, withdraw ours and try the next free nonce.
+      const same = await svc<{ results: { safeTxHash: string }[] }>(
+        `/api/v1/safes/${safe}/multisig-transactions/?executed=false&nonce=${nonce}`,
+      )
+      const clash = (same.results ?? []).some((t) => t.safeTxHash.toLowerCase() !== hash.toLowerCase())
+      if (!clash) {
+        return { proposed: true, duty: call.duty, safe, safeTxHash: hash, nonce: nonce.toString(), description: call.description, safeUrl: safeAppUrl(safe) } as Proposal
+      }
+      await withdraw(safe, hash)
+      if (attempt >= MAX_NONCE_ATTEMPTS) throw new Error(`Could not get a free Safe nonce after ${attempt} attempts`)
+    }
+  })
+}
+
+/** Remove our own queued transaction (the service lets its proposer delete it with a signed request). */
+async function withdraw(safe: Address, safeTxHash: Hex): Promise<void> {
   const acct = account()
+  const totp = BigInt(Math.floor(Date.now() / 1000 / 3600))
   const signature = await acct.signTypedData({
-    domain: { chainId: arbitrumSepolia.id, verifyingContract: safe },
-    types: SAFE_TX_TYPES,
-    primaryType: 'SafeTx',
-    message: tx,
+    domain: { name: 'Safe Transaction Service', version: '1.0', chainId: arbitrumSepolia.id, verifyingContract: safe },
+    types: { DeleteRequest: [{ name: 'safeTxHash', type: 'bytes32' }, { name: 'totp', type: 'uint256' }] },
+    primaryType: 'DeleteRequest',
+    message: { safeTxHash, totp },
   })
-  await svc(`/api/v1/safes/${safe}/multisig-transactions/`, {
-    method: 'POST',
-    body: JSON.stringify({
-      to: tx.to,
-      value: '0',
-      data: tx.data,
-      operation: 0,
-      safeTxGas: '0',
-      baseGas: '0',
-      gasPrice: '0',
-      gasToken: ZERO,
-      refundReceiver: ZERO,
-      nonce: nonce.toString(),
-      contractTransactionHash: hash,
-      sender: acct.address,
-      signature,
-      origin: JSON.stringify({ name: 'Tawf admin', url: 'https://tawf.finance', note: call.description }),
-    }),
-  })
-  return { proposed: true, duty: call.duty, safe, safeTxHash: hash, nonce: nonce.toString(), description: call.description, safeUrl: safeAppUrl(safe) }
+  await svc(`/api/v1/multisig-transactions/${safeTxHash}/`, { method: 'DELETE', body: JSON.stringify({ signature }) })
 }
 
 /**
@@ -214,9 +294,11 @@ export async function proposeToSafe(call: AdminCall): Promise<Proposal> {
  * set. Only with no Safe set, on Arbitrum Sepolia, does the operator sign and send, as before the
  * Safes existed. Data posts (FX, ledger snapshots, profit records, anchor roots) do not use this.
  */
-export async function submitAdminTx(call: AdminCall, chainId: number = Number(addresses.chainId)): Promise<Proposal | DirectSend> {
+export async function submitAdminTx(call: AdminCall, chainId?: number): Promise<Proposal | DirectSend> {
+  // The chain id comes from the live RPC and must equal deployments.json. A test may pass one explicitly.
+  const chain = chainId ?? (await assertLiveChain())
   if (safeFor(call.duty)) return proposeToSafe(call)
-  assertOperatorFallbackAllowed(call.duty, chainId)
+  assertOperatorFallbackAllowed(call.duty, chain)
   const txHash = (await walletClient().writeContract({
     address: call.address,
     abi: call.abi as Abi,
@@ -251,11 +333,14 @@ export async function listPending(only?: Duty[]): Promise<PendingTx[]> {
       `/api/v1/safes/${safe}/multisig-transactions/?executed=false&ordering=nonce&limit=50`,
     )
     for (const t of r.results ?? []) {
+      // origin is free text from any client: a JSON string, an already parsed object, or something else.
       let note: string | null = null
       try {
-        note = (JSON.parse(String(t.origin ?? '{}')) as { note?: string }).note ?? null
+        const o = typeof t.origin === 'string' ? (JSON.parse(t.origin) as unknown) : t.origin
+        const n = o && typeof o === 'object' ? (o as { note?: unknown }).note : undefined
+        note = typeof n === 'string' ? n : n == null ? null : JSON.stringify(n).slice(0, 200)
       } catch {
-        /* origin is free text from other clients */
+        note = typeof t.origin === 'string' && t.origin.length < 200 ? t.origin : null
       }
       const dd = t.dataDecoded as { method?: string } | null | undefined
       out.push({

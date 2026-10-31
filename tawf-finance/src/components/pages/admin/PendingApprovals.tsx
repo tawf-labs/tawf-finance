@@ -79,7 +79,7 @@ export function PendingApprovals({ duties, passcode }: { duties: SafeDuty[]; pas
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <Badge variant="warning">{DUTY_LABEL[p.duty]}</Badge>
-                  <span className="text-sm font-medium text-tawf-gray-900 truncate">{p.note ?? p.method ?? 'Contract call'}</span>
+                  <span className="text-sm font-medium text-tawf-gray-900 truncate">{typeof p.note === 'string' ? p.note : (p.method ?? 'Contract call')}</span>
                 </div>
                 <p className="text-xs text-tawf-gray-500 mt-1">
                   Nonce {p.nonce}, {p.confirmations} of {p.required} approvals{p.method ? `, ${p.method}` : ''}
