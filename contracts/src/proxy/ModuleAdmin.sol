@@ -20,6 +20,11 @@ import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/O
  *         - Ownership moves in two steps (`transferOwnership`, then `acceptOwnership` by the new owner).
  *           `renounceOwnership` is disabled.
  *
+ *         Upgrades with an initializer: a beacon has no upgradeAndCall, so a V2 `reinitializer(n)` runs in a
+ *         second transaction and could be front-run. Every reinitializer MUST be `onlyOwner` (the
+ *         Governance Safe), and the Safe sends `beacon.upgradeTo(v2)` plus the reinitializer call as one
+ *         MultiSend batch.
+ *
  *         Storage: plain variables plus a gap. Pinned to 0.8.17 with the T-REX code.
  */
 abstract contract ModuleAdmin is IModule, Initializable, OwnableUpgradeable {

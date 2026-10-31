@@ -14,12 +14,43 @@ import { ScfInvestorLimitModule } from "../scf/ScfInvestorLimitModule.sol";
  *         instance of that module. A deploy script hands each beacon to the Governance Safe with
  *         `beacon.transferOwnership(governanceSafe)`.
  *
- *         `xBeacon()` deploys an implementation and its beacon (the caller owns the beacon).
- *         `xProxy(beacon, ...)` deploys a BeaconProxy and initialises it in the same transaction,
- *         so the caller becomes the module owner and configurer. `x()` does both for tests and
- *         one-off deploys. Pinned to 0.8.17 like the modules. Internal functions only.
+ *         Deploy scripts call `beacons()` once, make every instance with `xProxy(beacon, ...)`
+ *         (the caller becomes the module owner and configurer) and finish with `handOverAll`.
+ *         `x()` makes a private beacon per call: tests and throwaway deploys only, never a script. Pinned to 0.8.17 like the modules. Internal functions only.
  */
 library ModuleProxies {
+    /// @dev One beacon per module type for a whole deployment.
+    struct Beacons {
+        UpgradeableBeacon sandbox;
+        UpgradeableBeacon checkpoint;
+        UpgradeableBeacon scfLimit;
+    }
+
+    /// @notice Deploy the three module beacons once. Make every instance with `xProxy(beacon, ...)`.
+    function beacons() internal returns (Beacons memory b) {
+        b.sandbox = sandboxBeacon();
+        b.checkpoint = checkpointBeacon();
+        b.scfLimit = scfLimitBeacon();
+    }
+
+    /// @notice Hand one beacon to the Governance Safe and read the owner back. The OZ v4 beacon owner
+    ///         moves in one step and can renounce, so a wrong address would be permanent: refuse the
+    ///         zero address and anything that is not a deployed contract (a Safe is one), then require
+    ///         the stored owner to equal `governance`.
+    function handOver(UpgradeableBeacon beacon, address governance) internal {
+        require(governance != address(0), "governance is zero");
+        require(governance.code.length > 0, "governance is not a contract");
+        beacon.transferOwnership(governance);
+        require(beacon.owner() == governance, "beacon owner not governance");
+    }
+
+    /// @notice Hand all three beacons over in the same run, so the deployer never keeps upgrade rights.
+    function handOverAll(Beacons memory b, address governance) internal {
+        handOver(b.sandbox, governance);
+        handOver(b.checkpoint, governance);
+        handOver(b.scfLimit, governance);
+    }
+
     function sandboxBeacon() internal returns (UpgradeableBeacon) {
         return new UpgradeableBeacon(address(new SandboxModule()));
     }

@@ -276,3 +276,89 @@ contract ModuleUpgradeTest is Test {
         assertEq(m.owner(), operator);
     }
 }
+
+/// @dev V2 with a reinitializer, as a future release would ship it.
+contract ScfModuleV2Init is ScfInvestorLimitModule {
+    uint256 public newField;
+
+    function initializeV2(uint256 v) external reinitializer(2) onlyOwner {
+        newField = v;
+    }
+}
+
+contract ModuleBeaconHandOverTest is Test {
+    address internal operator = makeAddr("operator");
+    address internal safe = makeAddr("governanceSafe");
+    address internal stranger = makeAddr("stranger");
+    address internal ir = makeAddr("identityRegistry");
+
+    // Harness so the internal library is called with this contract as the deployer.
+    function _beacons() internal returns (ModuleProxies.Beacons memory b) {
+        b = ModuleProxies.beacons();
+    }
+
+    function test_handOverAll_movesEveryBeaconAndReadsBack() public {
+        ModuleProxies.Beacons memory b = _beacons();
+        vm.etch(safe, hex"00"); // a deployed contract stands in for the Safe
+        ModuleProxies.handOverAll(b, safe);
+        assertEq(b.sandbox.owner(), safe);
+        assertEq(b.checkpoint.owner(), safe);
+        assertEq(b.scfLimit.owner(), safe);
+    }
+
+    function test_handOver_refusesZeroAndEoa() public {
+        ModuleProxies.Beacons memory b = _beacons();
+        vm.expectRevert("governance is zero");
+        this.callHandOver(b.sandbox, address(0));
+        vm.expectRevert("governance is not a contract");
+        this.callHandOver(b.sandbox, safe); // an EOA, e.g. a typo or the operator
+        assertEq(b.sandbox.owner(), address(this), "still the deployer, nothing moved");
+    }
+
+    function callHandOver(UpgradeableBeacon b, address g) external {
+        ModuleProxies.handOver(b, g);
+    }
+
+    function test_oneBeaconPerType_instancesShareIt() public {
+        ModuleProxies.Beacons memory b = _beacons();
+        ScfInvestorLimitModule a = ModuleProxies.scfLimitProxy(address(b.scfLimit), ir);
+        ScfInvestorLimitModule c = ModuleProxies.scfLimitProxy(address(b.scfLimit), ir);
+        vm.etch(safe, hex"00");
+        ModuleProxies.handOverAll(b, safe);
+        address v2 = address(new ScfModuleV2Init());
+        vm.expectRevert("Ownable: caller is not the owner");
+        b.scfLimit.upgradeTo(v2); // the deployer lost upgrade rights in the same run
+        vm.prank(safe);
+        b.scfLimit.upgradeTo(v2);
+        assertEq(ScfModuleV2Init(address(a)).newField(), 0);
+        assertEq(ScfModuleV2Init(address(c)).newField(), 0);
+    }
+
+    function test_reinitializer_isOwnerOnly_andRunsInOneBatch() public {
+        ModuleProxies.Beacons memory b = _beacons();
+        ScfInvestorLimitModule m = ModuleProxies.scfLimitProxy(address(b.scfLimit), ir);
+        vm.etch(safe, hex"00");
+        ModuleProxies.handOverAll(b, safe);
+        m.transferOwnership(safe);
+        vm.prank(safe);
+        m.acceptOwnership();
+
+        address v2 = address(new ScfModuleV2Init());
+        // Batch: both calls come from the Safe in one transaction, nothing in between.
+        vm.startPrank(safe);
+        b.scfLimit.upgradeTo(v2);
+        ScfModuleV2Init(address(m)).initializeV2(42);
+        vm.stopPrank();
+        assertEq(ScfModuleV2Init(address(m)).newField(), 42);
+
+        // Front-run attempt on a second instance after the upgrade: strangers and the old operator lose.
+        ScfInvestorLimitModule m2 = ModuleProxies.scfLimitProxy(address(b.scfLimit), ir);
+        vm.prank(stranger);
+        vm.expectRevert("Ownable: caller is not the owner");
+        ScfModuleV2Init(address(m2)).initializeV2(1);
+        // And it runs only once per instance.
+        vm.prank(safe);
+        vm.expectRevert("Initializable: contract is already initialized");
+        ScfModuleV2Init(address(m)).initializeV2(2);
+    }
+}
