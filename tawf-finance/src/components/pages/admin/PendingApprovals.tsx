@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
-import { useAccount } from 'wagmi';
+import { useAccount, usePublicClient } from 'wagmi';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { getPendingApprovals, loadPasscode, type PendingApprovalsResponse, type PendingSafeTx, type SafeDuty } from '@/lib/tokenization';
+import { getPendingApprovals, loadPasscode, rejectSafeNonce, type PendingApprovalsResponse, type PendingSafeTx, type SafeDuty } from '@/lib/tokenization';
+import { decodeProposal, summarize, type DecodedCall } from '@/web3/safeDecode';
 import { useContractWrite } from '@/web3/hooks';
 import { safeAbi, ZERO_ADDRESS } from '@/web3/safe';
 import type { Abi } from 'viem';
@@ -17,7 +18,16 @@ const DUTY_LABEL: Record<SafeDuty, string> = {
   guardian: 'Guardian',
 };
 
-const STATUS_LABEL = { pending: 'Waiting', ready: 'Ready to execute', stale: 'Replaced or executed', superseded: 'Superseded' } as const;
+const STATUS_LABEL = { pending: 'Waiting', ready: 'Ready to execute', stale: 'Replaced or executed' } as const;
+
+/** What the panel works out itself for a proposal, never taking the stored hash on trust. */
+interface Check {
+  decoded: DecodedCall;
+  /** Safe.getTransactionHash of the decoded fields, or null when the call could not be decoded. */
+  recomputed: `0x${string}` | null;
+  /** Decodes with a known ABI and the recomputed hash equals the stored one. */
+  verified: boolean;
+}
 
 /**
  * Proposals queued on the duty Safes. There is no hosted Safe service on Arbitrum Sepolia, so owners approve
@@ -32,6 +42,8 @@ export function PendingApprovals({ duties, passcode }: { duties: SafeDuty[]; pas
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
   const [busyHash, setBusyHash] = useState<string | null>(null);
+  const publicClient = usePublicClient();
+  const [checks, setChecks] = useState<Record<string, Check>>({});
 
   useEffect(() => {
     let live = true;
@@ -52,23 +64,74 @@ export function PendingApprovals({ duties, passcode }: { duties: SafeDuty[]; pas
     };
   }, [passcode, tick]);
 
+  // Decode every proposal and recompute its hash on chain from the decoded fields.
+  useEffect(() => {
+    if (!data || !publicClient) return;
+    let live = true;
+    void (async () => {
+      const next: Record<string, Check> = {};
+      for (const p of data.pending) {
+        if (p.status === 'stale') continue;
+        const decoded = decodeProposal(p.to, p.data, p.safe);
+        let recomputed: `0x${string}` | null = null;
+        if (decoded.reencoded) {
+          try {
+            recomputed = (await publicClient.readContract({
+              address: p.safe,
+              abi: safeAbi,
+              functionName: 'getTransactionHash',
+              args: [p.to, 0n, decoded.reencoded, 0, 0n, 0n, 0n, ZERO_ADDRESS, ZERO_ADDRESS, BigInt(p.nonce)],
+            })) as `0x${string}`;
+          } catch {
+            recomputed = null;
+          }
+        }
+        next[p.safeTxHash] = { decoded, recomputed, verified: decoded.known && recomputed !== null && recomputed.toLowerCase() === p.safeTxHash.toLowerCase() };
+      }
+      if (live) setChecks(next);
+    })();
+    return () => {
+      live = false;
+    };
+  }, [data, publicClient]);
+
+  const reject = async (p: PendingSafeTx) => {
+    setBusyHash(p.safeTxHash);
+    setError(null);
+    try {
+      await rejectSafeNonce(p.duty, p.nonce, passcode ?? loadPasscode());
+      reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not propose the rejection');
+    } finally {
+      setBusyHash(null);
+    }
+  };
+
   const reload = () => {
     setLoading(true);
     setTick((n) => n + 1);
   };
 
   const act = async (p: PendingSafeTx, kind: 'approve' | 'execute') => {
+    const c = checks[p.safeTxHash];
+    // Only a verified proposal can be approved or executed, and it is the RECOMPUTED hash and the re-encoded
+    // data that go on chain, not the stored values.
+    if (!c || !c.verified || !c.recomputed || !c.decoded.reencoded) {
+      setError('This proposal does not match its stored hash. Do not approve it.');
+      return;
+    }
     setBusyHash(p.safeTxHash);
     setError(null);
     try {
       if (kind === 'approve') {
-        await write({ address: p.safe, abi: safeAbi as unknown as Abi, functionName: 'approveHash', args: [p.safeTxHash] });
+        await write({ address: p.safe, abi: safeAbi as unknown as Abi, functionName: 'approveHash', args: [c.recomputed] });
       } else {
         await write({
           address: p.safe,
           abi: safeAbi as unknown as Abi,
           functionName: 'execTransaction',
-          args: [p.to, 0n, p.data, 0, 0n, 0n, 0n, ZERO_ADDRESS, ZERO_ADDRESS, p.signatures],
+          args: [p.to, 0n, c.decoded.reencoded, 0, 0n, 0n, 0n, ZERO_ADDRESS, ZERO_ADDRESS, p.signatures],
         });
       }
       reload();
@@ -109,29 +172,58 @@ export function PendingApprovals({ duties, passcode }: { duties: SafeDuty[]; pas
             const isOwner = !!me && p.owners.some((o) => o.toLowerCase() === me);
             const approved = !!me && p.approvedBy.some((o) => o.toLowerCase() === me);
             const busy = busyHash === p.safeTxHash || isPending;
+            const c = checks[p.safeTxHash];
+            const mismatch = !!c && !c.verified;
             return (
-              <li key={p.safeTxHash} className="py-3 flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="warning">{DUTY_LABEL[p.duty]}</Badge>
-                    <span className="text-sm font-medium text-tawf-gray-900 truncate">{String(p.description || p.method || 'Contract call')}</span>
+              <li key={p.safeTxHash} className="py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="warning">{DUTY_LABEL[p.duty]}</Badge>
+                      <span className="text-sm font-medium text-tawf-gray-900 truncate">{c ? summarize(c.decoded) : String(p.description || p.method || 'Contract call')}</span>
+                    </div>
+                    <p className="text-xs text-tawf-gray-500 mt-1">
+                      Nonce {p.nonce}, {p.approvedBy.length} of {p.required} approved, {STATUS_LABEL[p.status]}
+                      {p.status === 'pending' && p.nonce > p.safeNonce ? ` (queued behind nonce ${p.safeNonce})` : ''}
+                      {p.competing > 0 ? `, competing with ${p.competing} other proposal${p.competing > 1 ? 's' : ''} for nonce ${p.nonce}, the first to execute wins` : ''}
+                    </p>
+                    {c && (
+                      <div className="mt-1 text-xs text-tawf-gray-700 font-mono break-all">
+                        <p>to {p.to}, value 0</p>
+                        {c.decoded.lines.map((l, i) => (
+                          <p key={i}>arg {i + 1}: {l}</p>
+                        ))}
+                        {c.decoded.inner && c.decoded.inner.lines.map((l, i) => (
+                          <p key={`i${i}`}>{c.decoded.inner?.functionName} arg {i + 1}: {l}</p>
+                        ))}
+                      </div>
+                    )}
+                    {mismatch && (
+                      <p className="mt-2 text-sm font-semibold text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
+                        {c.decoded.known
+                          ? 'MISMATCH: the stored hash is not the hash of the call shown above. Do not approve.'
+                          : 'This call cannot be decoded with a known contract ABI, so it cannot be verified. Do not approve.'}
+                      </p>
+                    )}
+                    {!c && <p className="mt-1 text-xs text-tawf-gray-500">Checking the hash on chain...</p>}
                   </div>
-                  <p className="text-xs text-tawf-gray-500 mt-1">
-                    Nonce {p.nonce}, {p.approvedBy.length} of {p.required} approved, {STATUS_LABEL[p.status]}
-                    {p.status === 'pending' && p.nonce > p.safeNonce ? ` (queued behind nonce ${p.safeNonce})` : ''}
-                  </p>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  {p.status !== 'superseded' && isOwner && !approved && (
-                    <Button size="sm" variant="secondary" disabled={busy} onClick={() => void act(p, 'approve')}>
-                      Approve
-                    </Button>
-                  )}
-                  {p.status === 'ready' && (
-                    <Button size="sm" disabled={busy || !address} onClick={() => void act(p, 'execute')}>
-                      Execute
-                    </Button>
-                  )}
+                  <div className="flex flex-col gap-2 shrink-0">
+                    {c?.verified && isOwner && !approved && p.status !== 'stale' && (
+                      <Button size="sm" variant="secondary" disabled={busy} onClick={() => void act(p, 'approve')}>
+                        Approve
+                      </Button>
+                    )}
+                    {c?.verified && p.status === 'ready' && (
+                      <Button size="sm" disabled={busy || !address} onClick={() => void act(p, 'execute')}>
+                        Execute
+                      </Button>
+                    )}
+                    {c && !c.decoded.rejection && (
+                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => void reject(p)}>
+                        Reject
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </li>
             );

@@ -32,6 +32,7 @@ import h32 from './_tokenization/scf/admin.js'
 import h33 from './_tokenization/pool/admin.js'
 import h34 from './_tokenization/activity.js'
 import h38 from './_tokenization/safe/pending.js'
+import h39 from './_tokenization/safe/reject.js'
 
 type Handler = (req: VercelRequest, res: VercelResponse) => unknown
 
@@ -61,6 +62,7 @@ const routes: Record<string, Handler> = {
   'pool/admin': h33,
   'activity': h34,
   'safe/pending': h38,
+  'safe/reject': h39,
   'qn/stream': h36,
   'qn/alert': h37,
   'cron/post-rates': h35,

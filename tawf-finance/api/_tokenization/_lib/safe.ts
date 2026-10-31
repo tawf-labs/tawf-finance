@@ -106,11 +106,12 @@ export interface AdminCall {
   args?: readonly unknown[]
   /** Short text shown in the admin UI. */
   description: string
+  /** Internal: a Safe rejection (empty call from the Safe to itself). */
+  rejection?: boolean
 }
 
 /** What is stored per proposal (one key each, written once). */
 interface StoredProposal {
-  id: string
   duty: Duty
   safe: Address
   to: Address
@@ -121,53 +122,75 @@ interface StoredProposal {
   createdAt: number
 }
 
-const listKey = (safe: Address) => `tawf:safe:list:${safe.toLowerCase()}`
-const slotKey = (safe: Address, nonce: bigint) => `tawf:safe:slot:${safe.toLowerCase()}:${nonce}`
 const propKey = (safe: Address, hash: Hex) => `tawf:safe:prop:${safe.toLowerCase()}:${hash}`
 
-const MAX_SLOT_ATTEMPTS = 25
-const slotRecheckMs = () => Number(process.env.SAFE_SLOT_RECHECK_MS ?? 250)
+// The per-Safe index of proposal hashes is split by week so a read stays small: the current week and the
+// three before it are read. A proposal older than that has long been executed, replaced or abandoned.
+const WEEK_MS = 7 * 24 * 3600 * 1000
+const weekOf = (t: number) => Math.floor(t / WEEK_MS)
+const listKey = (safe: Address, week: number) => `tawf:safe:list:${safe.toLowerCase()}:${week}`
+const WEEKS_READ = 4
+
+async function readStored(safe: Address): Promise<StoredProposal[]> {
+  const now = weekOf(Date.now())
+  const lists = await Promise.all(Array.from({ length: WEEKS_READ }, (_, i) => kvListGet(listKey(safe, now - i))))
+  const hashes = [...new Set(lists.flat())] as Hex[]
+  return (await kvPool(hashes, 6, (h) => kvGetJson<StoredProposal | null>(propKey(safe, h), null))).filter(
+    (p): p is StoredProposal => p !== null,
+  )
+}
 
 /**
- * Queue `call` on the duty's Safe. Picks the next free nonce at or above the Safe's current nonce
- * (the first proposal targets the current nonce, later ones queue with nonce + 1), computes the hash with
- * Safe.getTransactionHash and stores the proposal. Slots are claimed with an append-only list per nonce:
- * the first item the store returns wins, so a clash between two API instances resolves the same way for everyone and the
- * loser moves on to the next nonce (a late loser shows as superseded in the panel).
+ * Queue `call` on the duty's Safe, the way the Safe apps do. The proposal targets
+ * nonce = max(Safe.nonce, highest pending nonce + 1), unless `opts.nonce` pins one (a rejection must target
+ * the nonce it burns). Several proposals may share a nonce: they compete, whichever executes first wins and
+ * the others become stale. A proposal is stored under its SafeTx hash, so proposing the same call on the same
+ * nonce again returns the existing one. The hash comes from Safe.getTransactionHash.
  */
-export async function proposeToSafe(call: AdminCall): Promise<Proposal> {
+export async function proposeToSafe(call: AdminCall, opts: { nonce?: bigint } = {}): Promise<Proposal> {
   const safe = safeFor(call.duty)
   if (!safe) throw new Error(`${DUTY_ENV[call.duty]} is not set`)
   if (!kvEnabled()) throw new Error('Safe proposals need the key-value store (QUICKNODE_API_KEY is not set)')
-  const data = encodeFunctionData({ abi: call.abi as Abi, functionName: call.functionName, args: call.args as never })
+  const data = call.rejection
+    ? ('0x' as Hex)
+    : encodeFunctionData({ abi: call.abi as Abi, functionName: call.functionName, args: call.args as never })
+  const to = call.rejection ? safe : call.address
   const safeNonce = (await publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'nonce' })) as bigint
-  const id = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('')
-  const item = `${Date.now().toString().padStart(15, '0')}-${id}`
-
-  let nonce = safeNonce
-  for (let attempt = 0; ; attempt++, nonce++) {
-    if (attempt >= MAX_SLOT_ATTEMPTS) throw new Error('No free Safe nonce: too many proposals are waiting')
-    await kvListAdd(slotKey(safe, nonce), item)
-    // The first item the store returns owns the slot. Look again after a short pause so a claim that was
-    // still in flight is seen before we decide (a late loser also shows as superseded in the panel).
-    if ((await kvListGet(slotKey(safe, nonce)))[0] !== item) continue
-    await new Promise((r) => setTimeout(r, slotRecheckMs()))
-    if ((await kvListGet(slotKey(safe, nonce)))[0] === item) break
+  let nonce = opts.nonce
+  if (nonce === undefined) {
+    nonce = safeNonce
+    for (const p of await readStored(safe)) {
+      const n = BigInt(p.nonce)
+      if (n >= safeNonce && n + 1n > nonce) nonce = n + 1n
+    }
+  } else if (nonce < safeNonce) {
+    throw new Error(`Nonce ${nonce} is already used: the Safe is at nonce ${safeNonce}`)
   }
-
   const hash = (await publicClient.readContract({
     address: safe,
     abi: safeAbi,
     functionName: 'getTransactionHash',
-    args: [call.address, 0n, data, 0, 0n, 0n, 0n, ZERO_ADDRESS, ZERO_ADDRESS, nonce],
+    args: [to, 0n, data, 0, 0n, 0n, 0n, ZERO_ADDRESS, ZERO_ADDRESS, nonce],
   })) as Hex
-  const stored: StoredProposal = {
-    id, duty: call.duty, safe, to: call.address, data, nonce: nonce.toString(), hash,
-    description: call.description, createdAt: Date.now(),
+  const existing = await kvGetJson<StoredProposal | null>(propKey(safe, hash), null)
+  if (!existing) {
+    const stored: StoredProposal = {
+      duty: call.duty, safe, to, data, nonce: nonce.toString(), hash,
+      description: call.description, createdAt: Date.now(),
+    }
+    await kvSetJson(propKey(safe, hash), stored)
   }
-  await kvSetJson(propKey(safe, hash), stored)
-  await kvListAdd(listKey(safe), hash)
-  return { proposed: true, duty: call.duty, safe, safeTxHash: hash, nonce: nonce.toString(), description: call.description }
+  // Append-only and idempotent: a duplicate hash is ignored by the list.
+  await kvListAdd(listKey(safe, weekOf(existing?.createdAt ?? Date.now())), hash)
+  return { proposed: true, duty: call.duty, safe, safeTxHash: hash, nonce: nonce.toString(), description: existing?.description ?? call.description }
+}
+
+/** The standard Safe rejection for `nonce`: a zero-value call from the Safe to itself with empty data. */
+export function rejectNonce(duty: Duty, nonce: bigint): Promise<Proposal> {
+  return proposeToSafe(
+    { duty, address: ZERO_ADDRESS, abi: [], functionName: '', description: `Reject nonce ${nonce}: burn it so the queue moves`, rejection: true },
+    { nonce },
+  )
 }
 
 /** The operator may send a Safe-duty action itself only on Arbitrum Sepolia, and only with no Safe set. */
@@ -203,7 +226,7 @@ export async function submitAdminTx(call: AdminCall, chainId?: number): Promise<
 }
 
 
-export type ProposalStatus = 'pending' | 'ready' | 'stale' | 'superseded'
+export type ProposalStatus = 'pending' | 'ready' | 'stale'
 
 export interface PendingTx {
   duty: Duty
@@ -212,6 +235,7 @@ export interface PendingTx {
   nonce: number
   to: Address
   data: Hex
+  value: string
   method: string | null
   description: string
   createdAt: number
@@ -221,8 +245,10 @@ export interface PendingTx {
   owners: Address[]
   safeNonce: number
   /** pending: waiting for approvals or an earlier nonce. ready: threshold met and it is the next nonce.
-   *  stale: the Safe nonce moved past it (executed or replaced). superseded: another proposal won its nonce. */
+   *  stale: the Safe nonce moved past it (executed, rejected or replaced by a competing proposal). */
   status: ProposalStatus
+  /** Other live proposals competing for the same nonce. Whichever executes first wins. */
+  competing: number
   /** Packed approved-hash signatures to pass to execTransaction (approvals so far, sorted by owner). */
   signatures: Hex
 }
@@ -239,27 +265,19 @@ export async function listPending(only?: Duty[], includeStale = false): Promise<
   for (const duty of only ?? DUTIES) {
     const safe = safeFor(duty)
     if (!safe) continue
-    const hashes = [...new Set(await kvListGet(listKey(safe)))] as Hex[]
-    if (hashes.length === 0) continue
+    const props = await readStored(safe)
+    if (props.length === 0) continue
     const [safeNonce, threshold, owners] = (await Promise.all([
       publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'nonce' }),
       publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'getThreshold' }),
       publicClient.readContract({ address: safe, abi: safeAbi, functionName: 'getOwners' }),
     ])) as [bigint, bigint, Address[]]
-    const props = (await kvPool(hashes, 6, (h) => kvGetJson<StoredProposal | null>(propKey(safe, h), null))).filter(
-      (p): p is StoredProposal => p !== null,
-    )
-    // The proposal whose claim comes first owns its nonce; later claimants are superseded.
-    const winners = new Map<string, string>()
-    await kvPool([...new Set(props.map((p) => p.nonce))], 6, async (n) => {
-      const claims = await kvListGet(slotKey(safe, BigInt(n)))
-      winners.set(n, claims[0]?.split('-').slice(1).join('-') ?? '')
-    })
+    const perNonce = new Map<string, number>()
+    for (const p of props) if (BigInt(p.nonce) >= safeNonce) perNonce.set(p.nonce, (perNonce.get(p.nonce) ?? 0) + 1)
     for (const p of props) {
       const nonce = BigInt(p.nonce)
       const stale = nonce < safeNonce
       if (stale && !includeStale) continue
-      const superseded = !stale && winners.get(p.nonce) !== p.id
       const approvals = stale
         ? []
         : await publicClient.multicall({
@@ -269,10 +287,11 @@ export async function listPending(only?: Duty[], includeStale = false): Promise<
       const approvedBy = owners.filter((_, i) => (approvals as readonly bigint[])[i] === 1n)
       const met = BigInt(approvedBy.length) >= threshold
       out.push({
-        duty, safe, safeTxHash: p.hash, nonce: Number(p.nonce), to: p.to, data: p.data, method: methodOf(p.data),
+        duty, safe, safeTxHash: p.hash, nonce: Number(p.nonce), to: p.to, data: p.data, value: '0', method: methodOf(p.data),
         description: p.description, createdAt: p.createdAt, approvedBy, required: Number(threshold),
         owners, safeNonce: Number(safeNonce),
-        status: stale ? 'stale' : superseded ? 'superseded' : met && nonce === safeNonce ? 'ready' : 'pending',
+        status: stale ? 'stale' : met && nonce === safeNonce ? 'ready' : 'pending',
+        competing: stale ? 0 : (perNonce.get(p.nonce) ?? 1) - 1,
         signatures: packApprovedHashSignatures(approvedBy),
       })
     }

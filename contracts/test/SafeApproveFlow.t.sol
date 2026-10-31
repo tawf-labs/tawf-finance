@@ -224,4 +224,78 @@ contract SafeApproveFlowTest is Test {
         out = new bytes(len);
         for (uint256 i; i < len; i++) out[i] = b[start + i];
     }
+
+    function _execTo(address to, bytes memory data, bytes memory sigs) internal returns (bool) {
+        return safe.execTransaction(to, 0, data, 0, 0, 0, 0, address(0), payable(address(0)), sigs);
+    }
+
+    /// @dev Two proposals compete for one nonce: whichever executes first wins, the other can never run.
+    function test_competingProposalsFirstToExecuteWins() public {
+        uint256 n = safe.nonce();
+        bytes memory a = _data(1);
+        bytes memory b = _data(2);
+        bytes32 hA = _hash(a, n);
+        bytes32 hB = _hash(b, n);
+        assertTrue(hA != hB);
+        for (uint256 i; i < 2; i++) {
+            vm.startPrank(owners[i]);
+            safe.approveHash(hA);
+            safe.approveHash(hB);
+            vm.stopPrank();
+        }
+        _exec(b, _sigs(_two(owners[0], owners[1]))); // B executes first
+        assertEq(target.value(), 2);
+        vm.expectRevert(bytes("GS025")); // A is stale now
+        _exec(a, _sigs(_two(owners[0], owners[1])));
+    }
+
+    /// @dev The standard rejection: a zero-value call from the Safe to itself with empty data burns the nonce.
+    function test_rejectionBurnsTheNonceAndUnjamsTheQueue() public {
+        uint256 n = safe.nonce();
+        bytes memory jammed = _data(77); // the proposal nobody wants to run
+        bytes32 hJam = _hash(jammed, n);
+        bytes memory next = _data(5);
+        bytes32 hNext = _hash(next, n + 1); // queued behind it
+        bytes32 hReject = safe.getTransactionHash(address(safe), 0, "", 0, 0, 0, 0, address(0), address(0), n);
+        for (uint256 i; i < 2; i++) {
+            vm.startPrank(owners[i]);
+            safe.approveHash(hJam);
+            safe.approveHash(hReject);
+            safe.approveHash(hNext);
+            vm.stopPrank();
+        }
+        // the queued one cannot jump the queue
+        vm.expectRevert(bytes("GS025"));
+        _exec(next, _sigs(_two(owners[0], owners[1])));
+        // owners execute the rejection instead of the jammed call
+        assertTrue(_execTo(address(safe), "", _sigs(_two(owners[0], owners[1]))));
+        assertEq(safe.nonce(), n + 1);
+        assertEq(target.value(), 0, "the rejected call never ran");
+        vm.expectRevert(bytes("GS025")); // and it never can: its nonce is burned
+        _exec(jammed, _sigs(_two(owners[0], owners[1])));
+        // the queue moves
+        assertTrue(_exec(next, _sigs(_two(owners[0], owners[1]))));
+        assertEq(target.value(), 5);
+    }
+
+    /// @dev Approving the hash of one call does not allow another call: this is why the panel recomputes the
+    ///      hash from the decoded fields and approves that one. A stored hash that is not the hash of the
+    ///      shown call must never be approved.
+    function test_approvedHashOfAnotherCallDoesNotRunTheShownCall() public {
+        uint256 n = safe.nonce();
+        bytes memory shown = _data(1);
+        bytes memory hidden = _data(666);
+        bytes32 hHidden = _hash(hidden, n); // what a bad store could hand to the owners
+        assertTrue(hHidden != _hash(shown, n));
+        for (uint256 i; i < 2; i++) {
+            vm.prank(owners[i]);
+            safe.approveHash(hHidden);
+        }
+        // approvals sit on the hidden call, so the shown call has none
+        vm.expectRevert(bytes("GS025"));
+        _exec(shown, _sigs(_two(owners[0], owners[1])));
+        // and the hidden call would run, which is the harm the panel's check prevents
+        assertTrue(_exec(hidden, _sigs(_two(owners[0], owners[1]))));
+        assertEq(target.value(), 666);
+    }
 }

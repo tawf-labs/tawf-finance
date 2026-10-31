@@ -300,7 +300,7 @@ export interface SafeProposal {
   description: string;
 }
 
-export type SafeProposalStatus = 'pending' | 'ready' | 'stale' | 'superseded';
+export type SafeProposalStatus = 'pending' | 'ready' | 'stale';
 
 export interface PendingSafeTx {
   duty: SafeDuty;
@@ -309,6 +309,7 @@ export interface PendingSafeTx {
   nonce: number;
   to: `0x${string}`;
   data: `0x${string}`;
+  value: string;
   method: string | null;
   description: string;
   createdAt: number;
@@ -317,6 +318,7 @@ export interface PendingSafeTx {
   owners: `0x${string}`[];
   safeNonce: number;
   status: SafeProposalStatus;
+  competing: number;
   signatures: `0x${string}`;
 }
 
@@ -337,4 +339,9 @@ export function proposalSteps(out: unknown): TxStep[] {
     label: `Proposed to the ${p.duty} Safe, needs approval: ${p.description}`,
     note: `Safe tx ${p.safeTxHash.slice(0, 10)}..., nonce ${p.nonce}. Owners approve in Pending approvals on the admin pages.`,
   }));
+}
+
+/** Propose the Safe rejection for `nonce`, so owners can burn it and unjam the queue. */
+export function rejectSafeNonce(duty: SafeDuty, nonce: number, passcode: string): Promise<SafeProposal> {
+  return postAdmin<SafeProposal>('safe/reject', { duty, nonce }, passcode);
 }

@@ -8,7 +8,7 @@ import { concat, encodeAbiParameters, keccak256, toHex, type Address, type Hex }
 import { arbitrumSepolia } from 'viem/chains'
 import { safeTxHash, packApprovedHashSignatures, type SafeTxMessage } from '../src/web3/safe.js'
 import {
-  submitAdminTx, proposeToSafe, listPending, safesRequired, assertLiveChain, assertOperatorFallbackAllowed,
+  submitAdminTx, proposeToSafe, rejectNonce, listPending, safesRequired, assertLiveChain, assertOperatorFallbackAllowed,
 } from '../api/_tokenization/_lib/safe.js'
 import { selfServiceIssuer, selfServiceAgent } from '../api/_tokenization/_lib/identity.js'
 import { publicClient } from '../api/_tokenization/_lib/operator.js'
@@ -59,7 +59,6 @@ if (SAFE_TX_TYPEHASH !== '0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6e
 }
 
 // ---- 3. Fail closed ---------------------------------------------------------------------------------
-process.env.SAFE_SLOT_RECHECK_MS = '5'
 const call = {
   duty: 'minting' as const,
   address: '0x2222222222222222222222222222222222222222' as Address,
@@ -110,7 +109,7 @@ chainRead.getChainId = async () => 1
 await rejects('live chain mismatch', () => assertLiveChain(), /differs from deployments\.json/)
 ok('issuer, agent and live chain')
 
-// ---- 5. Proposals, nonces, approvals, stale ----------------------------------------------------------
+// ---- 5. Proposals, nonces, competing, rejection, dedupe, approvals, stale -----------------------------
 const SAFE = '0x4444444444444444444444444444444444444444' as Address
 process.env.MINTING_SAFE = SAFE
 const OWNERS = ['0xA000000000000000000000000000000000000001', '0xA000000000000000000000000000000000000002', '0xA000000000000000000000000000000000000003'] as Address[]
@@ -146,50 +145,118 @@ function fakeKv() {
       if (method === 'POST') { const b = JSON.parse(String(init?.body)); sets.set(b.key, b.value); return json({}) }
       return sets.has(key) ? json({ data: { value: sets.get(key) } }) : new Response('', { status: 404 })
     }
+    // The live list is SORTED, not in insertion order: the stub sorts on every read.
     if (method === 'POST' && items) {
       const l = lists.get(key); if (!l) return new Response('', { status: 404 })
       const { item } = JSON.parse(String(init?.body)); if (!l.includes(item)) l.push(item); return json({})
     }
     if (method === 'POST') { const b = JSON.parse(String(init?.body)); if (lists.has(b.key)) return new Response('', { status: 409 }); lists.set(b.key, [...b.items]); return json({}) }
-    return lists.has(key) ? json({ data: { items: lists.get(key) } }) : new Response('', { status: 404 })
+    return lists.has(key) ? json({ data: { items: [...lists.get(key)!].sort() } }) : new Response('', { status: 404 })
   }) as typeof fetch
   return { lists, sets }
 }
 {
-  fakeKv()
-  const out = await Promise.all(Array.from({ length: 5 }, (_, i) => proposeToSafe({ ...call, description: `p${i}` })))
-  const nonces = out.map((o) => Number(o.nonce)).sort((a, b) => a - b)
-  if (nonces.join() !== '0,1,2,3,4') throw new Error(`parallel nonces not distinct: ${nonces.join()}`)
-  ok('5 parallel proposals ' + nonces.join())
+  const kv = fakeKv()
+  // sequential proposals queue: nonce = max(Safe.nonce, highest pending + 1)
+  const p0 = await proposeToSafe({ ...call, args: [], description: 'first' })
+  const p1 = await proposeToSafe({ ...call, functionName: 'ping', description: 'second, different?' })
+  // identical call on the same computed nonce would dedupe only when the nonce is pinned the same: pin it
+  if (p0.nonce !== '0') throw new Error(`first proposal must target the Safe nonce, got ${p0.nonce}`)
+  if (p1.nonce !== '1') throw new Error(`second proposal must queue behind, got ${p1.nonce}`)
+  const same = await proposeToSafe({ ...call, description: 'again' }, { nonce: 1n })
+  if (same.safeTxHash !== p1.safeTxHash) throw new Error('an identical proposal on the same nonce must dedupe to the same hash')
+  if (kv.sets.size !== 2) throw new Error(`dedupe must not store a second proposal, have ${kv.sets.size}`)
+  ok('queue and dedupe')
 
-  // first proposal targets the current Safe nonce, the rest queue behind it
+  // several proposals may share a nonce and compete
+  const other = { ...call, abi: [{ type: 'function', name: 'pong', inputs: [], outputs: [], stateMutability: 'nonpayable' }] as const, functionName: 'pong' }
+  const c1 = await proposeToSafe(other, { nonce: 1n })
+  if (c1.safeTxHash === p1.safeTxHash) throw new Error('a different call has a different hash')
   let rows = await listPending(['minting'])
-  if (rows.length !== 5 || rows.some((r) => r.status === 'superseded')) throw new Error('expected 5 live proposals: ' + JSON.stringify(rows.map((r) => [r.nonce, r.status])))
-  // approvals: 1 of 2 -> pending, 2 of 2 on the next nonce -> ready, on a later nonce -> pending
-  const h0 = rows[0].safeTxHash, h1 = rows[1].safeTxHash
+  const at1 = rows.filter((r) => r.nonce === 1)
+  if (at1.length !== 2 || at1.some((r) => r.competing !== 1)) throw new Error('two proposals on nonce 1 must show as competing')
+  if (rows.find((r) => r.nonce === 0)?.competing !== 0) throw new Error('nonce 0 has no competitor')
+  ok('competing proposals')
+
+  // rejection: the standard Safe self-call with empty data, same nonce, dedupes
+  const r1 = await rejectNonce('minting', 1n)
+  const r1again = await rejectNonce('minting', 1n)
+  if (r1.safeTxHash !== r1again.safeTxHash || r1.nonce !== '1') throw new Error('rejection must target the nonce and dedupe')
+  rows = await listPending(['minting'])
+  const rej = rows.find((r) => r.safeTxHash === r1.safeTxHash)!
+  if (rej.to.toLowerCase() !== SAFE.toLowerCase() || rej.data !== '0x') throw new Error('rejection must be an empty call to the Safe itself')
+  if (rows.filter((r) => r.nonce === 1).length !== 3) throw new Error('the rejection competes with the proposals it rejects')
+  ok('rejection')
+
+  // approvals, ready, execution makes losers stale, then the queue moves
+  const h0 = p0.safeTxHash
   approved.add(`${OWNERS[0]}:${h0}`)
   rows = await listPending(['minting'])
-  if (rows[0].status !== 'pending' || rows[0].approvedBy.length !== 1) throw new Error('1 of 2 must stay pending')
+  if (rows.find((r) => r.safeTxHash === h0)!.status !== 'pending') throw new Error('1 of 2 stays pending')
   approved.add(`${OWNERS[2]}:${h0}`)
-  approved.add(`${OWNERS[0]}:${h1}`)
-  approved.add(`${OWNERS[1]}:${h1}`)
+  approved.add(`${OWNERS[0]}:${r1.safeTxHash}`)
+  approved.add(`${OWNERS[1]}:${r1.safeTxHash}`)
   rows = await listPending(['minting'])
-  if (rows[0].status !== 'ready') throw new Error('threshold met on the next nonce must be ready')
-  if (rows[1].status !== 'pending') throw new Error('a later nonce must wait even with the threshold met')
-  if (rows[0].signatures !== packApprovedHashSignatures([OWNERS[0], OWNERS[2]])) throw new Error('signatures must be the approvers, sorted')
-  // the Safe executes nonce 0: it is stale now and nonce 1 becomes ready
-  safeNonce = 1n
+  const row0 = rows.find((r) => r.safeTxHash === h0)!
+  if (row0.status !== 'ready') throw new Error('threshold met on the next nonce is ready')
+  if (rows.find((r) => r.safeTxHash === r1.safeTxHash)!.status !== 'pending') throw new Error('a later nonce waits even with the threshold met')
+  if (row0.signatures !== packApprovedHashSignatures([OWNERS[0], OWNERS[2]])) throw new Error('signatures are the approvers, sorted')
+  safeNonce = 1n // nonce 0 executed
   rows = await listPending(['minting'])
-  if (rows.some((r) => r.nonce === 0)) throw new Error('stale proposals are hidden by default')
-  if (rows[0].nonce !== 1 || rows[0].status !== 'ready') throw new Error('nonce 1 must be ready next')
+  if (rows.some((r) => r.nonce === 0)) throw new Error('executed proposals are hidden')
+  if (rows.find((r) => r.safeTxHash === r1.safeTxHash)!.status !== 'ready') throw new Error('the approved rejection is next')
+  safeNonce = 2n // the rejection executed: p1 and c1 targeted nonce 1, they are stale now
+  rows = await listPending(['minting'])
+  if (rows.length !== 0) throw new Error('losers of nonce 1 are stale and hidden')
   const all = await listPending(['minting'], true)
-  if (all.find((r) => r.nonce === 0)?.status !== 'stale') throw new Error('nonce below the Safe nonce is stale')
-  ok('pending, approvals, ready and stale')
+  if (!all.filter((r) => r.nonce === 1).every((r) => r.status === 'stale')) throw new Error('competing losers must be stale')
+  ok('approvals, ready, stale')
 
-  // a new proposal after the nonce moved targets the first free nonce at or above the Safe nonce
+  // the next proposal goes to the Safe nonce
   const next = await proposeToSafe({ ...call, description: 'after' })
-  if (Number(next.nonce) !== 5) throw new Error(`expected nonce 5, got ${next.nonce}`)
+  if (next.nonce !== '2') throw new Error(`expected nonce 2, got ${next.nonce}`)
+  // a rejection cannot target a used nonce
+  await rejects('used nonce', () => rejectNonce('minting', 1n), /already used/)
   ok('next nonce')
+}
+
+// ---- 6. Parallel proposals may share a nonce, never lose one ------------------------------------------
+{
+  safeNonce = 0n
+  fakeKv()
+  const out = await Promise.all(Array.from({ length: 5 }, (_, i) => proposeToSafe({ ...call, args: [], description: `p${i}`, functionName: 'ping' })))
+  const hashes = new Set(out.map((o) => o.safeTxHash))
+  // identical calls on the same nonce dedupe to one proposal, which is exactly the double-click case
+  if (hashes.size > 5 || hashes.size < 1) throw new Error('unexpected hashes')
+  const rows = await listPending(['minting'])
+  if (rows.length !== hashes.size) throw new Error('every distinct proposal must be listed')
+  ok('parallel proposals')
+}
+
+// ---- 7. The panel decoder: decode, recompute, mismatch -------------------------------------------------
+{
+  const { decodeProposal } = await import('../src/web3/safeDecode.js')
+  const { encodeFunctionData, parseAbi } = await import('viem')
+  const abi = parseAbi(['function distributeProfit(uint32 period, uint256 profitSen, uint256 epoch, bytes32[] proof)', 'function evil(uint256 x)'])
+  const target = '0x2222222222222222222222222222222222222222' as Address
+  const data = encodeFunctionData({ abi, functionName: 'distributeProfit', args: [3, 1000n, 7n, []] })
+  const d = decodeProposal(target, data, SAFE)
+  if (!d.known || d.functionName !== 'distributeProfit' || d.reencoded !== data) throw new Error('known call must decode and re-encode identically')
+  const hashOf = (dd: Hex) => safeTxHash(SAFE, { to: target, value: 0n, data: dd, operation: 0, safeTxGas: 0n, baseGas: 0n, gasPrice: 0n, gasToken: '0x0000000000000000000000000000000000000000', refundReceiver: '0x0000000000000000000000000000000000000000', nonce: 0n }, 421614)
+  if (hashOf(d.reencoded!) !== hashOf(data)) throw new Error('recomputed hash must equal the hash of the same call')
+  // the stored hash of a different call does not match what the panel shows
+  const evil = encodeFunctionData({ abi, functionName: 'evil', args: [1n] })
+  const storedForEvil = hashOf(evil)
+  if (decodeProposal(target, evil, SAFE).known) throw new Error('an unknown function must not decode as known')
+  if (hashOf(data) === storedForEvil) throw new Error('hashes of different calls must differ')
+  // trailing junk after a valid call: decodes but does not re-encode to the same bytes, so it is not verified
+  const junk = (data + 'deadbeef') as Hex
+  const dj = decodeProposal(target, junk, SAFE)
+  if (dj.known) throw new Error('data with trailing bytes must not verify')
+  const rejection = decodeProposal(SAFE, '0x', SAFE)
+  if (!rejection.rejection || !rejection.known) throw new Error('rejection must be recognised')
+  if (decodeProposal(target, '0x', SAFE).known) throw new Error('an empty call to another address is not a rejection')
+  ok('decoder and mismatch guard')
 }
 globalThis.fetch = realFetch
 void arbitrumSepolia
