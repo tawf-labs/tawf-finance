@@ -137,7 +137,8 @@ app.get('/token-claims', async (c) => {
     .orderBy(desc(t.blockNumber), desc(t.id))
     .limit(limitOf(limit, 100, 500))
   // Whether each identity is the token's current one RIGHT NOW (a later setOnchainID swap retires it).
-  const links = await db.select().from(tables.tokenIdentityLink)
+  const tokens = [...new Set(rows.map((r: any) => r.token as `0x${string}`))]
+  const links = tokens.length ? await db.select().from(tables.tokenIdentityLink).where(inArray(tables.tokenIdentityLink.token, tokens)) : []
   const currentOf = new Map<string, boolean>(links.map((l: any) => [String(l.id).toLowerCase(), Boolean(l.active)]))
   const events = rows.map((r: any) => ({ ...r, identityCurrent: currentOf.get(String(r.identity).toLowerCase()) ?? r.identityActive }))
   return json(c, { note: 'History only. Verify a claim with the token-identity API before relying on it. identityActive is the link when the event was indexed, identityCurrent is the link now.', events })

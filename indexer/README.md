@@ -41,6 +41,15 @@ A key that is missing or zero is skipped, so the config works before the beacon 
 
 Bigints are strings in JSON.
 
+## First Sepolia run checklist
+
+Before relying on the token identity index, do these once on Arbitrum Sepolia and watch the `token_claim` and `token_identity_link` tables:
+
+1. The claims added at deploy appear in `GET /token-claims?token=...`, one row per claim, with `identityActive` true.
+2. Do a real `setOnchainID` swap in which the NEW identity already has claims added BEFORE it is linked to the token. Confirm Ponder indexes those earlier claims from the factory child, with `identityActive` true for the new identity and `identityCurrent` false for the old one.
+3. Confirm `GET /token-claims` marks the claims of the old identity `identityCurrent: false` and that the app still shows only what the token-identity API verifies.
+4. `GET /health` is ok, a request without the bearer token gets 401 and a bad `topic` or `limit` gets 400.
+
 ## Local development
 
 ```bash
