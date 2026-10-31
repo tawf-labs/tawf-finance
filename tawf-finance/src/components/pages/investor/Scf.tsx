@@ -134,7 +134,7 @@ export function InvestorScf() {
         <div>
           <h1 className="font-serif text-3xl text-tawf-green mb-2">Urun Dana (SCF)</h1>
           <p className="text-tawf-muted">
-            Sharia securities crowdfunding for Indonesian SMEs, tokenized on Tawf. Your POJK 57/2020 investor limit is enforced by the token itself.
+            Sharia crowdfunding for Indonesian SMEs, tokenized by Tawf. The token enforces your investor limit.
           </p>
         </div>
         <ConnectButton variant="primary" size="md" />

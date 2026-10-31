@@ -52,7 +52,7 @@ const DEPOSITO: ProductCopy = {
   ],
   stepTint: ['bg-mint', 'bg-butter', 'bg-peach', 'bg-mint', 'bg-butter', 'bg-peach', 'bg-mint'],
   receiptTitle: ['One receipt,', 'many banks.'],
-  receiptLead: 'Your position will be a receipt for your own deposito, held in your name at several licensed BPRS. The receipt will be a non-transferable token tied to your verified wallet. The customer deposito at every bank is public, and the receipt ends when you redeem.',
+  receiptLead: 'Your receipt will be a non-transferable token for your own deposito at licensed BPRS. The total at every bank is public, and it ends when you redeem.',
   receipt: [
     { s: 'Placed', fn: 'planned: receipt minted', stamp: 'Placed', tone: 'text-honey', b: 'Your rupiah is placed as a mudharabah deposito and the receipt is minted to your verified wallet. Specimen values.' },
     { s: 'Earning', fn: 'ProfitRecorded event', stamp: 'Earning', tone: 'text-jade', b: 'Each period the banks credit their share of profit. Profit depends on the banks and is not guaranteed.' },
@@ -83,7 +83,7 @@ const SCF: ProductCopy = {
   // Each step's card takes the next pastel, so the sticky dial visibly changes chapter.
   stepTint: ['bg-mint', 'bg-butter', 'bg-peach', 'bg-mint', 'bg-butter', 'bg-peach'],
   receiptTitle: ['One token,', 'one offering.'],
-  receiptLead: 'Your position is one sukuk token in an SME offering. You can see the amount raised and the reserve behind it, and it ends when you redeem.',
+  receiptLead: 'Your position is one sukuk token in an SME offering, with the amount raised and the reserve visible. It ends when you redeem.',
   receipt: [
     { s: 'Subscribed', fn: 'subscribe()', stamp: 'Escrowed', tone: 'text-honey', b: 'Your stablecoins wait in escrow while the offering is open and sukuk tokens are minted to you 1:1. If the minimum raise is missed you are refunded.' },
     { s: 'Issued', fn: 'closeSubscription()', stamp: 'Issued', tone: 'text-jade', b: 'The raise closed and went to the SME. You keep your tokens and each period you claim the profit the SME pays.' },
@@ -339,7 +339,7 @@ function Hero() {
             </motion.span>
           </h1>
           <motion.p {...rise(3)} className="mt-8 max-w-md text-[1.1rem] leading-relaxed text-ink/75">
-            Tawf is the tokenization and verification partner of licensed asset originators. The Tawf Deposito Pool is mudharabah deposito in your own name at licensed Indonesian Islamic rural banks, with the total at every bank on chain. Urun Dana backs Indonesian SMEs through licensed sharia crowdfunding platforms, with your yearly limit enforced in the token.
+            Tawf tokenizes and verifies assets from licensed Shariah originators. Deposito in your name at licensed BPRS, and sharia crowdfunding for Indonesian SMEs, all checkable on chain.
           </motion.p>
           <motion.div {...rise(4)} className="mt-9 flex flex-wrap items-center gap-3">
             <a href="https://app.tawf.finance/login" className={solid}>Open the investor app</a>
@@ -676,7 +676,7 @@ function WhyScf() {
             <Words text="Crowdfunding where the rules" /> <Words text="live in the token." className="text-jade" delay={0.3} />
           </h2>
           <p className="text-[1.05rem] leading-relaxed text-ink/75 lg:col-span-4 lg:col-start-9">
-            SMEs raise funds through a licensed originator platform, which keeps the offering and the customer relationship. Tawf is its tokenization and verification partner: it puts the investor limit, the identity check and the reserve in the contracts, where anyone can read them.
+            SMEs raise funds on a licensed originator platform. Tawf puts the investor limit, the identity check and the reserve in the contracts, where anyone can read them.
           </p>
         </Reveal>
 
@@ -731,7 +731,7 @@ function WhyBprs() {
             <Words text="Rural Shariah banks look" /> <Words text="beyond their district." className="text-jade" delay={0.3} />
           </h2>
           <p className="text-[1.05rem] leading-relaxed text-ink/75 lg:col-span-4 lg:col-start-9">
-            The LPS caps the guaranteed deposit rate higher for BPR and BPRS than for commercial banks. The chart shows the two caps. It is context for why these banks look for funding from outside their district, not a rate Tawf pays.
+            The LPS caps the guaranteed deposit rate higher for BPR and BPRS than for commercial banks. This is why they seek funding beyond their district, not a rate Tawf pays.
           </p>
         </Reveal>
 

@@ -19,7 +19,7 @@ export function Earn() {
         eyebrow="Earn"
         title="Two ways to take part,"
         accent="on testnet"
-        lead="Tawf is the tokenization and verification partner of the licensed originators. The Tawf Deposito Pool is mudharabah deposito in your own name at licensed BPRS, paid in through a virtual account at a Shariah commercial bank (rupiah deposits opening soon). Urun Dana backs SMEs through licensed sharia crowdfunding platforms and is open on the Arbitrum Sepolia testnet with test funds. Profit depends on the banks and the underlying businesses and is never guaranteed."
+        lead="Tawf tokenizes and verifies assets from licensed Shariah originators. Rupiah deposito in your name opens soon, and Urun Dana is open on testnet with test funds. Profit is never guaranteed."
         actions={
           <>
             <a href={APP} className={solid}>Open the investor app</a>
