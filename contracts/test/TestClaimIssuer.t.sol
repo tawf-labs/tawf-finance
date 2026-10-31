@@ -51,6 +51,8 @@ contract TestClaimIssuerTest is Test {
         assertTrue(tir.hasClaimTopic(address(ci), 2));
         assertFalse(tir.hasClaimTopic(address(ci), 3), "no sandbox participant topic");
         assertFalse(tir.hasClaimTopic(address(ci), 4));
+        for (uint256 t = 10; t <= 13; t++) assertTrue(tir.hasClaimTopic(address(ci), t), "token claim topics");
+        assertFalse(tir.hasClaimTopic(address(ci), 14));
         assertTrue(ci.keyHasPurpose(keccak256(abi.encode(signer)), 3));
     }
 
