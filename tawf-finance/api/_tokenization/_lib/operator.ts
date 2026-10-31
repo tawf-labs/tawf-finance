@@ -185,6 +185,8 @@ export const addresses = {
   mockUsdg: ((deployments as Record<string, unknown>).mockUsdg ?? ZERO) as Address,
   identityRegistry: deployments.identityRegistry as Address,
   claimIssuer: deployments.claimIssuer as Address,
+  // Testnet-only ClaimIssuer for the faucet and screening (KYC and TAWF_SCREENED topics only).
+  testClaimIssuer: ((deployments as Record<string, unknown>).testClaimIssuer ?? ZERO) as Address,
   implementationAuthority: deployments.implementationAuthority as Address,
   kycClaimTopic: BigInt(deployments.kycClaimTopic ?? 1),
   tawfScreenedTopic: BigInt(deployments.tawfScreenedTopic ?? 2),

@@ -11,6 +11,7 @@ import {
   readableError,
   seriesTarget,
 } from '../_lib/operator.js'
+import { submitAdminTx } from '../_lib/safe.js'
 import { mockTokenAbi, tawfSeriesAbi } from '../_lib/abis.js'
 import type { IdentityStep } from '../_lib/identity.js'
 
@@ -57,14 +58,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (allowed) {
       steps.push({ label: 'Already a settlement coin', skipped: true })
     } else {
-      const txHash = (await wc.writeContract({
+      // Governance duty: the settlement-coin allowlist is changed by the Governance Safe.
+      const sent = await submitAdminTx({
+        duty: 'governance',
         address: series,
         abi: tawfSeriesAbi,
         functionName: 'addStablecoin',
         args: [token],
-      })) as Hex
-      await publicClient.waitForTransactionReceipt({ hash: txHash })
-      steps.push({ label: 'Added to the series allowlist', txHash })
+        description: `Add ${token} to the series settlement coins`,
+      })
+      if (sent.proposed) {
+        res.status(202).json({ ...sent, token, steps })
+        return
+      }
+      steps.push({ label: 'Added to the series allowlist', txHash: sent.txHash })
     }
 
     // Payouts transfer from the treasury, so it needs a balance in the coin.

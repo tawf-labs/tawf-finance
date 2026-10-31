@@ -84,3 +84,13 @@ await rejects('mainnet no safe', () => submitAdminTx(call, 42161), /never sends 
 await rejects('testnet fallback', () => submitAdminTx(call, 421614), /DEMO_OPERATOR_KEY is not set/)
 globalThis.fetch = realFetch
 console.log('safe-selftest fail-closed ok')
+
+// ---- Test ClaimIssuer is testnet only ---------------------------------------------------
+import { selfServiceIssuer } from '../api/_tokenization/_lib/identity.js'
+try {
+  selfServiceIssuer(42161)
+  throw new Error('selfServiceIssuer must refuse a non-Sepolia chain')
+} catch (e) {
+  if (!/testnet only/.test((e as Error).message)) throw e
+}
+console.log('safe-selftest test-issuer chain guard ok')

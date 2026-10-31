@@ -17,6 +17,8 @@ import {
   type Address,
   type Hex,
 } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+import { arbitrumSepolia } from 'viem/chains'
 import {
   publicClient,
   walletClient,
@@ -46,17 +48,45 @@ export interface IdentityStep {
 }
 
 /**
+ * Who issues the self-service (faucet and screening) claims.
+ *
+ * Testnet only. On Arbitrum Sepolia a separate TEST ClaimIssuer signs them: an EOA key
+ * (TEST_CLAIM_ISSUER_KEY) that is a claim-signing key of the `testClaimIssuer` contract, which is a
+ * trusted issuer for the KYC and TAWF_SCREENED topics only. The real ClaimIssuer (`claimIssuer`) is
+ * managed by the Compliance Safe and never signs through this API.
+ *
+ * Fails closed: off chain 421614 it always throws. On 421614 with no `testClaimIssuer` deployed yet
+ * (the pre-Safe stack) it falls back to the operator key and the old `claimIssuer`.
+ */
+export function selfServiceIssuer(chainId: number = Number(addresses.chainId)): {
+  address: Address
+  sign: (message: Hex) => Promise<Hex>
+} {
+  if (chainId !== arbitrumSepolia.id) {
+    throw new Error('Self-service claims are testnet only: this chain has no test ClaimIssuer.')
+  }
+  if (addresses.testClaimIssuer === ZERO) {
+    return { address: addresses.claimIssuer, sign: (m) => account().signMessage({ message: { raw: toBytes(m) } }) }
+  }
+  const k = process.env.TEST_CLAIM_ISSUER_KEY
+  if (!k) throw new Error('TEST_CLAIM_ISSUER_KEY is not set')
+  const signer = privateKeyToAccount((k.startsWith('0x') ? k : `0x${k}`) as Hex)
+  return { address: addresses.testClaimIssuer, sign: (m) => signer.signMessage({ message: { raw: toBytes(m) } }) }
+}
+
+/**
  * Build the eth-signed KYC claim exactly as ClaimIssuer.isClaimValid expects:
  * dataHash = keccak256(abi.encode(identity, topic, data)); signed as a message.
  */
 async function signKycClaim(identity: Address, topic: bigint, data: Hex): Promise<Hex> {
+  // The signature must come from a claim key of the issuer that is named in addClaim (selfServiceIssuer).
   const dataHash = keccak256(
     encodeAbiParameters(
       [{ type: 'address' }, { type: 'uint256' }, { type: 'bytes' }],
       [identity, topic, data],
     ),
   )
-  return account().signMessage({ message: { raw: toBytes(dataHash) } })
+  return selfServiceIssuer().sign(dataHash)
 }
 
 /**
@@ -110,7 +140,7 @@ export async function ensureVerified(user: Address): Promise<{ steps: IdentitySt
     address: identity,
     abi: identityAbi,
     functionName: 'addClaim',
-    args: [addresses.kycClaimTopic, 1n, addresses.claimIssuer, sig, claimData, ''],
+    args: [addresses.kycClaimTopic, 1n, selfServiceIssuer().address, sig, claimData, ''],
   })
   await publicClient.waitForTransactionReceipt({ hash: addClaimHash })
   steps.push({ label: 'Added KYC claim signed by the trusted ClaimIssuer', txHash: addClaimHash })
@@ -172,7 +202,7 @@ export async function issueScreeningClaim(
     address: identity,
     abi: identityAbi,
     functionName: 'addClaim',
-    args: [topic, 1n, addresses.claimIssuer, sig, claimData, ''],
+    args: [topic, 1n, selfServiceIssuer().address, sig, claimData, ''],
   })
   await publicClient.waitForTransactionReceipt({ hash: addClaimHash })
   steps.push({
@@ -194,7 +224,7 @@ export async function hasValidScreeningClaim(user: Address, topic: bigint): Prom
   })) as Address
   if (identity === ZERO) return false
   const claimId = keccak256(
-    encodeAbiParameters([{ type: 'address' }, { type: 'uint256' }], [addresses.claimIssuer, topic]),
+    encodeAbiParameters([{ type: 'address' }, { type: 'uint256' }], [selfServiceIssuer().address, topic]),
   )
   try {
     const [, , issuer, signature, data] = (await publicClient.readContract({
@@ -205,7 +235,7 @@ export async function hasValidScreeningClaim(user: Address, topic: bigint): Prom
     })) as readonly [bigint, bigint, Address, Hex, Hex, string]
     if (issuer === ZERO) return false
     return (await publicClient.readContract({
-      address: addresses.claimIssuer,
+      address: selfServiceIssuer().address,
       abi: claimIssuerAbi,
       functionName: 'isClaimValid',
       args: [identity, topic, signature, data],
