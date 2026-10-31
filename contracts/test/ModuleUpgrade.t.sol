@@ -8,6 +8,7 @@ pragma solidity 0.8.17;
 import "forge-std/Test.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import { ModuleUpgradeBatch } from "../src/proxy/ModuleUpgradeBatch.sol";
 import { ModuleAdmin } from "../src/proxy/ModuleAdmin.sol";
 import { ModuleProxies } from "../src/proxy/ModuleProxies.sol";
 import { SandboxModule } from "../src/deposito/SandboxModule.sol";
@@ -286,6 +287,32 @@ contract ScfModuleV2Init is ScfInvestorLimitModule {
     }
 }
 
+/// @dev Answers like a Safe for the hand-over check.
+contract MockSafe {
+    address[] internal _owners;
+    uint256 internal _threshold;
+
+    constructor(uint256 owners_, uint256 threshold_) {
+        for (uint256 i; i < owners_; i++) {
+            _owners.push(address(uint160(0xA000 + i)));
+        }
+        _threshold = threshold_;
+    }
+
+    function getOwners() external view returns (address[] memory) {
+        return _owners;
+    }
+
+    function getThreshold() external view returns (uint256) {
+        return _threshold;
+    }
+}
+
+/// @dev A contract that is not a Safe.
+contract NotASafe {
+    uint256 public x;
+}
+
 contract ModuleBeaconHandOverTest is Test {
     address internal operator = makeAddr("operator");
     address internal safe = makeAddr("governanceSafe");
@@ -299,7 +326,7 @@ contract ModuleBeaconHandOverTest is Test {
 
     function test_handOverAll_movesEveryBeaconAndReadsBack() public {
         ModuleProxies.Beacons memory b = _beacons();
-        vm.etch(safe, hex"00"); // a deployed contract stands in for the Safe
+        safe = address(new MockSafe(3, 2));
         ModuleProxies.handOverAll(b, safe);
         assertEq(b.sandbox.owner(), safe);
         assertEq(b.checkpoint.owner(), safe);
@@ -323,7 +350,7 @@ contract ModuleBeaconHandOverTest is Test {
         ModuleProxies.Beacons memory b = _beacons();
         ScfInvestorLimitModule a = ModuleProxies.scfLimitProxy(address(b.scfLimit), ir);
         ScfInvestorLimitModule c = ModuleProxies.scfLimitProxy(address(b.scfLimit), ir);
-        vm.etch(safe, hex"00");
+        safe = address(new MockSafe(3, 2));
         ModuleProxies.handOverAll(b, safe);
         address v2 = address(new ScfModuleV2Init());
         vm.expectRevert("Ownable: caller is not the owner");
@@ -337,7 +364,7 @@ contract ModuleBeaconHandOverTest is Test {
     function test_reinitializer_isOwnerOnly_andRunsInOneBatch() public {
         ModuleProxies.Beacons memory b = _beacons();
         ScfInvestorLimitModule m = ModuleProxies.scfLimitProxy(address(b.scfLimit), ir);
-        vm.etch(safe, hex"00");
+        safe = address(new MockSafe(3, 2));
         ModuleProxies.handOverAll(b, safe);
         m.transferOwnership(safe);
         vm.prank(safe);
@@ -360,5 +387,91 @@ contract ModuleBeaconHandOverTest is Test {
         vm.prank(safe);
         vm.expectRevert("Initializable: contract is already initialized");
         ScfModuleV2Init(address(m)).initializeV2(2);
+    }
+
+    function test_handOver_requiresARealMultisig() public {
+        ModuleProxies.Beacons memory b = _beacons();
+        address notSafe = address(new NotASafe()); // an unrelated contract
+        address oneOwner = address(new MockSafe(1, 1));
+        address lowThreshold = address(new MockSafe(3, 1));
+        address ok = address(new MockSafe(2, 2));
+        vm.expectRevert("governance is not a Safe (getOwners)");
+        this.callHandOver(b.sandbox, notSafe);
+        vm.expectRevert("governance has fewer than 2 owners");
+        this.callHandOver(b.sandbox, oneOwner);
+        vm.expectRevert("governance threshold below 2");
+        this.callHandOver(b.sandbox, lowThreshold);
+        assertEq(b.sandbox.owner(), address(this), "nothing moved");
+        this.callHandOver(b.sandbox, ok);
+        assertEq(b.sandbox.owner(), ok);
+    }
+
+    function _decodeAndRun(bytes memory batch, address asSafe) internal returns (uint256 count) {
+        uint256 i;
+        while (i < batch.length) {
+            address to;
+            uint256 len;
+            assembly {
+                to := shr(96, mload(add(add(batch, 0x20), add(i, 1))))
+                len := mload(add(add(batch, 0x20), add(i, 53)))
+            }
+            bytes memory data = new bytes(len);
+            for (uint256 j; j < len; j++) data[j] = batch[i + 85 + j];
+            vm.prank(asSafe);
+            (bool ok,) = to.call(data);
+            require(ok, "batch call failed");
+            i += 85 + len;
+            count++;
+        }
+    }
+
+    function test_upgradeBatch_namesEveryInstanceAndRunsAsOne() public {
+        ModuleProxies.Beacons memory b = _beacons();
+        ScfInvestorLimitModule m1 = ModuleProxies.scfLimitProxy(address(b.scfLimit), ir);
+        ScfInvestorLimitModule m2 = ModuleProxies.scfLimitProxy(address(b.scfLimit), ir);
+        ScfInvestorLimitModule m3 = ModuleProxies.scfLimitProxy(address(b.scfLimit), ir);
+        safe = address(new MockSafe(3, 2));
+        ModuleProxies.handOverAll(b, safe);
+        m1.transferOwnership(safe);
+        m2.transferOwnership(safe);
+        m3.transferOwnership(safe);
+        vm.startPrank(safe);
+        m1.acceptOwnership();
+        m2.acceptOwnership();
+        m3.acceptOwnership();
+        vm.stopPrank();
+
+        address[] memory all = new address[](3);
+        all[0] = address(m1);
+        all[1] = address(m2);
+        all[2] = address(m3);
+        address v2 = address(new ScfModuleV2Init());
+        bytes memory batch = ModuleUpgradeBatch.buildChecked(
+            b.scfLimit, v2, all, abi.encodeCall(ScfModuleV2Init.initializeV2, (7)), safe
+        );
+        assertEq(_decodeAndRun(batch, safe), 4, "upgradeTo plus one reinitializer per instance");
+        assertEq(ScfModuleV2Init(address(m1)).newField(), 7);
+        assertEq(ScfModuleV2Init(address(m2)).newField(), 7);
+        assertEq(ScfModuleV2Init(address(m3)).newField(), 7);
+    }
+
+    function test_upgradeBatch_refusesAnInstanceNotOwnedByGovernance() public {
+        ModuleProxies.Beacons memory b = _beacons();
+        ScfInvestorLimitModule m1 = ModuleProxies.scfLimitProxy(address(b.scfLimit), ir);
+        ScfInvestorLimitModule m2 = ModuleProxies.scfLimitProxy(address(b.scfLimit), ir);
+        safe = address(new MockSafe(3, 2));
+        ModuleProxies.handOverAll(b, safe);
+        m1.transferOwnership(safe);
+        vm.prank(safe);
+        m1.acceptOwnership(); // m2 is still owned by the deployer
+        address[] memory all = new address[](2);
+        all[0] = address(m1);
+        all[1] = address(m2);
+        vm.expectRevert("instance not owned by governance");
+        this.callBuildChecked(b.scfLimit, all, safe);
+    }
+
+    function callBuildChecked(UpgradeableBeacon beacon, address[] memory all, address gov) external view {
+        ModuleUpgradeBatch.buildChecked(beacon, address(1), all, "", gov);
     }
 }

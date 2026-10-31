@@ -7,6 +7,12 @@ import { SandboxModule } from "../deposito/SandboxModule.sol";
 import { DistributionCheckpointModule } from "../sukuk/DistributionCheckpointModule.sol";
 import { ScfInvestorLimitModule } from "../scf/ScfInvestorLimitModule.sol";
 
+/// @dev The Safe ABI used to recognise a real multisig. No Safe contract is imported.
+interface ISafeLike {
+    function getOwners() external view returns (address[] memory);
+    function getThreshold() external view returns (uint256);
+}
+
 /**
  * @title ModuleProxies
  * @notice Deploys the T-REX compliance modules as beacon proxies. There is one
@@ -35,13 +41,29 @@ library ModuleProxies {
 
     /// @notice Hand one beacon to the Governance Safe and read the owner back. The OZ v4 beacon owner
     ///         moves in one step and can renounce, so a wrong address would be permanent: refuse the
-    ///         zero address and anything that is not a deployed contract (a Safe is one), then require
-    ///         the stored owner to equal `governance`.
+    ///         zero address, anything that is not a deployed contract and anything that does not look like a
+    ///         multisig Safe (see `requireMultisig`), then require the stored owner to equal `governance`.
     function handOver(UpgradeableBeacon beacon, address governance) internal {
         require(governance != address(0), "governance is zero");
         require(governance.code.length > 0, "governance is not a contract");
+        requireMultisig(governance);
         beacon.transferOwnership(governance);
         require(beacon.owner() == governance, "beacon owner not governance");
+    }
+
+    /// @notice Require `governance` to answer like a Safe with at least 2 owners and a threshold of at
+    ///         least 2, so a 1-of-N or an empty contract cannot receive the upgrade rights.
+    function requireMultisig(address governance) internal view {
+        try ISafeLike(governance).getOwners() returns (address[] memory owners) {
+            require(owners.length >= 2, "governance has fewer than 2 owners");
+        } catch {
+            revert("governance is not a Safe (getOwners)");
+        }
+        try ISafeLike(governance).getThreshold() returns (uint256 threshold) {
+            require(threshold >= 2, "governance threshold below 2");
+        } catch {
+            revert("governance is not a Safe (getThreshold)");
+        }
     }
 
     /// @notice Hand all three beacons over in the same run, so the deployer never keeps upgrade rights.
