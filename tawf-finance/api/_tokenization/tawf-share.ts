@@ -78,9 +78,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return
       }
       const recipient = (percent > 0 ? getAddress(raw) : '0x0000000000000000000000000000000000000000') as Address
-      // Treasury duty: the share and the fee wallet decide where profit goes.
+      // Governance duty: the share and the fee wallet are a setting. Paying the share out is Treasury (below).
       const sent = await submitAdminTx({
-        duty: 'treasury',
+        duty: 'governance',
         address: target,
         abi,
         functionName: 'setTawfShare',

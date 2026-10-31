@@ -10,6 +10,8 @@ import { decodeFunctionData, encodeFunctionData, parseAbi, type Abi, type Addres
 const PROPOSED_ABI = parseAbi([
   'function approve(address spender, uint256 amount)',
   'function closeSubscription()',
+  'function pause()',
+  'function unpause()',
   'function distribute(uint16 period, address coin, uint256 amount, uint256 epoch, bytes32[] proof)',
   'function releaseHeldProfit(uint16 index, address coin, uint256 amount, uint256 epoch, bytes32[] proof)',
   'function settleMaturity(address coin, uint256 amount, uint256 epoch, bytes32[] proof)',

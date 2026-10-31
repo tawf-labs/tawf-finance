@@ -16,10 +16,13 @@ export interface DeployedSet {
   /** ModularCompliance contracts of our series tokens (read on chain from each token). */
   compliances: Address[];
   stablecoins: Address[];
+  /** Series and sukuk tokens. The T-REX token is the contract that has pause and unpause today. */
+  tokens: Address[];
 }
 
 const SERIES_KEYS = ['tawfSeries', 'tawfSeries2', 'depositoPool'];
 export const SERIES_TOKEN_KEYS = ['tawfSeriesToken', 'tawfSeries2Token', 'depositoPoolToken'];
+const TOKEN_KEYS = [...SERIES_TOKEN_KEYS, 'sukukToken', 'sukuk2Token', 'scfToken'];
 const DISTRIBUTOR_KEYS = ['sukukDistributor', 'sukuk2Distributor', 'scfDistributor'];
 const SCF_LIMIT_KEYS = ['scfLimitModule'];
 const SANDBOX_KEYS = ['sandboxModule', 'tawfSeries2Sandbox', 'depositoPoolSandbox'];
@@ -44,12 +47,19 @@ export function deployedSet(raw: Record<string, unknown>, complianceOf: Address[
     sandboxes: pick(raw, SANDBOX_KEYS),
     compliances: [...new Set([...complianceOf, ...pick(raw, ['scfCompliance'])].map((a) => a.toLowerCase()))].map((a) => getAddress(a) as Address),
     stablecoins: pick(raw, STABLE_KEYS),
+    tokens: pick(raw, TOKEN_KEYS),
   };
+}
+
+/** Everything that may expose pause and unpause: our series, distributors and tokens. The ledgers have no pause. */
+function pausables(set: DeployedSet): Address[] {
+  return [...set.series, ...set.distributors, ...set.tokens];
 }
 
 const has = (list: Address[], a: unknown) => typeof a === 'string' && list.some((x) => x.toLowerCase() === a.toLowerCase());
 
-const TREASURY_FNS = new Set(['distribute', 'releaseHeldProfit', 'settleMaturity', 'closeSubscription', 'setTawfShare', 'claimTawfShare', 'distributeProfit']);
+// setTawfShare (the fee setting) is Governance, claimTawfShare (paying it out) is Treasury.
+const TREASURY_FNS = new Set(['distribute', 'releaseHeldProfit', 'settleMaturity', 'closeSubscription', 'claimTawfShare', 'distributeProfit']);
 
 export interface PolicyResult {
   ok: boolean;
@@ -77,6 +87,8 @@ export function checkPolicy(duty: Duty, safe: Address, to: Address, c: DecodedCa
     case 'compliance':
       return (fn === 'resetUsage' || fn === 'setProfile') && has(set.scfLimit, to) ? { ok: true, reason: '' } : no(`${fn} is not a Compliance action on our SCF limit module.`);
     case 'governance':
+      if (fn === 'unpause') return has(pausables(set), to) ? { ok: true, reason: '' } : no('unpause must target one of our contracts.');
+      if (fn === 'setTawfShare') return has([...set.series, ...set.distributors], to) ? { ok: true, reason: '' } : no('setTawfShare must target one of our series or distributors.');
       if (fn === 'addStablecoin') return has(set.series, to) ? { ok: true, reason: '' } : no('addStablecoin must target one of our series.');
       if (fn === 'callModuleFunction') {
         if (!has(set.compliances, to)) return no('callModuleFunction must target the compliance contract of one of our tokens.');
@@ -85,6 +97,7 @@ export function checkPolicy(duty: Duty, safe: Address, to: Address, c: DecodedCa
       }
       return no(`${fn} is not a Governance action.`);
     default:
-      return no('The Guardian Safe only pauses, which this API does not propose.');
+      // Guardian: pause only. Unpausing is Governance.
+      return fn === 'pause' && has(pausables(set), to) ? { ok: true, reason: '' } : no('The Guardian Safe may only pause one of our contracts (or reject a nonce). Unpausing is Governance.');
   }
 }
